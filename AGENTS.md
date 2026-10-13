@@ -5,6 +5,7 @@
 - El trabajo cotidiano se realiza en la rama `dev`; `main` representa estado estable.
 - No versionar corpus físico, PDFs documentales masivos, backups, bases locales, recovery ni secretos; conservar fixtures sintéticos pequeños necesarios para tests.
 - `_recovery-work/` y demás carpetas de recuperación nunca son fuentes versionadas.
+- Evitar exclusiones globales por nombres genéricos de directorio (por ejemplo `logs/`, `data/`, `storage/` o `build/`) que puedan coincidir con código fuente. Ignorar rutas runtime concretas y comprobar `git check-ignore -v` antes de excluir archivos bajo `src/`.
 
 Para cualquier trabajo de adquisición de fallos, leer primero `docs-integracion/BJC-ADQUISICION-JURISPRUDENCIA.md` y actualizar ese master. Los informes numerados 146–158 son evidencia histórica; no repetir auditorías cerradas ni crear informes rutinarios nuevos.
 
