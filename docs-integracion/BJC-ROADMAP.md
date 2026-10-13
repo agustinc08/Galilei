@@ -259,3 +259,9 @@ La línea de jurisprudencia queda en `feature/jurisprudencia`; no integrar aún 
 5. **P3 — CIJ histórico / Datos Abiertos:** dejar en espera hasta obtener un canal institucional autorizado; respetar rutas disallow y demora declarada.
 
 No puede calcularse ganancia documental global ni valor/costo numérico sin un denominador oficial. La prioridad P0 tiene la mayor relación valor/esfuerzo informativo: determina primero el universo real, calendario y ruta de recuperación de primera instancia; la revisión P1 aprovecha documentos ya obtenidos sin iniciar adquisición externa. Evidencia no versionada y matriz por año/Sala: `_recovery-work/jurisprudencia-discovery/`.
+
+## Cierre parcial Sprint J1 — 2026-10-13
+
+Se clasificaron con evidencia de procedencia los 4.596 registros Civil sin instancia y se aplicó `SECOND_INSTANCE` a todos; Search permaneció íntegro. Quedan 451 grupos para revisión humana/asociación soportada (328 conflictos, 106 candidatos, 15 SHA alternativos y 2 matches jurídicos con SHA diferente) y un PDF corrupto rechazado. No hubo adquisición externa, desafío, fusión ni documento duplicado. El coverage engine está preparado para recibir censo oficial CSV/JSON; hoy la cobertura sólo puede medirse dentro del set temático conocido.
+
+**Próximo trabajo recomendado: obtener un censo/export autorizado de primera instancia Civil**, con conteo por Juzgado y una ruta documental normal. Es la brecha sin denominador y hoy Galilei sólo tiene un fallo Civil de primera instancia; solicitar el universo antes de estimar backfill. En paralelo, mantener los 451 casos en export de revisión y definir un contrato de asociación que conserve SHA/identidad de archivo antes de enlazar los dos matches jurídicos exactos. No iniciar descarga masiva ni automatizar desafíos.

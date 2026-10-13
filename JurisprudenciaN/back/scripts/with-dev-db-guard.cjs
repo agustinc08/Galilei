@@ -199,6 +199,10 @@ const actions = {
   'civil-coverage-summary': 'pnpm.cmd exec ts-node scripts/sources/civil/coverage-summary.ts',
   'civil-quantification-snapshot': 'pnpm.cmd exec ts-node scripts/sources/civil/quantification-corpus-snapshot.ts',
   'sprint148-audit': 'node scripts/dev/sprint148-live-audit.cjs',
+  'sprint-j1-audit': 'node scripts/dev/sprint-j1-audit.cjs',
+  'sprint-j1-backup': 'pnpm.cmd exec ts-node scripts/dev/backup-dev-db.ts',
+  'sprint-j1-write-dry-run': 'node scripts/dev/sprint-j1-apply.cjs',
+  'sprint-j1-apply': 'node scripts/dev/sprint-j1-apply.cjs',
   'sprint148-ingest-preflight': 'node scripts/dev/sprint148-ingest.cjs',
   'sprint148-ingest': 'node scripts/dev/sprint148-ingest.cjs',
   'institutional-backup': 'pnpm.cmd exec ts-node scripts/dev/backup-dev-db.ts',
@@ -307,6 +311,11 @@ const childEnv = {
   BJC_CORPUS_PACKAGE_ARGS:
     action === 'corpus-package' ? JSON.stringify(process.argv.slice(3)) : '',
   BJC_SPRINT148_MODE: action === 'sprint148-audit' ? (process.argv[3] || 'dry-run') : '',
+  BJC_SPRINT_J1_MODE: action === 'sprint-j1-apply' ? 'apply' : action === 'sprint-j1-write-dry-run' ? 'dry-run' : '',
+  BJC_DEV_BACKUP_DIR: action === 'sprint-j1-backup'
+    ? path.resolve(__dirname, '../../../_recovery-work/jurisprudencia-j1/backups')
+    : process.env.BJC_DEV_BACKUP_DIR,
+  BJC_DEV_BACKUP_LABEL: action === 'sprint-j1-backup' ? 'sprint-j1-prewrite' : process.env.BJC_DEV_BACKUP_LABEL,
   BJC_SPRINT148_INGEST_MODE: action === 'sprint148-ingest-preflight' ? 'preflight' : '',
   BJC_CORPUS_STORAGE_PATH: action === 'sprint148-ingest'
     ? path.resolve(__dirname, '../../../_dev-corpus-storage')

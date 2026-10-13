@@ -91,6 +91,14 @@ El master operativo está en `BJC-ADQUISICION-JURISPRUDENCIA.md`. Histórico: b�
 
 El piloto Sprint 14.2 descargó e ingirió el primer paquete TFN histórico Civil en DEV (98 hashes únicos; el total de origen filtrado es 1.277). El barrido global no terminó: consultar el checkpoint SQLite y el master de adquisición.
 
+## Corte de procedencia y cobertura — Sprint J1 (2026-10-13)
+
+Los 4.596 documentos de Cuantificación antes sin instancia tienen procedencia `CIVIL_CUANTIFICACION_DANOS` y `metadataOriginal.sourceRecord.court` exacto `Cámara Nacional de Apelaciones en lo Civil`, más Sala A–M. Se clasificaron como `SECOND_INSTANCE`; la procedencia fuente original quedó intacta y la regla/evidencia normalizada quedó en metadata derivada y artefactos J1. El registro único de Juzgado Civil 64 sigue como `FIRST_INSTANCE`; no se infirieron fallos de primera instancia desde nombres de juzgados de origen.
+
+La cola 452 no se fusionó: 328 conflictos (285 `PDF_SHA_LINKS_MULTIPLE_LEGAL_IDENTITIES`, 31 con además `SAME_LEGAL_KEY_AND_SHA_REPEATED`, 4 discrepancias fecha-firma PDF, 3 SHA contra metadata contradictoria y las combinaciones de colisión restantes detalladas en el artefacto), 106 candidatos, 15 identidades/archivos distintos, 2 identidades jurídicas con SHA distintos y 1 PDF corrupto. Los dos últimos matches no se enlazaron: no se encontró `Sentencia` destino y el servicio actual sólo liga una fuente a Corpus si coincide SHA.
+
+La matriz reproducible por año y Sala compara el universo temático conocido (14.154 grupos expediente-año) con 4.756 documentos enlazados por SHA exacto. Otros 2 PDFs tienen identidad jurídica coincidente con SHA distinto y siguen sin vínculo. La proporción 4.756/14.154 = 33,6% sólo mide coincidencia conservadora dentro de ese set temático; no hay censo oficial completo para Cámara Civil, primera instancia y CSJN Civil, así que **no existe porcentaje de cobertura total**. El script `JurisprudenciaN/back/scripts/dev/jurisprudencia-coverage.cjs` admite futuros censos CSV/JSON y emite cortes por año/Sala/instancia/órgano.
+
 
 ## Corte vigente — TFN histórico Civil, Sprint 14.2
 
