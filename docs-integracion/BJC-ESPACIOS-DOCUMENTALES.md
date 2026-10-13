@@ -62,6 +62,35 @@ La eliminación física queda fuera del MVP para no borrar blobs compartidos. Re
 
 El Search PHRASE sigue con el estado PARTIAL documentado en `BJC-SEARCH.md`; Sprint 15 no implementa ni optimiza ese camino.
 
+## Sprint 15.1.1 — rendimiento ACL de TERM privado (2026-10-13)
+
+**Resultado: PARTIAL.** Se mitigó el plan ACL repetitivo mediante mantenimiento de estadísticas local, sin cambiar el modelo de acceso, el SQL de filtrado por workspace ni agregar índices. El conteo TERM sigue exacto y aislado. La meta no queda cerrada porque 1.000 documentos llegó a p95 417 ms (objetivo 400) y 5.000 documentos llegó a p95 839 ms (objetivo 800), con max/p50 4,74× en la búsqueda común. La búsqueda de cero resultados también es costosa por el conteo exacto.
+
+| Documentos privados | TERM común p50/p95 | TERM medio p50/p95 | TERM raro p50/p95 | Cero p50/p95 |
+|---:|---:|---:|---:|---:|
+| 100 | 32,7 / 69,0 ms | 29,7 / 36,9 ms | 26,4 / 37,1 ms | 517,1 / 552,4 ms |
+| 500 | 122,8 / 129,2 ms | 85,7 / 109,3 ms | 58,9 / 72,8 ms | 552,2 / 561,4 ms |
+| 1.000 | 365,9 / 417,0 ms | 195,3 / 210,0 ms | 121,1 / 131,6 ms | 512,8 / 539,6 ms |
+| 5.000 | 181,1 / 838,9 ms | 400,0 / 645,8 ms | 150,9 / 169,5 ms | 567,2 / 587,1 ms |
+
+Cada tamaño usó una búsqueda de calentamiento y diez medidas; 1.000 y 5.000 tuvieron tres series. Se comprobó el total exacto para término común (todos), medio (cada segundo), raro (cada centésimo) y cero. En el último control de ACL isolated count delta p50/p95 fue 0,34/3,68 ms (100), −0,03/0,76 ms (500), 1,51/7,39 ms (1.000) y 0,56/14,57 ms (5.000); la diferencia negativa de 500 ms está dentro del ruido de una resta de mediciones. El count y la consulta de página tienen perfiles separados; en la muestra común de 5.000, página p50 fue 146 ms en la primera serie y subió en las series posteriores, mientras el count p50 subió de 14 a 62 ms.
+
+### Causa confirmada y mantenimiento
+
+El plan previo a mantenimiento de estadísticas tenía `CorpusDocument` como relación externa, estimaba 1 fila frente a 600 reales y ejecutaba un nested loop contra `WorkspaceDocument`: 600 loops, 292 filas internas por loop y 174.750 filas descartadas por el predicado de unión `CorpusDocument.id = WorkspaceDocument.documentId`. La búsqueda interna usaba el índice único `(workspaceId, documentId)`, pero sólo acotaba `workspaceId`; `documentId` se evaluaba como filtro de unión. Un Hash Join posterior recorrió el set de relaciones una vez y eliminó esas descartadas. El coste dejó de crecer como candidatos × relaciones del workspace.
+
+La migración aditiva `20261013150000_sprint1511_private_search_stats_maintenance` configura auto-ANALYZE local en `CorpusDocument` (threshold 50, scale factor 0,005) y `WorkspaceDocument` (threshold 50, scale factor 0,02), y ejecuta `ANALYZE` inicial en ambas. El dump previo DEV mide 570.040.509 bytes; SHA-256 `16c7bdf3712df3d95625bb00604ba716f71c2a9aa622ba42a0fc7b22995e30c9`. `autovacuum=on`, `n_mod_since_analyze=0` al cierre. Se conservaron índices existentes; no se agregó ninguno. El índice `(workspaceId, documentId)` ya existía. El planner puede elegir Seq Scan para el pequeño set de relaciones y Hash Join según cardinalidad; no se forzó un índice por hints.
+
+La ACL aislada después se resuelve como join por conjunto. Membership del usuario se comprueba una vez por request en el servicio; cada consulta de página/count mantiene el scope privado dentro de SQL, y la consulta de página recibe candidatos del CTE autorizado por workspace. Se probaron `EXISTS`, JOIN, IN y CTE materializado; con estadísticas frescas todos se redujeron a planes hash equivalentes, así que no se retuvo una reescritura distinta.
+
+### Límite restante
+
+El EXPLAIN reproducible de candidatos privados a 5.000 muestra que `CorpusSearchToken_token_trgm_idx` entrega 113.800 entradas para 5.000 IDs únicos. Sigue `Unique`/`Gather Merge`, con 10.000 búsquedas por PK de `CorpusDocument`; la ACL ya aparece como Hash Join y no elimina filas. El candidate page simplificado ejecutó en 142 ms, pero la latencia medida de consulta de página alcanzó 747 ms p50 de la tercera serie y la request tuvo p95 839 ms. El count exacto de cero resultados examina el GIN de `CorpusDocument.searchText` y la request se mantiene entre 500–590 ms incluso con sólo 100 documentos privados. El trabajo residual es reducir candidatos trigram falsos/duplicados y medir la consulta completa page/hydration; no ampliar todavía los espacios.
+
+La carpeta con 2.500 de 5.000 documentos devolvió 2.500 exactos; búsqueda total devolvió 5.000. Páginas 1, 125 y 250 devolvieron 20 filas cada una, 60 IDs únicos y cero faltantes. Olas sintéticas de 1/5/10 requests terminaron sin errores ni timeouts (163,1 / 213,9 / 188,9 ms de tiempo agregado). A/B cruzado, conteos, metadata, viewer, descarga, membership, espacio desactivado y exclusión de admin global se mantienen PASS. Search general verify PASS (17.078 documentos / 18.799.500 tokens, stale 0, discrepancias 0/100), paridad 40/40, viewer 6/6. TERM general p50/p95 216/322 ms frente al run comparable Sprint 14.9.2 de 201/279 ms; +7,7%/+15,3%. PHRASE sólo smoke/perfil comparativo: 1.711/2.621 ms, sin cambios al motor; deuda de total exacto permanece.
+
+Artefactos no versionados: `_recovery-work/sprint1511/` (`baseline.json`, datasets, benchmark privado antes/después, ACL count, query shapes, audit de índices, planes de ejecución, variación, general Search, paginación/carpeta, concurrencia, verificación de corpus, paridad, backup y resumen final). No se usaron datos reales de juzgados ni se accedió a producción/preproducción. Esta evidencia técnica no constituye UAT humano.
+
 ## Sprint 15.1 — UX, administración y UAT técnico (2026-10-13)
 
 La UI de `Mi espacio` ahora muestra el nombre/tipo de la dependencia, el rol y el alcance de búsqueda; usuarios con un espacio entran directamente y usuarios multi-espacio cambian mediante selector. Usuarios sin membresía reciben un estado vacío claro. Carpetas tienen ruta y navegación de raíz, búsqueda puede limitarse a carpeta actual o abarcar todas, y existe búsqueda privada por nombre de archivo. Resultados y documentos recientes presentan nombre, fragmento/página, carpeta, fecha, cargador y estado traducido. El viewer privado preserva el contexto de vuelta y usa endpoints protegidos.

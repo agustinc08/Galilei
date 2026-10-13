@@ -233,3 +233,11 @@ MVP privado en DEV: implementado; suite backend, builds/typechecks, E2E ACL, Sea
 La administración y UX de espacios fueron completadas técnicamente en DEV y pasaron UAT automatizada sintética; Sprint 15.1 permanece PARTIAL hasta que usuarios reales de juzgados/salas recorran el checklist y registren aceptación/observaciones. Search TERM sintético tuvo variación alta a 1.000 documentos (último p95 2,70 s); perfilarla antes de ampliar el corpus del piloto. Siguiente paso inmediato: coordinar ese UAT humano en DEV con datos ficticios y corregir fricciones observadas. No habilitar red compartida ni producción.
 
 Después de aceptación, elegir una sola línea siguiente: (A) compartir controlado/versionado/papelera; (B) retomar PHRASE Search y su ventana parcial/exact-total; o (C) adquisición histórica y sus grupos/enlaces retenidos. No mezclar las tres. El benchmark privado y sus límites constan en `BJC-ESPACIOS-DOCUMENTALES.md`.
+
+## Prioridad técnica después de Sprint 15.1.1 — 2026-10-13
+
+**Sprint 15.1.1 PARTIAL.** No ampliar el corpus privado ni iniciar todavía otra línea funcional. Se resolvió el nested loop ACL causado por estimaciones obsoletas mediante maintenance settings por tabla; el Hash Join procesa el set autorizado una vez y la ACL aislada a 5.000 queda en p50/p95 9,99/19,26 ms. El conteo exacto y la separación GENERAL/PRIVATE_WORKSPACE siguen correctos.
+
+Siguiente trabajo limitado al residual medido: el candidate CTE TERM consulta `CorpusSearchToken_token_trgm_idx`, produce 113.800 entradas para 5.000 IDs y usa `Unique`/`Gather Merge` más 10.000 lookups por PK. Perfilar el SQL completo de página e hidratación con primera y última página, mejorar candidate deduplication sólo si el EXPLAIN/benchmark lo justifica, y medir por separado el count exacto sin hits (500–590 ms). Repetir tres series a 1.000/5.000 y mantener p95 bajo 400/800 ms, max/p50 estable, seguridad A/B, folder ACL y total exacto antes de ampliar workspaces. No tocar PHRASE en ese tramo; su deuda independiente queda en `BJC-SEARCH.md`.
+
+El backup/migración, benchmark general y validaciones actuales están en `_recovery-work/sprint1511/` (DEV local, ignorado por Git). No declarar cierre por métricas sintéticas ni UAT humana; el piloto requiere después una instancia con usuarios reales y datos ficticios.

@@ -292,7 +292,7 @@ function snippet(text: string, literals: SearchLiteralNode[]) {
 export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
   private readonly pool: Pool;
   private readonly candidateStrategy: 'predicate-v1' | 'set-algebra-v2';
-  private lastSearchProfile: { countMs: number; resultPageMs: number; combinedCandidatePageMs?: number; candidateStrategy?: string; candidateCount?: number; candidateGenerationCount?: number; windowExpansions?: number; windowSizes?: number[]; exactHitsByWindow?: number[]; stageTimings?: Record<string, number | number[]>; resultRows: number; failedQuery?: 'COUNT' | 'PAGE'; errorCode?: string; errorMessage?: string; queryCount: number; queryFingerprints: string[] } | null = null;
+  private lastSearchProfile: { countMs: number; pageQueryMs: number; resultPageMs: number; combinedCandidatePageMs?: number; candidateStrategy?: string; candidateCount?: number; candidateGenerationCount?: number; windowExpansions?: number; windowSizes?: number[]; exactHitsByWindow?: number[]; stageTimings?: Record<string, number | number[]>; resultRows: number; failedQuery?: 'COUNT' | 'PAGE'; errorCode?: string; errorMessage?: string; queryCount: number; queryFingerprints: string[] } | null = null;
   constructor(databaseUrl = process.env.DATABASE_URL, candidateStrategy: 'predicate-v1' | 'set-algebra-v2' = 'set-algebra-v2') {
     if (!databaseUrl?.trim())
       throw new Error('Se requiere DATABASE_URL para PostgreSQL local.');
@@ -463,6 +463,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       queryFingerprint(`${candidateCte ? 'COMBINED_PAGE_V2' : 'PAGE_V1'}|${where}|pagePatterns|pageSize|offset|snippet|digesto|provenance`),
     ];
     let countMs = 0;
+    let pageQueryMs = 0;
     let failedQuery: 'COUNT' | 'PAGE' | undefined;
     let errorCode: string | undefined;
     let errorMessage: string | undefined;
@@ -492,6 +493,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     try {
       if (boundedCandidatePage) {
         while (true) {
+          const pageQueryStartedAt = performance.now();
           const initialProbeLimit = Math.max(100, (offsetValue + pageSize + 1) * 4);
           const initialProbe = `$${rowValues.length + 1}`;
           const pagePatternsParam = `$${values.length + 1}`;
@@ -605,8 +607,10 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
                 ORDER BY selected."decisionDate" DESC NULLS LAST, selected."updatedAt" DESC, selected."id"`,
               phraseValues,
             );
+            pageQueryMs += performance.now() - pageQueryStartedAt;
             if (deferredSinglePhrase) pageSnippetHydrationMs = performance.now() - phraseSqlStartedAt;
           } catch (error) {
+          pageQueryMs += performance.now() - pageQueryStartedAt;
           failedQuery = 'PAGE';
           errorCode = (error as { code?: string })?.code;
           errorMessage = (error as { message?: string })?.message;
@@ -634,6 +638,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
           errorMessage = (error as { message?: string })?.message;
           throw error;
         });
+        const legacyPageStartedAt = performance.now();
         const legacyRows = this.pool.query<SearchRow>(
           `WITH "pageDocs" AS (
              SELECT d."id", d."decisionDate", d."updatedAt"
@@ -658,7 +663,11 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
              LEFT JOIN "CorpusSourceSystem" src ON src."id" = ing."sourceSystemId"
             ORDER BY selected."decisionDate" DESC NULLS LAST, selected."updatedAt" DESC, selected."id"`,
           rowValues,
-        ).catch((error: unknown) => {
+        ).then((result) => {
+          pageQueryMs = performance.now() - legacyPageStartedAt;
+          return result;
+        }).catch((error: unknown) => {
+          pageQueryMs = performance.now() - legacyPageStartedAt;
           failedQuery = failedQuery ?? 'PAGE';
           errorCode = errorCode ?? (error as { code?: string })?.code;
           errorMessage = errorMessage ?? (error as { message?: string })?.message;
@@ -698,8 +707,9 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       failedQuery = failedQuery ?? 'PAGE';
       errorCode = errorCode ?? (error as { code?: string })?.code;
       errorMessage = errorMessage ?? (error as { message?: string })?.message;
-        this.lastSearchProfile = {
+      this.lastSearchProfile = {
         countMs: Math.round(countMs * 100) / 100,
+        pageQueryMs: Math.round(pageQueryMs * 100) / 100,
         resultPageMs: Math.round((performance.now() - resultPageStartedAt) * 100) / 100,
         candidateStrategy: activeCandidateStrategy,
         resultRows: 0,
@@ -770,7 +780,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     );
     responseMappingMs = performance.now() - mappingStartedAt;
     this.lastSearchProfile = {
-      countMs, resultPageMs, ...(candidateCte ? { combinedCandidatePageMs: resultPageMs } : {}),
+      countMs, pageQueryMs: Math.round(pageQueryMs * 100) / 100, resultPageMs, ...(candidateCte ? { combinedCandidatePageMs: resultPageMs } : {}),
       candidateStrategy: activeCandidateStrategy, resultRows: hydratedRows.length, queryCount, queryFingerprints,
       ...(deferredSinglePhrase ? { candidateCount: phraseCandidateCount, candidateGenerationCount: 1, windowExpansions: Math.max(0, windowSizes.length - 1), windowSizes, exactHitsByWindow } : {}),
       stageTimings: {

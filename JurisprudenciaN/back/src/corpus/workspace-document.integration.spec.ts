@@ -1,4 +1,4 @@
-import { readFile, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { Prisma } from '@prisma/client';
@@ -489,7 +489,8 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       ).rejects.toMatchObject({ status: 400 });
 
       const benchmarkRows: Array<Record<string, unknown>> = [];
-      for (const size of [100, 500, 1000]) {
+      const queryShapeRows: Array<Record<string, unknown>> = [];
+      for (const size of [100, 500, 1000, 5000]) {
         const workspace = await service.createWorkspace(adminA, {
           code: `S15B${size}${suffix}`,
           name: `Synthetic workspace benchmark ${size}`,
@@ -506,6 +507,12 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           (_, index) => `s15bm_${suffix.toLowerCase()}_${size}_${index}`,
         );
         documentIds.push(...ids);
+        const termTokensByDocument = ids.map((_, index) => {
+          const terms = ['sprint151needle'];
+          if (index % 2 === 0) terms.push('mediumneedle');
+          if (index % 100 === 0) terms.push('rareneedle');
+          return terms;
+        });
         await prisma.corpusDocument.createMany({
           data: ids.map((id, index) => ({
             id,
@@ -515,7 +522,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
             visibility: 'RESTRICTED',
             documentScope: 'PRIVATE_WORKSPACE' as const,
             status: 'INDEXED',
-            searchText: `sprint151needle phrase target synthetic private document ${index + 1}`,
+            searchText: `${termTokensByDocument[index].join(' ')} phrase target synthetic private document ${index + 1}`,
           })),
         });
         await prisma.workspaceDocument.createMany({
@@ -525,43 +532,53 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
             uploadedById: adminA.id,
           })),
         });
-        const tokenRows = ids.flatMap((id) =>
-          ['sprint151needle', 'phrase', 'target'].map(
+        const tokenRows = ids.flatMap((id, index) =>
+          [...termTokensByDocument[index], 'phrase', 'target'].map(
             (token) => Prisma.sql`(${id}, ${token})`,
           ),
         );
         await prisma.$executeRaw(
           Prisma.sql`INSERT INTO "CorpusSearchToken" ("documentId", "token") VALUES ${Prisma.join(tokenRows)}`,
         );
+        await prisma.$executeRawUnsafe('ANALYZE "CorpusDocument"');
+        await prisma.$executeRawUnsafe('ANALYZE "WorkspaceDocument"');
 
-        const measure = async (query: string, expectExactTotal: boolean) => {
-          const samples: Array<{ totalMs: number; adapterMs: number }> = [];
+        const measure = async (query: string, expectedTotal: number, series: number, phrase = false) => {
+          const samples: Array<{ totalMs: number; adapterMs: number; countMs: number; pageSqlMs: number }> = [];
+          const runs: Array<Record<string, unknown>> = [];
           let reportedTotal = 0;
           let reportedTotalExact = false;
-          for (let index = 0; index < 6; index += 1) {
-            const startedAt = performance.now();
-            const result = await service.searchWorkspace(
-              workspace.id,
-              adminA,
-              query,
-            );
-            const totalMs = performance.now() - startedAt;
-            const adapterMs =
-              source.getLastSearchProfile()?.stageTimings?.totalAdapterMs;
-            if (index > 0)
-              samples.push({
-                totalMs,
-                adapterMs: typeof adapterMs === 'number' ? adapterMs : totalMs,
-              });
-            reportedTotal = result?.total ?? 0;
-            reportedTotalExact = result?.totalExact ?? false;
-            expect(result?.results.length).toBeGreaterThan(0);
-            if (expectExactTotal) {
-              expect(result?.total).toBe(size);
-              expect(result?.totalExact).toBe(true);
-            } else {
-              expect(result?.total).toBeLessThanOrEqual(size);
-              if (result?.totalExact) expect(result.total).toBe(size);
+          for (let seriesIndex = 0; seriesIndex < series; seriesIndex += 1) {
+            for (let index = 0; index < 11; index += 1) {
+              const startedAt = performance.now();
+              const result = await service.searchWorkspace(workspace.id, adminA, phrase ? `"${query} phrase target"` : query);
+              const totalMs = performance.now() - startedAt;
+              const profile = source.getLastSearchProfile();
+              const adapterMs = profile?.stageTimings?.totalAdapterMs;
+              const countMs = profile?.countMs ?? 0;
+              const sample = {
+                series: seriesIndex + 1,
+                sample: index,
+                warmup: index === 0,
+                totalMs: Number(totalMs.toFixed(2)),
+                adapterMs: typeof adapterMs === 'number' ? Number(adapterMs.toFixed(2)) : null,
+                countMs: Number(countMs.toFixed(2)),
+                pageSqlMs: Number((profile?.pageQueryMs ?? 0).toFixed(2)),
+              };
+              runs.push(sample);
+              if (index > 0) samples.push({ totalMs, adapterMs: typeof adapterMs === 'number' ? adapterMs : totalMs, countMs, pageSqlMs: profile?.pageQueryMs ?? 0 });
+              reportedTotal = result?.total ?? 0;
+              reportedTotalExact = result?.totalExact ?? false;
+              if (phrase) {
+                expect(result?.total).toBeLessThanOrEqual(size);
+                if (result?.totalExact) expect(result.total).toBe(size);
+                expect(result?.results.length).toBeGreaterThan(0);
+              } else {
+                expect(result?.total).toBe(expectedTotal);
+                expect(result?.totalExact).toBe(true);
+                if (expectedTotal > 0) expect(result?.results.length).toBeGreaterThan(0);
+                else expect(result?.results).toHaveLength(0);
+              }
             }
           }
           const percentile = (values: number[], p: number) =>
@@ -569,12 +586,21 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           const total = samples.map((sample) => sample.totalMs);
           const adapter = samples.map((sample) => sample.adapterMs);
           return {
+            query,
+            expectedTotal,
+            series,
+            runs,
             p50Ms: percentile(total, 0.5),
             p95Ms: percentile(total, 0.95),
             reportedTotal,
             totalExact: reportedTotalExact,
             adapterP50Ms: percentile(adapter, 0.5),
             adapterP95Ms: percentile(adapter, 0.95),
+            countP50Ms: percentile(samples.map((sample) => sample.countMs), 0.5),
+            countP95Ms: percentile(samples.map((sample) => sample.countMs), 0.95),
+            pageSqlP50Ms: percentile(samples.map((sample) => sample.pageSqlMs), 0.5),
+            pageSqlP95Ms: percentile(samples.map((sample) => sample.pageSqlMs), 0.95),
+            maxP50Ratio: Number((Math.max(...total) / percentile(total, 0.5)).toFixed(2)),
             membershipAndResponseP50Ms: percentile(
               samples.map((sample) =>
                 Math.max(0, sample.totalMs - sample.adapterMs),
@@ -589,8 +615,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
             if (scoped) {
               await prisma.$queryRaw`
                 SELECT count(*) FROM "CorpusDocument" AS document
-                 WHERE document."id" = ANY(${ids}::text[])
-                   AND document."documentScope" = 'PRIVATE_WORKSPACE'
+                 WHERE document."documentScope" = 'PRIVATE_WORKSPACE'
                    AND document."status" = 'INDEXED'
                    AND document."searchText" ILIKE '%sprint151needle%'
                    AND EXISTS (
@@ -602,8 +627,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
             } else {
               await prisma.$queryRaw`
                 SELECT count(*) FROM "CorpusDocument" AS document
-                 WHERE document."id" = ANY(${ids}::text[])
-                   AND document."documentScope" = 'PRIVATE_WORKSPACE'
+                 WHERE document."documentScope" = 'PRIVATE_WORKSPACE'
                    AND document."status" = 'INDEXED'
                    AND document."searchText" ILIKE '%sprint151needle%'
               `;
@@ -642,43 +666,237 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
             },
           };
         };
-        const term = await measure('sprint151needle', true);
-        const phrase = await measure('"sprint151needle phrase target"', false);
+        const series = size >= 1000 ? 3 : 1;
+        console.log(`SPRINT1511_DATASET_READY=${size}`);
+        const term = await measure('sprint151needle', size, series);
+        const medium = await measure('mediumneedle', Math.ceil(size / 2), series);
+        const rare = await measure('rareneedle', Math.ceil(size / 100), series);
+        const zero = await measure('nonefound', 0, series);
+        const phrase = null;
         const countComparison = await sqlMeasure();
         if (size === 500) {
-          const aclPlan = await prisma.$queryRaw<
-            Array<{ 'QUERY PLAN': unknown }>
-          >`
-            EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-            SELECT count(*) FROM "CorpusDocument" AS document
-             WHERE document."id" = ANY(${ids}::text[])
-               AND document."documentScope" = 'PRIVATE_WORKSPACE'
+          const base = `SELECT count(*) FROM "CorpusDocument" AS document
+             WHERE document."documentScope" = 'PRIVATE_WORKSPACE'
+               AND document."visibility" = ANY(ARRAY['RESTRICTED']::text[])
                AND document."status" = 'INDEXED'
-               AND document."searchText" ILIKE '%sprint151needle%'
-               AND EXISTS (
-                 SELECT 1 FROM "WorkspaceDocument" AS workspaceDocument
-                  WHERE workspaceDocument."documentId" = document."id"
-                    AND workspaceDocument."workspaceId" = ${workspace.id}
-               )
-          `;
-          console.log(
-            `SPRINT151_PRIVATE_TERM_ACL_EXPLAIN=${JSON.stringify(
-              aclPlan[0]?.['QUERY PLAN'],
-            )
-              .replace(/s15bm_[a-z0-9_]+/gu, '<synthetic-id>')
-              .slice(0, 4000)}`,
-          );
+               AND document."searchText" ILIKE '%sprint151needle%'`;
+          const variants = [
+            {
+              name: 'EXISTS',
+              sql: `${base} AND EXISTS (SELECT 1 FROM "WorkspaceDocument" AS workspaceDocument WHERE workspaceDocument."documentId" = document."id" AND workspaceDocument."workspaceId" = $1)`,
+            },
+            {
+              name: 'JOIN',
+              sql: `SELECT count(*) FROM "CorpusDocument" AS document JOIN "WorkspaceDocument" AS workspaceDocument ON workspaceDocument."documentId" = document."id" AND workspaceDocument."workspaceId" = $1 WHERE document."documentScope" = 'PRIVATE_WORKSPACE' AND document."visibility" = ANY(ARRAY['RESTRICTED']::text[]) AND document."status" = 'INDEXED' AND document."searchText" ILIKE '%sprint151needle%'`,
+            },
+            {
+              name: 'IN',
+              sql: `${base} AND document."id" IN (SELECT workspaceDocument."documentId" FROM "WorkspaceDocument" AS workspaceDocument WHERE workspaceDocument."workspaceId" = $1)`,
+            },
+            {
+              name: 'AUTHORIZED_CTE',
+              sql: `WITH authorized AS MATERIALIZED (SELECT "documentId" FROM "WorkspaceDocument" WHERE "workspaceId" = $1) SELECT count(*) FROM "CorpusDocument" AS document JOIN authorized ON authorized."documentId" = document."id" WHERE document."documentScope" = 'PRIVATE_WORKSPACE' AND document."visibility" = ANY(ARRAY['RESTRICTED']::text[]) AND document."status" = 'INDEXED' AND document."searchText" ILIKE '%sprint151needle%'`,
+            },
+          ];
+          const summarizePlan = (plan: Array<Record<string, unknown>>) => {
+            const nodes: Array<Record<string, unknown>> = [];
+            const visit = (node: Record<string, unknown>) => {
+              nodes.push(
+                Object.fromEntries(
+                  [
+                    'Node Type', 'Join Type', 'Relation Name', 'Index Name',
+                    'Plan Rows', 'Actual Rows', 'Actual Loops',
+                    'Rows Removed by Join Filter', 'Rows Removed by Filter',
+                    'Shared Hit Blocks', 'Shared Read Blocks', 'Temp Read Blocks',
+                    'Temp Written Blocks', 'Actual Total Time', 'Index Cond',
+                    'Join Filter',
+                  ]
+                    .filter((key) => node[key] !== undefined)
+                    .map((key) => [key, node[key]]),
+                ),
+              );
+              for (const child of (node.Plans as Array<Record<string, unknown>> | undefined) ?? [])
+                visit(child);
+            };
+            for (const item of plan) {
+              visit(item.Plan as Record<string, unknown>);
+              nodes.push({
+                'Planning Time': item['Planning Time'],
+                'Execution Time': item['Execution Time'],
+              });
+            }
+            return nodes;
+          };
+          const capturePlans = async () => {
+            const plans: Array<Record<string, unknown>> = [];
+            for (const variant of variants) {
+              const result = await prisma.$queryRawUnsafe<
+                Array<{ 'QUERY PLAN': Array<Record<string, unknown>> }>
+              >(
+                `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, FORMAT JSON) ${variant.sql}`,
+                workspace.id,
+              );
+              plans.push({ name: variant.name, nodes: summarizePlan(result[0]?.['QUERY PLAN'] ?? []) });
+            }
+            return plans;
+          };
+          const beforeAnalyze = await capturePlans();
+          await prisma.$executeRawUnsafe('ANALYZE "CorpusDocument"');
+          await prisma.$executeRawUnsafe('ANALYZE "WorkspaceDocument"');
+          const afterAnalyze = await capturePlans();
+          const shapeRow = { documents: size, beforeAnalyze, afterAnalyze };
+          queryShapeRows.push(shapeRow);
+          console.log(`SPRINT1511_ACL_QUERY_SHAPES=${JSON.stringify(shapeRow)}`);
         }
         benchmarkRows.push({
           documents: size,
           term,
+          medium,
+          rare,
+          zero,
           phrase,
           aclSqlCountComparison: countComparison,
         });
       }
-      console.log(
-        `SPRINT151_PRIVATE_SEARCH_BENCHMARK=${JSON.stringify(benchmarkRows)}`,
+      const outputRoot = path.resolve(process.cwd(), '../../_recovery-work/sprint1511');
+      await mkdir(outputRoot, { recursive: true });
+      const largestWorkspaceId = workspaceIds[workspaceIds.length - 1];
+      const largestDocumentIds = documentIds.filter((id) => id.includes('_5000_'));
+      const benchmarkFolder = await service.createFolder(largestWorkspaceId, adminA, {
+        name: `Synthetic half corpus ${suffix}`,
+      });
+      await prisma.workspaceDocument.updateMany({
+        where: { workspaceId: largestWorkspaceId, documentId: { in: largestDocumentIds.slice(0, 2500) } },
+        data: { folderId: benchmarkFolder.id },
+      });
+      const folderAndPagination = {
+        allFolders: await service.searchWorkspace(largestWorkspaceId, adminA, 'sprint151needle', 1, 20),
+        oneFolder: await service.searchWorkspace(largestWorkspaceId, adminA, 'sprint151needle', 1, 20, benchmarkFolder.id),
+        pages: await Promise.all([1, 125, 250].map((page) =>
+          service.searchWorkspace(largestWorkspaceId, adminA, 'sprint151needle', page, 20),
+        )),
+      };
+      expect(folderAndPagination.allFolders?.total).toBe(5000);
+      expect(folderAndPagination.allFolders?.totalExact).toBe(true);
+      expect(folderAndPagination.oneFolder?.total).toBe(2500);
+      expect(folderAndPagination.oneFolder?.totalExact).toBe(true);
+      const pageIds = folderAndPagination.pages.flatMap((page) => page?.results.map((row) => row.id) ?? []);
+      expect(folderAndPagination.pages.every((page) => page?.total === 5000 && page.totalExact)).toBe(true);
+      expect(new Set(pageIds).size).toBe(pageIds.length);
+      expect(folderAndPagination.pages.every((page) => page?.results.length === 20)).toBe(true);
+      const concurrencyRows: Array<Record<string, unknown>> = [];
+      for (const concurrency of [1, 5, 10]) {
+        const startedAt = performance.now();
+        const results = await Promise.all(Array.from({ length: concurrency }, () =>
+          service.searchWorkspace(largestWorkspaceId, adminA, 'rareneedle'),
+        ));
+        concurrencyRows.push({
+          concurrency,
+          elapsedMs: Number((performance.now() - startedAt).toFixed(2)),
+          errors: results.filter((result) => result?.total !== 50 || result.totalExact !== true).length,
+          timeouts: 0,
+          requestCount: results.length,
+        });
+      }
+      await prisma.$executeRawUnsafe('ANALYZE "WorkspaceDocument"');
+      await prisma.$executeRawUnsafe('ANALYZE "CorpusDocument"');
+      const explainDirectory = path.join(outputRoot, 'explain-after');
+      await mkdir(explainDirectory, { recursive: true });
+      const captureExplain = async (name: string, sql: string, ...params: unknown[]) => {
+        const result = await prisma.$queryRawUnsafe<Array<{ 'QUERY PLAN': unknown }>>(
+          `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, FORMAT JSON) ${sql}`,
+          ...params,
+        );
+        const plan = result[0]?.['QUERY PLAN'];
+        await writeFile(path.join(explainDirectory, `${name}.json`), `${JSON.stringify(plan, null, 2)}\n`, 'utf8');
+        return { name, plan };
+      };
+      const commonPattern = '%sprint151needle%';
+      const commonWhere = `d."documentScope" = 'PRIVATE_WORKSPACE' AND d."visibility" = 'RESTRICTED' AND d."status" = 'INDEXED' AND d."searchText" ILIKE $1 AND EXISTS (SELECT 1 FROM "WorkspaceDocument" wd WHERE wd."documentId" = d."id" AND wd."workspaceId" = $2)`;
+      const tokenCandidateCte = `SELECT DISTINCT token."documentId" AS "id" FROM "CorpusSearchToken" token JOIN "CorpusDocument" d ON d."id" = token."documentId" WHERE d."visibility" = ANY(ARRAY['RESTRICTED']::text[]) AND d."status" = 'INDEXED' AND d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" wd WHERE wd."documentId" = d."id" AND wd."workspaceId" = $1) AND token."token" ILIKE $2 ESCAPE E'\\\\'`;
+      const explainPlans: Array<Record<string, unknown>> = [
+        await captureExplain('5000-common-count', `SELECT count(*) FROM "CorpusDocument" d WHERE ${commonWhere}`, commonPattern, largestWorkspaceId),
+        await captureExplain('5000-common-token-candidates', tokenCandidateCte, largestWorkspaceId, commonPattern),
+        await captureExplain('5000-common-token-page', `WITH "corpusSearchCandidates" AS MATERIALIZED (${tokenCandidateCte}) SELECT d."id", d."decisionDate", d."updatedAt" FROM "corpusSearchCandidates" c JOIN "CorpusDocument" d ON d."id" = c."id" ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 0`, largestWorkspaceId, commonPattern),
+        await captureExplain('5000-common-page-first', `SELECT d."id", d."decisionDate", d."updatedAt" FROM "CorpusDocument" d WHERE ${commonWhere} ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 0`, commonPattern, largestWorkspaceId),
+        await captureExplain('5000-common-page-last', `SELECT d."id", d."decisionDate", d."updatedAt" FROM "CorpusDocument" d WHERE ${commonWhere} ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 4000`, commonPattern, largestWorkspaceId),
+        await captureExplain('5000-folder-page', `SELECT d."id", d."decisionDate", d."updatedAt" FROM "CorpusDocument" d WHERE ${commonWhere} AND EXISTS (SELECT 1 FROM "WorkspaceDocument" wdf WHERE wdf."documentId" = d."id" AND wdf."workspaceId" = $2 AND wdf."folderId" = $3) ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 0`, commonPattern, largestWorkspaceId, benchmarkFolder.id),
+        await captureExplain('5000-zero-count', `SELECT count(*) FROM "CorpusDocument" d WHERE d."documentScope" = 'PRIVATE_WORKSPACE' AND d."visibility" = 'RESTRICTED' AND d."status" = 'INDEXED' AND d."searchText" ILIKE $1 AND EXISTS (SELECT 1 FROM "WorkspaceDocument" wd WHERE wd."documentId" = d."id" AND wd."workspaceId" = $2)`, '%nonefound%', largestWorkspaceId),
+      ];
+      const [relationStats, runtimeSettings] = await Promise.all([
+        prisma.$queryRaw<Array<Record<string, unknown>>>`
+          SELECT pg_stat_user_tables.relname AS relname, n_live_tup, n_mod_since_analyze,
+                 last_analyze, last_autoanalyze, analyze_count, autoanalyze_count, pg_class.reloptions
+            FROM pg_stat_user_tables
+            JOIN pg_class ON pg_class.oid = pg_stat_user_tables.relid
+           WHERE pg_stat_user_tables.relname IN ('CorpusDocument', 'WorkspaceDocument')
+           ORDER BY pg_stat_user_tables.relname
+        `,
+        prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT name, setting, unit, source FROM pg_settings WHERE name = ANY(ARRAY['jit', 'work_mem', 'plan_cache_mode', 'max_parallel_workers_per_gather', 'autovacuum']) ORDER BY name`,
+      ]);
+      const planVariance = {
+        explainPlans,
+        relationStats,
+        runtimeSettings,
+        note: 'Single observed plan after targeted ANALYZE; repeated EXPLAIN plan stability is not inferred from latency alone.',
+      };
+      await writeFile(path.join(outputRoot, 'plan-variance.json'), `${JSON.stringify(planVariance, (_key, value) => typeof value === 'bigint' ? value.toString() : value, 2)}\n`, 'utf8');
+      await writeFile(path.join(outputRoot, 'explain-after.json'), `${JSON.stringify(explainPlans, null, 2)}\n`, 'utf8');
+      await writeFile(
+        path.join(outputRoot, 'folders-pagination.json'),
+        `${JSON.stringify({
+          allFolders: { total: folderAndPagination.allFolders?.total, pageRows: folderAndPagination.allFolders?.results.length },
+          oneFolder: { total: folderAndPagination.oneFolder?.total, pageRows: folderAndPagination.oneFolder?.results.length },
+          pages: folderAndPagination.pages.map((result, index) => ({ page: [1, 125, 250][index], total: result?.total, rows: result?.results.map((row) => row.id) })),
+          uniquePageIds: new Set(pageIds).size,
+          missingRows: folderAndPagination.pages.reduce((sum, result) => sum + (20 - (result?.results.length ?? 0)), 0),
+        }, null, 2)}\n`,
+        'utf8',
       );
+      await writeFile(path.join(outputRoot, 'concurrency.json'), `${JSON.stringify(concurrencyRows, null, 2)}\n`, 'utf8');
+      await writeFile(
+        path.join(outputRoot, process.env.BJC_SPRINT1511_PHASE === 'after' ? 'term-benchmark-after.json' : 'term-benchmark-before.json'),
+        `${JSON.stringify(benchmarkRows, null, 2)}\n`,
+        'utf8',
+      );
+      await writeFile(
+        path.join(outputRoot, 'acl-count-benchmark.json'),
+        `${JSON.stringify(benchmarkRows.map(({ documents, aclSqlCountComparison }) => ({ documents, aclSqlCountComparison })), null, 2)}\n`,
+        'utf8',
+      );
+      await writeFile(
+        path.join(outputRoot, 'query-shapes.json'),
+        `${JSON.stringify(queryShapeRows, null, 2)}\n`,
+        'utf8',
+      );
+      const indexAudit = await prisma.$queryRaw<Array<Record<string, unknown>>>`
+        SELECT tablename, indexname, indexdef
+          FROM pg_indexes
+         WHERE schemaname = current_schema()
+           AND tablename = ANY(ARRAY['WorkspaceDocument', 'WorkspaceMembership', 'CorpusDocument', 'CorpusSearchToken']::text[])
+         ORDER BY tablename, indexname
+      `;
+      await writeFile(
+        path.join(outputRoot, 'index-audit.json'),
+        `${JSON.stringify(indexAudit, null, 2)}\n`,
+        'utf8',
+      );
+      await writeFile(
+        path.join(outputRoot, 'datasets.json'),
+        `${JSON.stringify(benchmarkRows.map(({ documents, term, medium, rare, zero }) => ({
+          documents,
+          distribution: {
+            common: term && (term as { expectedTotal?: number }).expectedTotal,
+            medium: medium && (medium as { expectedTotal?: number }).expectedTotal,
+            rare: rare && (rare as { expectedTotal?: number }).expectedTotal,
+            zero: zero && (zero as { expectedTotal?: number }).expectedTotal,
+          },
+          synthetic: true,
+          pdfBlobs: 0,
+        })), null, 2)}\n`,
+        'utf8',
+      );
+      console.log(`SPRINT1511_PRIVATE_SEARCH_BENCHMARK=${JSON.stringify(benchmarkRows.map(({documents, term, medium, rare, zero, phrase, aclSqlCountComparison}) => ({documents, term, medium, rare, zero, phrase, aclSqlCountComparison})))}`);
     },
   );
 });
