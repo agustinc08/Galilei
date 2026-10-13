@@ -2,16 +2,25 @@
 
 ## Sprint 14 — corte vigente 2026-10-13
 
-**Resultado vigente:** Sprint 14.8 ingirió el lote civil local; Sprint 14.9 optimizó parcialmente Search `PHRASE` y dejó las validaciones verdes en DEV. El cierre global sigue `PARTIAL / PHRASE REGRESSION REMAINS`: p95 final 1.752,99 ms, sobre el gate de 1.200 ms. Los 452 grupos en revisión y 4.890 enlaces abiertos de adquisición no cambiaron. No hubo adquisición nueva de jurisprudencia en Sprint 14.9.
+**Resultado vigente:** Sprint 14.8 ingirió el lote civil local. Sprint 14.9.2 dejó PHRASE en PARTIAL / PHRASE REGRESSION REMAINS: benchmark comparable p95 2.427,38 ms; el total exacto no está demostrado para consultas que terminan por early exit. Los 452 grupos en revisión y 4.890 enlaces abiertos no cambiaron. Sprint 14.9.2 no realizó adquisición ni modificó su documento maestro.
 
 Detalle: docs 146–158. Manifiestos no versionados: `_recovery-work/sprint14/`. No reauditar Search, preproducción ni raíces locales.
 
-**Actualizado:** 2026-10-13, cierre técnico Sprint 14.9. **Dictamen de preproducción vigente:** Sprint 13.1 quedó BLOCKED / NOT EXECUTED y UAT PENDING. No se identificó destino preprod autorizado. El entorno y las cifras de la tabla siguiente describen el corte histórico de Sprint 8; los apartados Sprint 14.8 y Sprint 14.9 son la autoridad para el estado actual de Corpus/Search.
+**Actualizado:** 2026-10-13, cierre técnico Sprint 14.9.2. **Dictamen de preproducción vigente:** Sprint 13.1 quedó BLOCKED / NOT EXECUTED y UAT PENDING. No se identificó destino preprod autorizado. El entorno y las cifras de la tabla siguiente describen el corte histórico de Sprint 8; los apartados Sprint 14.8–14.9.2 son la autoridad para el estado actual de Corpus/Search.
 
 | Área | Estado / evidencia |
 |---|---|
 | Workspace | `C:\proyecto triple`; raíz no Git. No usar ruta vieja de OneDrive. |
 | PostgreSQL | 16.15 loopback `127.0.0.1:55432`; DB `buscador_juridico_civil_dev`; rol `bjc_dev`; `pg_trgm 1.6`; escrituras con guard. Estado confirmado Sprint 14.8. |
+
+## Sprint 14.9.2 — PHRASE windowed execution (2026-10-13)
+
+- Benchmark comparable (15 familias, 10 repeticiones + 1 warmup): PHRASE p50/p95 2.225,24/2.394,03 ms → 2.272,01/2.427,38 ms. Delta +2,10% p50 y +1,39% p95; regresión permanece.
+- El agregado ordenado consume 8.958 candidatos completos; sort de candidatos 401,526 ms, agregado inclusivo 402,253 ms, top-N final 11 filas/0,395 ms, 42.259 bloques leídos y sin temp spill. Tres tokens: 3.343 candidatos, cuatro expansiones, 8.726 ms de plan y 56.185 bloques leídos.
+- La frase de 331 candidatos conserva 4 coincidencias con ventanas 100/200/331 y 2 expansiones. En consultas frecuentes, la salida temprana registra totalExact=false: el total exacto sigue siendo bloqueante.
+- Experimentos de conteo exacto por materialización y GIN directo tardaron 29.515 ms y 32.008 ms. Se descartaron y se restauró el runtime base.
+- Validación: Search verify PASS; paridad 40/40; viewer 6/6; parser/adapter 34/34; PostgreSQL 7/7; Corpus 3/3; suite 93 PASS / 15 omitidos; typecheck/build PASS; schema 44 tablas/21 migraciones. Concurrencia 1/5/10 usuarios p95 871,92/1.013,83/2.057,80 ms, cero errores.
+- Evidencia no versionada: _recovery-work/sprint1492/. No modificar ni reabrir adquisición hasta PHRASE p95 <=1.200 ms y conteo exacto resuelto.
 
 ## Sprint 14.9 — PHRASE Search V2 (2026-10-13)
 

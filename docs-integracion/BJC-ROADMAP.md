@@ -11,9 +11,13 @@
 
 **Siguiente acción basada en gaps:** habilitar una vía aprobada para adquirir los PDFs CSJN publicados y solicitar export/paquete institucional CIJ/TFN; después reconciliar el lote y ejecutar dry-run e ingesta DEV bajo guard. No volver a preproducción ni reauditar Search.
 
-**Actualizado:** 2026-10-13 tras cierre técnico Sprint 14.9. No repetir auditorías cerradas salvo evidencia contradictoria.
+**Actualizado:** 2026-10-13 tras cierre técnico Sprint 14.9.2. No repetir auditorías cerradas salvo evidencia contradictoria.
 
-**Estado vigente:** lote local consolidado en DEV; Sprint 14.9 redujo la latencia `PHRASE` pero dejó p95 1.752,99 ms, aún sobre el gate de 1.200 ms. El siguiente gate técnico es reducir I/O de heap en postings y repetir pruebas cold/warm. La cobertura de 4.890 enlaces sigue abierta y hay 452 grupos en revisión; no hay autorización para preproducción o acceso institucional nuevo en este tramo. Detalle en `BJC-SEARCH.md` y `BJC-ADQUISICION-JURISPRUDENCIA.md`.
+**Estado vigente:** PHRASE continúa sobre el gate: p95 comparable 2.427,38 ms y early exit no certifica totalExact. Dominante medido: sort/agregado ordenado de 8.958 candidatos, ~402 ms inclusivos; experimentos de conteo completo tardaron 29,5–32,0 s. No avanzar a revisión de los 452 grupos ni a los 4.890 enlaces abiertos hasta cumplir p95 <=1.200 ms y exactitud del total. Detalle en BJC-SEARCH.md.
+
+## Gate vigente — Sprint 14.9.2 (2026-10-13)
+
+**Estado: PARTIAL / PHRASE REGRESSION REMAINS.** No se conservó una modificación del runtime. Se comprobó el coste del orden/agregado completo antes de la primera ventana y el coste prohibitivo de contar todos los textos vía ILIKE. El total exacto permanece pendiente cuando PHRASE sale temprano. Mantener la adquisición y los grupos de revisión sin cambios hasta que Search pase el gate de latencia y conteo exacto. Evidencia: _recovery-work/sprint1492/final-summary.json.
 
 | Fase | Estado | Salida / evidencia |
 |---|---|---|
@@ -34,7 +38,7 @@
 
 ## Siguiente acción concreta
 
-Siguiente acción: Sprint 9 de revisión/curaduría y Digesto. Mantener 399 documentos OCR en backlog local revisado, sourceMissing/inventario incremental como deuda operativa, y CIJ/CSJN en NO GO hasta canal autorizado. Antes de producción medir carga/concurrencia y aprobar ACL, anonimización y retención; excluir MicroISIS.
+Siguiente acción de producto queda en espera del gate Search: PHRASE p95 <=1.200 ms y total exacto comprobado para early exit. Al cumplir ambos, retomar primero los 452 grupos de revisión y luego los 4.890 enlaces abiertos. CIJ/CSJN permanece en NO GO hasta canal autorizado.
 
 ## Actualización de roadmap tras Sprint 9 — 2026-10-08
 

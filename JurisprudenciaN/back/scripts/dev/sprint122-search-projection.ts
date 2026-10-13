@@ -107,7 +107,7 @@ async function main() {
       [projectionReady],
     );
     const report = {
-      status: projectionReady ? `${process.env.BJC_SPRINT149 === 'true' ? 'SPRINT149' : 'SPRINT122'}_SEARCH_PROJECTION_${action.toUpperCase()}_PASS` : `${process.env.BJC_SPRINT149 === 'true' ? 'SPRINT149' : 'SPRINT122'}_SEARCH_PROJECTION_${action.toUpperCase()}_STALE`,
+      status: projectionReady ? `${process.env.BJC_SPRINT1492 === 'true' ? 'SPRINT1492' : process.env.BJC_SPRINT149 === 'true' ? 'SPRINT149' : 'SPRINT122'}_SEARCH_PROJECTION_${action.toUpperCase()}_PASS` : `${process.env.BJC_SPRINT1492 === 'true' ? 'SPRINT1492' : process.env.BJC_SPRINT149 === 'true' ? 'SPRINT149' : 'SPRINT122'}_SEARCH_PROJECTION_${action.toUpperCase()}_STALE`,
       generatedAt: new Date().toISOString(),
       target: { endpoint: '127.0.0.1:55432', database: identity.database, role: identity.role },
       rebuiltDocuments,
@@ -116,7 +116,7 @@ async function main() {
       queryTextPersisted: false,
     };
     const root = resolve(__dirname, '../../../..');
-    const directory = resolve(root, process.env.BJC_SPRINT149 === 'true' ? '_recovery-work/sprint149/projection' : '_recovery-work/sprint122/projection');
+    const directory = resolve(root, process.env.BJC_SPRINT1492 === 'true' ? '_recovery-work/sprint1492/projection' : process.env.BJC_SPRINT149 === 'true' ? '_recovery-work/sprint149/projection' : '_recovery-work/sprint122/projection');
     await mkdir(directory, { recursive: true });
     await writeFile(resolve(directory, 'projection-status.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
     console.log(JSON.stringify(report, null, 2));

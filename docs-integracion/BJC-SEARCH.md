@@ -1,6 +1,6 @@
 # Search V2 — estado operativo
 
-**Vigente:** implementación y medición Sprint 14.9.1 en DEV local (2026-10-13). PHRASE conserva el resultado literal y reutiliza candidatos entre ventanas, pero la latencia del benchmark comparable empeoró y p95 sigue sobre 1.200 ms; estado PARTIAL / PHRASE REGRESSION REMAINS.
+**Vigente:** Sprint 14.9.2 confirmó que el runtime PHRASE mantiene una ordenación y agregación completa de IDs candidatos antes de leer la primera ventana. No se retuvo un cambio de runtime; p95 comparable 2.427,38 ms y el total exacto continúa sin certificarse en early exit. Estado PARTIAL / PHRASE REGRESSION REMAINS.
 
 ## Arquitectura
 
@@ -122,3 +122,26 @@ CorpusSearchToken_token_prefix_cover_idx mantiene tamaño 1.063.837.696 bytes. V
 - SQL parametrizado after, planes EXPLAIN y datos por run están en _recovery-work/sprint1491/. El SQL BEFORE exacto no se guardó en Sprint 14.9; se conserva la forma lógica y los planes BEFORE.
 
 El sprint permanece **PARTIAL / PHRASE REGRESSION REMAINS**. No avanzar a la revisión de los 452 grupos hasta mejorar y volver a medir PHRASE con el gate p95 <=1.200 ms. Próxima prueba: evitar el orden/agregado de todos los IDs cuando basta una ventana inicial, conservando orden exacto, conteo y verificación literal; medir de nuevo heaps/buffers con los mismos casos antes de proponer índices.
+
+## Sprint 14.9.2 — PHRASE windowed execution (2026-10-13)
+
+**Resultado: PARTIAL / PHRASE REGRESSION REMAINS.** Se midió sobre DEV PostgreSQL 16.15 y el corpus de 17.078 documentos / 18.799.500 tokens, con las mismas 15 familias, 10 muestras y 1 warmup antes y después. El runtime quedó restaurado al mismo código; no se conservó la implementación experimental.
+
+| Familia | Before p50/p95 (ms) | After p50/p95 (ms) |
+|---|---:|---:|
+| TERM común | 200,81 / 279,33 | 202,32 / 265,87 |
+| PHRASE | 2.225,24 / 2.394,03 | 2.272,01 / 2.427,38 |
+| PREFIX | 815,32 / 949,19 | 816,84 / 943,60 |
+| SUFFIX | 1.689,22 / 1.734,50 | 1.712,13 / 1.772,89 |
+| SHORT_TERM | 2.006,16 / 2.098,82 | 1.961,57 / 2.046,51 |
+| FIELD | 1.686,78 / 1.723,40 | 1.703,65 / 1.773,85 |
+
+PHRASE empeoró 2,10% en p50 y 1,39% en p95. El EXPLAIN de la frase frecuente de dos palabras encontró 8.958 candidatos: phraseCandidateStats ordena y agrega todo ese conjunto con array_agg ordenado, cuyo Sort atendió 8.958 filas en 401,526 ms (agregado inclusivo 402,253 ms). El top-N final procesó 11 filas en 0,395 ms. El plan leyó 42.259 bloques compartidos, tuvo 52.893 hits y cero bloques temporales. En la frase de tres palabras, 3.343 candidatos produjeron cuatro expansiones; el plan diagnosticado tardó 8.726 ms y leyó 56.185 bloques. Los tiempos de nodos son inclusivos y no se suman.
+
+La ventana adaptable sigue comenzando en 100 y duplica hasta cubrir 331 candidatos en el caso pequeño: ventanas [100, 200, 331], resultados por ventana [1, 1, 4], 2 expansiones y totalExact=true. En la frecuente de 8.958 candidatos, la ejecución retorna temprano con 72 coincidencias exactas vistas y 11 filas de página; totalExact=false. Esto preserva la verificación literal y el orden de página (fecha DESC NULLS LAST, updatedAt DESC, id ASC), pero no satisface el contrato de total exacto para ese early exit.
+
+Se probaron dos alternativas y se descartaron. Materializar y verificar cada texto para contar exactamente tardó 29.515 ms (5.372 coincidencias; 65.049 lecturas, 100.072 hits). Usar directamente el GIN de searchText tardó 32.008 ms: 10.357 entradas de índice y heap scan de 31.905 ms para la misma cuenta exacta de 5.372. El top-N en ambos fue ~2,6–2,7 ms; el cuello está en verificar el texto largo para count, no en el top-N. No se modificó el adapter de producción ni el schema.
+
+Paridad 40/40, viewer 6/6, Search verify PASS (17.078 documentos, 18.799.500 tokens, stale 0, muestra mismatch 0/100), parser/adapter 34/34, PostgreSQL Search 7/7, Corpus 3/3, suite backend 93 PASS / 15 omitidos, typecheck y build PASS, schema 44 tablas / 21 migraciones. Concurrencia local de una solicitud por usuario: 1 usuario p95 871,92 ms; 5 p95 1.013,83 ms; 10 p95 2.057,80 ms; errores HTTP/fuente 0 en las tres olas. No implica carga tras proxy/TLS.
+
+La evidencia reproducible está en _recovery-work/sprint1492/: baseline.json, query-shape.json, operator-costs.json, candidate-cardinality.json, window-analysis.json, query-counts.json, benchmark-before.json, benchmark-after.json, run-samples.json, explain-before/ y explain-after/. SQL parametrizado conserva placeholders; los valores de búsqueda no se guardaron. Próxima hipótesis: un índice/proyección de verificación de frase que conserve puntuación y acentos, habilitando conteo exacto sin escanear repetidamente el heap de texto.

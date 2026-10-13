@@ -117,7 +117,7 @@ async function main() {
       console.log(JSON.stringify({ users, requests: observations.length, durationMs: round(durationMs), pools: poolPeaks }));
     }
     const report = {
-      status: process.env.BJC_SPRINT149 === 'true' ? 'SPRINT149_CONCURRENCY_COMPLETE' : process.env.BJC_SPRINT123 === 'true' ? 'SPRINT123_CONCURRENCY_COMPLETE' : process.env.BJC_SPRINT122 === 'true' ? 'SPRINT122_CONCURRENCY_COMPLETE' : 'SPRINT121_CONCURRENCY_COMPLETE',
+      status: process.env.BJC_SPRINT1492 === 'true' ? 'SPRINT1492_CONCURRENCY_COMPLETE' : process.env.BJC_SPRINT149 === 'true' ? 'SPRINT149_CONCURRENCY_COMPLETE' : process.env.BJC_SPRINT123 === 'true' ? 'SPRINT123_CONCURRENCY_COMPLETE' : process.env.BJC_SPRINT122 === 'true' ? 'SPRINT122_CONCURRENCY_COMPLETE' : 'SPRINT121_CONCURRENCY_COMPLETE',
       generatedAt: new Date().toISOString(),
       environment: { endpoint: '127.0.0.1:55432', database: 'buscador_juridico_civil_dev', role: 'bjc_dev' },
       requestsPerUser: selectedMix.length,
@@ -132,7 +132,7 @@ async function main() {
       topology: 'in-process Nest HTTP handlers on local DEV; no TLS/proxy claim',
       waves,
     };
-    const outputDir = resolve(root, process.env.BJC_SPRINT149 === 'true' ? '_recovery-work/sprint149/performance' : process.env.BJC_SPRINT123 === 'true' ? '_recovery-work/sprint123/performance' : process.env.BJC_SPRINT122 === 'true' ? '_recovery-work/sprint122/performance' : '_recovery-work/sprint121/performance');
+    const outputDir = resolve(root, process.env.BJC_SPRINT1492 === 'true' ? '_recovery-work/sprint1492/performance' : process.env.BJC_SPRINT149 === 'true' ? '_recovery-work/sprint149/performance' : process.env.BJC_SPRINT123 === 'true' ? '_recovery-work/sprint123/performance' : process.env.BJC_SPRINT122 === 'true' ? '_recovery-work/sprint122/performance' : '_recovery-work/sprint121/performance');
     await mkdir(outputDir, { recursive: true });
     const reportSuffix = process.env.BJC_CONCURRENCY_REPORT_SUFFIX;
     if (reportSuffix && !/^[a-z0-9-]+$/u.test(reportSuffix)) throw new Error('SPRINT121_CONCURRENCY_REPORT_SUFFIX_REJECTED');

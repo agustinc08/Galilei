@@ -33,7 +33,7 @@ if (!Number.isInteger(repetitions) || repetitions < 3 || repetitions > 10) {
 async function main() {
   assertDevDatabase(process.env.DATABASE_URL);
   const phase = process.argv[2] === 'after' ? 'after' : 'baseline';
-  const sprintLabel = process.env.BJC_SPRINT1491 === 'true' ? 'SPRINT1491' : process.env.BJC_SPRINT149 === 'true' ? 'SPRINT149' : process.env.BJC_SPRINT148 === 'true' ? 'SPRINT148' : process.env.BJC_SPRINT123 === 'true' ? 'SPRINT123' : process.env.BJC_SPRINT122 === 'true' ? 'SPRINT122' : 'SPRINT12';
+  const sprintLabel = process.env.BJC_SPRINT1492 === 'true' ? 'SPRINT1492' : process.env.BJC_SPRINT1491 === 'true' ? 'SPRINT1491' : process.env.BJC_SPRINT149 === 'true' ? 'SPRINT149' : process.env.BJC_SPRINT148 === 'true' ? 'SPRINT148' : process.env.BJC_SPRINT123 === 'true' ? 'SPRINT123' : process.env.BJC_SPRINT122 === 'true' ? 'SPRINT122' : 'SPRINT12';
   process.env.BJC_SEARCH_PROFILE = 'true';
   const credentials = JSON.parse(await readFile(resolve(root, '_recovery-work/sprint10/acceptance/credentials.json'), 'utf8')) as Credentials;
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -88,11 +88,12 @@ async function main() {
     const benchmarkRoot = process.env.BJC_SEARCH_BENCHMARK_ROOT
       ? resolve(process.env.BJC_SEARCH_BENCHMARK_ROOT)
       : resolve(root, '_recovery-work', 'sprint12', 'performance');
-    const allowedRoot = resolve(root, '_recovery-work', process.env.BJC_SEARCH_BENCHMARK_ROOT ? (sprintLabel === 'SPRINT1491' ? 'sprint1491' : sprintLabel === 'SPRINT149' ? 'sprint149' : sprintLabel === 'SPRINT148' ? 'sprint148' : sprintLabel === 'SPRINT123' ? 'sprint123' : sprintLabel === 'SPRINT122' ? 'sprint122' : 'sprint121') : 'sprint12');
+    const allowedRoot = resolve(root, '_recovery-work', process.env.BJC_SEARCH_BENCHMARK_ROOT ? (sprintLabel === 'SPRINT1492' ? 'sprint1492' : sprintLabel === 'SPRINT1491' ? 'sprint1491' : sprintLabel === 'SPRINT149' ? 'sprint149' : sprintLabel === 'SPRINT148' ? 'sprint148' : sprintLabel === 'SPRINT123' ? 'sprint123' : sprintLabel === 'SPRINT122' ? 'sprint122' : 'sprint121') : 'sprint12');
     if (benchmarkRoot.toLowerCase() !== allowedRoot.toLowerCase() && !benchmarkRoot.toLowerCase().startsWith(`${allowedRoot.toLowerCase()}\\`)) throw new Error('SEARCH_BENCHMARK_OUTPUT_PATH_REJECTED');
-    const outputDir = sprintLabel === 'SPRINT1491' ? benchmarkRoot : resolve(benchmarkRoot, phase);
+    const isWindowedSprint = sprintLabel === 'SPRINT1491' || sprintLabel === 'SPRINT1492';
+    const outputDir = isWindowedSprint ? benchmarkRoot : resolve(benchmarkRoot, phase);
     await mkdir(outputDir, { recursive: true });
-    const outputPath = resolve(outputDir, sprintLabel === 'SPRINT1491' ? (phase === 'baseline' ? 'benchmark-before.json' : 'benchmark-after.json') : 'search-benchmark.json');
+    const outputPath = resolve(outputDir, isWindowedSprint ? (phase === 'baseline' ? 'benchmark-before.json' : 'benchmark-after.json') : 'search-benchmark.json');
     const runSamples: Array<Record<string, unknown>> = [];
     if (phase === 'after') {
       try {
@@ -118,7 +119,7 @@ async function main() {
       if (response.status !== 200) throw new Error(`SEARCH_BENCHMARK_HTTP_${response.status}:${sample.name}`);
       const profile = response.body.performance as Profile | undefined;
       if (!profile) throw new Error('SEARCH_PROFILE_NOT_ENABLED');
-      if (sprintLabel === 'SPRINT1491') {
+      if (isWindowedSprint) {
         const corpus = profile.adapterProfiles?.CORPUS;
         runSamples.push({
           queryFamily: sample.name,
@@ -148,7 +149,7 @@ async function main() {
     for (const sample of selectedCases) {
       const rows: Profile[] = [];
       let status = 0;
-      if (sprintLabel === 'SPRINT1491') {
+      if (isWindowedSprint) {
         const cold = await issueRunSample(sample, 0, 'cold');
         status = cold.response.status;
         await issueRunSample(sample, 0, 'warm'); // Deliberate warmup, excluded from the ten measured warm runs.
@@ -191,11 +192,11 @@ async function main() {
       topicFilterAvailable: Boolean(topic),
       tagFilterAvailable: Boolean(tag),
       unsupportedTaxonomyFilters: [!topic ? 'TOPIC_FILTER' : null, !tag ? 'TAG_FILTER' : null].filter(Boolean),
-      instrumentation: sprintLabel === 'SPRINT1491' ? 'Per-run total, parser, adapter query/page, candidate count, query count, and adaptive-window instrumentation; query text and SQL values are not persisted.' : 'engine and per-source engine identify routing; timings and SQL fingerprints only, no SQL, parameters, or query text persisted',
+      instrumentation: isWindowedSprint ? 'Per-run total, parser, adapter query/page, candidate count, query count, and adaptive-window instrumentation; query text and SQL values are not persisted.' : 'engine and per-source engine identify routing; timings and SQL fingerprints only, no SQL, parameters, or query text persisted',
       cases: casesReport,
     };
     await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-    if (sprintLabel === 'SPRINT1491') await writeFile(resolve(benchmarkRoot, 'run-samples.json'), `${JSON.stringify({ generatedAt: new Date().toISOString(), queryTextPersisted: false, samples: runSamples }, null, 2)}\n`, 'utf8');
+    if (isWindowedSprint) await writeFile(resolve(benchmarkRoot, 'run-samples.json'), `${JSON.stringify({ generatedAt: new Date().toISOString(), queryTextPersisted: false, samples: runSamples }, null, 2)}\n`, 'utf8');
     console.log(JSON.stringify({ ...report, output: outputPath }, null, 2));
   } finally {
     await app.close();
@@ -274,6 +275,6 @@ function assertDevDatabase(raw?: string) {
 
 if (require.main === module) main().catch((error) => {
   const message = error instanceof Error ? error.message : 'UNKNOWN_ERROR';
-  console.error(process.env.BJC_SPRINT1491 === 'true' || /^(DEV_DATABASE_[A-Z_]+|SEARCH_PROFILE_NOT_ENABLED|SEARCH_BENCHMARK_HTTP_[0-9]{3}:[A-Z_]+|SEARCH_BENCHMARK_OUTPUT_PATH_REJECTED)$/u.test(message) ? message : 'SPRINT12_SEARCH_BENCHMARK_FAILED');
+  console.error(process.env.BJC_SPRINT1491 === 'true' || process.env.BJC_SPRINT1492 === 'true' || /^(DEV_DATABASE_[A-Z_]+|SEARCH_PROFILE_NOT_ENABLED|SEARCH_BENCHMARK_HTTP_[0-9]{3}:[A-Z_]+|SEARCH_BENCHMARK_OUTPUT_PATH_REJECTED)$/u.test(message) ? message : 'SPRINT12_SEARCH_BENCHMARK_FAILED');
   process.exitCode = 1;
 });

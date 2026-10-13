@@ -107,6 +107,20 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts baseline PHRASE',
   'sprint1491-search-after':
     'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts after PHRASE',
+  'sprint1492-search-before':
+    'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts baseline',
+  'sprint1492-search-after':
+    'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts after',
+  'sprint1492-search-phrase-after':
+    'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts after PHRASE',
+  'sprint1492-parity':
+    'pnpm.cmd exec ts-node scripts/dev/benchmark-search-adapters.ts',
+  'sprint1492-search-verify':
+    'pnpm.cmd exec ts-node scripts/dev/sprint122-search-projection.ts verify',
+  'sprint1492-viewer-smoke':
+    'pnpm.cmd exec ts-node scripts/dev/sprint148-viewer-smoke.ts',
+  'sprint1492-concurrency':
+    'pnpm.cmd exec ts-node scripts/dev/sprint121-concurrency.ts',
   'sprint149-search-after':
     'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts after',
   'sprint149-search-phrase-after':
@@ -114,6 +128,10 @@ const actions = {
   'sprint149-profile-before':
     'pnpm.cmd exec ts-node scripts/dev/sprint149-profile.ts before',
   'sprint149-profile-after':
+    'pnpm.cmd exec ts-node scripts/dev/sprint149-profile.ts after',
+  'sprint1492-profile-before':
+    'pnpm.cmd exec ts-node scripts/dev/sprint149-profile.ts before',
+  'sprint1492-profile-after':
     'pnpm.cmd exec ts-node scripts/dev/sprint149-profile.ts after',
   'sprint149-backup-before':
     'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts',
@@ -257,19 +275,23 @@ const childEnv = {
   CORPUS_PACKAGE_POSTGRES_TEST: action === 'corpus-package-tests' ? '1' : '',
   SPRINT9_POSTGRES_TEST: action === 'sprint9-postgres-tests' ? '1' : '',
   SPRINT10_POSTGRES_TEST: action === 'sprint10-postgres-tests' ? '1' : '',
-  BJC_SEARCH_PROFILE: action === 'sprint11-search-profile' || action.startsWith('sprint121-search-') || action.startsWith('sprint122-search-') || action.startsWith('sprint123-search-') || action.startsWith('sprint148-search-') || action.startsWith('sprint149-search-') || action.startsWith('sprint1491-search-') || action === 'sprint121-concurrency' || action === 'sprint122-concurrency' || action === 'sprint123-concurrency' || action === 'sprint149-concurrency' ? 'true' : '',
-  BJC_SEARCH_BENCHMARK_ROOT: action.startsWith('sprint1491-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint1491') : action.startsWith('sprint121-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint121/performance') : action.startsWith('sprint122-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint122/performance') : action.startsWith('sprint123-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint123/performance') : action.startsWith('sprint148-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint148/performance') : action.startsWith('sprint149-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint149/performance') : '',
+  BJC_SEARCH_PROFILE: action === 'sprint11-search-profile' || action.startsWith('sprint121-search-') || action.startsWith('sprint122-search-') || action.startsWith('sprint123-search-') || action.startsWith('sprint148-search-') || action.startsWith('sprint149-search-') || action.startsWith('sprint1491-search-') || action.startsWith('sprint1492-search-') || action === 'sprint121-concurrency' || action === 'sprint122-concurrency' || action === 'sprint123-concurrency' || action === 'sprint149-concurrency' || action === 'sprint1492-concurrency' ? 'true' : '',
+  BJC_SEARCH_STATEMENT_TIMEOUT_MS: action === 'sprint1492-parity' ? '4500' : process.env.BJC_SEARCH_STATEMENT_TIMEOUT_MS,
+  BJC_SEARCH_BENCHMARK_ROOT: action.startsWith('sprint1492-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint1492') : action.startsWith('sprint1491-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint1491') : action.startsWith('sprint121-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint121/performance') : action.startsWith('sprint122-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint122/performance') : action.startsWith('sprint123-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint123/performance') : action.startsWith('sprint148-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint148/performance') : action.startsWith('sprint149-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint149/performance') : '',
   BJC_SPRINT122: action.startsWith('sprint122-') ? 'true' : '',
   BJC_SPRINT123: action.startsWith('sprint123-') ? 'true' : '',
   BJC_SPRINT148: action.startsWith('sprint148-search-') || action === 'sprint148-explain' ? 'true' : '',
   BJC_SPRINT149: action.startsWith('sprint149-') ? 'true' : '',
   BJC_SPRINT1491: action.startsWith('sprint1491-') ? 'true' : '',
+  BJC_SPRINT1492: action.startsWith('sprint1492-') ? 'true' : '',
+  BJC_SPRINT_PROFILE_ROOT: action.startsWith('sprint1492-profile-') ? path.resolve(__dirname, '../../../_recovery-work/sprint1492') : '',
+  BJC_SPRINT_PROFILE_SKIP_DIRECT: action.startsWith('sprint1492-profile-') ? 'true' : '',
   NODE_OPTIONS: action === 'sprint122-concurrency' ? '--trace-warnings' : process.env.NODE_OPTIONS,
-  BJC_BENCHMARK_OUTPUT_ROOT: action === 'sprint121-parity' ? 'sprint121' : action === 'sprint122-parity' ? 'sprint122' : action === 'sprint123-parity' ? 'sprint123' : action === 'sprint148-parity' ? 'sprint148' : action === 'sprint149-parity' ? 'sprint149' : '',
-  BJC_BENCHMARK_OUTPUT_PATH: action === 'sprint121-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint121/parity/benchmark.json') : action === 'sprint122-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint122/parity/benchmark.json') : action === 'sprint123-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint123/parity/benchmark.json') : action === 'sprint148-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint148/parity/benchmark.json') : action === 'sprint149-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint149/parity/benchmark.json') : '',
-  BJC_CONCURRENCY_WAVES: action === 'sprint149-concurrency' ? '1,5,10' : process.env.BJC_CONCURRENCY_WAVES,
-  BJC_CONCURRENCY_REQUESTS_PER_USER: action === 'sprint149-concurrency' ? '1' : process.env.BJC_CONCURRENCY_REQUESTS_PER_USER,
-  BJC_CONCURRENCY_SEARCH_QUERY: action === 'sprint149-concurrency' ? '"responsabilidad civil"' : process.env.BJC_CONCURRENCY_SEARCH_QUERY,
+  BJC_BENCHMARK_OUTPUT_ROOT: action === 'sprint121-parity' ? 'sprint121' : action === 'sprint122-parity' ? 'sprint122' : action === 'sprint123-parity' ? 'sprint123' : action === 'sprint148-parity' ? 'sprint148' : action === 'sprint149-parity' ? 'sprint149' : action === 'sprint1492-parity' ? 'sprint1492' : '',
+  BJC_BENCHMARK_OUTPUT_PATH: action === 'sprint121-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint121/parity/benchmark.json') : action === 'sprint122-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint122/parity/benchmark.json') : action === 'sprint123-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint123/parity/benchmark.json') : action === 'sprint148-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint148/parity/benchmark.json') : action === 'sprint149-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint149/parity/benchmark.json') : action === 'sprint1492-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint1492/parity/benchmark.json') : '',
+  BJC_CONCURRENCY_WAVES: action === 'sprint149-concurrency' || action === 'sprint1492-concurrency' ? '1,5,10' : process.env.BJC_CONCURRENCY_WAVES,
+  BJC_CONCURRENCY_REQUESTS_PER_USER: action === 'sprint149-concurrency' || action === 'sprint1492-concurrency' ? '1' : process.env.BJC_CONCURRENCY_REQUESTS_PER_USER,
+  BJC_CONCURRENCY_SEARCH_QUERY: action === 'sprint149-concurrency' || action === 'sprint1492-concurrency' ? '"responsabilidad civil"' : process.env.BJC_CONCURRENCY_SEARCH_QUERY,
   BJC_CORPUS_PACKAGE_ARGS:
     action === 'corpus-package' ? JSON.stringify(process.argv.slice(3)) : '',
   BJC_SPRINT148_MODE: action === 'sprint148-audit' ? (process.argv[3] || 'dry-run') : '',

@@ -148,13 +148,13 @@ async function main() {
       });
     }
     const report = {
-      status: process.env.BJC_SPRINT149 === 'true' ? 'SPRINT149_VIEWER_SMOKE_PASS' : 'SPRINT148_VIEWER_SMOKE_PASS', generatedAt: new Date().toISOString(),
+      status: process.env.BJC_SPRINT1492 === 'true' ? 'SPRINT1492_VIEWER_SMOKE_PASS' : process.env.BJC_SPRINT149 === 'true' ? 'SPRINT149_VIEWER_SMOKE_PASS' : 'SPRINT148_VIEWER_SMOKE_PASS', generatedAt: new Date().toISOString(),
       target: { endpoint: '127.0.0.1:55432', database: live.database, role: live.role },
       sampledDocuments: rows.length, newCorpusDocumentsAvailable: documents.length,
       checks: ['Search result', 'snippet', 'document metadata', 'PDF content and SHA-256', 'selected page', 'highlight occurrence order', 'next/previous occurrence ordinals'],
       results: rows,
     };
-    const outDir = resolve(root, process.env.BJC_SPRINT149 === 'true' ? '_recovery-work/sprint149' : '_recovery-work/sprint148');
+    const outDir = resolve(root, process.env.BJC_SPRINT1492 === 'true' ? '_recovery-work/sprint1492' : process.env.BJC_SPRINT149 === 'true' ? '_recovery-work/sprint149' : '_recovery-work/sprint148');
     await mkdir(outDir, { recursive: true });
     await writeFile(resolve(outDir, 'viewer-smoke.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
     console.log(JSON.stringify(report, null, 2));

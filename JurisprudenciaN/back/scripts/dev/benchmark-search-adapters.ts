@@ -33,8 +33,10 @@ const requestedOutputRoot = process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint121
         ? resolve(root, '_recovery-work/sprint148')
         : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint149'
           ? resolve(root, '_recovery-work/sprint149')
+          : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint1492'
+            ? resolve(root, '_recovery-work/sprint1492')
     : sprint12OutputRoot;
-if (process.env.BJC_BENCHMARK_OUTPUT_ROOT && !['sprint121', 'sprint122', 'sprint123', 'sprint148', 'sprint149'].includes(process.env.BJC_BENCHMARK_OUTPUT_ROOT)) {
+if (process.env.BJC_BENCHMARK_OUTPUT_ROOT && !['sprint121', 'sprint122', 'sprint123', 'sprint148', 'sprint149', 'sprint1492'].includes(process.env.BJC_BENCHMARK_OUTPUT_ROOT)) {
   throw new Error('BJC_BENCHMARK_OUTPUT_ROOT is not an allowed report root.');
 }
 const outputPath = requestedOutputPath ? resolve(requestedOutputPath) : defaultOutputPath;
@@ -201,7 +203,7 @@ async function main() {
     }
 
     const report = {
-      mission: process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint149' ? '14.9' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint148' ? '14.8' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint123' ? '12.3' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint122' ? '12.2' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint121' ? '12.1' : '5.3',
+      mission: process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint1492' ? '14.9.2' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint149' ? '14.9' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint148' ? '14.8' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint123' ? '12.3' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint122' ? '12.2' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint121' ? '12.1' : '5.3',
       generatedAt: new Date().toISOString(),
       source: 'jurisp_6/db/jurisprudencia_db.sqlite; read-only immutable query_only',
       postgres: { serverVersion: '16.15', endpoint: '127.0.0.1:55432', database: 'buscador_juridico_civil_dev', role: 'bjc_dev' },
@@ -229,7 +231,7 @@ function writeParityProgress(rows: Array<Record<string, unknown>>) {
   if (!process.env.BJC_BENCHMARK_OUTPUT_PATH) return;
   mkdirSync(resolve(outputPath, '..'), { recursive: true });
   writeFileSync(outputPath, `${JSON.stringify({
-    mission: process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint149' ? '14.9' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint148' ? '14.8' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint123' ? '12.3' : '12.1',
+    mission: process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint1492' ? '14.9.2' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint149' ? '14.9' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint148' ? '14.8' : process.env.BJC_BENCHMARK_OUTPUT_ROOT === 'sprint123' ? '12.3' : '12.1',
     generatedAt: new Date().toISOString(),
     postgres: { serverVersion: '16.15', endpoint: '127.0.0.1:55432', database: 'buscador_juridico_civil_dev', role: 'bjc_dev' },
     queryTextPersisted: false,
