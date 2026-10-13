@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { parseSearchQuery } from '../utils/search-parser';
 import { LegacySqliteSearchAdapter } from './legacy-sqlite-search.adapter';
 import { PostgresJurisprudenciaSearchAdapter } from './postgres-jurisprudencia-search.adapter';
@@ -6,6 +7,8 @@ import type { SearchContext } from './search-source.adapter';
 const enabled = process.env.SEARCH_POSTGRES_TEST === '1' && Boolean(process.env.DATABASE_URL);
 const postgresDescribe = enabled ? describe : describe.skip;
 const legacyFixturePath = process.env.SEARCH_SPIKE_SQLITE_PATH;
+const hasLegacyFixture = Boolean(legacyFixturePath && existsSync(legacyFixturePath));
+const legacyParityIt = hasLegacyFixture ? it : it.skip;
 
 const legacyContext = (overrides: Partial<SearchContext> = {}): SearchContext => ({
   visibility: 'INTERNAL',
@@ -30,16 +33,17 @@ postgresDescribe('PostgresJurisprudenciaSearchAdapter (isolated DEV integration)
   let sqlite: LegacySqliteSearchAdapter;
 
   beforeAll(() => {
-    if (!legacyFixturePath) throw new Error('SEARCH_SPIKE_SQLITE_PATH is required for parity tests.');
     postgres = new PostgresJurisprudenciaSearchAdapter(process.env.DATABASE_URL);
-    sqlite = new LegacySqliteSearchAdapter(legacyFixturePath);
+    if (hasLegacyFixture && legacyFixturePath) {
+      sqlite = new LegacySqliteSearchAdapter(legacyFixturePath);
+    }
   });
 
   afterAll(async () => {
     await postgres?.close();
   });
 
-  it('reproduces the legacy SQLite BJC-001 count on the same complete table universe', async () => {
+  legacyParityIt('reproduces the legacy SQLite BJC-001 count on the same complete table universe when the historical reference DB is configured', async () => {
     const query = parseSearchQuery('daño');
     const [pgResult, sqliteResult] = await Promise.all([
       postgres.search(query, legacyContext()),

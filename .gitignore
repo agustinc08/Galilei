@@ -22,7 +22,9 @@
 # Logs
 **/*.log
 **/*.pid
-**/logs/
+/logs/
+**/runtime/logs/
+**/.logs/
 
 # IDE / OS
 .vscode/

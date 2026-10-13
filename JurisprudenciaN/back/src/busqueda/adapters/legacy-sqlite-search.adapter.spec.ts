@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseSearchQuery } from '../utils/search-parser';
 import { LegacySqliteSearchAdapter } from './legacy-sqlite-search.adapter';
@@ -21,6 +21,7 @@ type BenchmarkCase = {
 };
 
 const databasePath = process.env.SEARCH_SPIKE_SQLITE_PATH;
+const hasLegacyFixture = Boolean(databasePath && existsSync(databasePath));
 const benchmarkPath = resolve(__dirname, '../../../../../docs-integracion/benchmark-busqueda.json');
 const benchmark = JSON.parse(readFileSync(benchmarkPath, 'utf8')) as { cases: BenchmarkCase[] };
 const measuredCases = benchmark.cases.filter(
@@ -45,7 +46,7 @@ const queryForBenchmarkCase = (testCase: BenchmarkCase) => {
   return testCase.legacyMeasurement.legacyComparisonQuery ?? testCase.query;
 };
 
-const sqliteDescribe = databasePath ? describe : describe.skip;
+const sqliteDescribe = hasLegacyFixture ? describe : describe.skip;
 
 sqliteDescribe('LegacySqliteSearchAdapter (opt-in, immutable reference fixture)', () => {
   const adapter = new LegacySqliteSearchAdapter(databasePath!);
