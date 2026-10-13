@@ -1,0 +1,216 @@
+{
+  "mission": "5.4 final",
+  "generatedAt": "2026-10-07T19:42:26.705Z",
+  "target": {
+    "postgres": "16.15",
+    "endpoint": "127.0.0.1:55432",
+    "database": "buscador_juridico_civil_dev",
+    "role": "bjc_dev"
+  },
+  "hardware": {
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13620H",
+    "memoryGiB": 15.7,
+    "os": "Windows 11 Home 10.0.26300"
+  },
+  "corpus": {
+    "source": "jurisp_6/db/jurisprudencia_db.sqlite (read-only immutable query_only)",
+    "sentencias": 21109,
+    "sumarios": 25138,
+    "tbMicroisisImported": false
+  },
+  "method": {
+    "warmups": 3,
+    "repetitions": 20,
+    "pageSize": 25,
+    "measuredStages": [
+      "parse",
+      "SQLite total",
+      "PostgreSQL COUNT",
+      "PostgreSQL result-page plus ranking",
+      "PostgreSQL total"
+    ]
+  },
+  "results": [
+    {
+      "category": "SUFFIX_MATCHING",
+      "caseId": "BJC-010",
+      "query": "%civil",
+      "dialect": "modern",
+      "count": 15283,
+      "warmups": 3,
+      "repetitions": 20,
+      "parseMs": {
+        "min": 0.02,
+        "p50": 0.036,
+        "p95": 0.112,
+        "max": 0.113
+      },
+      "sqliteTotalMs": {
+        "min": 280.712,
+        "p50": 284.55,
+        "p95": 290.185,
+        "max": 293.893
+      },
+      "postgresCountMs": {
+        "min": 113.475,
+        "p50": 396.815,
+        "p95": 405.763,
+        "max": 413.352
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 116.957,
+        "p50": 476.046,
+        "p95": 539.945,
+        "max": 573.685
+      },
+      "postgresTotalMs": {
+        "min": 232.012,
+        "p50": 870.856,
+        "p95": 932.804,
+        "max": 972.395
+      },
+      "samples": [
+        {
+          "parseMs": 0.0591999999996915,
+          "sqliteTotalMs": 280.7117000000003,
+          "postgresCountMs": 113.47470000000021,
+          "postgresResultPageAndRankingMs": 221.82389999999987,
+          "postgresTotalMs": 336.63989999999967
+        },
+        {
+          "parseMs": 0.05330000000003565,
+          "sqliteTotalMs": 285.41110000000026,
+          "postgresCountMs": 113.72810000000027,
+          "postgresResultPageAndRankingMs": 116.95690000000013,
+          "postgresTotalMs": 232.01180000000022
+        },
+        {
+          "parseMs": 0.05110000000013315,
+          "sqliteTotalMs": 284.11429999999973,
+          "postgresCountMs": 115.85999999999967,
+          "postgresResultPageAndRankingMs": 509.0661,
+          "postgresTotalMs": 628.2878999999998
+        },
+        {
+          "parseMs": 0.1124999999992724,
+          "sqliteTotalMs": 293.8926999999994,
+          "postgresCountMs": 396.8152,
+          "postgresResultPageAndRankingMs": 487.58780000000024,
+          "postgresTotalMs": 886.7231999999985
+        },
+        {
+          "parseMs": 0.040799999999762804,
+          "sqliteTotalMs": 283.7598000000007,
+          "postgresCountMs": 373.45870000000014,
+          "postgresResultPageAndRankingMs": 493.3717999999999,
+          "postgresTotalMs": 869.1953000000003
+        },
+        {
+          "parseMs": 0.11280000000078871,
+          "sqliteTotalMs": 283.16659999999956,
+          "postgresCountMs": 391.39070000000083,
+          "postgresResultPageAndRankingMs": 539.9454000000005,
+          "postgresTotalMs": 932.8038000000015
+        },
+        {
+          "parseMs": 0.07029999999940628,
+          "sqliteTotalMs": 285.7614999999987,
+          "postgresCountMs": 401.2443000000003,
+          "postgresResultPageAndRankingMs": 491.7957999999999,
+          "postgresTotalMs": 896.3098000000009
+        },
+        {
+          "parseMs": 0.09590000000025611,
+          "sqliteTotalMs": 287.6720999999998,
+          "postgresCountMs": 403.5435000000016,
+          "postgresResultPageAndRankingMs": 508.48629999999866,
+          "postgresTotalMs": 915.6262000000006
+        },
+        {
+          "parseMs": 0.06719999999950232,
+          "sqliteTotalMs": 288.14270000000033,
+          "postgresCountMs": 401.53260000000046,
+          "postgresResultPageAndRankingMs": 482.5647000000008,
+          "postgresTotalMs": 887.7394999999997
+        },
+        {
+          "parseMs": 0.0352999999995518,
+          "sqliteTotalMs": 289.21650000000045,
+          "postgresCountMs": 395.35390000000007,
+          "postgresResultPageAndRankingMs": 573.6848000000009,
+          "postgresTotalMs": 972.3946999999989
+        },
+        {
+          "parseMs": 0.03590000000076543,
+          "sqliteTotalMs": 283.369200000001,
+          "postgresCountMs": 405.047700000001,
+          "postgresResultPageAndRankingMs": 476.0455000000002,
+          "postgresTotalMs": 882.7052000000003
+        },
+        {
+          "parseMs": 0.020099999999729334,
+          "sqliteTotalMs": 284.5721999999987,
+          "postgresCountMs": 398.5672999999988,
+          "postgresResultPageAndRankingMs": 442.6868999999988,
+          "postgresTotalMs": 844.0284999999985
+        },
+        {
+          "parseMs": 0.028899999999339343,
+          "sqliteTotalMs": 286.6866000000009,
+          "postgresCountMs": 396.97040000000015,
+          "postgresResultPageAndRankingMs": 432.4309999999987,
+          "postgresTotalMs": 831.8233999999993
+        },
+        {
+          "parseMs": 0.029099999999743886,
+          "sqliteTotalMs": 282.8719999999994,
+          "postgresCountMs": 397.8234999999986,
+          "postgresResultPageAndRankingMs": 470.11309999999867,
+          "postgresTotalMs": 870.8561000000009
+        },
+        {
+          "parseMs": 0.03110000000015134,
+          "sqliteTotalMs": 283.0614999999998,
+          "postgresCountMs": 386.9559999999983,
+          "postgresResultPageAndRankingMs": 450.4913000000015,
+          "postgresTotalMs": 840.0331000000006
+        },
+        {
+          "parseMs": 0.02419999999983702,
+          "sqliteTotalMs": 286.66219999999885,
+          "postgresCountMs": 383.1818000000021,
+          "postgresResultPageAndRankingMs": 509.999200000002,
+          "postgresTotalMs": 896.2318000000014
+        },
+        {
+          "parseMs": 0.032499999997526174,
+          "sqliteTotalMs": 290.1850000000013,
+          "postgresCountMs": 405.762999999999,
+          "postgresResultPageAndRankingMs": 469.28449999999793,
+          "postgresTotalMs": 877.7928999999967
+        },
+        {
+          "parseMs": 0.030999999999039574,
+          "sqliteTotalMs": 284.55049999999756,
+          "postgresCountMs": 389.71990000000005,
+          "postgresResultPageAndRankingMs": 435.6330999999991,
+          "postgresTotalMs": 827.2667000000001
+        },
+        {
+          "parseMs": 0.030399999999644933,
+          "sqliteTotalMs": 281.77950000000055,
+          "postgresCountMs": 400.71919999999955,
+          "postgresResultPageAndRankingMs": 454.2368000000024,
+          "postgresTotalMs": 857.7597999999962
+        },
+        {
+          "parseMs": 0.03950000000259024,
+          "sqliteTotalMs": 283.8235999999997,
+          "postgresCountMs": 413.3522000000012,
+          "postgresResultPageAndRankingMs": 487.8621999999996,
+          "postgresTotalMs": 903.517700000004
+        }
+      ]
+    }
+  ]
+}

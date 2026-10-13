@@ -1,0 +1,45 @@
+import { Controller, Get, Res } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import { Public } from '../auth/decorators/public.decorator';
+import { PrismaService } from '../prisma/prisma.service';
+import { CorpusDocumentAccessService } from '../corpus/corpus-document-access.service';
+
+@ApiTags('health')
+@Public()
+@Controller('health')
+export class HealthController {
+  constructor(private readonly prisma: PrismaService, private readonly documents: CorpusDocumentAccessService) {}
+
+  @Get('live')
+  live() {
+    return { status: 'ok', service: 'jurisprudencia-back' };
+  }
+
+  @Get('ready')
+  async readiness(@Res({ passthrough: true }) response: Response) {
+    const result = await this.checkDependencies();
+    response.status(result.status === 'ok' ? 200 : 503);
+    return result;
+  }
+
+  @Get()
+  async check(@Res({ passthrough: true }) response: Response) {
+    const result = await this.checkDependencies();
+    response.status(result.status === 'ok' ? 200 : 503);
+    return result;
+  }
+
+  private async checkDependencies() {
+    let database: 'ok' | 'error' = 'ok';
+    let storage: 'ok' | 'error' = 'ok';
+    try { await this.prisma.$queryRawUnsafe('SELECT 1'); } catch { database = 'error'; }
+    try { if (!(await this.documents.storageReady())) storage = 'error'; } catch { storage = 'error'; }
+    const status = database === 'ok' && storage === 'ok' ? 'ok' : 'not_ready';
+    return {
+      status,
+      service: 'jurisprudencia-back',
+      checks: { api: 'ok', database, storage },
+    };
+  }
+}

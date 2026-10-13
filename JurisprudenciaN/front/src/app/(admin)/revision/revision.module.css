@@ -1,0 +1,17 @@
+.page { display: grid; gap: 1rem; }
+.tabs, .actions { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; }
+.tabs button, .actions button { min-height: 2.35rem; border: 1px solid #94a3b8; border-radius: .35rem; padding: .45rem .7rem; background: white; color: #172b45; cursor: pointer; }
+.tabs button[aria-pressed="true"], .actions button:first-of-type { background: #173b68; color: white; border-color: #173b68; }
+.actions { justify-content: space-between; margin-bottom: .8rem; }
+.list { display: grid; gap: .5rem; }
+.row { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; padding: .8rem 0; border-top: 1px solid #e2e8f0; }
+.row > span { display: grid; gap: .28rem; }
+.row small { color: #475569; }
+.row a { color: #173b68; }
+.row input { margin: .25rem .45rem 0 0; }
+.evidence { max-width: 48rem; overflow-wrap: anywhere; }
+.error { color: #991b1b; }
+.note { color: #475569; }
+.pager { display: flex; justify-content: center; align-items: center; gap: .75rem; }
+.pager button { min-height: 2.25rem; border: 1px solid #94a3b8; border-radius: .35rem; padding: .4rem .65rem; background: white; cursor: pointer; }
+@media (max-width: 600px) { .row { flex-direction: column; } }

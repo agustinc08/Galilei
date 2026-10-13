@@ -1,0 +1,549 @@
+{
+  "sourceArchiveMember": "jurisprudencia/jurisp_6/db/campos_explicados.xls",
+  "sourceFileSizeBytes": 34304,
+  "sourceFileSha256": "3ced5c03a8e077cd4e9e6c6d3fe243b076da7e68fcfdbd0036402ad78fe1a88c",
+  "fileSignature": "D0 CF 11 E0 A1 B1 1A E1",
+  "containerFormat": "OLE Compound File / BIFF8 Excel 97–2003",
+  "workbook": {
+    "worksheets": [
+      "Hoja1"
+    ],
+    "sharedStringCount": 76,
+    "sharedStringUniqueCount": 42,
+    "macroStoragePresent": false,
+    "externalLinksOpened": false,
+    "metadata": {
+      "codePage": 1252,
+      "application": "Microsoft Excel",
+      "createdUtc": "2018-06-15T11:13:39Z",
+      "lastSavedUtc": "2018-06-23T14:43:44Z",
+      "authorPresent": true,
+      "lastSavedByPresent": true,
+      "authorAndLastSavedBy": "redacted",
+      "companyPropertyPresent": true,
+      "companyProperty": "redacted"
+    }
+  },
+  "fieldNumberConvention": "The worksheet shows an unlabeled numeric column alongside field labels; numbers 0–28 align with the 29 TEXT columns. Interpreted as field/tag numbers, but the workbook has no heading that proves the convention.",
+  "fields": [
+    {
+      "worksheetNumber": null,
+      "field": "id_microisis",
+      "sqliteType": "INTEGER PRIMARY KEY",
+      "meaningStatus": "SQLite primary key; not listed in the workbook field-code list",
+      "distinctIncludingEmpty": 52375,
+      "emptyStringRows": 0,
+      "maxCharactersObserved": 5,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 0,
+      "field": "tipo_registro",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 22,
+      "emptyStringRows": 37,
+      "maxCharactersObserved": 7,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 1,
+      "field": "dummy",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 4,
+      "emptyStringRows": 50169,
+      "maxCharactersObserved": 44,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 2,
+      "field": "materia",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 36,
+      "emptyStringRows": 22898,
+      "maxCharactersObserved": 29,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 3,
+      "field": "numero_sumario",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 28571,
+      "emptyStringRows": 23670,
+      "maxCharactersObserved": 62,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 4,
+      "field": "tema",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 24841,
+      "emptyStringRows": 23940,
+      "maxCharactersObserved": 578,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 5,
+      "field": "texto_sumario",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 28383,
+      "emptyStringRows": 23954,
+      "maxCharactersObserved": 9749,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 6,
+      "field": "referencias_normativas",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 35,
+      "emptyStringRows": 52341,
+      "maxCharactersObserved": 2209,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 7,
+      "field": "sumarios_contradictorios",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 6095,
+      "emptyStringRows": 45355,
+      "maxCharactersObserved": 191,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 8,
+      "field": "tipo_fallo",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 9,
+      "emptyStringRows": 542,
+      "maxCharactersObserved": 7,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 9,
+      "field": "sala",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 32,
+      "emptyStringRows": 3141,
+      "maxCharactersObserved": 15,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 10,
+      "field": "local",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 15,
+      "emptyStringRows": 255,
+      "maxCharactersObserved": 25,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 11,
+      "field": "causa",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 22417,
+      "emptyStringRows": 261,
+      "maxCharactersObserved": 44,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 12,
+      "field": "pre_causa",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 10,
+      "emptyStringRows": 251,
+      "maxCharactersObserved": 78,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 13,
+      "field": "expte",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 1,
+      "emptyStringRows": 52375,
+      "maxCharactersObserved": 0,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 14,
+      "field": "fecha",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 7029,
+      "emptyStringRows": 0,
+      "maxCharactersObserved": 32,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 15,
+      "field": "resultado",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 23,
+      "emptyStringRows": 37848,
+      "maxCharactersObserved": 20,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 16,
+      "field": "juez",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 258,
+      "emptyStringRows": 31155,
+      "maxCharactersObserved": 24,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 17,
+      "field": "objeto",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 2447,
+      "emptyStringRows": 29409,
+      "maxCharactersObserved": 515,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 18,
+      "field": "actor",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 20876,
+      "emptyStringRows": 29083,
+      "maxCharactersObserved": 173,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 19,
+      "field": "demandado",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 17907,
+      "emptyStringRows": 31053,
+      "maxCharactersObserved": 118,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 20,
+      "field": "magistrados",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 2734,
+      "emptyStringRows": 29112,
+      "maxCharactersObserved": 1794,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 21,
+      "field": "publicacion",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 165,
+      "emptyStringRows": 52178,
+      "maxCharactersObserved": 208,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 22,
+      "field": "numero_saij",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 14,
+      "emptyStringRows": 34627,
+      "maxCharactersObserved": 8,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 23,
+      "field": "sumarios_asociados",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 2322,
+      "emptyStringRows": 30106,
+      "maxCharactersObserved": 522,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 24,
+      "field": "fecha_carga",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 1341,
+      "emptyStringRows": 5235,
+      "maxCharactersObserved": 63,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 25,
+      "field": "operador",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 81,
+      "emptyStringRows": 5194,
+      "maxCharactersObserved": 8,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 26,
+      "field": "tribunal_origen",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 113,
+      "emptyStringRows": 41184,
+      "maxCharactersObserved": 17,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 27,
+      "field": "sentencias_anuladas",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 2819,
+      "emptyStringRows": 49057,
+      "maxCharactersObserved": 30,
+      "nullRows": 0
+    },
+    {
+      "worksheetNumber": 28,
+      "field": "observaciones",
+      "sqliteType": "TEXT",
+      "meaningStatus": "field label only; no prose definition in workbook",
+      "distinctIncludingEmpty": 23,
+      "emptyStringRows": 52353,
+      "maxCharactersObserved": 33,
+      "nullRows": 0
+    }
+  ],
+  "typeRegistroValues": [
+    {
+      "value": "S",
+      "rows": 26694
+    },
+    {
+      "value": "C",
+      "rows": 22800
+    },
+    {
+      "value": "s",
+      "rows": 1104
+    },
+    {
+      "value": "X",
+      "rows": 727
+    },
+    {
+      "value": "x",
+      "rows": 650
+    },
+    {
+      "value": "c",
+      "rows": 307
+    },
+    {
+      "value": "",
+      "rows": 37
+    },
+    {
+      "value": "1",
+      "rows": 15
+    },
+    {
+      "value": "XX",
+      "rows": 11
+    },
+    {
+      "value": "m",
+      "rows": 9
+    },
+    {
+      "value": " ",
+      "rows": 8
+    },
+    {
+      "value": "M",
+      "rows": 2
+    },
+    {
+      "value": "SS",
+      "rows": 2
+    },
+    {
+      "value": "0025061",
+      "rows": 1
+    },
+    {
+      "value": "CS",
+      "rows": 1
+    },
+    {
+      "value": "CSC",
+      "rows": 1
+    },
+    {
+      "value": "D",
+      "rows": 1
+    },
+    {
+      "value": "SSSS",
+      "rows": 1
+    },
+    {
+      "value": "a",
+      "rows": 1
+    },
+    {
+      "value": "d",
+      "rows": 1
+    },
+    {
+      "value": "o",
+      "rows": 1
+    },
+    {
+      "value": "ss",
+      "rows": 1
+    }
+  ],
+  "tableFragments": {
+    "tb_sentencias": [
+      {
+        "field": "id_sentencia",
+        "codeInAdjacentColumn": null
+      },
+      {
+        "field": "codigo_sentencia",
+        "codeInAdjacentColumn": 11
+      },
+      {
+        "field": "tipo_fallo",
+        "codeInAdjacentColumn": 8
+      },
+      {
+        "field": "sala",
+        "codeInAdjacentColumn": 9
+      },
+      {
+        "field": "fecha",
+        "codeInAdjacentColumn": 14
+      },
+      {
+        "field": "juez",
+        "codeInAdjacentColumn": 16
+      },
+      {
+        "field": "objeto",
+        "codeInAdjacentColumn": 17
+      },
+      {
+        "field": "actor",
+        "codeInAdjacentColumn": 18
+      },
+      {
+        "field": "demandado",
+        "codeInAdjacentColumn": 19
+      },
+      {
+        "field": "magistrados",
+        "codeInAdjacentColumn": 20
+      },
+      {
+        "field": "tribunal_origen",
+        "codeInAdjacentColumn": 26
+      },
+      {
+        "field": "fallo_completo",
+        "codeInAdjacentColumn": 7
+      },
+      {
+        "field": "numero_expediente",
+        "codeInAdjacentColumn": 27
+      },
+      {
+        "field": "activo",
+        "codeInAdjacentColumn": null
+      }
+    ],
+    "tb_sumarios": [
+      {
+        "field": "id_sumario",
+        "codeInAdjacentColumn": null
+      },
+      {
+        "field": "id_sentencia",
+        "codeInAdjacentColumn": null
+      },
+      {
+        "field": "numero_sumario",
+        "codeInAdjacentColumn": 3
+      },
+      {
+        "field": "tema",
+        "codeInAdjacentColumn": 4
+      },
+      {
+        "field": "texto_sumario",
+        "codeInAdjacentColumn": 5
+      },
+      {
+        "field": "publicado",
+        "codeInAdjacentColumn": null
+      },
+      {
+        "field": "resumen",
+        "codeInAdjacentColumn": null
+      },
+      {
+        "field": "id_operador",
+        "codeInAdjacentColumn": null
+      },
+      {
+        "field": "activo",
+        "codeInAdjacentColumn": null
+      }
+    ],
+    "tb_operadores": [
+      "id_operador",
+      "dni",
+      "activo"
+    ],
+    "unlabeledColumnI": [
+      "id_sumario",
+      "tipo_registro",
+      "numero_sumario",
+      "tema",
+      "texto_sumario",
+      "fallo_completo",
+      "tipo_fallo",
+      "sala",
+      "codigo_sentencia",
+      "fecha",
+      "juez",
+      "objeto",
+      "actor",
+      "demandado",
+      "magistrados",
+      "tribunal_origen",
+      "numero_expediente"
+    ]
+  },
+  "interpretationNotes": [
+    "The workbook has one sheet and no prose definition, lengths, declared types, allowed-value table, or explanation of record-type codes.",
+    "The adjacent code lists are ambiguous: code 7 is labelled sumarios_contradictorios in the 0–28 field list but maps to fallo_completo in the tb_sentencias fragment; code 27 is labelled sentencias_anuladas but maps to numero_expediente. This may be type-specific MicroISIS tagging or an inconsistent crosswalk; do not assume global semantics.",
+    "tipo_registro values are observed data values, not decoded definitions. No S/C interpretation is documented.",
+    "The CFB directory contains Workbook and summary-information streams, but no VBA storage. No macro was run. Author/name metadata are present but redacted.",
+    "No rows have SQL NULL in tb_microisis; blank values are stored as empty strings. Lengths in fields are observed maxima, not declared source limits."
+  ]
+}

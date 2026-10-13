@@ -1,0 +1,24 @@
+name: buscador-juridico-civil-search-dev
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: buscador_juridico_civil_dev
+    restart: "no"
+    environment:
+      POSTGRES_DB: buscador_juridico_civil_dev
+      POSTGRES_USER: buscador_dev
+      POSTGRES_PASSWORD: "${SEARCH_DEV_DB_PASSWORD:?Set SEARCH_DEV_DB_PASSWORD for this local development database}"
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - search_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U buscador_dev -d buscador_juridico_civil_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  search_dev_data:
+    name: buscador_juridico_civil_dev_data

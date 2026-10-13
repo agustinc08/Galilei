@@ -1,0 +1,809 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Rol {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique
+  descripcion String?
+  usuarios    Usuario[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([nombre])
+}
+
+model Usuario {
+  id                  Int                @id @default(autoincrement())
+  nombre              String
+  apellido            String?
+  email               String             @unique
+  passwordHash        String
+  activo              Boolean            @default(true)
+  rolId               Int
+  rol                 Rol                @relation(fields: [rolId], references: [id])
+  favoritos           Favorito[]
+  busquedas           BusquedaGuardada[]
+  eventos             EventoConsulta[]
+  accionesLog         AccionLog[]
+  resenasActualizadas Sentencia[]        @relation("ResenaUpdatedBy")
+  resenasPublicadas   Sentencia[]        @relation("ResenaPublishedBy")
+  citasCreadas        CitaFallo[]        @relation("CitaCreatedBy")
+  citasActualizadas   CitaFallo[]        @relation("CitaUpdatedBy")
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([email])
+  @@index([activo])
+  @@index([rolId])
+}
+
+model Sentencia {
+  id                                       Int                         @id @default(autoincrement())
+  legacyId                                 String?                     @unique
+  legacyLink                               String?
+  numeroSentencia                          String?
+  tipoFallo                                String?
+  tipoFalloId                              Int?
+  sala                                     String?
+  salaId                                   Int?
+  fecha                                    DateTime?
+  expediente                               String?
+  tribunalOrigen                           String?
+  tribunalOrigenId                         Int?
+  actor                                    String?
+  demandado                                String?
+  actorOriginal                            String?
+  demandadoOriginal                        String?
+  actorPublico                             String?
+  demandadoPublico                         String?
+  anonimizado                              Boolean                     @default(false)
+  objeto                                   String?
+  magistrados                              String?
+  estadoCarga                              String                      @default("BORRADOR")
+  publicado                                Boolean                     @default(false)
+  activo                                   Boolean                     @default(true)
+  observacionesInternas                    String?
+  resumenIa                                String?
+  resena                                   String?
+  resenaAi                                 String?
+  resenaPublicada                          Boolean                     @default(false)
+  resenaUpdatedAt                          DateTime?
+  resenaPublicadaAt                        DateTime?
+  resenaUpdatedById                        Int?
+  resenaPublicadaById                      Int?
+  resumenPublicado                         Boolean                     @default(false)
+  resumenFuente                            String?
+  citaPersonalizada                        String?
+  slugPublico                              String?                     @unique
+  destacada                                Boolean                     @default(false)
+  textoBusqueda                            String?
+  textoBusquedaNormalizado                 String?
+  caratula                                 String?
+  anio                                     Int?
+  tienePdf                                 Boolean                     @default(false)
+  sumarios                                 Sumario[]
+  archivosPdf                              ArchivoPdf[]
+  citasFallo                               CitaFallo[]
+  referenciasNormativas                    ReferenciaNormativa[]
+  referenciasJurisprudenciales             ReferenciaJurisprudencial[] @relation("SentenciaReferenciaJurisprudencialOrigen")
+  referenciasJurisprudencialesRelacionadas ReferenciaJurisprudencial[] @relation("SentenciaReferenciaJurisprudencialDestino")
+  referenciasDoctrinarias                  ReferenciaDoctrinaria[]
+  salaCatalogo                             Sala?                       @relation(fields: [salaId], references: [id], onDelete: SetNull)
+  tipoFalloCatalogo                        TipoFallo?                  @relation(fields: [tipoFalloId], references: [id], onDelete: SetNull)
+  tribunalOrigenCatalogo                   TribunalOrigen?             @relation(fields: [tribunalOrigenId], references: [id], onDelete: SetNull)
+  resenaUpdatedBy                          Usuario?                    @relation("ResenaUpdatedBy", fields: [resenaUpdatedById], references: [id], onDelete: SetNull)
+  resenaPublicadaBy                        Usuario?                    @relation("ResenaPublishedBy", fields: [resenaPublicadaById], references: [id], onDelete: SetNull)
+  favoritos                                Favorito[]
+  eventosConsulta                          EventoConsulta[]
+  embeddingsDocumento                      EmbeddingDocumento[]
+  createdAt                                DateTime                    @default(now())
+  updatedAt                                DateTime                    @updatedAt
+
+  @@index([fecha])
+  @@index([sala])
+  @@index([tipoFallo])
+  @@index([publicado])
+  @@index([activo])
+  @@index([estadoCarga])
+  @@index([expediente])
+  @@index([numeroSentencia])
+  @@index([destacada])
+  @@index([slugPublico])
+  @@index([caratula])
+  @@index([anio])
+  @@index([tienePdf])
+  @@index([actor])
+  @@index([demandado])
+  @@index([publicado, fecha])
+  @@index([activo, fecha])
+  @@index([sala, fecha])
+  @@index([tipoFallo, fecha])
+  @@index([anonimizado])
+  @@index([salaId])
+  @@index([tipoFalloId])
+  @@index([tribunalOrigenId])
+  @@index([legacyLink])
+}
+
+model Sumario {
+  id                       Int       @id @default(autoincrement())
+  legacyId                 String?   @unique
+  numeroSumario            String?
+  tema                     String?
+  texto                    String
+  resumenBusqueda          String?
+  textoBusqueda            String?
+  textoBusquedaNormalizado String?
+  publicado                Boolean   @default(false)
+  activo                   Boolean   @default(true)
+  sentenciaId              Int
+  sentencia                Sentencia @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@index([tema])
+  @@index([publicado])
+  @@index([activo])
+  @@index([sentenciaId])
+  @@index([numeroSumario])
+  @@index([sentenciaId, publicado])
+  @@index([sentenciaId, activo])
+}
+
+model ArchivoPdf {
+  id             Int       @id @default(autoincrement())
+  legacyId       String?
+  nombreArchivo  String
+  nombreOriginal String?
+  rutaArchivo    String
+  legacyPath     String?
+  mimeType       String?
+  tamanioBytes   Int?
+  sentenciaId    Int
+  sentencia      Sentencia @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([sentenciaId])
+  @@index([legacyId])
+  @@index([legacyPath])
+}
+
+model CitaFallo {
+  id            Int       @id @default(autoincrement())
+  sentenciaId   Int
+  tipo          String
+  referencia    String
+  textoOriginal String?
+  contexto      String?
+  pagina        Int?
+  confirmada    Boolean   @default(false)
+  creadaManual  Boolean   @default(false)
+  createdById   Int?
+  updatedById   Int?
+  sentencia     Sentencia @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
+  createdBy     Usuario?  @relation("CitaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy     Usuario?  @relation("CitaUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([sentenciaId, tipo, referencia])
+  @@index([sentenciaId])
+  @@index([tipo])
+  @@index([referencia])
+  @@index([confirmada])
+}
+
+model ReferenciaNormativa {
+  id              Int            @id @default(autoincrement())
+  sentenciaId     Int
+  normaArticuloId Int?
+  tipoNorma       String
+  numeroNorma     String?
+  articulo        String?
+  inciso          String?
+  textoReferencia String?
+  url             String?
+  sentencia       Sentencia      @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
+  normaArticulo   NormaArticulo? @relation(fields: [normaArticuloId], references: [id], onDelete: SetNull)
+  createdAt       DateTime       @default(now())
+
+  @@index([sentenciaId])
+  @@index([tipoNorma])
+  @@index([normaArticuloId])
+}
+
+model ReferenciaJurisprudencial {
+  id                 Int        @id @default(autoincrement())
+  sentenciaId        Int
+  referencia         String
+  falloRelacionadoId Int?
+  textoOriginal      String?
+  sentencia          Sentencia  @relation("SentenciaReferenciaJurisprudencialOrigen", fields: [sentenciaId], references: [id], onDelete: Cascade)
+  falloRelacionado   Sentencia? @relation("SentenciaReferenciaJurisprudencialDestino", fields: [falloRelacionadoId], references: [id], onDelete: SetNull)
+  createdAt          DateTime   @default(now())
+
+  @@index([sentenciaId])
+  @@index([falloRelacionadoId])
+}
+
+model ReferenciaDoctrinaria {
+  id              Int       @id @default(autoincrement())
+  sentenciaId     Int
+  autor           String?
+  titulo          String?
+  fuente          String?
+  anio            Int?
+  textoReferencia String?
+  url             String?
+  sentencia       Sentencia @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+
+  @@index([sentenciaId])
+  @@index([autor])
+  @@index([anio])
+}
+
+model Favorito {
+  id          Int       @id @default(autoincrement())
+  usuarioId   Int
+  sentenciaId Int
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  sentencia   Sentencia @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@unique([usuarioId, sentenciaId])
+  @@index([usuarioId])
+  @@index([sentenciaId])
+}
+
+model EmbeddingDocumento {
+  id           Int       @id @default(autoincrement())
+  sentenciaId  Int
+  sentencia    Sentencia @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
+  fuente       String
+  fuenteId     Int?
+  embedding    Json
+  textoResumen String
+  createdAt    DateTime  @default(now())
+
+  @@unique([sentenciaId, fuente, fuenteId])
+  @@index([sentenciaId])
+  @@index([fuente])
+  @@index([createdAt])
+}
+
+model BusquedaGuardada {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int
+  nombre    String
+  queryJson Json
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([usuarioId])
+}
+
+model EventoConsulta {
+  id          Int        @id @default(autoincrement())
+  tipoEvento  String
+  usuarioId   Int?
+  sentenciaId Int?
+  metadata    Json?
+  usuario     Usuario?   @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  sentencia   Sentencia? @relation(fields: [sentenciaId], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now())
+
+  @@index([tipoEvento, createdAt])
+  @@index([sentenciaId, tipoEvento])
+  @@index([usuarioId, createdAt])
+}
+
+model AccionLog {
+  id           Int      @id @default(autoincrement())
+  usuarioId    Int
+  entidad      String
+  entidadId    Int?
+  accion       String
+  descripcion  String?
+  datosAntes   Json?
+  datosDespues Json?
+  usuario      Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([usuarioId])
+  @@index([entidad])
+  @@index([entidadId])
+  @@index([accion])
+  @@index([createdAt])
+}
+
+model InstitutoJuridico {
+  id          Int                @id @default(autoincrement())
+  nombre      String             @unique
+  descripcion String?
+  activo      Boolean            @default(true)
+  sinonimos   SinonimoJuridico[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([nombre])
+}
+
+model SinonimoJuridico {
+  id          Int               @id @default(autoincrement())
+  institutoId Int
+  termino     String
+  activo      Boolean           @default(true)
+  instituto   InstitutoJuridico @relation(fields: [institutoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([institutoId, termino])
+  @@index([institutoId])
+  @@index([termino])
+}
+
+model NormaArticulo {
+  id                   Int                     @id @default(autoincrement())
+  codigo               String
+  numeroNorma          String?
+  articulo             String
+  titulo               String?
+  texto                String?
+  url                  String?
+  vigente              Boolean                 @default(true)
+  referencias          ReferenciaNormativa[]
+  equivalenciasOrigen  EquivalenciaNormativa[] @relation("EquivalenciaOrigen")
+  equivalenciasDestino EquivalenciaNormativa[] @relation("EquivalenciaDestino")
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  @@index([codigo])
+  @@index([articulo])
+  @@index([numeroNorma])
+}
+
+model EquivalenciaNormativa {
+  id                Int           @id @default(autoincrement())
+  articuloOrigenId  Int
+  articuloDestinoId Int
+  tipoRelacion      String
+  observacion       String?
+  articuloOrigen    NormaArticulo @relation("EquivalenciaOrigen", fields: [articuloOrigenId], references: [id], onDelete: Cascade)
+  articuloDestino   NormaArticulo @relation("EquivalenciaDestino", fields: [articuloDestinoId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now())
+
+  @@unique([articuloOrigenId, articuloDestinoId, tipoRelacion])
+  @@index([articuloOrigenId])
+  @@index([articuloDestinoId])
+}
+
+model Sala {
+  id         Int         @id @default(autoincrement())
+  nombre     String      @unique
+  codigo     String?     @unique
+  activa     Boolean     @default(true)
+  orden      Int?
+  sentencias Sentencia[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([activa])
+  @@index([orden])
+}
+
+model TipoFallo {
+  id         Int         @id @default(autoincrement())
+  nombre     String      @unique
+  codigo     String?     @unique
+  activo     Boolean     @default(true)
+  orden      Int?
+  sentencias Sentencia[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([activo])
+  @@index([orden])
+}
+
+model TribunalOrigen {
+  id         Int         @id @default(autoincrement())
+  nombre     String      @unique
+  codigo     String?     @unique
+  activo     Boolean     @default(true)
+  orden      Int?
+  sentencias Sentencia[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([activo])
+  @@index([orden])
+}
+
+// Corpus documental compartido. No reemplaza Sentencia ni las entidades propias de Digesto.
+model CorpusSourceSystem {
+  id          String                  @id @default(cuid())
+  code        String                  @unique
+  name        String
+  description String?
+  sourceType  String
+  active      Boolean                 @default(true)
+  baseUrl     String?
+  metadata    Json?
+  ingestions  CorpusIngestionRecord[]
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+}
+
+model CorpusDocument {
+  id                  String                         @id @default(cuid())
+  documentType        String                         @default("DOCUMENT")
+  title               String
+  subtitle            String?
+  jurisdiction        String                         @default("CIVIL")
+  court               String?
+  chamber             String?
+  instance            String?
+  caseNumber          String?
+  docket              String?
+  decisionDate        DateTime?
+  visibility          String                         @default("INTERNAL")
+  status              String                         @default("DISCOVERED")
+  editorialStatus     String                         @default("NO_REVIEWED")
+  anonymizationStatus String                         @default("REVIEW_REQUIRED")
+  metadata            Json?
+  metadataOriginal    Json?
+  searchText          String                         @default("") @db.Text
+  latestExtractionId  String?
+  files               CorpusDocumentFile[]
+  ingestions          CorpusIngestionRecord[]
+  extractions         CorpusExtraction[]
+  links               CorpusDocumentLink[]
+  locations           CorpusDocumentLocation[]
+  associations        CorpusDocumentAssociation[]
+  classifications     CorpusDocumentClassification[]
+  digestoCollections  DigestoCollectionMembership[]
+  digestoTopics       CorpusDocumentTopic[]
+  digestoTags         CorpusDocumentTag[]
+  importRunItems      CorpusImportRunItem[]
+  latestExtraction    CorpusExtraction?              @relation("LatestCorpusExtraction", fields: [latestExtractionId], references: [id], onDelete: SetNull)
+  createdAt           DateTime                       @default(now())
+  updatedAt           DateTime                       @updatedAt
+
+  @@index([visibility, status])
+  @@index([decisionDate])
+  @@index([documentType, jurisdiction])
+  @@index([caseNumber])
+  @@index([court])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "CorpusDocument_searchText_trgm_idx")
+}
+
+model CorpusDocumentRepositoryRoot {
+  id             String                   @id
+  name           String
+  relativePath   String                   @unique
+  rootType       String
+  source         String
+  readOnly       Boolean                  @default(true)
+  active         Boolean                  @default(true)
+  excludedReason String?
+  locations      CorpusDocumentLocation[]
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@index([active, rootType])
+}
+
+model CorpusDocumentLocation {
+  id               String                       @id @default(cuid())
+  documentId       String
+  rootId           String
+  relativePath     String
+  originalFilename String
+  sourceType       String
+  source           String
+  sizeBytes        BigInt
+  sha256           String
+  modifiedAt       DateTime?
+  sourceMissing    Boolean                      @default(false)
+  document         CorpusDocument               @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  root             CorpusDocumentRepositoryRoot @relation(fields: [rootId], references: [id], onDelete: Restrict)
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+
+  @@unique([rootId, relativePath])
+  @@index([documentId, sha256])
+  @@index([sha256])
+  @@index([sourceMissing])
+}
+
+model CorpusImportRun {
+  id              String                @id
+  scanId          String
+  manifestSha256  String
+  sourceCode      String
+  status          String                @default("RUNNING")
+  roots           Json
+  scanned         Int                   @default(0)
+  physicalFiles   Int                   @default(0)
+  uniqueHashes    Int                   @default(0)
+  processed       Int                   @default(0)
+  newDocuments    Int                   @default(0)
+  reusedDocuments Int                   @default(0)
+  linked          Int                   @default(0)
+  suggested       Int                   @default(0)
+  unresolved      Int                   @default(0)
+  extracted       Int                   @default(0)
+  pages           Int                   @default(0)
+  characters      BigInt                @default(0)
+  ocrRequired     Int                   @default(0)
+  invalidPdf      Int                   @default(0)
+  failed          Int                   @default(0)
+  skipped         Int                   @default(0)
+  bytesProcessed  BigInt                @default(0)
+  filesPerMinute  Float?
+  mbPerMinute     Float?
+  extractP50Ms    Float?
+  extractP95Ms    Float?
+  errorSummary    Json?
+  items           CorpusImportRunItem[]
+  startedAt       DateTime              @default(now())
+  finishedAt      DateTime?
+  updatedAt       DateTime              @updatedAt
+
+  @@index([scanId, status])
+  @@index([startedAt])
+}
+
+model CorpusImportRunItem {
+  id                    String          @id @default(cuid())
+  runId                 String
+  itemKey               String
+  documentId            String?
+  status                String          @default("PENDING")
+  extractionStatus      String?
+  associationConfidence String?
+  bytes                 BigInt          @default(0)
+  pages                 Int             @default(0)
+  characters            Int             @default(0)
+  durationMs            Int?
+  extractionDurationMs  Int?
+  errorStage            String?
+  errorMessage          String?
+  document              CorpusDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  run                   CorpusImportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  startedAt             DateTime        @default(now())
+  finishedAt            DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@unique([runId, itemKey])
+  @@index([status, updatedAt])
+  @@index([documentId])
+}
+
+model CorpusDocumentAssociation {
+  id           String         @id @default(cuid())
+  documentId   String
+  targetDomain String
+  targetType   String
+  targetId     String         @default("")
+  confidence   String
+  reviewStatus String         @default("REVIEW_PENDING")
+  origin       String         @default("LEGACY")
+  evidence     Json?
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  document     CorpusDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([documentId, targetDomain, targetType, targetId])
+  @@index([targetDomain, confidence, reviewStatus])
+  @@index([documentId, reviewStatus])
+}
+
+model CorpusDocumentClassification {
+  id           String         @id @default(cuid())
+  documentId   String
+  category     String
+  value        String
+  origin       String
+  confidence   Float?
+  reviewStatus String         @default("SUGGESTED")
+  evidence     Json?
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  document     CorpusDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([documentId, category, value, origin])
+  @@index([category, value, reviewStatus])
+  @@index([documentId, reviewStatus])
+  @@index([origin, confidence])
+}
+
+model CorpusDocumentFile {
+  id               String                  @id @default(cuid())
+  documentId       String
+  storageProvider  String                  @default("LOCAL_DEV")
+  storageKey       String
+  originalFilename String
+  mimeType         String
+  sizeBytes        BigInt
+  sha256           String
+  pageCount        Int?
+  version          Int                     @default(1)
+  document         CorpusDocument          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  extractions      CorpusExtraction[]
+  ingestions       CorpusIngestionRecord[]
+  createdAt        DateTime                @default(now())
+
+  @@unique([documentId, sha256])
+  @@index([sha256])
+  @@index([documentId, version])
+}
+
+model CorpusIngestionRecord {
+  id               String              @id @default(cuid())
+  sourceSystemId   String
+  documentId       String
+  fileId           String?
+  externalId       String?
+  externalUrl      String?
+  sourceReference  String?
+  obtainedAt       DateTime?
+  ingestedAt       DateTime            @default(now())
+  status           String              @default("DISCOVERED")
+  checksum         String
+  idempotencyKey   String              @unique
+  originalFilename String
+  sourcePath       String?
+  metadataOriginal Json?
+  errorStage       String?
+  errorMessage     String?
+  errorAt          DateTime?
+  retryable        Boolean             @default(false)
+  sourceSystem     CorpusSourceSystem  @relation(fields: [sourceSystemId], references: [id], onDelete: Restrict)
+  document         CorpusDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  file             CorpusDocumentFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([sourceSystemId, externalId])
+  @@index([documentId, ingestedAt])
+  @@index([status, ingestedAt])
+  @@index([checksum])
+}
+
+model CorpusExtraction {
+  id               String               @id @default(cuid())
+  documentId       String
+  fileId           String
+  extractor        String
+  extractorVersion String
+  status           String
+  text             String               @default("") @db.Text
+  error            String?
+  errorStage       String?
+  errorAt          DateTime?
+  retryable        Boolean              @default(false)
+  extractedAt      DateTime             @default(now())
+  document         CorpusDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  file             CorpusDocumentFile   @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  pages            CorpusDocumentPage[]
+  latestFor        CorpusDocument[]     @relation("LatestCorpusExtraction")
+
+  @@index([documentId, extractedAt])
+  @@index([fileId, extractor, extractorVersion])
+  @@index([status, extractedAt])
+}
+
+model CorpusDocumentPage {
+  id           String           @id @default(cuid())
+  extractionId String
+  pageNumber   Int
+  text         String           @db.Text
+  extraction   CorpusExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+
+  @@unique([extractionId, pageNumber])
+  @@index([pageNumber])
+}
+
+// Cross-domain reference only; ownership/curation remains in Jurisprudencia or Digesto.
+model CorpusDocumentLink {
+  id           String         @id @default(cuid())
+  documentId   String
+  targetDomain String
+  targetType   String
+  targetId     String
+  relationship String
+  metadata     Json?
+  document     CorpusDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+
+  @@unique([documentId, targetDomain, targetType, targetId, relationship])
+  @@index([targetDomain, targetType, targetId])
+  @@index([documentId, relationship])
+}
+
+// Digesto taxonomy and memberships live in the unified DEV database. They organize
+// Corpus references; they never own or duplicate the underlying file.
+model DigestoCollection {
+  id          String                        @id @default(cuid())
+  name        String
+  normalized  String                        @unique
+  description String?
+  status      String                        @default("ACTIVE")
+  memberships DigestoCollectionMembership[]
+  createdAt   DateTime                      @default(now())
+  updatedAt   DateTime                      @updatedAt
+
+  @@index([status, name])
+}
+
+model DigestoCollectionMembership {
+  id           String           @id @default(cuid())
+  collectionId String
+  documentId   String
+  collection   DigestoCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  document     CorpusDocument    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime          @default(now())
+
+  @@unique([collectionId, documentId])
+  @@index([documentId])
+}
+
+model DigestoTopic {
+  id          String                @id @default(cuid())
+  name        String
+  normalized  String                @unique
+  description String?
+  active      Boolean               @default(true)
+  documents   CorpusDocumentTopic[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([active, name])
+}
+
+model CorpusDocumentTopic {
+  id         String         @id @default(cuid())
+  documentId String
+  topicId    String
+  document   CorpusDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  topic      DigestoTopic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now())
+
+  @@unique([documentId, topicId])
+  @@index([topicId])
+}
+
+model DigestoTag {
+  id         String                @id @default(cuid())
+  name       String
+  normalized String                @unique
+  documents  CorpusDocumentTag[]
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+}
+
+model CorpusDocumentTag {
+  id         String         @id @default(cuid())
+  documentId String
+  tagId      String
+  document   CorpusDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag        DigestoTag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now())
+
+  @@unique([documentId, tagId])
+  @@index([tagId])
+}

@@ -1,0 +1,114 @@
+.emptyPage {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #eef4f8;
+}
+
+.institutionalBlock {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid #c8d8e6;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+}
+
+.institutionalBlock span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.institutionalBlock strong {
+  color: #0f3558;
+  font-size: 18px;
+}
+
+.institutionalBlock p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.publicHeader {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #dbe4ee;
+  background: #ffffff;
+}
+
+.publicHeader div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.publicHeader span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.publicHeader strong {
+  color: #0f172a;
+}
+
+.publicHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.timeline,
+.relatedList {
+  display: grid;
+  gap: 10px;
+}
+
+.timelineItem,
+.relatedItem,
+.emptyBox {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid #dce9f5;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.timelineItem span,
+.relatedItem span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.timelineItem strong,
+.relatedItem strong {
+  color: #0f3558;
+}
+
+.relatedItem {
+  text-decoration: none;
+}
+
+.relatedItem:hover {
+  border-color: #8fb7d9;
+  box-shadow: 0 8px 18px rgba(15, 53, 88, 0.08);
+}
+
+.relatedItem p,
+.emptyBox {
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.45;
+}

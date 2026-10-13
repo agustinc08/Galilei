@@ -1,0 +1,542 @@
+{
+  "mission": "5.4 baseline",
+  "generatedAt": "2026-10-07T19:28:11.420Z",
+  "target": {
+    "postgres": "16.15",
+    "endpoint": "127.0.0.1:55432",
+    "database": "buscador_juridico_civil_dev",
+    "role": "bjc_dev"
+  },
+  "hardware": {
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13620H",
+    "memoryGiB": 15.7,
+    "os": "Windows 11 Home 10.0.26300"
+  },
+  "corpus": {
+    "source": "jurisp_6/db/jurisprudencia_db.sqlite (read-only immutable query_only)",
+    "sentencias": 21109,
+    "sumarios": 25138,
+    "tbMicroisisImported": false
+  },
+  "method": {
+    "warmups": 2,
+    "repetitions": 8,
+    "pageSize": 25,
+    "measuredStages": [
+      "parse",
+      "SQLite total",
+      "PostgreSQL COUNT",
+      "PostgreSQL result-page plus ranking",
+      "PostgreSQL total"
+    ]
+  },
+  "results": [
+    {
+      "category": "IDENTIFIER_CANDIDATE",
+      "caseId": "BJC-022",
+      "query": "1113",
+      "dialect": "modern",
+      "count": 625,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.046,
+        "p50": 0.062,
+        "p95": 0.184,
+        "max": 0.184
+      },
+      "sqliteTotalMs": {
+        "min": 359.048,
+        "p50": 364.555,
+        "p95": 373.823,
+        "max": 373.823
+      },
+      "postgresCountMs": {
+        "min": 131.077,
+        "p50": 515.415,
+        "p95": 545.466,
+        "max": 545.466
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 142.843,
+        "p50": 677.075,
+        "p95": 746.227,
+        "max": 746.227
+      },
+      "postgresTotalMs": {
+        "min": 277.885,
+        "p50": 1197.397,
+        "p95": 1294.487,
+        "max": 1294.487
+      }
+    },
+    {
+      "category": "TERM",
+      "caseId": "BJC-001",
+      "query": "daño",
+      "dialect": "modern",
+      "count": 10156,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.02,
+        "p50": 0.022,
+        "p95": 0.044,
+        "max": 0.044
+      },
+      "sqliteTotalMs": {
+        "min": 362.76,
+        "p50": 368.532,
+        "p95": 373.747,
+        "max": 373.747
+      },
+      "postgresCountMs": {
+        "min": 509.843,
+        "p50": 536.971,
+        "p95": 549.532,
+        "max": 549.532
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 989.265,
+        "p50": 1032.622,
+        "p95": 1049.209,
+        "max": 1049.209
+      },
+      "postgresTotalMs": {
+        "min": 1528.248,
+        "p50": 1566.61,
+        "p95": 1592.709,
+        "max": 1592.709
+      }
+    },
+    {
+      "category": "PHRASE",
+      "caseId": "BJC-008",
+      "query": "\"daño moral\"",
+      "dialect": "modern",
+      "count": 950,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.021,
+        "p50": 0.039,
+        "p95": 0.049,
+        "max": 0.049
+      },
+      "sqliteTotalMs": {
+        "min": 363.686,
+        "p50": 367.446,
+        "p95": 377.171,
+        "max": 377.171
+      },
+      "postgresCountMs": {
+        "min": 792.293,
+        "p50": 894.16,
+        "p95": 930.603,
+        "max": 930.603
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 1142.908,
+        "p50": 1159.592,
+        "p95": 1169.647,
+        "max": 1169.647
+      },
+      "postgresTotalMs": {
+        "min": 1960.624,
+        "p50": 2051.069,
+        "p95": 2082.48,
+        "max": 2082.48
+      }
+    },
+    {
+      "category": "AND",
+      "caseId": "BJC-005",
+      "query": "daño * moral",
+      "dialect": "modern",
+      "count": 1154,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.038,
+        "p50": 0.064,
+        "p95": 0.113,
+        "max": 0.113
+      },
+      "sqliteTotalMs": {
+        "min": 374.681,
+        "p50": 378.683,
+        "p95": 388.651,
+        "max": 388.651
+      },
+      "postgresCountMs": {
+        "min": 686.56,
+        "p50": 717.306,
+        "p95": 756.036,
+        "max": 756.036
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 939.845,
+        "p50": 961.974,
+        "p95": 992.921,
+        "max": 992.921
+      },
+      "postgresTotalMs": {
+        "min": 1651.437,
+        "p50": 1685.609,
+        "p95": 1753.804,
+        "max": 1753.804
+      }
+    },
+    {
+      "category": "OR",
+      "caseId": "BJC-006",
+      "query": "daño + moral",
+      "dialect": "modern",
+      "count": 10417,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.031,
+        "p50": 0.066,
+        "p95": 0.1,
+        "max": 0.1
+      },
+      "sqliteTotalMs": {
+        "min": 497.699,
+        "p50": 506.553,
+        "p95": 515.832,
+        "max": 515.832
+      },
+      "postgresCountMs": {
+        "min": 739.905,
+        "p50": 758.748,
+        "p95": 772.722,
+        "max": 772.722
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 1692.029,
+        "p50": 1722.652,
+        "p95": 1732.642,
+        "max": 1732.642
+      },
+      "postgresTotalMs": {
+        "min": 2462.904,
+        "p50": 2482.159,
+        "p95": 2507.726,
+        "max": 2507.726
+      }
+    },
+    {
+      "category": "NOT",
+      "caseId": "BJC-007",
+      "query": "daño - moral",
+      "dialect": "modern",
+      "count": 9002,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.035,
+        "p50": 0.063,
+        "p95": 0.212,
+        "max": 0.212
+      },
+      "sqliteTotalMs": {
+        "min": 374.573,
+        "p50": 385.257,
+        "p95": 394.181,
+        "max": 394.181
+      },
+      "postgresCountMs": {
+        "min": 928.155,
+        "p50": 942.268,
+        "p95": 968.845,
+        "max": 968.845
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 1399.495,
+        "p50": 1413.472,
+        "p95": 1444.176,
+        "max": 1444.176
+      },
+      "postgresTotalMs": {
+        "min": 2347.182,
+        "p50": 2359.187,
+        "p95": 2415.98,
+        "max": 2415.98
+      }
+    },
+    {
+      "category": "FIELD",
+      "caseId": "BJC-033",
+      "query": "daños",
+      "dialect": "modern",
+      "count": 9862,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.032,
+        "p50": 0.045,
+        "p95": 0.086,
+        "max": 0.086
+      },
+      "sqliteTotalMs": {
+        "min": 315.833,
+        "p50": 322.545,
+        "p95": 324.504,
+        "max": 324.504
+      },
+      "postgresCountMs": {
+        "min": 498.049,
+        "p50": 516.396,
+        "p95": 533.783,
+        "max": 533.783
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 986.333,
+        "p50": 1000.575,
+        "p95": 1032.003,
+        "max": 1032.003
+      },
+      "postgresTotalMs": {
+        "min": 1503.14,
+        "p50": 1527.359,
+        "p95": 1537.443,
+        "max": 1537.443
+      }
+    },
+    {
+      "category": "PREFIX",
+      "caseId": "BJC-009",
+      "query": "accident%",
+      "dialect": "modern",
+      "count": 3311,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.023,
+        "p50": 0.046,
+        "p95": 0.051,
+        "max": 0.051
+      },
+      "sqliteTotalMs": {
+        "min": 354.271,
+        "p50": 359.966,
+        "p95": 364.78,
+        "max": 364.78
+      },
+      "postgresCountMs": {
+        "min": 823.123,
+        "p50": 836.739,
+        "p95": 851.263,
+        "max": 851.263
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 1086.707,
+        "p50": 1095.171,
+        "p95": 1118.401,
+        "max": 1118.401
+      },
+      "postgresTotalMs": {
+        "min": 1921.813,
+        "p50": 1930.312,
+        "p95": 1969.765,
+        "max": 1969.765
+      }
+    },
+    {
+      "category": "SUFFIX",
+      "caseId": "BJC-010",
+      "query": "%accident",
+      "dialect": "modern",
+      "count": 0,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.035,
+        "p50": 0.067,
+        "p95": 0.09,
+        "max": 0.09
+      },
+      "sqliteTotalMs": {
+        "min": 319.842,
+        "p50": 322.667,
+        "p95": 330.521,
+        "max": 330.521
+      },
+      "postgresCountMs": {
+        "min": 706.299,
+        "p50": 728.774,
+        "p95": 754.338,
+        "max": 754.338
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 833.029,
+        "p50": 897.949,
+        "p95": 916.722,
+        "max": 916.722
+      },
+      "postgresTotalMs": {
+        "min": 1539.489,
+        "p50": 1621.401,
+        "p95": 1668.191,
+        "max": 1668.191
+      }
+    },
+    {
+      "category": "COMPLEX_BOOLEAN",
+      "caseId": "BJC-054",
+      "query": "daño + moral * accidente",
+      "dialect": "modern",
+      "count": 10159,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.048,
+        "p50": 0.066,
+        "p95": 0.095,
+        "max": 0.095
+      },
+      "sqliteTotalMs": {
+        "min": 513.165,
+        "p50": 516.377,
+        "p95": 522.366,
+        "max": 522.366
+      },
+      "postgresCountMs": {
+        "min": 742.603,
+        "p50": 759.905,
+        "p95": 791.39,
+        "max": 791.39
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 2158.825,
+        "p50": 2184.928,
+        "p95": 2207.751,
+        "max": 2207.751
+      },
+      "postgresTotalMs": {
+        "min": 2941.32,
+        "p50": 2956.378,
+        "p95": 2980.454,
+        "max": 2980.454
+      }
+    },
+    {
+      "category": "RANKED_TEXT",
+      "caseId": "BJC-011",
+      "query": "responsabilidad",
+      "dialect": "modern",
+      "count": 4848,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.029,
+        "p50": 0.045,
+        "p95": 0.048,
+        "max": 0.048
+      },
+      "sqliteTotalMs": {
+        "min": 347.58,
+        "p50": 351.809,
+        "p95": 360.359,
+        "max": 360.359
+      },
+      "postgresCountMs": {
+        "min": 568.03,
+        "p50": 586.916,
+        "p95": 595.401,
+        "max": 595.401
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 881.698,
+        "p50": 929.607,
+        "p95": 954.261,
+        "max": 954.261
+      },
+      "postgresTotalMs": {
+        "min": 1470.225,
+        "p50": 1517.351,
+        "p95": 1544.65,
+        "max": 1544.65
+      }
+    },
+    {
+      "category": "SHORT_TERM_DE",
+      "caseId": "BJC-020",
+      "query": "de",
+      "dialect": "modern",
+      "count": 25095,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.022,
+        "p50": 0.024,
+        "p95": 0.026,
+        "max": 0.026
+      },
+      "sqliteTotalMs": {
+        "min": 247.87,
+        "p50": 249.259,
+        "p95": 252.152,
+        "max": 252.152
+      },
+      "postgresCountMs": {
+        "min": 333.682,
+        "p50": 346.525,
+        "p95": 355.245,
+        "max": 355.245
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 153.768,
+        "p50": 161.315,
+        "p95": 198.909,
+        "max": 198.909
+      },
+      "postgresTotalMs": {
+        "min": 501.777,
+        "p50": 509.01,
+        "p95": 550.557,
+        "max": 550.557
+      }
+    },
+    {
+      "category": "SHORT_TERM_A",
+      "caseId": "BJC-021",
+      "query": "a",
+      "dialect": "modern",
+      "count": 25103,
+      "warmups": 2,
+      "repetitions": 8,
+      "parseMs": {
+        "min": 0.022,
+        "p50": 0.023,
+        "p95": 0.031,
+        "max": 0.031
+      },
+      "sqliteTotalMs": {
+        "min": 279.405,
+        "p50": 284.394,
+        "p95": 288.851,
+        "max": 288.851
+      },
+      "postgresCountMs": {
+        "min": 319.255,
+        "p50": 340.495,
+        "p95": 348.765,
+        "max": 348.765
+      },
+      "postgresResultPageAndRankingMs": {
+        "min": 149.832,
+        "p50": 161.287,
+        "p95": 178.301,
+        "max": 178.301
+      },
+      "postgresTotalMs": {
+        "min": 481.717,
+        "p50": 499.749,
+        "p95": 522.612,
+        "max": 522.612
+      }
+    }
+  ]
+}

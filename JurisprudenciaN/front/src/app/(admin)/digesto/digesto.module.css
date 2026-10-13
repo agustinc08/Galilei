@@ -1,0 +1,14 @@
+.page { display: grid; gap: 1.25rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+.collectionLink { display: grid; gap: .4rem; color: inherit; text-decoration: none; }
+.collectionLink h2, .collectionLink p { margin: 0; }
+.kicker { color: #475569; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; gap: .75rem; }
+.formGroup { display: grid; gap: .8rem; }
+.form label { display: grid; gap: .35rem; }
+.form input { min-height: 2.5rem; border: 1px solid #94a3b8; border-radius: .35rem; padding: .5rem; }
+.form button, .back { width: fit-content; min-height: 2.5rem; border: 0; border-radius: .35rem; padding: .55rem .85rem; background: #173b68; color: white; cursor: pointer; }
+.error { color: #991b1b; }
+.list { display: grid; gap: .6rem; padding-left: 1.2rem; }
+.list a { color: #173b68; }
+@media (max-width: 600px) { .form { grid-template-columns: 1fr; } }

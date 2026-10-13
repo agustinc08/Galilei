@@ -1,0 +1,66 @@
+﻿# Dependencies
+**/node_modules/
+**/.pnpm-store/
+
+# Builds / caches
+**/.next/
+**/.turbo/
+**/dist/
+**/build/
+**/out/
+**/coverage/
+**/.cache/
+**/*.tsbuildinfo
+
+# Secrets
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.template
+!**/.env.sample
+
+# Logs
+**/*.log
+**/*.pid
+**/logs/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# BJC local data / recovery
+_recovery-work/
+_recovery-backups/
+_legacy-audit-work/
+_dev-corpus-storage/
+_dev-corpus-storage-test/
+JurisprudenciaN/back/data/legacy-pdfs/
+digesto/server/pdfs/
+
+# Runtime data
+**/storage/
+**/uploads/
+**/tmp/
+**/temp/
+
+# Local DB / checkpoints
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+**/*.db-journal
+**/*.sqlite-journal
+**/*.sqlite-wal
+**/*.sqlite-shm
+
+# DB backups
+**/*.dump
+**/*.backup
+**/*.bak
+**/*.sql.gz
+
+# Legacy/application binaries
+Copernic/**/*.exe
+Copernic/**/*.msi

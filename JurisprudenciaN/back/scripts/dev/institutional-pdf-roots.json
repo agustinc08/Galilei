@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0",
+  "roots": [
+    {
+      "id": "jurisprudencia-back-data",
+      "name": "Jurisprudencia backend data",
+      "path": "JurisprudenciaN/back/data",
+      "type": "CURRENT_LOCAL_REPOSITORY",
+      "source": "JurisprudenciaN/back/data",
+      "readOnly": true,
+      "active": true
+    },
+    {
+      "id": "jurisprudencia-back-uploads",
+      "name": "Jurisprudencia backend uploads",
+      "path": "JurisprudenciaN/back/uploads",
+      "type": "CURRENT_LOCAL_REPOSITORY",
+      "source": "JurisprudenciaN/back/uploads",
+      "readOnly": true,
+      "active": true
+    },
+    {
+      "id": "jurisprudencia-legacy-extracted",
+      "name": "Jurisprudencia legacy extracted snapshot",
+      "path": "_legacy-audit-work/extracted/jurisprudencia",
+      "type": "LEGACY_EXTRACTED_SNAPSHOT",
+      "source": "local legacy extraction",
+      "readOnly": true,
+      "active": true
+    },
+    {
+      "id": "digesto-server-pdfs",
+      "name": "Digesto server PDFs (separate domain)",
+      "path": "digesto/server/pdfs",
+      "type": "SEPARATE_DIGESTO_DOMAIN",
+      "source": "Digesto local repository",
+      "readOnly": true,
+      "active": false,
+      "excludedReason": "Separate document domain; inventory only after Digesto ownership and ACL crosswalk is agreed."
+    }
+  ]
+}

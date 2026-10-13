@@ -1,0 +1,12 @@
+{
+  "synthetic": true,
+  "confidential": false,
+  "files": [
+    "fallo-fixture.pdf",
+    "copia-con-otro-nombre.pdf",
+    "pagina-vacia.pdf",
+    "version-a/mismo-nombre.pdf",
+    "version-b/mismo-nombre.pdf",
+    "nota-fixture.txt"
+  ]
+}

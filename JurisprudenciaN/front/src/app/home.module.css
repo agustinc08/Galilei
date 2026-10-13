@@ -1,0 +1,92 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+  gap: 28px;
+  padding: 40px 24px;
+  background: #f5f8fb;
+  color: #0f172a;
+}
+
+.hero {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 24px;
+  padding: 44px;
+  border: 1px solid #cfddea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(15, 53, 88, 0.1);
+}
+
+.brandBlock {
+  display: grid;
+  gap: 12px;
+  max-width: 780px;
+}
+
+.kicker {
+  color: #536b82;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.brandBlock h1 {
+  margin: 0;
+  color: #0f3558;
+  font-size: 42px;
+  line-height: 1.08;
+}
+
+.brandBlock p {
+  margin: 0;
+  color: #475569;
+  font-size: 17px;
+  line-height: 1.65;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cards {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid #dbe4ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.card strong {
+  color: #0f3558;
+}
+
+.card p {
+  margin: 0;
+  color: #536b82;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .hero {
+    padding: 28px;
+  }
+
+  .brandBlock h1 {
+    font-size: 32px;
+  }
+}

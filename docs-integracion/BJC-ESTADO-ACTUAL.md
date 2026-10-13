@@ -1,0 +1,311 @@
+# Estado actual — Buscador Jurídico Civil
+
+## Sprint 14 — corte vigente 2026-10-13
+
+**Resultado vigente:** Sprint 14.8 ingirió el lote civil local; Sprint 14.9 optimizó parcialmente Search `PHRASE` y dejó las validaciones verdes en DEV. El cierre global sigue `PARTIAL / PHRASE REGRESSION REMAINS`: p95 final 1.752,99 ms, sobre el gate de 1.200 ms. Los 452 grupos en revisión y 4.890 enlaces abiertos de adquisición no cambiaron. No hubo adquisición nueva de jurisprudencia en Sprint 14.9.
+
+Detalle: docs 146–158. Manifiestos no versionados: `_recovery-work/sprint14/`. No reauditar Search, preproducción ni raíces locales.
+
+**Actualizado:** 2026-10-13, cierre técnico Sprint 14.9. **Dictamen de preproducción vigente:** Sprint 13.1 quedó BLOCKED / NOT EXECUTED y UAT PENDING. No se identificó destino preprod autorizado. El entorno y las cifras de la tabla siguiente describen el corte histórico de Sprint 8; los apartados Sprint 14.8 y Sprint 14.9 son la autoridad para el estado actual de Corpus/Search.
+
+| Área | Estado / evidencia |
+|---|---|
+| Workspace | `C:\proyecto triple`; raíz no Git. No usar ruta vieja de OneDrive. |
+| PostgreSQL | 16.15 loopback `127.0.0.1:55432`; DB `buscador_juridico_civil_dev`; rol `bjc_dev`; `pg_trgm 1.6`; escrituras con guard. Estado confirmado Sprint 14.8. |
+
+## Sprint 14.9 — PHRASE Search V2 (2026-10-13)
+
+- Estado `PARTIAL / PHRASE REGRESSION REMAINS`: benchmark after sobre corpus completo (17.078 docs, 18.799.500 tokens), 10 repeticiones + 1 warmup. PHRASE p50/p95 1.645,16/1.752,99 ms vs baseline reproducido 2.586,78/4.082,32 ms; 10/10 requests sin errores after. El baseline reprodujo una expiración `57014` (9/10 adapters CORPUS exitosos). El p95 continúa sobre 1.200 ms.
+- TERM común after 200,99/207,90 ms; PREFIX 718,43/835,72; SUFFIX 2.267,27/2.363,39; SHORT 1.697,09/1.946,98; FIELD 1.634,19/1.677,08. No se observó degradación material atribuible a la lógica PHRASE; SUFFIX varió +6,4% p95 en esta corrida.
+- Causa confirmada: lecturas amplias de heap de `CorpusSearchToken` por candidatos trigram y repetición de la consulta al ampliar la ventana para certificar totales de baja cardinalidad. Una frase con cuatro resultados exactos tomó 4.431 ms y ejecutó tres consultas de página adaptativas (queryCount 4 con readiness). Cambio: anclaje de tokens de borde, intersección antes de aplicar elegibilidad una sola vez y un covering B-tree para prefijos. El índice se usa en EXPLAIN, pero persiste Bitmap Heap Scan.
+- Índice `CorpusSearchToken_token_prefix_cover_idx`: 1.063.837.696 bytes; plan after de tres palabras llegó a 2.430 ms y 50.765 bloques leídos. El volumen físico y p95 >1.200 impiden cerrar el gate.
+- Search verify PASS: 17.078 docs, 18.799.500 tokens, stale 0, discrepancias 0/100. Paridad 40/40, viewer 6/6, parser/adapter 34/34, Corpus PG 3/3, búsqueda PG 7/7, typecheck/build PASS y 21 migraciones al día.
+- Concurrencia PHRASE: 1 request cold con 1 error de fuente CORPUS (~4,07 s); 5 users p95 1.295,70 ms/0 errores; 10 users p95 1.993,28 ms/0 errores. Riesgo cold-start/I/O sigue abierto. Evidencia: `_recovery-work/sprint149/`.
+- Siguiente cuello medible: materializar candidatos para no reconstruir el SQL en cada ampliación adaptativa de ventanas de frases con pocos hits; conservar exactitud del total y recheck literal. En paralelo, medir si los postings permiten `Index Only Scan` para evitar lecturas heap. Medir cold/warm con más muestras. No iniciar preproducción ni reabrir adquisición por este resultado.
+| Migraciones | 13 en DEV. Sprint 8 usa inventory/classification, extraction timing y `20261007220000_sprint8_corpus_title_trgm`; status limpio después del deploy. |
+| Roots institucionales | 3 activos read-only: backend data, backend uploads y legacy extracted. Digesto server 278 PDFs se registró inactivo/excluido. |
+| Inventario | 23.829 PDF-like físicos, 10.732 SHA únicos, 13.097 duplicados físicos, 4.866.746.671 bytes. Manifiesto y hash en informes 53/60. |
+| Ingesta | Run `5a3ececa-3a55-4a08-bd20-bb43ce3e006d` SUCCESS; 10.727 nuevos, 5 existentes, 0 fallidos. Segunda pasada `90f64ee1-2dac-44b1-b3dc-59df4368a287`: 0 nuevos y 10.732 reutilizados, sin duplicar documentos/blobs/páginas. |
+| Corpus | 10.732 documentos, 10.732 archivos, 10.732 eventos de ingesta, 23.829 ubicaciones, 95.392 páginas y 10.732 objetos content-addressed (2.115.402.746 bytes). |
+| Extracción | 10.332 INDEXED (96,27 %); 399 OCR_REQUIRED (3,72 %); 1 INVALID_PDF; 0 FAILED/incomplete. p50/p95 extractor 49/360 ms en n=9.730. |
+| Asociación | 0 EXACT/links; 27 HIGH_CONFIDENCE y 2 CANDIDATE pendientes; 10.703 UNRESOLVED. No se crearon Sentencias. |
+| Clasificación | 21.547 RULE/SUGGESTED en 8.667 documentos; 2.064 sin sugerencias; 0 aprobadas. Evaluación determinista de evidencia 268/268 términos presentes en muestra n=100; precisión semántica no medida por falta de ground truth aprobado. |
+| Search | Adapter Corpus usa AST compartido y Search federado existente. Smoke real `caratula:"30986" AND correspondiente`: 1 resultado/snippet/match/página, 36 ms después de índice; checksum real verificado. EXPLAIN del count 3.613,8 → 0,333 ms con GIN de título normalizado. |
+| Viewer/UI | `/busqueda-avanzada`, `/corpus`, `/corpus/[id]` compiladas. Metadata/procedencia, abrir/descargar, salto `#page`, contexto de matches, anterior/siguiente. Sin resaltado dentro del PDF nativo ni acciones batch de review. |
+| ACL | Todos INTERNAL, `NO_REVIEWED`, `REVIEW_REQUIRED`; ACL se aplica antes de metadata/archivo/matches. Pruebas de servicio pass; no hubo sesión HTTP real ni matriz institucional final. Nada publicado. |
+| Digesto | No ingestado ni conectado al corpus real; 0 cross-domain links. El vínculo por `CorpusDocumentLink` se probó sintéticamente en M6; falta crosswalk real y Collections/Topics/Tags. |
+| Fuentes públicas | CIJ/CSJN sigue NO GO para descarga automática; no se accedió a servidores institucionales. |
+| Backup | Final DEV dump: `_recovery-work/sprint8/backups/...22-31-14-193Z.dump`, 220.752.700 bytes, SHA `1952184d7a8223071048e170f0b05cc84178a95e20f4d8579aef323a2842f329`. |
+| Backend tests/build | `pnpm exec tsc --noEmit` PASS; suite general 58 PASS, 12 omitidos, 3 suites skipped; PostgreSQL 7/7, Corpus 3/3, paquete 2/2, tests dirigidos 13/13; Nest build PASS. |
+| Frontend | `pnpm exec tsc --noEmit` PASS; Next production build PASS con las tres rutas anteriores. |
+
+## Seguridad y datos fuente
+
+Los originales se mantuvieron read-only; no hubo borrados, renombres, movimientos ni sobrescrituras. La reanudación usó el manifiesto existente; no repitió inventario completo. Ninguna operación salió de DEV loopback ni conectó producción/servidor institucional.
+
+## Sprint 14.8 — cierre de ingesta y estado Search (2026-10-13)
+
+- PostgreSQL DEV recuperado y verificado: PostgreSQL 16.15, `127.0.0.1:55432`, DB `buscador_juridico_civil_dev`, rol `bjc_dev`, `pg_trgm 1.6`; 20/20 migraciones aplicadas. La restricción local de Code Integrity quedó resuelta en Windows y el servicio volvió a Running.
+- Backup anterior a escritura preservado en `_recovery-work/sprint123/backups/` y manifiesto inmutable `_recovery-work/sprint148/backup-before.json`. Backup final verificado: dump de 569.973.502 bytes, SHA-256 `2ebf2ab34364e46cee818b1eec26a73e6a7e791f6ecd424e3b381204506309cf`; SQL de 2.292.659.000 bytes, SHA-256 `b70c36f11017bf5fc2dd20120674480399840d0848b3862a78e50a9112537401`.
+- De 5.710 filas fuente se incorporaron 4.596 documentos nuevos y se vincularon 160 documentos existentes: 5.176 registros de procedencia, 4.596 extracciones indexadas, 93.563 páginas y 191.181.254 caracteres; cero fallidos, inválidos u OCR_REQUIRED. Corpus Civil: 6.070 documentos (6.069 Cámara y 1 primera instancia). La segunda pasada confirmó idempotencia: cero nuevas altas, blobs o vínculos pendientes.
+- 452 grupos jurídicos permanecen en revisión y no fueron fusionados automáticamente: 328 `CONFLICT`, 106 `CANDIDATE`, 15 `SAME_DOCUMENT_DIFFERENT_FILE`, 2 coincidencias exactas de documento y 1 archivo inválido. Cuatro PDFs con fechas de firma contradictorias quedaron retenidos para revisión de calidad.
+- Search proyección: 17.078 documentos, 18.799.500 tokens, `stale=0`, 0 discrepancias/100, lista; índice de tokens 395.116.544 bytes; DB 3.996.515.351 bytes. Paridad de adaptadores 40/40; viewer 6/6. TERM p50/p95 203,50/278,78 ms; PHRASE 1.710,58/2.621,10 ms, regresión frente al corte anterior de 270/538 ms. EXPLAIN apunta a lecturas aleatorias de heap/filtrado de frases en corpus; antes de reabrir el backlog de adquisición se debe optimizar y volver a medir esa ruta.
+- Verificación: suite backend 93 PASS y 15 omitidos (20 suites PASS, 5 omitidas); PostgreSQL 7/7, Corpus 3/3, paquete Corpus 2/2, typecheck, build Nest, estado de migraciones y verificación de proyección PASS. Las pruebas no alteraron los conteos.
+- Adquisición pendiente sin cambios: 4.862 enlaces pendientes, 18 errores técnicos y 10 no disponibles (4.890 filas abiertas). No se ejecutó acceso institucional ni preproducción. Dictamen: `PARTIAL / SEARCH REGRESSION`; sólo DEV local.
+
+## Límites y siguiente gate
+
+GO CON AJUSTES autoriza el uso y evolución local del flujo, no usuarios productivos. Antes de producción faltan decisión institucional de ACL/anonimización/retención, SLO/carga concurrente, revisión humana de asociación/clasificación, workflow de selección y Digesto, piloto OCR y hardening del visor (resaltado dentro del PDF, evaluación UI autenticada). También falta scan incremental con marca `sourceMissing`. Ver informe 60 y roadmap.
+
+## Actualización de cierre Sprint 9 — 2026-10-08
+
+Este bloque supersede los estados de Sprint 8 arriba donde haya diferencias.
+
+| Área | Estado / evidencia |
+|---|---|
+| Resultado | NO GO integral de aceptación end-to-end y producción; GO acotado para DEV local. Informe 70. |
+| Migraciones | 14 aplicadas; status limpio. 20261008100000_sprint9_digesto_taxonomy es aditiva. |
+| Backup | Pre Sprint 9: _recovery-work/sprint9/backups/buscador_juridico_civil_dev-pre-sprint9-2026-10-08T03-19-16-620Z.dump, 220.766.179 bytes, SHA256 d4f0cce5e6a1b59b0c5a1360a7b55b6ecb6e8d7e3d88a9ce8d2a7df7bcd735ec. |
+| Corpus actual | 10.732 documentos, 10.752 objetos (20 derivados OCR), 23.829 ubicaciones, 95.486 páginas. |
+| Extracción actual | 10.352 INDEXED, 379 OCR_REQUIRED, 1 INVALID_PDF; valores históricos de runs del informe 60 no se reescriben. |
+| OCR | Piloto español 20/20, 94 páginas, 174.292 caracteres, 29.424 palabras, 221.060 ms; originales verificados y visor conserva PDF original. Sin ground truth, exactitud no evaluada. |
+| Scan incremental | incremental-2026-10-08T03-15-45-362Z: 23.829 unchanged, 0 altas/cambios/faltantes; no prueba sintética de los otros deltas. |
+| Curaduría | Asociaciones: 27 HIGH_CONFIDENCE + 2 CANDIDATE pendientes; 10.703 unresolved. Clasificaciones: 21.547 SUGGESTED, ninguna aprobada. Links Digesto cruzados reales: 0. |
+| App | Navegación unificada, /digesto, /revision, catálogo y visor extendido. Builds Next/Nest y TypeScript PASS; suite 61 pass/13 skip. Falta aceptación autenticada E2E. |
+| Seguridad/operación | DB exclusivamente bjc_dev@127.0.0.1:55432/buscador_juridico_civil_dev; ninguna conexión productiva o institucional. Roots originales read-only. |
+| Bloqueos | Usuario real de aceptación y matriz ACL; export/crosswalk Digesto autorizado y validación de permisos; ground truth OCR/clasificación; aceptación UX y realce PDF; política de anonimización/publicación/retención/SLO. |
+
+Detalle funcional, gates y evidencia: informes 61–70. No inferir que selección editorial concede visibilidad o publica.
+
+## Actualización de cierre Sprint 10 — 2026-10-08
+
+Este estado supersede filas Sprint 8/9 anteriores cuando se contradigan. Ver `78-RESULTADO-SPRINT-10.md`.
+
+| Área | Estado / evidencia |
+|---|---|
+| Resultado | READY FOR PILOT CON AJUSTES; DEV local acompañado, no producción ni aceptación institucional. |
+| PostgreSQL | DEV `127.0.0.1:55432`, `buscador_juridico_civil_dev`, rol `bjc_dev`; 14 migraciones al día, sin migración Sprint 10. |
+| Digesto local | 278 PDFs, 276 SHA únicos, 2 duplicados; 276 docs únicos Corpus `DIGESTO_LOCAL`; 264 indexados, 14 OCR_REQUIRED; metadata legacy no localizada. |
+| ACL/E2E | Seis roles DEV; integración PostgreSQL 1/1, suite general 13/65 PASS y 5/14 omitidas; Playwright 3/3. Browser LECTOR/Admin; API seis roles. |
+| Viewer/UI | PDF.js highlight y búsqueda interna con fallback; filtro colección Digesto y dashboard real con drill-down. |
+| Performance | Browser smoke: colección 223 ms, primera página PDF 364 ms, dashboard 1.230 ms (una corrida); subquery Jurisprudencia interna 1,5–7,4 s en términos sin match, medir por adapter en Sprint 11. |
+| Curaduría | Batch de clasificación auditado; selección Jurisprudencia con motivo/historial; membership Digesto por API. Batch membership/send-to-review y undo genérico pendientes. |
+| OCR | Ground truth 20 páginas/11 PDFs; CER 19,43%, WER 28,97%; outliers severos; no ampliar. |
+| Incremental | Corrida `incremental-2026-10-08T04-37-51-182Z`: 23.829 UNCHANGED; cero NEW/MODIFIED/MISSING; originales read-only. Deltas restantes cubiertos con fixtures. |
+| Seguridad | Descarga y headers verificados; JWT localStorage, sin rate limit; mantener local DEV. |
+| Builds | Prisma generate, Nest build, frontend typecheck/Next build PASS. |
+| Pendientes humanos | Aceptación Secretaría/Digesto/Consulta/Admin, validación ACL, metadata Digesto y políticas antes de compartir. |
+| Pendientes funcionales | Browser E2E de cuentas/roles no cubierto; el seed DEV y ACL API sí. Batch de membership/send-to-review, undo genérico y revisión N+1/carga siguen pendientes. |
+
+Evidencia Sprint 10: informes 71–78 y artifacts privados en `_recovery-work/sprint10/`. No registrar credenciales en documentación.
+
+## Actualización Sprint 11 — 2026-10-08
+
+Ver cierre integral en `79`–`87`. El estado Sprint 10 de arriba queda supersedido por esta evidencia:
+
+| Área | Estado / evidencia Sprint 11 |
+|---|---|
+| Dictamen | **NOT READY FOR PREPRODUCTION** por degradación de Search bajo concurrencia y recuperación DB sin validar. Sólo DEV local acompañado. |
+| DB / migraciones | Host/puerto/DB/rol confirmados por guard; PostgreSQL 16.15; 14 migraciones al día; Prisma generate PASS. `bjc_dev` no tiene CREATEDB. |
+| Sesión / hardening | `JWT_SECRET` requerido, vencimiento validado; usuario, rol y activo se releen por request. X-Request-ID, errores 5xx genéricos, logs sin query/body y rate limit local configurable. |
+| UAT / ACL | Checklist imprimible lista; matriz ACL es propuesta sin aprobación; HUMAN ACCEPTANCE PENDING. Playwright LECTOR/Admin + navegación REVISOR/JURISPRUDENCIA/DIGESTO PASS 4/4; API/auth cubre seis cuentas DEV. |
+| Search | Perfil end-to-end p50 6,8–13,8 s. En carga local de 5/10/20 usuarios, búsqueda p95 7,1/37,1/65,7 s; no apto para red compartida. Timeout SQL 4 s para detener consultas Corpus largas. |
+| Dashboard | 5 endpoints UI paralelos; resumen agrega 18 query count/groupBy concurrentes. Sin N+1 por fila observado; con 10 usuarios el p95 llegó a 37,4 s. |
+| Viewer | 11.008 PDFs inventariados, 93 con ≥50 páginas, 4 con ≥100, máximo 167 páginas/11,35 MiB. Rangos 206 pasan en 1, 50 y 109 páginas; PDF.js renderiza página elegida. Servidor aún bufferiza el archivo entero. |
+| OCR | Dos outliers reevaluados con PSM 4/300 dpi: CER/WER 4,80/6,44% y 5,09/4,57%. No se actualizó el índice/extracción; revisión visual pendiente. |
+| Curaduría | Preview y lote membership, batch send-to-review, reversión auditada de clasificación a SUGGESTED; E2E PostgreSQL 2/2 PASS. |
+| Backup / restore | Dump DEV 222.191.432 bytes, SHA `6c8a1bac…25590db8`, cabecera PGDMP. Restore/list bloqueado por Windows App Control; no DB temporal por CREATEDB=false. No se intentó restore en DB principal. |
+| Builds / tests | Backend full: 16 suites/70 PASS, 5 suites/15 tests opt-in omitidos; PostgreSQL E2E 2/2; Playwright 4/4; backend/frontend build y typecheck PASS. |
+| Configuración frontend DEV | Corregido `NEXT_PUBLIC_API_URL` local a `http://localhost:4001/api`; build y Playwright repetidos PASS. |
+| Demo | Preparación read-only PASS: seis cuentas, documento Digesto y clasificación sugerida encontrados; sin documento Jurisprudencia en cola de revisión; 0 registros fuente cambiados. |
+| Digesto | No se encontró export autorizado de metadata; contrato del paquete en doc 80. No conectar remoto ni inferir crosswalk. |
+
+La corrida completa de métricas y los límites se documentan en informes 79–87; artifacts locales sensibles/restringidos permanecen en `_recovery-work/sprint11/`.
+
+
+## Cierre Sprint 12 — estado vigente (2026-10-08)
+
+| Área | Estado / evidencia |
+|---|---|
+| PostgreSQL | 16.15, `127.0.0.1:55432`, `buscador_juridico_civil_dev`, `bjc_dev`; schema verify PASS, 41 tablas, `pg_trgm` 1.6. |
+| Migraciones | 14/14 actuales y status limpio. Migration-from-zero no probada: rol sin CREATEDB. |
+| Search | NOT PASS: p50 5–20,3 s según familia; COMPLEX BOOLEAN p95 20,7 s; zero result 6,9 s. Filtro colección mejora p50 6,84→5,01 s. Benchmark 40/40 es histórico Sprint 5.3; repetición S12 expiró. |
+| Concurrencia | FAIL. Search p95 7,0/36,5/74,0/82,3 s a 1/5/10/20 usuarios. Errores 0/9/3/5; throughput 0,25/0,44/0,49/0,49 req/s. |
+| Backup/restore | Dump 222.192.378 bytes, SHA `416fee1bfc789ca79068d81cd8c5fcfc543fdf4cc10b7eefb799b0190aae1492`; restore temporal bloqueado por Device Guard y ausencia CREATEDB. No se tocó la DB principal. |
+| OCR | No expandido. Dos páginas Sprint 11; ground truth/revisión humana insuficientes. |
+| Viewer/hardening | Range 206 validado. Handler bufferiza archivos. JWT/roles/health/rate limit local implementados; proxy/TLS/rate limit distribuido pendientes. |
+| Build/tests | Backend 18 suites/76 PASS, 15 opt-in omitidos; TypeScript/build PASS. Frontend TypeScript/build PASS; Playwright 4/4 PASS. |
+| UAT/ACL/Digesto | UAT y ACL institucional PENDING; export/crosswalk Digesto PENDING; CIJ/CSJN NO GO. |
+| Dictamen | TECHNICAL PREPRODUCTION — NOT READY. Informes 97 y 98; Sprint 12.1 limitado a bloqueos técnicos demostrados. |
+
+Las secciones históricas anteriores conservan sus cifras de cada corte; esta tabla representa el estado vigente.
+
+## Cierre Sprint 12.1 — 2026-10-08
+
+| Área | Estado / evidencia |
+|---|---|
+| DB DEV | PostgreSQL 16.15, `127.0.0.1:55432`, `bjc_dev`; 17 migraciones, `pg_trgm 1.6`, migrate status limpio; rol sin CREATEDB. |
+| Search | NOT READY: común p50 6,26 s; PHRASE 7,68 s; complejo 14,77 s; Corpus `57014` en 5–10 de 10 mediciones según familia. Docs 99–101. |
+| Concurrencia | FAIL: a 10 usuarios Search p95 45,57 s, 106 errores de fuente; a 20 p95 47,49 s, máximo 284,33 s, 224 errores; wait pico Prisma/Corpus 109/37. Doc 102. |
+| Paridad | PASS 40/40, artifact `_recovery-work/sprint121/parity/benchmark.json`. |
+| Backup / restore | Custom+plain final con SHA verificado; restore probado, ocho conteos y 20 hashes iguales, Search smoke PASS. DB temporal eliminada. Doc 103. |
+| Migraciones vacías | PASS desde cero: 17/17 migraciones, 41 tablas, fixture/Search/cleanup PASS; DB temporal eliminada. Doc 104. |
+| Backend | Prisma generate/typecheck/build PASS; 19 suites/79 tests; opt-ins adapter 7, Corpus 3, package 2, curation 1 PASS. |
+| Frontend | Typecheck/build PASS, Playwright 4/4 PASS. |
+| Dictamen | **TECHNICAL PREPRODUCTION — NOT READY**; docs 105–106. UAT/ACL/export Digesto PENDING; CIJ/CSJN NO GO. |
+
+La causa de Search y los límites de las mediciones se explican en docs 99–104. La ola de concurrencia fue in-process y local; no representa proxy/TLS/red.
+
+
+## Cierre Sprint 12.2 — estado vigente (2026-10-08)
+
+| Área | Estado / evidencia |
+|---|---|
+| PostgreSQL DEV | 16.15 en `127.0.0.1:55432`, DB `buscador_juridico_civil_dev`, rol `bjc_dev`; 20/20 migraciones limpias; schema verify 44 tablas, `pg_trgm 1.6`. |
+| Corpus Search projection | PASS: 11.008 documentos, 9.475.712 tokens, 0 stale, muestra 100/100; índice GIN 210.452.480 bytes; rebuild idempotente 0 cambios. |
+| Paridad | PASS 40/40; semántica 11/11 sin diferencias de IDs/orden; FIELD 1/1. |
+| Search API | NOT READY: TERM común p50 5,91 s, PHRASE 7,40 s, ZERO 6,93 s; el adapter V2 Juri es ~0,2 s, pero el endpoint también espera el generador legacy. Corpus PHRASE/PREFIX/SUFFIX conserva expiraciones. |
+| Concurrencia | FAIL: Search p95 6,33/24,58/35,65/35,94 s a 1/5/10/20 usuarios; HTTP errors 0/0/11/6; Prisma pool wait pico 0/2/35/80. |
+| Tests/build | Backend 81 PASS en suite; opt-ins dirigidos PASS (Postgres 7, paridad 1, Corpus 3, package 2); TypeScript/build backend y frontend PASS; Playwright 4/4 PASS. |
+| Migración limpia | Schema replay PASS con 20 migraciones/43 tablas y fixture; no equivale a DB vacía ni restore. Validación temporal de DB vacía permanece pendiente por CREATEDB/App Control. |
+| Backup final | PASS; dual custom/SQL UTF-8 y SHA verificados en doc 116. |
+| Dictamen | **TECHNICAL PREPRODUCTION — NOT READY**. HUMAN ACCEPTANCE, ACL y Digesto export PENDING; CIJ/CSJN NO GO. Sólo DEV local. |
+
+Ver cierre formal en `115-PREPRODUCTION-GATE-SPRINT-12.2.md` y `116-RESULTADO-SPRINT-12.2.md`.
+
+## Cierre vigente Sprint 12.3 — 2026-10-08
+
+Este bloque supersede los dictámenes de Search Sprint 12–12.2 que indiquen que el endpoint estándar todavía ejecuta legacy o incurre en timeouts ya corregidos. Los registros históricos conservan sus valores de corte.
+
+| Área | Estado / evidencia |
+|---|---|
+| Dictamen | **READY WITH NON-BLOCKING ADJUSTMENTS**, únicamente para continuar en preproducción controlada/UAT institucional. No producción/red compartida. Doc 124. |
+| Hot path | 15/15 familias medidas con V2; `legacyMs=0`; Playwright buscó desde UI LECTOR. Filtros fuera de la capacidad V2 se mantienen hybrid. Doc 117. |
+| Rendimiento | TERM común 118,6/234,3 ms p50/p95; PHRASE 1.400/1.459 ms; PREFIX 456/577; SUFFIX 965/1.169; SHORT 1.718/1.899. ZERO p50 15,8 ms. Doc 120. |
+| Concurrencia | Search p95 a 1/5/10/20 usuarios: 259/1.331/2.619/4.284 ms; cero errores HTTP/fuente. 20 usuarios deja espera Prisma 123; topología local in-process, no representa red/TLS. Doc 121. |
+| Pool Corpus | Aumentó de max 3 a 8 después de 47 errores de fuente iniciales a 20 usuarios; repetición y matriz completa 1/5/10/20 terminaron con 0 errores. |
+| PostgreSQL | 20/20 migraciones limpias; schema 44 tablas; 16.15 y `pg_trgm 1.6`. No hubo migración nueva en 12.3. |
+| Corpus projection | 11.008 documentos / 9.475.712 tokens; 0 stale; sample 100/100; GIN trigram 210.452.480 bytes. No rebuild necesario al cierre. |
+| Jurisprudencia | No hay proyección física nueva; adapter V2 consulta tablas fuente y tuvo TERM común 118,6 ms p50. No se declara eliminado todo Seq Scan relacional. Doc 118. |
+| Paridad | 40/40 PASS_COMPAT, sin diferencias reportadas. Doc 122. |
+| Validación | Backend 86 PASS + 15 opt-ins omitidos; Postgres 7/7, Corpus 3/3, paquete 2/2; typecheck/build backend y frontend PASS; Playwright 5/5. |
+| Backup | Custom 292.430.265 bytes SHA `77a7c488…ad8c19`; SQL UTF-8 1.207.928.742 bytes SHA `08635236…1fbf32`; doc 123. |
+| Restore/DB vacía | PASS histórico Sprint 12.1, evidencia docs 103/104. Schema replay Sprint 12.2 es adicional, no contradicción. |
+| HUMAN ACCEPTANCE / ACL / Digesto | PENDING. CIJ/CSJN automatizado: NO GO. |
+
+Artefactos privados y sanitizados de Sprint 12.3: `_recovery-work/sprint123/`. Próximo paso: Sprint 13 de preproducción controlada + UAT, manteniendo DEV local hasta completar gates institucionales.
+
+## Cierre Sprint 13 — 2026-10-08
+
+Este es el corte vigente de preproducción/UAT; conserva Sprint 12.3 como último resultado técnico de Search en DEV.
+
+| Área | Estado / evidencia |
+|---|---|
+| Topología | Sólo equipo local `AGUSTINNOTEBOOK`; no se identificó host BJC institucional autorizado ni proxy/TLS/cliente UAT. Inventario y gate en doc 126. |
+| PostgreSQL | Único destino confirmado continúa siendo DEV `bjc_dev@127.0.0.1:55432/buscador_juridico_civil_dev`. No se utilizó como preprod. Sin DB o storage preprod identificados. |
+| Deploy / migraciones | No ejecutados en preprod. No hubo build candidato ni importación. |
+| Preflight de configuración | Validador de arranque y guard Prisma preprod implementados; suite sintética 6/6; `check` positivo/negativo sin conectar. Falta startup en target real; `LOG_LEVEL` no implementado. Docs 126/136. |
+| Technical preprod | **BLOCKED / NOT EXECUTED** por ausencia de destino aislado autorizado; no es falla funcional. Evidencia DEV 12.3 no sustituye preprod. |
+| UAT | **PENDING**; no hubo participantes humanos ni sesión. Guion listo en doc 127; hallazgos vacíos por falta de sesiones en doc 128. |
+| ACL / anonimización / retención | **PENDING**; matrices preparadas en docs 129–131, sin decisión institucional ni cambios de permisos/políticas. |
+| Digesto | Export/crosswalk autorizado **PENDING**. No se contactó sistema remoto ni se inventó metadata. Doc 80 sigue vigente. |
+| Performance / operación | Sin medición ni health/backup de preprod. DEV 12.3 permanece como referencia en docs 120–124. TLS/CORS/proxy/limitación distribuida dependen de topología real. |
+| CIJ/CSJN | Adquisición pública masiva automatizada continúa **NO GO**. |
+| Production readiness | **NOT READY FOR PRODUCTION PLANNING**. Ver gaps reales en doc 138 y resultado en doc 139. |
+| Validación local | Backend Jest 92 PASS/15 omitidas; Prisma generate, TS backend/frontend, Nest/Next builds, Playwright 5/5. No son prueba de preprod. Doc 139. |
+
+Próximo gate: IT debe proveer un host privado y DB/storage nuevos autorizados; los owners de áreas deben definir UAT, ACL, anonimización, retención y corpus. Luego ejecutar runbook 136 y pruebas de docs 132–134 en ese entorno. No desplegar producción automáticamente.
+
+## Cierre Sprint 13.1 — 2026-10-08
+
+| Área | Estado / evidencia |
+|---|---|
+| Solicitud de infraestructura | Preparada para SYTEC en doc 140: host/OS/capacidad, PostgreSQL 16, Node, storage, DNS/proxy/TLS, firewall, vault y backup. Se usaron mediciones DEV 12.3 como referencia, no como sizing/SLO. |
+| Bootstrap / deploy | Docs 143–144 y `scripts/deploy-preprod.ps1` preparados. El deploy exige aprobación, backup DB+storage con SHA, migraciones explícitas, servicio aprobado, readiness, proyección y smoke. No se ejecutó. |
+| Guardas | Validator/config conserva fail-closed y ahora rechaza loopback aunque coincida con identidad declarada; guard agrega `db-report` y `projection-rebuild|verify|repair`. Sin conexión preprod real. |
+| Datos / Search | Modalidad A/B/C pendiente del owner. No se copió/importó Corpus ni se modificó proyección. CIJ/CSJN bulk sigue NO GO; Digesto export/crosswalk PENDING. |
+| UAT / políticas | Paquete de tareas doc 141; decisiones ACL/anonimización/retención doc 142; ambos PENDING hasta resolución institucional y sesión real. |
+| Resultado | Ambiente preprod **BLOCKED / NOT AVAILABLE**; software **READY FOR PREPRODUCTION DEPLOY PREPARATION**, sujeto a repetir gates en target autorizado; HUMAN ACCEPTANCE **PENDING**. Informe 145. |
+
+
+## Vigente — Sprint 14.2 (2026-10-08)
+
+**Sprint 14.2 final:** el inventario histórico global quedó completo: 226.770/226.770 filas, 11.339/11.339 páginas, cero páginas fallidas. Se identificaron 1.277 fallos de Cámara Civil (2008–2013); 1.254 documentos nuevos ingresaron al Corpus y Search V2. El catálogo actual expone 110 Juzgados Civiles y 14 salas, pero las consultas siguen bloqueadas por `cap-widget`. El master operativo y el checkpoint están en `BJC-ADQUISICION-JURISPRUDENCIA.md` y `_recovery-work/sprint142/historical.sqlite`.
+
+
+## Sprint 14.2 — corte vigente
+
+El filtro `tid=18` enumeró 1.277 fallos de Cámara Civil (07/07/2008–28/08/2013). De los 1.277 flids, 1.263 PDFs se validaron, 13 ya estaban locales y uno devolvió 404 persistente. Se incorporaron 1.254 nuevos hashes al Corpus DEV; 1.253 quedaron INDEXED y uno OCR_REQUIRED. Search V2 quedó con 12.262 documentos, 10.035.849 tokens, cero stale y TERM p50/p95 113/227 ms, PHRASE 270/538 ms. El inventario global cerró en 226.770 filas y 11.339 páginas. Detalle operativo en `BJC-ADQUISICION-JURISPRUDENCIA.md`.
+
+## Sprint 14.3 — adquisición Civil, 2026-10-09
+
+| Medida | Resultado verificado |
+|---|---|
+| Feed reciente | GET público server-rendered; 20 resultados globales visibles, 1 Civil (Juzgado Civil 64, Secretaría 94), sentencia 2026-10-08. Sin submit de formulario ni CAPTCHA. |
+| PDF nuevo | 1 HTTP 200, firma/MIME válidos, 214.836 bytes, SHA `39ed9ea0de1965a20e0db27577045cdb70893b04fb3c49baf802bf59049c70c7`; externalId `dfe01db5-ca63-4cf0-8193-6dbb5fbb6a0f`. |
+| Ingesta / Search / visor | 1 paquete `TFN_ACTUAL_CIVIL` INTERNAL, 21 páginas / 53.476 caracteres, INDEXED; Search por texto y archivo/visor confirmados. |
+| Cobertura en Corpus | Cámara 1.254 documentos distintos (2008: 1.210; 2009: 2; 2013: 42), 1.253 INDEXED + 1 OCR_REQUIRED. Primera instancia: 1, año 2026. Total Civil Corpus: 1.255. |
+| Proyección | 12.263 documentos, 10.038.148 tokens, ready, stale 0, mismatch 0 en muestra 100. |
+| Idempotencia | 1.ª ejecución: 1 PDF/documento nuevo. 2.ª: 0 PDF, 0 imports, 0 duplicados. |
+| Exhaustividad | PARTIAL_BOUNDED_FEED; sólo 20 recientes visibles y sin paginación pública en GET. No garantiza detectar todo fallo entre corridas. |
+| Backfill 2013→hoy | `HUMAN_CHALLENGE_REQUIRED`: búsqueda filtrada POST `acc=searchFallos` necesita `cap-widget`; no enviada. |
+| CIJ | 2 notas de Sala Civil de 2018 sin identificador de causa y 1 lead indexado expte. 24.971/2024 en ruta PDF `/scp/d/`; 0 matches confirmables, 0 descargados. |
+
+El PDF actual enlazado por el feed está en una ruta que el `robots.txt` de CSJN marca Disallow. Se deja registrado y no se automatiza el acceso futuro a esa ruta sin un canal/permiso que lo resuelva. No se repitió TERM/PHRASE benchmark: sólo se añadió un documento y no hay señal de regresión material. Preproducción sigue sin relación con este sprint y mantiene su estado independiente.
+
+
+## Sprint 14.2 — corte operativo de adquisición Civil (2026-10-09)
+
+- **Civil histórico filtrado:** 1.277 decisiones estructuradas de Cámara Civil, 2008–2013; 1.231 de 2008, 2 de 2009 y 44 de 2013. Juzgados Civiles de primera instancia no aparecen en el filtro histórico.
+- **PDFs:** todos los 1.277 flids tienen estado: 1.263 verificados, 13 ya presentes localmente y 1 HTTP 404 persistente (`flid=101`). Los 1.263 forman 1.254 SHA únicos. Se incorporaron 1.254 documentos nuevos al Corpus, 1.253 INDEXED y 1 OCR_REQUIRED; 4.453 páginas y 7.457.999 caracteres extraídos.
+- **Search V2:** 12.262 documentos y 10.035.849 tokens; proyección ready, cero stale y cero mismatches en muestra 100. TERM p50/p95 113/227 ms; PHRASE 270/538 ms. Search smoke y EXPLAIN 5 planes PASS.
+- **Verificación:** parser 7/7; backend 20 suites y 93 tests PASS, 5 suites/15 tests omitidos; build PASS.
+- **Backfill global:** 11.339/11.339 páginas completas, 226.770 filas descubiertas, cero páginas fallidas; la reanudación completó la página 9.032.
+- **Fuente actual:** catálogo de 110 Juzgados y 14 Salas descubierto; consulta y sync siguen bloqueadas por `cap-widget`/token humano. CIJ no se rastreó de nuevo.
+- **Dictamen:** inventario global histórico y cobertura de Cámara Civil completados; primera instancia actual sigue sin cuantificar por el widget humano. CIJ sin cifras nuevas. Detalle operativo en `BJC-ADQUISICION-JURISPRUDENCIA.md`.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Sprint 14.8 — checkpoint inicial, supersedido (2026-10-10)
+
+- Manifest offline conciliado: 5.710 registros fuente, 5.050 PDFs físicos/SHA únicos, 5.049 PDFs parseables, 105.074 páginas y 1 archivo inválido.
+- Deduplicación interna: 5.208 claves de documento jurídico; 4.756 NEW_DOCUMENT, 2 EXACT_DOCUMENT_MATCH, 15 SAME_DOCUMENT_DIFFERENT_FILE, 113 CANDIDATE, 321 CONFLICT y 1 INVALID_FILE. Candidatos, conflictos e identidades dudosas no se fusionan automáticamente.
+- Ingesta pendiente. El servicio PostgreSQL DEV quedó detenido tras apagado limpio; Windows Code Integrity (eventos 3033/3077) bloquea `postgres.exe` porque la firma Authenticode figura `NotSigned` frente al nivel Enterprise requerido. No hay listener en `127.0.0.1:55432`, backup válido ni escrituras de Corpus/Search.
+- En ese checkpoint, el próximo gate era recuperar PostgreSQL DEV antes de cualquier escritura. Se completó el 2026-10-13; ver el apartado vigente Sprint 14.8 arriba y `BJC-ADQUISICION-JURISPRUDENCIA.md`.
+
+## Estado vigente — cierre Sprint 14.9.1 (2026-10-13)
+
+Search continúa en DEV local y PARTIAL / PHRASE REGRESSION REMAINS. La proyección conserva 17.078 documentos y 18.799.500 tokens, stale 0 y 0 discrepancias en muestra de 100. Candidate set y ampliación PHRASE ahora se ejecutan en una sola consulta SQL además del readiness; el caso medido de cuatro resultados bajó de 4.431 a 2.094 ms y de 4 SQL a 2. La corrida comparable PHRASE de 10 requests dio p50 2.118 ms/p95 2.323 ms, peor que el baseline 1.632/1.763 ms y fuera del gate de 1.200 ms.
+
+Paridad 40/40, viewer 6/6, pruebas parser/adapter 34/34, PostgreSQL 7/7, Corpus 3/3, suite general 93 PASS/15 omitidos, schema verify 44 tablas/21 migraciones PASS, typecheck y build PASS. VACUUM (ANALYZE) mejoró visibilidad a 99,985%, pero no logró Index Only Scan. Mantener Search local; el siguiente cuello medido es la lectura heap y el orden/agregado de todo el set candidato PHRASE. No continuar con los 452 grupos hasta cerrar este gate. Evidencia y límites en BJC-SEARCH.md y _recovery-work/sprint1491/.

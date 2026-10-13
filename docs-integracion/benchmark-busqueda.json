@@ -1,0 +1,2209 @@
+{
+  "benchmarkTitle": "Benchmark de búsqueda — Buscador Jurídico Civil",
+  "version": "audit-2026-10",
+  "cases": [
+    {
+      "id": "BJC-001",
+      "category": "word",
+      "query": "daño",
+      "syntax": "legacy",
+      "intent": "palabra simple",
+      "expectedResult": "Termino presente en resumen materializado.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 2708,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35341,
+            "sentenciaId": 31267
+          },
+          {
+            "sumarioId": 35332,
+            "sentenciaId": 31262
+          },
+          {
+            "sumarioId": 35356,
+            "sentenciaId": 31280
+          },
+          {
+            "sumarioId": 35313,
+            "sentenciaId": 31243
+          },
+          {
+            "sumarioId": 35241,
+            "sentenciaId": 31183
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-002",
+      "category": "case",
+      "query": "DAÑO",
+      "syntax": "legacy",
+      "intent": "mayúsculas/minúsculas",
+      "expectedResult": "Debe recuperar igual que daño.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 2708,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35341,
+            "sentenciaId": 31267
+          },
+          {
+            "sumarioId": 35332,
+            "sentenciaId": 31262
+          },
+          {
+            "sumarioId": 35356,
+            "sentenciaId": 31280
+          },
+          {
+            "sumarioId": 35313,
+            "sentenciaId": 31243
+          },
+          {
+            "sumarioId": 35241,
+            "sentenciaId": 31183
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-003",
+      "category": "accent",
+      "query": "dano",
+      "syntax": "legacy",
+      "intent": "acentos y ñ",
+      "expectedResult": "Contrastar dano con daño; ñ es letra distinta en legado.",
+      "currentModernCompatibility": "PARTIAL",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 1,
+        "returnedAtMost300": 1,
+        "topIdsByDate": [
+          {
+            "sumarioId": 27585,
+            "sentenciaId": 24673
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "NFD elimina diacríticos, por lo que ñ y n se colapsan; el legacy las mantiene distintas."
+    },
+    {
+      "id": "BJC-004",
+      "category": "word",
+      "query": "moral",
+      "syntax": "legacy",
+      "intent": "palabra simple",
+      "expectedResult": "Término jurídico de alta frecuencia.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 1294,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35336,
+            "sentenciaId": 31266
+          },
+          {
+            "sumarioId": 35356,
+            "sentenciaId": 31280
+          },
+          {
+            "sumarioId": 35284,
+            "sentenciaId": 31219
+          },
+          {
+            "sumarioId": 35241,
+            "sentenciaId": 31183
+          },
+          {
+            "sumarioId": 35234,
+            "sentenciaId": 31176
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-005",
+      "category": "and",
+      "query": "daño * moral",
+      "syntax": "legacy",
+      "intent": "AND legacy",
+      "expectedResult": "Ambos términos deben aparecer.",
+      "currentModernCompatibility": "PARTIAL",
+      "proposedTranslation": "daño AND moral",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 995,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35356,
+            "sentenciaId": 31280
+          },
+          {
+            "sumarioId": 35241,
+            "sentenciaId": 31183
+          },
+          {
+            "sumarioId": 35204,
+            "sentenciaId": 31149
+          },
+          {
+            "sumarioId": 35125,
+            "sentenciaId": 31091
+          },
+          {
+            "sumarioId": 35141,
+            "sentenciaId": 31102
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El parser elimina * y la conjunción por defecto hace que el caso simple equivalga a AND; no hay soporte explícito del símbolo."
+    },
+    {
+      "id": "BJC-006",
+      "category": "or",
+      "query": "daño + moral",
+      "syntax": "legacy",
+      "intent": "OR legacy",
+      "expectedResult": "Al menos uno de los términos debe aparecer.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "daño OR moral",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 3007,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35336,
+            "sentenciaId": 31266
+          },
+          {
+            "sumarioId": 35341,
+            "sentenciaId": 31267
+          },
+          {
+            "sumarioId": 35332,
+            "sentenciaId": 31262
+          },
+          {
+            "sumarioId": 35356,
+            "sentenciaId": 31280
+          },
+          {
+            "sumarioId": 35313,
+            "sentenciaId": 31243
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "+ se elimina como puntuación; los dos términos quedan incluidos y el servicio usa AND por defecto."
+    },
+    {
+      "id": "BJC-007",
+      "category": "not",
+      "query": "daño - moral",
+      "syntax": "legacy",
+      "intent": "exclusión legacy",
+      "expectedResult": "daño y ausencia de moral.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "daño AND NOT moral",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 1713,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35341,
+            "sentenciaId": 31267
+          },
+          {
+            "sumarioId": 35332,
+            "sentenciaId": 31262
+          },
+          {
+            "sumarioId": 35313,
+            "sentenciaId": 31243
+          },
+          {
+            "sumarioId": 35147,
+            "sentenciaId": 31107
+          },
+          {
+            "sumarioId": 35143,
+            "sentenciaId": 31103
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El guion separado se descarta; ambos términos quedan como incluidos, no como exclusión."
+    },
+    {
+      "id": "BJC-008",
+      "category": "phrase",
+      "query": "\"daño moral\"",
+      "syntax": "legacy",
+      "intent": "frase",
+      "expectedResult": "Secuencia contigua daño moral.",
+      "currentModernCompatibility": "PARTIAL",
+      "proposedTranslation": "\"daño moral\"",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 956,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35356,
+            "sentenciaId": 31280
+          },
+          {
+            "sumarioId": 35241,
+            "sentenciaId": 31183
+          },
+          {
+            "sumarioId": 35204,
+            "sentenciaId": 31149
+          },
+          {
+            "sumarioId": 35125,
+            "sentenciaId": 31091
+          },
+          {
+            "sumarioId": 35141,
+            "sentenciaId": 31102
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-009",
+      "category": "wildcard",
+      "query": "accident%",
+      "syntax": "legacy",
+      "intent": "wildcard prefijo",
+      "expectedResult": "Términos que comienzan con accident.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "accident* (no soportado como legacy; proponer prefijo:)",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 3269,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35368,
+            "sentenciaId": 31288
+          },
+          {
+            "sumarioId": 35352,
+            "sentenciaId": 31276
+          },
+          {
+            "sumarioId": 35331,
+            "sentenciaId": 31261
+          },
+          {
+            "sumarioId": 35324,
+            "sentenciaId": 31254
+          },
+          {
+            "sumarioId": 35269,
+            "sentenciaId": 31208
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "% no se interpreta como wildcard; el parser recorta puntuación y conserva el término base."
+    },
+    {
+      "id": "BJC-010",
+      "category": "wildcard",
+      "query": "%accident",
+      "syntax": "legacy",
+      "intent": "wildcard sufijo",
+      "expectedResult": "Términos que terminan con accident.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "*accident (no habilitar sin contrato explícito)",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 0,
+        "returnedAtMost300": 0,
+        "topIdsByDate": [],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "% no se interpreta como wildcard; el parser recorta puntuación y conserva el término base."
+    },
+    {
+      "id": "BJC-011",
+      "category": "word",
+      "query": "responsabilidad",
+      "syntax": "legacy",
+      "intent": "palabra simple",
+      "expectedResult": "Vocabulario civil frecuente.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 4758,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35362,
+            "sentenciaId": 31284
+          },
+          {
+            "sumarioId": 35377,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35378,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35379,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35368,
+            "sentenciaId": 31288
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-012",
+      "category": "phrase",
+      "query": "\"responsabilidad civil\"",
+      "syntax": "legacy",
+      "intent": "frase",
+      "expectedResult": "Frase legal frecuente.",
+      "currentModernCompatibility": "PARTIAL",
+      "proposedTranslation": "\"responsabilidad civil\"",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 413,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35377,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35378,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35373,
+            "sentenciaId": 31293
+          },
+          {
+            "sumarioId": 35264,
+            "sentenciaId": 31205
+          },
+          {
+            "sumarioId": 35297,
+            "sentenciaId": 31230
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-013",
+      "category": "word",
+      "query": "contrato",
+      "syntax": "legacy",
+      "intent": "tema jurídico",
+      "expectedResult": "Vocabulario civil frecuente.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 3064,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35358,
+            "sentenciaId": 31282
+          },
+          {
+            "sumarioId": 35360,
+            "sentenciaId": 31284
+          },
+          {
+            "sumarioId": 35361,
+            "sentenciaId": 31284
+          },
+          {
+            "sumarioId": 35362,
+            "sentenciaId": 31284
+          },
+          {
+            "sumarioId": 35363,
+            "sentenciaId": 31284
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-014",
+      "category": "word",
+      "query": "consumo",
+      "syntax": "legacy",
+      "intent": "tema jurídico",
+      "expectedResult": "Vocabulario civil frecuente.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 285,
+        "returnedAtMost300": 285,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35377,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35378,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35319,
+            "sentenciaId": 31249
+          },
+          {
+            "sumarioId": 35269,
+            "sentenciaId": 31208
+          },
+          {
+            "sumarioId": 35264,
+            "sentenciaId": 31205
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-015",
+      "category": "word",
+      "query": "amparo",
+      "syntax": "legacy",
+      "intent": "tema jurídico",
+      "expectedResult": "Vocabulario judicial frecuente.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 674,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35252,
+            "sentenciaId": 31194
+          },
+          {
+            "sumarioId": 35253,
+            "sentenciaId": 31194
+          },
+          {
+            "sumarioId": 35205,
+            "sentenciaId": 31150
+          },
+          {
+            "sumarioId": 35125,
+            "sentenciaId": 31091
+          },
+          {
+            "sumarioId": 35170,
+            "sentenciaId": 31125
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-016",
+      "category": "word",
+      "query": "accidente",
+      "syntax": "legacy",
+      "intent": "tema jurídico",
+      "expectedResult": "Término relacionado con accidente/responsabilidad.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 3155,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35368,
+            "sentenciaId": 31288
+          },
+          {
+            "sumarioId": 35352,
+            "sentenciaId": 31276
+          },
+          {
+            "sumarioId": 35331,
+            "sentenciaId": 31261
+          },
+          {
+            "sumarioId": 35324,
+            "sentenciaId": 31254
+          },
+          {
+            "sumarioId": 35269,
+            "sentenciaId": 31208
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-017",
+      "category": "word",
+      "query": "salud",
+      "syntax": "legacy",
+      "intent": "tema jurídico",
+      "expectedResult": "Término civil y constitucional.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 600,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35373,
+            "sentenciaId": 31293
+          },
+          {
+            "sumarioId": 35183,
+            "sentenciaId": 31135
+          },
+          {
+            "sumarioId": 35210,
+            "sentenciaId": 31155
+          },
+          {
+            "sumarioId": 35164,
+            "sentenciaId": 31119
+          },
+          {
+            "sumarioId": 35141,
+            "sentenciaId": 31102
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-018",
+      "category": "word",
+      "query": "prueba",
+      "syntax": "legacy",
+      "intent": "tema jurídico",
+      "expectedResult": "Término procesal frecuente.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 2572,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35368,
+            "sentenciaId": 31288
+          },
+          {
+            "sumarioId": 35355,
+            "sentenciaId": 31279
+          },
+          {
+            "sumarioId": 35373,
+            "sentenciaId": 31293
+          },
+          {
+            "sumarioId": 35332,
+            "sentenciaId": 31262
+          },
+          {
+            "sumarioId": 35326,
+            "sentenciaId": 31256
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-019",
+      "category": "word",
+      "query": "ley",
+      "syntax": "legacy",
+      "intent": "palabra corta",
+      "expectedResult": "Debe conservarse como término indexable.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "No",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "simple",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 7831,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35358,
+            "sentenciaId": 31282
+          },
+          {
+            "sumarioId": 35377,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35378,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35339,
+            "sentenciaId": 31266
+          },
+          {
+            "sumarioId": 35342,
+            "sentenciaId": 31268
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-020",
+      "category": "short",
+      "query": "de",
+      "syntax": "legacy",
+      "intent": "palabra funcional de dos letras",
+      "expectedResult": "Legacy la busca como palabra; el parser moderno la filtra.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "de (actualmente descartado como stopword)",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 25003,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35045,
+            "sentenciaId": 31013
+          },
+          {
+            "sumarioId": 35046,
+            "sentenciaId": 31014
+          },
+          {
+            "sumarioId": 35044,
+            "sentenciaId": 31012
+          },
+          {
+            "sumarioId": 35066,
+            "sentenciaId": 31034
+          },
+          {
+            "sumarioId": 35103,
+            "sentenciaId": 31071
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "Stopwords eliminan de; términos alfabéticos menores de tres caracteres se descartan."
+    },
+    {
+      "id": "BJC-021",
+      "category": "short",
+      "query": "a",
+      "syntax": "legacy",
+      "intent": "palabra de una letra",
+      "expectedResult": "Legacy permite palabra simple; moderno la descarta.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "a (actualmente descartado por longitud)",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 21655,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35045,
+            "sentenciaId": 31013
+          },
+          {
+            "sumarioId": 35046,
+            "sentenciaId": 31014
+          },
+          {
+            "sumarioId": 35044,
+            "sentenciaId": 31012
+          },
+          {
+            "sumarioId": 35066,
+            "sentenciaId": 31034
+          },
+          {
+            "sumarioId": 35103,
+            "sentenciaId": 31071
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "Stopwords eliminan de; términos alfabéticos menores de tres caracteres se descartan."
+    },
+    {
+      "id": "BJC-022",
+      "category": "number",
+      "query": "1113",
+      "syntax": "legacy",
+      "intent": "número/referencia normativa",
+      "expectedResult": "Contrastar texto libre con entidades de referencia modernas.",
+      "currentModernCompatibility": "PARTIAL",
+      "proposedTranslation": "1113",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 599,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35264,
+            "sentenciaId": 31205
+          },
+          {
+            "sumarioId": 35217,
+            "sentenciaId": 31162
+          },
+          {
+            "sumarioId": 35175,
+            "sentenciaId": 31130
+          },
+          {
+            "sumarioId": 35199,
+            "sentenciaId": 31148
+          },
+          {
+            "sumarioId": 34845,
+            "sentenciaId": 30609
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-023",
+      "category": "number",
+      "query": "2015",
+      "syntax": "legacy",
+      "intent": "año como palabra",
+      "expectedResult": "No confundir búsqueda de texto con filtro de fecha.",
+      "currentModernCompatibility": "PARTIAL",
+      "proposedTranslation": "anio:2015 o filtro de fecha",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 39,
+        "returnedAtMost300": 39,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35186,
+            "sentenciaId": 31136
+          },
+          {
+            "sumarioId": 34663,
+            "sentenciaId": 30437
+          },
+          {
+            "sumarioId": 34566,
+            "sentenciaId": 30350
+          },
+          {
+            "sumarioId": 34732,
+            "sentenciaId": 30504
+          },
+          {
+            "sumarioId": 34478,
+            "sentenciaId": 30275
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-024",
+      "category": "or",
+      "query": "daño + contrato",
+      "syntax": "legacy",
+      "intent": "OR legacy",
+      "expectedResult": "daño o contrato; la lista legacy limita resultados a 300.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "daño OR contrato",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 5449,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35358,
+            "sentenciaId": 31282
+          },
+          {
+            "sumarioId": 35360,
+            "sentenciaId": 31284
+          },
+          {
+            "sumarioId": 35361,
+            "sentenciaId": 31284
+          },
+          {
+            "sumarioId": 35362,
+            "sentenciaId": 31284
+          },
+          {
+            "sumarioId": 35363,
+            "sentenciaId": 31284
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-025",
+      "category": "and",
+      "query": "daño * responsabilidad * civil",
+      "syntax": "legacy",
+      "intent": "AND de tres términos",
+      "expectedResult": "Los tres términos son obligatorios.",
+      "currentModernCompatibility": "PARTIAL",
+      "proposedTranslation": "daño AND responsabilidad AND civil",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 658,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35147,
+            "sentenciaId": 31107
+          },
+          {
+            "sumarioId": 35126,
+            "sentenciaId": 31091
+          },
+          {
+            "sumarioId": 35138,
+            "sentenciaId": 31099
+          },
+          {
+            "sumarioId": 34881,
+            "sentenciaId": 30643
+          },
+          {
+            "sumarioId": 34706,
+            "sentenciaId": 30480
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-026",
+      "category": "not",
+      "query": "daño - moral - accidente",
+      "syntax": "legacy",
+      "intent": "dos exclusiones",
+      "expectedResult": "daño sin moral ni accidente.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "daño AND NOT moral AND NOT accidente",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 1099,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35341,
+            "sentenciaId": 31267
+          },
+          {
+            "sumarioId": 35332,
+            "sentenciaId": 31262
+          },
+          {
+            "sumarioId": 35143,
+            "sentenciaId": 31103
+          },
+          {
+            "sumarioId": 35126,
+            "sentenciaId": 31091
+          },
+          {
+            "sumarioId": 35138,
+            "sentenciaId": 31099
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-027",
+      "category": "modern-word-op",
+      "query": "daño AND moral",
+      "syntax": "modern",
+      "intent": "sintaxis moderna AND",
+      "expectedResult": "AND explícito en moderno.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "No; el legacy rechaza AND como operador",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "syntax_error",
+        "reason": "legacy accepts only *, +, - as connectors"
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "Reconoce AND como palabra; el servicio trata términos incluidos como conjunción por defecto."
+    },
+    {
+      "id": "BJC-028",
+      "category": "modern-word-op",
+      "query": "daño OR moral",
+      "syntax": "modern",
+      "intent": "sintaxis moderna OR",
+      "expectedResult": "OR explícito en moderno.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "No; el legacy rechaza OR como operador",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "syntax_error",
+        "reason": "legacy accepts only *, +, - as connectors"
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El parser registra orGroups, pero el filtrado de candidatos también conjuga parsed.terms salvo que se envíe operador=OR aparte; escribir OR en q no parece suficiente."
+    },
+    {
+      "id": "BJC-029",
+      "category": "not-attached",
+      "query": "daño -moral",
+      "syntax": "legacy",
+      "intent": "NOT moderno unido",
+      "expectedResult": "En ambos parsers se puede representar como daño menos moral.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "daño - moral",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 1713,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35341,
+            "sentenciaId": 31267
+          },
+          {
+            "sumarioId": 35332,
+            "sentenciaId": 31262
+          },
+          {
+            "sumarioId": 35313,
+            "sentenciaId": 31243
+          },
+          {
+            "sumarioId": 35147,
+            "sentenciaId": 31107
+          },
+          {
+            "sumarioId": 35143,
+            "sentenciaId": 31103
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El guion adjunto genera exclusión; en el legacy el PHP separa todo guion, por lo que la semántica coincide en este caso."
+    },
+    {
+      "id": "BJC-030",
+      "category": "legacy-literal",
+      "query": "sala:A",
+      "syntax": "legacy",
+      "intent": "campo vs texto",
+      "expectedResult": "Legacy lo interpreta como término libre; moderno como filtro de sala.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "sala:A",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 0,
+        "returnedAtMost300": 0,
+        "topIdsByDate": [],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-031",
+      "category": "ui-filter",
+      "query": "daño [filtro sala=A]",
+      "syntax": "legacy",
+      "intent": "filtro sala legacy",
+      "expectedResult": "Término daño limitado a sala A; filtro de interfaz, no gramática textual.",
+      "currentModernCompatibility": "PARTIAL",
+      "proposedTranslation": "sala:A AND daño",
+      "relevantFields": [
+        "tb_sumarios.resumen",
+        "tb_sentencias.sala"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 288,
+        "returnedAtMost300": 288,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35125,
+            "sentenciaId": 31091
+          },
+          {
+            "sumarioId": 35126,
+            "sentenciaId": 31091
+          },
+          {
+            "sumarioId": 34843,
+            "sentenciaId": 30607
+          },
+          {
+            "sumarioId": 34881,
+            "sentenciaId": 30643
+          },
+          {
+            "sumarioId": 34634,
+            "sentenciaId": 30411
+          }
+        ],
+        "filters": {
+          "sala": "A"
+        },
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-032",
+      "category": "ui-filter",
+      "query": "daño [fecha 2015]",
+      "syntax": "legacy",
+      "intent": "filtro fecha legacy",
+      "expectedResult": "Término daño dentro del rango 2015; comparar con filtro anio.",
+      "currentModernCompatibility": "PARTIAL",
+      "proposedTranslation": "daño AND anio:2015",
+      "relevantFields": [
+        "tb_sumarios.resumen",
+        "tb_sentencias.fecha"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 93,
+        "returnedAtMost300": 93,
+        "topIdsByDate": [
+          {
+            "sumarioId": 33627,
+            "sentenciaId": 29517
+          },
+          {
+            "sumarioId": 33631,
+            "sentenciaId": 29520
+          },
+          {
+            "sumarioId": 33633,
+            "sentenciaId": 29522
+          },
+          {
+            "sumarioId": 33640,
+            "sentenciaId": 29528
+          },
+          {
+            "sumarioId": 33641,
+            "sentenciaId": 29528
+          }
+        ],
+        "filters": {
+          "fechaDesde": "2015-01-01",
+          "fechaHastaExclusive": "2016-01-01"
+        },
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-033",
+      "category": "field",
+      "query": "tema:daños",
+      "syntax": "modern",
+      "intent": "campo tema",
+      "expectedResult": "Filtro/campo de tema moderno; control legacy por texto daños.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "tema:daños",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 9798,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35358,
+            "sentenciaId": 31282
+          },
+          {
+            "sumarioId": 35360,
+            "sentenciaId": 31284
+          },
+          {
+            "sumarioId": 35361,
+            "sentenciaId": 31284
+          },
+          {
+            "sumarioId": 35362,
+            "sentenciaId": 31284
+          },
+          {
+            "sumarioId": 35363,
+            "sentenciaId": 31284
+          }
+        ],
+        "legacyComparisonQuery": "daños",
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El alias de campo existe en el parser; no se midió contra PostgreSQL. Valores personales/identificadores redactados."
+    },
+    {
+      "id": "BJC-034",
+      "category": "field-redacted",
+      "query": "expediente:{valor del corpus redactado}",
+      "syntax": "modern",
+      "intent": "campo expediente",
+      "expectedResult": "Verificar número exacto y preservación de guiones.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "expediente:{valor del corpus redactado}",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "not_comparable",
+        "reason": "Solo se evaluó compatibilidad del parser/campo; no se inventó una consulta legacy equivalente."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El alias de campo existe en el parser; no se midió contra PostgreSQL. Valores personales/identificadores redactados."
+    },
+    {
+      "id": "BJC-035",
+      "category": "field-redacted",
+      "query": "actor:{valor del corpus redactado}",
+      "syntax": "modern",
+      "intent": "campo actor",
+      "expectedResult": "Consulta exacta en campo, valor omitido por privacidad.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "actor:{valor del corpus redactado}",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "not_comparable",
+        "reason": "Solo se evaluó compatibilidad del parser/campo; no se inventó una consulta legacy equivalente."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El alias de campo existe en el parser; no se midió contra PostgreSQL. Valores personales/identificadores redactados."
+    },
+    {
+      "id": "BJC-036",
+      "category": "field-redacted",
+      "query": "demandado:{valor del corpus redactado}",
+      "syntax": "modern",
+      "intent": "campo demandado",
+      "expectedResult": "Consulta exacta en campo, valor omitido por privacidad.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "demandado:{valor del corpus redactado}",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "not_comparable",
+        "reason": "Solo se evaluó compatibilidad del parser/campo; no se inventó una consulta legacy equivalente."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El alias de campo existe en el parser; no se midió contra PostgreSQL. Valores personales/identificadores redactados."
+    },
+    {
+      "id": "BJC-037",
+      "category": "field-redacted",
+      "query": "magistrados:{valor del corpus redactado}",
+      "syntax": "modern",
+      "intent": "campo magistrados",
+      "expectedResult": "Consulta exacta en campo, valor omitido por privacidad.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "magistrados:{valor del corpus redactado}",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "not_comparable",
+        "reason": "Solo se evaluó compatibilidad del parser/campo; no se inventó una consulta legacy equivalente."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El alias de campo existe en el parser; no se midió contra PostgreSQL. Valores personales/identificadores redactados."
+    },
+    {
+      "id": "BJC-038",
+      "category": "field-redacted",
+      "query": "caratula:{valor del corpus redactado}",
+      "syntax": "modern",
+      "intent": "campo carátula",
+      "expectedResult": "Consulta exacta en campo, valor omitido por privacidad.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "caratula:{valor del corpus redactado}",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "not_comparable",
+        "reason": "Solo se evaluó compatibilidad del parser/campo; no se inventó una consulta legacy equivalente."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El alias de campo existe en el parser; no se midió contra PostgreSQL. Valores personales/identificadores redactados."
+    },
+    {
+      "id": "BJC-039",
+      "category": "field",
+      "query": "sala:A",
+      "syntax": "modern",
+      "intent": "campo sala moderno",
+      "expectedResult": "Valor de sala observado en el snapshot; filtro separado en legacy.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "sala:A",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 0,
+        "returnedAtMost300": 0,
+        "topIdsByDate": [],
+        "note": "En legacy es texto libre, no filtro de sala.",
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El alias de campo existe en el parser; no se midió contra PostgreSQL. Valores personales/identificadores redactados."
+    },
+    {
+      "id": "BJC-040",
+      "category": "field",
+      "query": "tipoFallo:L",
+      "syntax": "modern",
+      "intent": "campo tipo de fallo",
+      "expectedResult": "Valor de tipo L presente en snapshot; no hay filtro equivalente en consulta pública legacy.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "tipoFallo:L",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "field_filter_not_supported_by_legacy_public_ui",
+        "reason": "El endpoint público solo filtra sala y fecha."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El alias de campo existe en el parser; no se midió contra PostgreSQL. Valores personales/identificadores redactados."
+    },
+    {
+      "id": "BJC-041",
+      "category": "field-redacted",
+      "query": "numeroSentencia:{valor del corpus redactado}",
+      "syntax": "modern",
+      "intent": "número de sentencia",
+      "expectedResult": "Valor omitido por privacidad; ejecutar con un ID de prueba aprobado.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "numeroSentencia:{valor del corpus redactado}",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "not_comparable",
+        "reason": "Solo se evaluó compatibilidad del parser/campo; no se inventó una consulta legacy equivalente."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El alias de campo existe en el parser; no se midió contra PostgreSQL. Valores personales/identificadores redactados."
+    },
+    {
+      "id": "BJC-042",
+      "category": "field-redacted",
+      "query": "numeroSumario:{valor del corpus redactado}",
+      "syntax": "modern",
+      "intent": "número de sumario",
+      "expectedResult": "Valor omitido por privacidad; ejecutar con un ID de prueba aprobado.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "numeroSumario:{valor del corpus redactado}",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "not_comparable",
+        "reason": "Solo se evaluó compatibilidad del parser/campo; no se inventó una consulta legacy equivalente."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "El alias de campo existe en el parser; no se midió contra PostgreSQL. Valores personales/identificadores redactados."
+    },
+    {
+      "id": "BJC-043",
+      "category": "reference",
+      "query": "1113",
+      "syntax": "modern",
+      "intent": "referencia normativa",
+      "expectedResult": "Legacy solo busca resumen; tb_microisis.referencias_normativas no se consulta.",
+      "currentModernCompatibility": "PARTIAL",
+      "proposedTranslation": "1113 (solo si la referencia está cargada en entidades modernas)",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 599,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35264,
+            "sentenciaId": 31205
+          },
+          {
+            "sumarioId": 35217,
+            "sentenciaId": 31162
+          },
+          {
+            "sumarioId": 35175,
+            "sentenciaId": 31130
+          },
+          {
+            "sumarioId": 35199,
+            "sentenciaId": 31148
+          },
+          {
+            "sumarioId": 34845,
+            "sentenciaId": 30609
+          }
+        ],
+        "note": "El recuento cubre solo el resumen materializado; no es recuperación de referencias_normativas.",
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-044",
+      "category": "name-pair",
+      "query": "Peña",
+      "syntax": "legacy",
+      "intent": "ñ en nombres de corpus",
+      "expectedResult": "Par sensible: medir solo agregados y no mostrar filas/IDs.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "Peña (moderno normaliza ñ a n)",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 61,
+        "returnedAtMost300": 61,
+        "topIdsByDate": null,
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "NFD elimina diacríticos, por lo que ñ y n se colapsan; el legacy las mantiene distintas."
+    },
+    {
+      "id": "BJC-045",
+      "category": "name-pair",
+      "query": "Pena",
+      "syntax": "legacy",
+      "intent": "n frente a ñ",
+      "expectedResult": "Comparar con Peña; solo conteos agregados.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "Pena (colisiona con Peña tras normalización moderna)",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 108,
+        "returnedAtMost300": 108,
+        "topIdsByDate": null,
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "NFD elimina diacríticos, por lo que ñ y n se colapsan; el legacy las mantiene distintas."
+    },
+    {
+      "id": "BJC-046",
+      "category": "accent-bug",
+      "query": "prescripción",
+      "syntax": "legacy",
+      "intent": "acento en í",
+      "expectedResult": "Legacy query mapping tiene defecto para í; medir el conteo.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "prescripción (moderno elimina diacríticos)",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 1107,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35365,
+            "sentenciaId": 31285
+          },
+          {
+            "sumarioId": 35367,
+            "sentenciaId": 31287
+          },
+          {
+            "sumarioId": 35332,
+            "sentenciaId": 31262
+          },
+          {
+            "sumarioId": 35330,
+            "sentenciaId": 31260
+          },
+          {
+            "sumarioId": 35325,
+            "sentenciaId": 31255
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-047",
+      "category": "accent",
+      "query": "prescripcion",
+      "syntax": "legacy",
+      "intent": "forma sin acento",
+      "expectedResult": "Control para prescripción; comparar normalización.",
+      "currentModernCompatibility": "PARTIAL",
+      "proposedTranslation": "prescripcion",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 1107,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35365,
+            "sentenciaId": 31285
+          },
+          {
+            "sumarioId": 35367,
+            "sentenciaId": 31287
+          },
+          {
+            "sumarioId": 35332,
+            "sentenciaId": 31262
+          },
+          {
+            "sumarioId": 35330,
+            "sentenciaId": 31260
+          },
+          {
+            "sumarioId": 35325,
+            "sentenciaId": 31255
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-048",
+      "category": "no-results",
+      "query": "zzzxqv",
+      "syntax": "legacy",
+      "intent": "sin resultados",
+      "expectedResult": "Consulta sintética de control sin exponer registros.",
+      "currentModernCompatibility": "YES",
+      "proposedTranslation": "zzzxqv",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "low",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 0,
+        "returnedAtMost300": 0,
+        "topIdsByDate": [],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-049",
+      "category": "broad",
+      "query": "daño + responsabilidad",
+      "syntax": "legacy",
+      "intent": "consulta amplia",
+      "expectedResult": "Medir límite legacy de 300 y OR.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "daño OR responsabilidad",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 6250,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35362,
+            "sentenciaId": 31284
+          },
+          {
+            "sumarioId": 35377,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35378,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35379,
+            "sentenciaId": 31297
+          },
+          {
+            "sumarioId": 35368,
+            "sentenciaId": 31288
+          }
+        ],
+        "measurementNote": "Conteo read-only sobre SQLite immutable con parámetros enlazados; se reprodujo el patrón LIKE/operadores del PHP. No se ejecutó el endpoint PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-050",
+      "category": "syntax-error",
+      "query": "* daño",
+      "syntax": "legacy",
+      "intent": "error sintáctico inicial",
+      "expectedResult": "El parser legacy requiere palabra antes del operador.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "error visible de parser; no enviar SQL",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "syntax_error",
+        "reason": "operator without left term"
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-051",
+      "category": "syntax-error",
+      "query": "daño +",
+      "syntax": "legacy",
+      "intent": "error sintáctico final",
+      "expectedResult": "Operador sin término derecho.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "error visible de parser; no enviar SQL",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "syntax_error",
+        "reason": "missing right-hand term or malformed operator sequence"
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-052",
+      "category": "syntax-error",
+      "query": "daño * moral * accidente * contrato * salud * amparo * consumo",
+      "syntax": "legacy",
+      "intent": "más de seis términos",
+      "expectedResult": "Legacy informa exceso de términos; definir límite común.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "error de validación con límite documentado",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "medium",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "syntax_error",
+        "reason": "more than six search terms"
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-053",
+      "category": "parentheses",
+      "query": "(daño OR moral)",
+      "syntax": "modern",
+      "intent": "paréntesis/precedencia",
+      "expectedResult": "Legacy no soporta agrupación; parser moderno no ofrece AST de agrupación estable.",
+      "currentModernCompatibility": "NO",
+      "proposedTranslation": "(daño OR moral)",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "consulta/1_1_buscar_resultados.php; parser moderno estático en search-parser.ts/search.service.ts",
+      "legacyMeasurement": {
+        "status": "syntax_error",
+        "reason": "Parentheses are not operators in legacy; OR is not an allowed connector."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      },
+      "modernParserAssessment": "Parentheses are stripped as punctuation; no AST grouping or nested precedence is implemented."
+    },
+    {
+      "id": "BJC-054",
+      "category": "legacy-precedence",
+      "query": "daño + moral * accidente",
+      "syntax": "legacy",
+      "intent": "OR tiene menor precedencia que AND: daño OR (moral AND accidente).",
+      "expectedResult": "Match daño, or match both moral and accidente.",
+      "currentModernCompatibility": "NO",
+      "modernParserAssessment": "Modern q parser has separate operator parameter and does not map this symbolic precedence to an AST.",
+      "proposedTranslation": "daño OR (moral AND accidente)",
+      "relevantFields": [
+        "tb_sumarios.resumen"
+      ],
+      "risk": "high",
+      "source": "parser PHP; precedencia SQL de AND sobre OR",
+      "legacyMeasurement": {
+        "status": "measured_legacy_sqlite",
+        "matches": 2729,
+        "returnedAtMost300": 300,
+        "topIdsByDate": [
+          {
+            "sumarioId": 35341,
+            "sentenciaId": 31267
+          },
+          {
+            "sumarioId": 35332,
+            "sentenciaId": 31262
+          },
+          {
+            "sumarioId": 35356,
+            "sentenciaId": 31280
+          },
+          {
+            "sumarioId": 35313,
+            "sentenciaId": 31243
+          },
+          {
+            "sumarioId": 35241,
+            "sentenciaId": 31183
+          }
+        ],
+        "measurementNote": "Conteo read-only parametrizado; reprodujo LIKE y precedencia SQL de AND sobre OR, sin ejecutar PHP."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    },
+    {
+      "id": "BJC-055",
+      "category": "modern-precedence",
+      "query": "daño OR (moral AND accidente)",
+      "syntax": "modern",
+      "intent": "OR agrupa una rama AND; paréntesis deben controlar el AST.",
+      "expectedResult": "daño OR (moral AND accidente), no todos los términos a la vez.",
+      "currentModernCompatibility": "PARTIAL",
+      "modernParserAssessment": "Parser elimina paréntesis y crea broadTerms con todos los términos; el servicio candidato usa query.operador separado (AND por defecto), por lo que la forma exacta no está garantizada.",
+      "proposedTranslation": "OR(TERM(daño), AND(TERM(moral), TERM(accidente)))",
+      "relevantFields": [
+        "resumen",
+        "sumario"
+      ],
+      "risk": "high",
+      "source": "parser/servicio modernos leídos estáticamente; sin ejecución PostgreSQL",
+      "legacyMeasurement": {
+        "status": "syntax_error",
+        "reason": "Legacy no admite palabras AND/OR ni paréntesis."
+      },
+      "modernMeasurement": {
+        "status": "not_run",
+        "reason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó."
+      }
+    }
+  ],
+  "method": {
+    "legacyDbMember": "jurisprudencia/jurisp_6/db/jurisprudencia_db.sqlite",
+    "legacyDbFileSha256": "a6fb3da62f634e6832dfdcb5d13f0de8b5737c0951a2ab01a562ae7b8618d373",
+    "legacyQueryEndpoint": "consulta/1_1_buscar_resultados.php",
+    "activeJoinedRows": 25103,
+    "legacySqlCap": 300,
+    "modernExecution": "not_run",
+    "modernExecutionReason": "El DATABASE_URL de Jurisprudencia apunta a localhost:5432, pero no hay listener ni proceso PostgreSQL local; no se intentó conectar. La URL remota de Digesto no se usó.",
+    "countsScope": "Recuento read-only/immutable sobre el snapshot que el endpoint PHP abre, consulta tb_sumarios.resumen y une filas activas; las consultas por campo marcadas redactadas no se ejecutaron.",
+    "typeRegistroCounts": {
+      "S": 26694,
+      "C": 22800,
+      "s": 1104,
+      "X": 727,
+      "x": 650,
+      "c": 307,
+      "emptyString": 37,
+      "whitespaceOnly": 8,
+      "allOtherValuesTotal": 48
+    },
+    "activeUnpublishedRowsPassingEndpointWhere": 112,
+    "modernSqlitePdfFileCounts": {
+      "dataPhysical": 10639,
+      "dataNumericIds": 10638,
+      "uploadsPhysical": 11747
+    },
+    "pairwiseLegacyComparisons": [
+      {
+        "queryA": "daño",
+        "queryB": "moral",
+        "countA": 2708,
+        "countB": 1294,
+        "intersectionRows": 995,
+        "unionRows": 3007,
+        "interpretation": "AND legacy coincide con intersección; OR legacy coincide con unión."
+      },
+      {
+        "queryA": "daño",
+        "queryB": "dano",
+        "countA": 2708,
+        "countB": 1,
+        "intersectionRows": 1,
+        "unionRows": 2708,
+        "interpretation": "Legacy distingue ñ y n en esta muestra."
+      },
+      {
+        "queryA": "Peña",
+        "queryB": "Pena",
+        "countA": 61,
+        "countB": 108,
+        "intersectionRows": 0,
+        "unionRows": 169,
+        "interpretation": "Solo agregado; no se guardan nombres, IDs ni resultados personales."
+      },
+      {
+        "queryA": "prescripción",
+        "queryB": "prescripcion",
+        "countA": 1107,
+        "countB": 1107,
+        "intersectionRows": 1107,
+        "unionRows": 1107,
+        "interpretation": "En este snapshot coinciden los resultados; no se observa efecto del defecto de mapeo de í en este par."
+      },
+      {
+        "queryA": "accidente",
+        "queryB": "accident%",
+        "countA": 3155,
+        "countB": 3269,
+        "intersectionRows": 3155,
+        "unionRows": 3269,
+        "interpretation": "El prefijo wildcard añade 114 filas a la búsqueda exacta."
+      }
+    ],
+    "notes": [
+      "Top IDs son IDs internos id_sumario/id_sentencia, no se exponen textos ni datos personales.",
+      "Los valores de consultas por actor, demandado, carátula, magistrados, expediente y números se redactaron; su ejecución requiere un caso aprobado y control de privacidad.",
+      "Compatibilidad moderna es lectura estática de parser/servicio; no es una medición de resultados PostgreSQL."
+    ],
+    "caseCount": 55,
+    "modernOrOperatorCaveat": "El DTO expone operador AND/OR por separado; la UI lo inicializa en AND. En el servicio, buildCandidateWhere usa ese operador al construir broadTerms, mientras que el token OR solo genera parsed.orGroups. La semántica de OR escrita dentro de q puede seguir limitada por la conjunción de candidatos; se marca como revisión estática pendiente de ejecución."
+  }
+}
