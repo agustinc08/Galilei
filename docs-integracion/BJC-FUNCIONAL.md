@@ -63,3 +63,9 @@ El flujo de producto conserva el resultado técnico Sprint 12.3 en DEV, pero no 
 ## Mi espacio — Sprint 15
 
 Usuarios autenticados ven los espacios donde tienen membresía activa. ADMIN del workspace gestiona miembros; ADMIN/EDITOR organizan carpetas y suben hasta 20 PDFs por operación (20 MB cada uno); VIEWER busca y lee. Documentos recientes muestran estado y páginas. La búsqueda por texto devuelve total del espacio autorizado, snippet y acceso al viewer con página/resaltado. OCR_REQUIRED permite abrir el PDF y no produce resultados de texto. La UX de administración avanzada, cuotas, soft-delete y versionado queda pendiente. Detalle: `BJC-ESPACIOS-DOCUMENTALES.md`.
+
+## Sprint 15.1 — UAT técnico y UX
+
+La home privada comunica dependencia, rol y alcance; simplifica la entrada de usuario con un solo espacio y ofrece selector a usuarios multi-espacio. La raíz y breadcrumbs ubican al usuario. Search privado incluye filtro de carpeta y coincidencia por nombre, y los resultados conducen al viewer protegido. Carga por selector/drag-and-drop gestiona hasta 20 PDFs con errores y duplicados por archivo. Admin de espacio opera membresías, roles, carpetas y actividad; Admin Galilei gestiona disponibilidad de workspaces sin heredar acceso documental.
+
+Playwright y las pruebas PostgreSQL sintéticas pasaron para Admin global/workspace, Editor, Viewer, multi-workspace, sin workspace y aislamiento A/B; includes descarga/viewer cruzado 404 y universo general separado. Responsive smoke capturó home a 1366×768 y 1920×1080. Esto no reemplaza UAT real: falta aceptación de usuarios/owners de dependencias y el estado Sprint 15.1 permanece PARTIAL. PHRASE a 500/1.000 documentos sigue parcial con ventana 100 y total no exacto; no se modificó el motor. Ver matriz, límites y rendimiento en `BJC-ESPACIOS-DOCUMENTALES.md`.

@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   BasicDocumentTextExtractor,
   InvalidPdfError,
+  type ExtractionResult,
 } from './document-text-extractor';
 import { LocalDocumentStorageAdapter } from './document-storage.adapter';
 import type { DocumentStorageAdapter } from './document-storage.adapter';
@@ -59,6 +60,75 @@ export class WorkspaceDocumentService {
       ...row.dependency,
       role: row.members[0]?.role,
     }));
+  }
+
+  async administeredWorkspaces(user: AuthenticatedUser) {
+    if (user.rol.nombre !== 'ADMIN') throw new NotFoundException();
+    const rows = await this.prisma.documentWorkspace.findMany({
+      orderBy: [{ active: 'desc' }, { dependency: { name: 'asc' } }],
+      select: {
+        id: true,
+        active: true,
+        dependency: { select: { code: true, name: true, type: true } },
+        members: {
+          where: { active: true, role: WorkspaceRole.ADMIN },
+          select: {
+            user: {
+              select: { id: true, nombre: true, apellido: true, email: true },
+            },
+          },
+          orderBy: { userId: 'asc' },
+        },
+      },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      ...row.dependency,
+      active: row.active,
+      administrators: row.members.map((member) => member.user),
+    }));
+  }
+
+  async setWorkspaceActive(
+    workspaceId: string,
+    user: AuthenticatedUser,
+    active: boolean,
+  ) {
+    if (user.rol.nombre !== 'ADMIN') throw new NotFoundException();
+    if (typeof active !== 'boolean')
+      throw new BadRequestException('Indicá si el espacio debe estar activo.');
+    const current = await this.prisma.documentWorkspace.findUnique({
+      where: { id: workspaceId },
+      select: {
+        id: true,
+        active: true,
+        dependency: { select: { name: true } },
+      },
+    });
+    if (!current) throw new NotFoundException('Espacio no encontrado.');
+    if (current.active === active) return { id: current.id, active };
+    const updated = await this.prisma.documentWorkspace.update({
+      where: { id: workspaceId },
+      data: { active },
+      select: { id: true, active: true },
+    });
+    await this.prisma.accionLog.create({
+      data: {
+        usuarioId: user.id,
+        entidad: 'DocumentWorkspace',
+        accion: active ? 'WORKSPACE_ACTIVATE' : 'WORKSPACE_DEACTIVATE',
+        descripcion: active
+          ? 'Activación de espacio documental.'
+          : 'Desactivación de espacio documental.',
+        datosAntes: { workspaceId, active: current.active },
+        datosDespues: {
+          workspaceId,
+          active,
+          dependencyName: current.dependency.name,
+        },
+      },
+    });
+    return updated;
   }
 
   async createWorkspace(
@@ -175,6 +245,51 @@ export class WorkspaceDocumentService {
     return { id: folder.id, parentId: folder.parentId, name: folder.name };
   }
 
+  async renameFolder(
+    workspaceId: string,
+    folderId: string,
+    user: AuthenticatedUser,
+    input: { name: string },
+  ) {
+    const membership = await this.requireMembership(workspaceId, user);
+    this.requireRole(membership.role, [
+      WorkspaceRole.ADMIN,
+      WorkspaceRole.EDITOR,
+    ]);
+    const name = input.name.trim();
+    if (!name || name.length > 100 || /[\\/]/u.test(name))
+      throw new BadRequestException('Nombre de carpeta inválido.');
+    const current = await this.prisma.workspaceFolder.findFirst({
+      where: { id: folderId, workspaceId },
+      select: { id: true, name: true, parentId: true },
+    });
+    if (!current) throw new NotFoundException('Carpeta no encontrada.');
+    const duplicate = await this.prisma.workspaceFolder.findFirst({
+      where: {
+        workspaceId,
+        parentId: current.parentId,
+        name,
+        id: { not: folderId },
+      },
+      select: { id: true },
+    });
+    if (duplicate)
+      throw new BadRequestException(
+        'Ya existe una carpeta con ese nombre en esta ubicación.',
+      );
+    const folder = await this.prisma.workspaceFolder.update({
+      where: { id: folderId },
+      data: { name },
+      select: { id: true, parentId: true, name: true },
+    });
+    await this.audit(user.id, workspaceId, 'FOLDER_RENAME', {
+      folderId,
+      previousName: current.name,
+      name,
+    });
+    return folder;
+  }
+
   async moveDocument(
     workspaceId: string,
     documentId: string,
@@ -230,10 +345,58 @@ export class WorkspaceDocumentService {
     });
   }
 
+  async memberCandidates(
+    workspaceId: string,
+    user: AuthenticatedUser,
+    q: string,
+  ) {
+    const membership = await this.requireMembership(workspaceId, user);
+    this.requireRole(membership.role, [WorkspaceRole.ADMIN]);
+    const term = q.trim();
+    if (term.length < 3) return [];
+    return this.prisma.usuario.findMany({
+      where: {
+        activo: true,
+        OR: [
+          { nombre: { contains: term, mode: 'insensitive' } },
+          { apellido: { contains: term, mode: 'insensitive' } },
+          { email: { contains: term, mode: 'insensitive' } },
+        ],
+      },
+      orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
+      take: 20,
+      select: { id: true, nombre: true, apellido: true, email: true },
+    });
+  }
+
+  async activity(workspaceId: string, user: AuthenticatedUser) {
+    const membership = await this.requireMembership(workspaceId, user);
+    this.requireRole(membership.role, [WorkspaceRole.ADMIN]);
+    return this.prisma.$queryRaw<
+      Array<{
+        id: number;
+        accion: string;
+        descripcion: string | null;
+        createdAt: Date;
+        nombre: string;
+        apellido: string | null;
+      }>
+    >`
+      SELECT log."id", log."accion", log."descripcion", log."createdAt",
+             actor."nombre", actor."apellido"
+        FROM "AccionLog" AS log
+        JOIN "Usuario" AS actor ON actor."id" = log."usuarioId"
+       WHERE log."entidad" = 'DocumentWorkspace'
+         AND COALESCE(log."datosDespues"->>'workspaceId', log."datosAntes"->>'workspaceId') = ${workspaceId}
+       ORDER BY log."createdAt" DESC
+       LIMIT 20
+    `;
+  }
+
   async documentsInWorkspace(
     workspaceId: string,
     user: AuthenticatedUser,
-    folderId?: string,
+    folderId?: string | null,
   ) {
     await this.requireMembership(workspaceId, user);
     if (
@@ -244,8 +407,9 @@ export class WorkspaceDocumentService {
     )
       throw new NotFoundException('Carpeta no encontrada.');
     const links = await this.prisma.workspaceDocument.findMany({
-      where: { workspaceId, ...(folderId ? { folderId } : {}) },
+      where: { workspaceId, ...(folderId !== undefined ? { folderId } : {}) },
       orderBy: { createdAt: 'desc' },
+      take: 100,
       include: {
         uploadedBy: { select: { nombre: true, apellido: true } },
         document: {
@@ -331,9 +495,25 @@ export class WorkspaceDocumentService {
       title?: string;
       pageCount?: number;
       duplicate: boolean;
+      message?: string;
     }> = [];
-    for (const file of files)
-      results.push(await this.ingestOne(workspaceId, user.id, file, folderId));
+    for (const file of files) {
+      try {
+        results.push(
+          await this.ingestOne(workspaceId, user.id, file, folderId),
+        );
+      } catch (error) {
+        results.push({
+          documentId: '',
+          status: 'ERROR',
+          duplicate: false,
+          message:
+            error instanceof BadRequestException
+              ? error.message
+              : 'No pudimos procesar este PDF. Podés volver a intentarlo.',
+        });
+      }
+    }
     return { results };
   }
 
@@ -343,18 +523,141 @@ export class WorkspaceDocumentService {
     q: string,
     page = 1,
     pageSize = 20,
-  ) {
+    folderId?: string | null,
+  ): Promise<
+    import('../busqueda/adapters/search-source.adapter').SearchResultPage | null
+  > {
     await this.requireMembership(workspaceId, user);
     if (!q?.trim()) throw new BadRequestException('Ingresá una búsqueda.');
-    return this.search.federatedSearch(q, 'AND', {
+    if (
+      folderId &&
+      !(await this.prisma.workspaceFolder.findFirst({
+        where: { id: folderId, workspaceId },
+        select: { id: true },
+      }))
+    )
+      throw new NotFoundException('Carpeta no encontrada.');
+    const result = await this.search.federatedSearch(q, 'AND', {
       visibility: 'ADMIN',
       dialect: 'modern',
       publicationPolicy: 'legacy-active-only',
       sourceSystems: ['CORPUS'],
       page,
       pageSize,
-      documentScope: { kind: 'WORKSPACE', workspaceId },
+      documentScope: {
+        kind: 'WORKSPACE',
+        workspaceId,
+        ...(folderId !== undefined ? { folderId } : {}),
+      },
     });
+    if (!result?.results?.length) return result;
+    const links = await this.prisma.workspaceDocument.findMany({
+      where: {
+        workspaceId,
+        documentId: { in: result.results.map((item) => item.sourceId) },
+      },
+      select: {
+        documentId: true,
+        createdAt: true,
+        folder: { select: { id: true, name: true } },
+        document: { select: { status: true } },
+      },
+    });
+    const metadataById = new Map(links.map((link) => [link.documentId, link]));
+    return {
+      ...result,
+      results: result.results.map((item) => {
+        const link = metadataById.get(item.sourceId);
+        return {
+          ...item,
+          metadata: {
+            ...item.metadata,
+            folderId: link?.folder?.id ?? null,
+            folderName: link?.folder?.name ?? 'Todos los documentos',
+            uploadedAt: link?.createdAt.toISOString() ?? null,
+            status: link?.document.status ?? null,
+          },
+        };
+      }),
+    };
+  }
+
+  async searchNames(
+    workspaceId: string,
+    user: AuthenticatedUser,
+    q: string,
+    folderId?: string | null,
+    page = 1,
+    pageSize = 20,
+  ) {
+    await this.requireMembership(workspaceId, user);
+    const term = q.trim();
+    if (term.length < 2)
+      throw new BadRequestException('Ingresá al menos dos caracteres.');
+    if (
+      folderId &&
+      !(await this.prisma.workspaceFolder.findFirst({
+        where: { id: folderId, workspaceId },
+        select: { id: true },
+      }))
+    )
+      throw new NotFoundException('Carpeta no encontrada.');
+    const where: Prisma.WorkspaceDocumentWhereInput = {
+      workspaceId,
+      ...(folderId !== undefined ? { folderId } : {}),
+      document: {
+        documentScope: 'PRIVATE_WORKSPACE',
+        OR: [
+          { title: { contains: term, mode: 'insensitive' } },
+          {
+            files: {
+              some: {
+                originalFilename: { contains: term, mode: 'insensitive' },
+              },
+            },
+          },
+        ],
+      },
+    };
+    const [total, links] = await this.prisma.$transaction([
+      this.prisma.workspaceDocument.count({ where }),
+      this.prisma.workspaceDocument.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (Math.max(1, page) - 1) * pageSize,
+        take: pageSize,
+        include: {
+          folder: { select: { id: true, name: true } },
+          document: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              files: {
+                orderBy: { version: 'desc' },
+                take: 1,
+                select: { originalFilename: true },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+    return {
+      total,
+      totalExact: true,
+      page,
+      pageSize,
+      results: links.map((link) => ({
+        documentId: link.documentId,
+        title: link.document.title,
+        filename:
+          link.document.files[0]?.originalFilename ?? link.document.title,
+        status: link.document.status,
+        uploadedAt: link.createdAt,
+        folder: link.folder,
+      })),
+    };
   }
 
   async metadata(
@@ -400,6 +703,23 @@ export class WorkspaceDocumentService {
       }))
     )
       throw new NotFoundException('Usuario no encontrado.');
+    const existing = await this.prisma.workspaceMembership.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: input.userId } },
+      select: { role: true, active: true },
+    });
+    const removesAdmin =
+      existing?.active &&
+      existing.role === WorkspaceRole.ADMIN &&
+      ((input.active ?? true) === false || input.role !== WorkspaceRole.ADMIN);
+    if (removesAdmin) {
+      const activeAdmins = await this.prisma.workspaceMembership.count({
+        where: { workspaceId, active: true, role: WorkspaceRole.ADMIN },
+      });
+      if (activeAdmins <= 1)
+        throw new BadRequestException(
+          'El espacio debe conservar al menos un administrador activo.',
+        );
+    }
     const result = await this.prisma.workspaceMembership.upsert({
       where: { workspaceId_userId: { workspaceId, userId: input.userId } },
       create: {
@@ -442,7 +762,7 @@ export class WorkspaceDocumentService {
       throw new BadRequestException(
         `El archivo ${name || '(sin nombre)'} debe ser PDF válido de hasta 20 MB.`,
       );
-    let extraction;
+    let extraction: ExtractionResult;
     try {
       extraction = await extractor.extract(
         name,

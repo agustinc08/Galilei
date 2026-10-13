@@ -155,6 +155,7 @@ const actions = {
     'pnpm.cmd exec jest --runInBand --testTimeout=120000 --testPathPatterns=workspace-document.integration.spec.ts',
   'sprint15-full-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=120000',
+  'sprint151-ui-tests': 'node scripts/dev/sprint151-ui-run.cjs',
   'sprint148-explain':
     'pnpm.cmd exec ts-node scripts/dev/sprint123-search-explain.ts',
   'sprint148-viewer-smoke':
@@ -303,11 +304,18 @@ const childEnv = {
     action === 'corpus-package' ? JSON.stringify(process.argv.slice(3)) : '',
   BJC_SPRINT148_MODE: action === 'sprint148-audit' ? (process.argv[3] || 'dry-run') : '',
   BJC_SPRINT148_INGEST_MODE: action === 'sprint148-ingest-preflight' ? 'preflight' : '',
-  BJC_CORPUS_STORAGE_PATH: action === 'sprint148-ingest' ? path.resolve(__dirname, '../../../_dev-corpus-storage') : process.env.BJC_CORPUS_STORAGE_PATH,
+  BJC_CORPUS_STORAGE_PATH: action === 'sprint148-ingest'
+    ? path.resolve(__dirname, '../../../_dev-corpus-storage')
+    : action === 'sprint151-ui-tests'
+      ? path.resolve(__dirname, '../../../_dev-corpus-storage-test/sprint151-ui')
+      : process.env.BJC_CORPUS_STORAGE_PATH,
   BJC_INSTITUTIONAL_ARGS: action.startsWith('institutional-')
     ? JSON.stringify(process.argv.slice(3))
     : '',
 };
+if (action === 'sprint151-ui-tests') {
+  fs.mkdirSync(childEnv.BJC_CORPUS_STORAGE_PATH, { recursive: true });
+}
 console.log(
   'DEV_DB_GUARD=PASS; host=127.0.0.1; port=55432; database=buscador_juridico_civil_dev; role=bjc_dev',
 );

@@ -1,3 +1,4 @@
+/* eslint prettier/prettier: off -- Keep unrelated Search SQL formatting out of this workspace change. */
 import { createHash } from 'node:crypto';
 import { Pool } from 'pg';
 import type { QueryResult } from 'pg';
@@ -371,20 +372,33 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         readinessMs = performance.now() - readinessStartedAt;
       }
     }
-    const workspaceId = context.documentScope?.kind === 'WORKSPACE' ? context.documentScope.workspaceId : null;
+    const documentScopeValue: unknown = context.documentScope;
+    const documentScope = typeof documentScopeValue === 'object' && documentScopeValue !== null
+      ? documentScopeValue as { kind?: unknown; workspaceId?: unknown; folderId?: unknown }
+      : undefined;
+    const isWorkspaceScope = documentScope?.kind === 'WORKSPACE';
+    const workspaceId = isWorkspaceScope && typeof documentScope.workspaceId === 'string'
+      ? documentScope.workspaceId
+      : null;
+    const folderId = isWorkspaceScope ? documentScope.folderId : undefined;
+    const workspaceFolderId = typeof folderId === 'string' || folderId === null ? folderId : undefined;
+    const hasWorkspaceFolderScope = Boolean(isWorkspaceScope && documentScope && Object.prototype.hasOwnProperty.call(documentScope, 'folderId') && (typeof workspaceFolderId === 'string' || workspaceFolderId === null));
     const workspaceScope = workspaceId !== null;
     const values: SqlValue[] = [allowedVisibility(context.visibility)];
     if (workspaceId) values.push(workspaceId);
+    if (typeof workspaceFolderId === 'string') values.push(workspaceFolderId);
     const scopePredicate = workspaceId
-      ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2)`
+      ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ' AND workspaceDocument."folderId" = $3') : ''})`
       : `d."documentScope" = 'GENERAL'`;
     const shortTermWindow = useTokenProjection && query.root?.type === 'term' && !query.root.field &&
       query.root.matchMode === 'contains' && [...normalizeSearchText(query.root.value)].length < 3;
     const deferredSinglePhrase = useTokenProjection && query.root?.type === 'phrase';
+    const candidateValuesStart = values.length + 1;
     const candidateBuildStartedAt = performance.now();
     const candidateCte = this.candidateStrategy === 'set-algebra-v2' && !shortTermWindow
       ? buildBooleanCandidateCte(query, values, useTokenProjection, deferredSinglePhrase, scopePredicate)
       : null;
+    const candidateValuesEnd = candidateCte ? values.length : values.length - 1;
     const candidateBuildMs = performance.now() - candidateBuildStartedAt;
     const activeCandidateStrategy = this.candidateStrategy === 'predicate-v1'
       ? 'predicate-v1'
@@ -443,8 +457,6 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       predicates.push(`EXISTS (SELECT 1 FROM "CorpusDocumentTag" dt WHERE dt."documentId" = d."id" AND dt."tagId" = $${values.length})`);
     }
     const exactPhraseVerification = deferredSinglePhrase ? compileNode(query.root, values) : null;
-    const phraseHasAdditionalFilters = Object.values(context.filters ?? {}).some(Boolean);
-    const phraseCandidatesAlreadyFiltered = deferredSinglePhrase && !phraseHasAdditionalFilters;
     const where = predicates.join(' AND ');
     const queryFingerprints = [
       queryFingerprint(`${candidateCte ? 'CANDIDATE_SET_V2' : 'COUNT_V1'}|${where}`),
@@ -471,6 +483,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     let rows: QueryResult<SearchRow>;
     let total = 0;
     let queryCount = readinessQueryCount + 1;
+    let workspaceTermTotalExact = false;
     let phraseCandidateCount: number | undefined;
     let pageSnippetHydrationMs = 0;
     let responseMappingMs = 0;
@@ -656,6 +669,31 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         total = Number(count.rows[0]?.total ?? 0);
         queryCount = 2;
       }
+      if (workspaceScope && query.root?.type === 'term' && boundedCandidatePage) {
+        const exactValues = [...values];
+        const exactQueryPredicate = compileNode(query.root, exactValues);
+        const candidateParameterTypeChecks = Array.from(
+          { length: Math.max(0, candidateValuesEnd - candidateValuesStart + 1) },
+          (_, index) => `$${candidateValuesStart + index}::text IS NOT NULL`,
+        ).join(' AND ');
+        const exactCountStartedAt = performance.now();
+        try {
+          const exactCount = await this.pool.query<{ total: string }>(
+            `SELECT COUNT(*)::text AS total FROM "CorpusDocument" d WHERE ${where} AND (${exactQueryPredicate})${candidateParameterTypeChecks ? ` AND ${candidateParameterTypeChecks}` : ''}`,
+            exactValues,
+          );
+          total = Number(exactCount.rows[0]?.total ?? 0);
+          workspaceTermTotalExact = true;
+          countMs += performance.now() - exactCountStartedAt;
+          queryCount += 1;
+        } catch (error) {
+          countMs += performance.now() - exactCountStartedAt;
+          failedQuery = 'COUNT';
+          errorCode = (error as { code?: string })?.code;
+          errorMessage = (error as { message?: string })?.message;
+          throw error;
+        }
+      }
     } catch (error) {
       failedQuery = failedQuery ?? 'PAGE';
       errorCode = errorCode ?? (error as { code?: string })?.code;
@@ -684,9 +722,9 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const hasMore = boundedCandidatePage
       ? Boolean(rows.rows[0]?.hasMore)
       : false;
-    const totalExact = boundedCandidatePage
-      ? (deferredSinglePhrase ? Boolean(rows.rows[0]?.totalExact) : (rows.rows.length === 0 ? page === 1 : !hasMore))
-      : true;
+    const totalExact = workspaceTermTotalExact || (boundedCandidatePage
+        ? (deferredSinglePhrase ? Boolean(rows.rows[0]?.totalExact) : (rows.rows.length === 0 ? page === 1 : !hasMore))
+        : true);
     const mappingStartedAt = performance.now();
     const mappedResults = hydratedRows.map(
       (row): SearchResult => ({

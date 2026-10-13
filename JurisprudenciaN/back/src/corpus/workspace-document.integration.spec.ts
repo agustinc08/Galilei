@@ -1,6 +1,7 @@
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { parseSearchQuery } from '../busqueda/utils/search-parser';
@@ -144,6 +145,12 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         type: 'JUZGADO',
       });
       workspaceIds.push(workspaceA.id, workspaceB.id);
+      expect(await service.administeredWorkspaces(adminA)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: workspaceA.id, active: true }),
+          expect.objectContaining({ id: workspaceB.id, active: true }),
+        ]),
+      );
       const deps = await prisma.documentDependency.findMany({
         where: { code: { in: [workspaceA.code, workspaceB.code] } },
         select: { id: true },
@@ -156,6 +163,16 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       const folder = await service.createFolder(workspaceA.id, adminA, {
         name: 'Presentaciones',
       });
+      expect(
+        await service.renameFolder(workspaceA.id, folder.id, adminA, {
+          name: 'Presentaciones 2026',
+        }),
+      ).toMatchObject({ name: 'Presentaciones 2026' });
+      await expect(
+        service.renameFolder(workspaceA.id, folder.id, adminB, {
+          name: 'Fuera de alcance',
+        }),
+      ).rejects.toMatchObject({ status: 404 });
       const foreignFolder = await service.createFolder(workspaceB.id, adminB, {
         name: 'Privada B',
       });
@@ -207,6 +224,70 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       ]);
       expect(fileA.sha256).toBe(fileB.sha256);
       expect(fileA.storageKey).toBe(fileB.storageKey);
+
+      const partialUpload = await service.upload(workspaceA.id, adminA, [
+        {
+          ...upload,
+          originalname: 'archivo-corrupto.pdf',
+          buffer: Buffer.from('%PDF-archivo-roto'),
+          size: 16,
+        },
+        upload,
+      ]);
+      expect(partialUpload.results.map((result) => result.status)).toEqual([
+        'ERROR',
+        expect.any(String),
+      ]);
+      expect(partialUpload.results[1].duplicate).toBe(true);
+      const nameResults = await service.searchNames(
+        workspaceA.id,
+        viewer,
+        'sprint15-fixture',
+      );
+      expect(nameResults.total).toBe(1);
+      expect(nameResults.results[0]).toMatchObject({
+        documentId: idA,
+        filename: 'sprint15-fixture.pdf',
+      });
+      const folderSearch = await service.searchWorkspace(
+        workspaceA.id,
+        adminA,
+        'JORGE',
+        1,
+        20,
+        folder.id,
+      );
+      expect(folderSearch?.results.map((result) => result.sourceId)).toContain(
+        idA,
+      );
+      const rootSearch = await service.searchWorkspace(
+        workspaceA.id,
+        adminA,
+        'JORGE',
+        1,
+        20,
+        null,
+      );
+      expect(
+        rootSearch?.results.map((result) => result.sourceId),
+      ).not.toContain(idA);
+      await expect(
+        service.searchWorkspace(
+          workspaceA.id,
+          adminA,
+          'JORGE',
+          1,
+          20,
+          foreignFolder.id,
+        ),
+      ).rejects.toMatchObject({ status: 404 });
+      expect(
+        await service.memberCandidates(workspaceA.id, adminA, viewer.email),
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: viewer.id, email: viewer.email }),
+        ]),
+      );
 
       const [aSearch, bSearch] = await Promise.all([
         service.searchWorkspace(
@@ -380,6 +461,223 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         expect.arrayContaining([
           expect.objectContaining({ id: workspaceA.id }),
         ]),
+      );
+      expect(await service.activity(workspaceA.id, adminA)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ accion: 'FOLDER_RENAME' }),
+          expect.objectContaining({ accion: 'MEMBER_UPSERT' }),
+        ]),
+      );
+      await expect(
+        service.activity(workspaceA.id, adminB),
+      ).rejects.toMatchObject({ status: 404 });
+      await expect(
+        service.setWorkspaceActive(workspaceA.id, adminA, false),
+      ).resolves.toMatchObject({ active: false });
+      await expect(
+        service.documentsInWorkspace(workspaceA.id, adminA),
+      ).rejects.toMatchObject({ status: 404 });
+      await expect(
+        service.setWorkspaceActive(workspaceA.id, adminA, true),
+      ).resolves.toMatchObject({ active: true });
+      await expect(
+        service.manageMember(workspaceA.id, adminA, {
+          userId: adminA.id,
+          role: 'ADMIN',
+          active: false,
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+
+      const benchmarkRows: Array<Record<string, unknown>> = [];
+      for (const size of [100, 500, 1000]) {
+        const workspace = await service.createWorkspace(adminA, {
+          code: `S15B${size}${suffix}`,
+          name: `Synthetic workspace benchmark ${size}`,
+          type: 'DEPENDENCIA',
+        });
+        workspaceIds.push(workspace.id);
+        const dependency = await prisma.documentDependency.findUniqueOrThrow({
+          where: { code: workspace.code },
+          select: { id: true },
+        });
+        dependencyIds.push(dependency.id);
+        const ids = Array.from(
+          { length: size },
+          (_, index) => `s15bm_${suffix.toLowerCase()}_${size}_${index}`,
+        );
+        documentIds.push(...ids);
+        await prisma.corpusDocument.createMany({
+          data: ids.map((id, index) => ({
+            id,
+            title: `Synthetic private benchmark ${size} document ${index + 1}`,
+            documentType: 'PRIVATE_BENCHMARK',
+            jurisdiction: 'CIVIL',
+            visibility: 'RESTRICTED',
+            documentScope: 'PRIVATE_WORKSPACE' as const,
+            status: 'INDEXED',
+            searchText: `sprint151needle phrase target synthetic private document ${index + 1}`,
+          })),
+        });
+        await prisma.workspaceDocument.createMany({
+          data: ids.map((documentId) => ({
+            workspaceId: workspace.id,
+            documentId,
+            uploadedById: adminA.id,
+          })),
+        });
+        const tokenRows = ids.flatMap((id) =>
+          ['sprint151needle', 'phrase', 'target'].map(
+            (token) => Prisma.sql`(${id}, ${token})`,
+          ),
+        );
+        await prisma.$executeRaw(
+          Prisma.sql`INSERT INTO "CorpusSearchToken" ("documentId", "token") VALUES ${Prisma.join(tokenRows)}`,
+        );
+
+        const measure = async (query: string, expectExactTotal: boolean) => {
+          const samples: Array<{ totalMs: number; adapterMs: number }> = [];
+          let reportedTotal = 0;
+          let reportedTotalExact = false;
+          for (let index = 0; index < 6; index += 1) {
+            const startedAt = performance.now();
+            const result = await service.searchWorkspace(
+              workspace.id,
+              adminA,
+              query,
+            );
+            const totalMs = performance.now() - startedAt;
+            const adapterMs =
+              source.getLastSearchProfile()?.stageTimings?.totalAdapterMs;
+            if (index > 0)
+              samples.push({
+                totalMs,
+                adapterMs: typeof adapterMs === 'number' ? adapterMs : totalMs,
+              });
+            reportedTotal = result?.total ?? 0;
+            reportedTotalExact = result?.totalExact ?? false;
+            expect(result?.results.length).toBeGreaterThan(0);
+            if (expectExactTotal) {
+              expect(result?.total).toBe(size);
+              expect(result?.totalExact).toBe(true);
+            } else {
+              expect(result?.total).toBeLessThanOrEqual(size);
+              if (result?.totalExact) expect(result.total).toBe(size);
+            }
+          }
+          const percentile = (values: number[], p: number) =>
+            [...values].sort((a, b) => a - b)[Math.ceil(values.length * p) - 1];
+          const total = samples.map((sample) => sample.totalMs);
+          const adapter = samples.map((sample) => sample.adapterMs);
+          return {
+            p50Ms: percentile(total, 0.5),
+            p95Ms: percentile(total, 0.95),
+            reportedTotal,
+            totalExact: reportedTotalExact,
+            adapterP50Ms: percentile(adapter, 0.5),
+            adapterP95Ms: percentile(adapter, 0.95),
+            membershipAndResponseP50Ms: percentile(
+              samples.map((sample) =>
+                Math.max(0, sample.totalMs - sample.adapterMs),
+              ),
+              0.5,
+            ),
+          };
+        };
+        const sqlMeasure = async () => {
+          const runCountQuery = async (scoped: boolean) => {
+            const startedAt = performance.now();
+            if (scoped) {
+              await prisma.$queryRaw`
+                SELECT count(*) FROM "CorpusDocument" AS document
+                 WHERE document."id" = ANY(${ids}::text[])
+                   AND document."documentScope" = 'PRIVATE_WORKSPACE'
+                   AND document."status" = 'INDEXED'
+                   AND document."searchText" ILIKE '%sprint151needle%'
+                   AND EXISTS (
+                     SELECT 1 FROM "WorkspaceDocument" AS workspaceDocument
+                      WHERE workspaceDocument."documentId" = document."id"
+                        AND workspaceDocument."workspaceId" = ${workspace.id}
+                   )
+              `;
+            } else {
+              await prisma.$queryRaw`
+                SELECT count(*) FROM "CorpusDocument" AS document
+                 WHERE document."id" = ANY(${ids}::text[])
+                   AND document."documentScope" = 'PRIVATE_WORKSPACE'
+                   AND document."status" = 'INDEXED'
+                   AND document."searchText" ILIKE '%sprint151needle%'
+              `;
+            }
+            return performance.now() - startedAt;
+          };
+          await runCountQuery(false);
+          await runCountQuery(true);
+          const unscopedSamples: number[] = [];
+          const scopedSamples: number[] = [];
+          const deltas: number[] = [];
+          for (let index = 0; index < 6; index += 1) {
+            const unscopedFirst = index % 2 === 0;
+            const first = await runCountQuery(!unscopedFirst);
+            const second = await runCountQuery(unscopedFirst);
+            const unscoped = unscopedFirst ? first : second;
+            const scoped = unscopedFirst ? second : first;
+            unscopedSamples.push(unscoped);
+            scopedSamples.push(scoped);
+            deltas.push(scoped - unscoped);
+          }
+          const percentile = (values: number[], p: number) =>
+            [...values].sort((a, b) => a - b)[Math.ceil(values.length * p) - 1];
+          return {
+            unscoped: {
+              p50Ms: percentile(unscopedSamples, 0.5),
+              p95Ms: percentile(unscopedSamples, 0.95),
+            },
+            scoped: {
+              p50Ms: percentile(scopedSamples, 0.5),
+              p95Ms: percentile(scopedSamples, 0.95),
+            },
+            aclDelta: {
+              p50Ms: percentile(deltas, 0.5),
+              p95Ms: percentile(deltas, 0.95),
+            },
+          };
+        };
+        const term = await measure('sprint151needle', true);
+        const phrase = await measure('"sprint151needle phrase target"', false);
+        const countComparison = await sqlMeasure();
+        if (size === 500) {
+          const aclPlan = await prisma.$queryRaw<
+            Array<{ 'QUERY PLAN': unknown }>
+          >`
+            EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+            SELECT count(*) FROM "CorpusDocument" AS document
+             WHERE document."id" = ANY(${ids}::text[])
+               AND document."documentScope" = 'PRIVATE_WORKSPACE'
+               AND document."status" = 'INDEXED'
+               AND document."searchText" ILIKE '%sprint151needle%'
+               AND EXISTS (
+                 SELECT 1 FROM "WorkspaceDocument" AS workspaceDocument
+                  WHERE workspaceDocument."documentId" = document."id"
+                    AND workspaceDocument."workspaceId" = ${workspace.id}
+               )
+          `;
+          console.log(
+            `SPRINT151_PRIVATE_TERM_ACL_EXPLAIN=${JSON.stringify(
+              aclPlan[0]?.['QUERY PLAN'],
+            )
+              .replace(/s15bm_[a-z0-9_]+/gu, '<synthetic-id>')
+              .slice(0, 4000)}`,
+          );
+        }
+        benchmarkRows.push({
+          documents: size,
+          term,
+          phrase,
+          aclSqlCountComparison: countComparison,
+        });
+      }
+      console.log(
+        `SPRINT151_PRIVATE_SEARCH_BENCHMARK=${JSON.stringify(benchmarkRows)}`,
       );
     },
   );

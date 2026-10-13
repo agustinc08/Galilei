@@ -227,3 +227,9 @@ No pasar todavía a la revisión de los 452 grupos; queda pendiente hasta obtene
 ## Próximo trabajo después de Sprint 15
 
 MVP privado en DEV: implementado; suite backend, builds/typechecks, E2E ACL, Search verify, paridad 40/40 y viewer 6/6 PASS. Endpoint PHRASE tuvo 10/10 requests sin fallo y p95 2.226 ms, mejor que baseline comparable (2.427 ms) pero sobre el gate histórico de 1.200 ms. Próximo: UAT con usuarios/owners de dependencias y mejorar la administración de workspaces. Evaluar retiro lógico en fase posterior. Mantener adquisición histórica como línea separada. No desplegar a red compartida/producción sin infraestructura preprod autorizada y aceptación institucional.
+
+## Después de Sprint 15.1 — 2026-10-13
+
+La administración y UX de espacios fueron completadas técnicamente en DEV y pasaron UAT automatizada sintética; Sprint 15.1 permanece PARTIAL hasta que usuarios reales de juzgados/salas recorran el checklist y registren aceptación/observaciones. Search TERM sintético tuvo variación alta a 1.000 documentos (último p95 2,70 s); perfilarla antes de ampliar el corpus del piloto. Siguiente paso inmediato: coordinar ese UAT humano en DEV con datos ficticios y corregir fricciones observadas. No habilitar red compartida ni producción.
+
+Después de aceptación, elegir una sola línea siguiente: (A) compartir controlado/versionado/papelera; (B) retomar PHRASE Search y su ventana parcial/exact-total; o (C) adquisición histórica y sus grupos/enlaces retenidos. No mezclar las tres. El benchmark privado y sus límites constan en `BJC-ESPACIOS-DOCUMENTALES.md`.

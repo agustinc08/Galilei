@@ -61,3 +61,31 @@ Typecheck y builds backend/frontend: PASS. Suite backend: 94 PASS / 15 omitidos.
 La eliminación física queda fuera del MVP para no borrar blobs compartidos. Retiro lógico del documento, trash/versionado, historial/versiones, búsqueda `ALL_AUTHORIZED`, OCR, compatibilidad DOC/DOCX, cuotas, administración masiva y aceptación UAT quedan para fases posteriores.
 
 El Search PHRASE sigue con el estado PARTIAL documentado en `BJC-SEARCH.md`; Sprint 15 no implementa ni optimiza ese camino.
+
+## Sprint 15.1 — UX, administración y UAT técnico (2026-10-13)
+
+La UI de `Mi espacio` ahora muestra el nombre/tipo de la dependencia, el rol y el alcance de búsqueda; usuarios con un espacio entran directamente y usuarios multi-espacio cambian mediante selector. Usuarios sin membresía reciben un estado vacío claro. Carpetas tienen ruta y navegación de raíz, búsqueda puede limitarse a carpeta actual o abarcar todas, y existe búsqueda privada por nombre de archivo. Resultados y documentos recientes presentan nombre, fragmento/página, carpeta, fecha, cargador y estado traducido. El viewer privado preserva el contexto de vuelta y usa endpoints protegidos.
+
+La carga acepta selección o drag-and-drop, hasta 20 PDFs, con resultado independiente por archivo y errores legibles. El flujo fue ejercitado con 1, 5 y 20 archivos, PDF corrupto y duplicado; el mismo contenido en espacios distintos conserva la separación lógica. ADMIN de workspace puede buscar/agregar miembros, cambiar rol, desactivar/reactivar miembros, organizar carpetas y consultar actividad. Admin Galilei puede crear/listar/activar/desactivar espacios y ver sus administradores; estos permisos globales no conceden lectura de sus documentos. Se impide dejar un espacio sin administrador activo.
+
+| Perfil/flujo sintético | Resultado |
+| --- | --- |
+| Admin Galilei, crear y administrar espacios A/B | PASS |
+| Admin de espacio, miembros, roles, carpetas y actividad | PASS |
+| Editor, organización y carga multiarchivo | PASS |
+| Viewer, búsqueda, apertura y descarga protegida; controles de edición ausentes | PASS |
+| Multi-espacio y cambio visible de alcance | PASS |
+| Sin espacio asignado | PASS |
+| A/B cruzado por resultados, metadata, viewer y descarga | PASS; 404 sin render parcial |
+| Búsqueda general sin documentos privados | PASS |
+| Mismo hash en dos espacios | PASS; blob físico compartido e identidades/accesos lógicos separados |
+
+El Playwright local ejecutó 2 escenarios browser y comprobó upload 1/5/20, errores por archivo, raíz/carpeta, búsqueda por texto/nombre, viewer y denegación cruzada. Se tomaron e inspeccionaron capturas del home a 1366×768 y 1920×1080. Las cuentas y workspaces son sintéticos y la limpieza de registros/archivos temporales terminó PASS. Esto prueba la UAT automatizada local, no la aceptación de personal real de juzgados/salas; esa aceptación continúa PENDING.
+
+### Rendimiento privado medido
+
+Dataset sintético separado: 100, 500 y 1.000 documentos. Última corrida TERM p50/p95: 38,15/42,20 ms; 446,55/457,30 ms; 386,62/2.698,19 ms, con total exacto. PHRASE p50/p95: 141,39/143,90 ms; 413,39/418,18 ms; 297,42/312,57 ms; en 500 y 1.000 devuelve ventana parcial de 100 y no total exacto, deuda existente documentada, no se optimizó en esta Sprint. La medición SQL aislada de count ACL (no el tiempo end-to-end del endpoint) mostró delta p50/p95 de 0,84/0,93 ms (100), 59,34/66,64 ms (500) y 28,05/36,18 ms (1.000). Corridas sucesivas oscilaron hasta TERM 1.000 con p50 2,30 s y p95 2,39 s, lo que evidencia variación alta; no tratar estos valores como SLO estable. Overhead de membresía+respuesta, separado del adaptador: TERM 2,49/4,76/7,01 ms y PHRASE 2,77/6,73/6,08 ms para esos tamaños.
+
+`EXPLAIN ANALYZE` sobre el count TERM privado sintético de 500 filas usó índice de `CorpusDocument` por scope/status y luego un nested loop ACL: 500 loops de índice `WorkspaceDocument_workspaceId_folderId_createdAt_idx`, 250 filas por loop, 124.750 eliminadas por condición de join; 81,81 ms y 3.132 shared buffers (todos hit). El plan valida aplicación en SQL y evidencia que el predicado ACL puede recorrer demasiadas filas para cardinalidades mayores; no se agregó índice en esta Sprint. El endpoint TERM devuelve count exacto, pero su p95 a 1.000 osciló hasta 2,70 s en la última corrida y el p50 entre corridas hasta 2,30 s. Perfilar esa variación antes de ampliar el corpus del piloto.
+
+Search general quedó intacto: verificación 17.078 documentos, 18.799.500 tokens, stale=0, 0/100 discrepancias; paridad 40/40; viewer general 6/6. La suite de backend general pasó 94 tests y omitió 15. Builds y typechecks frontend/backend pasan. Sin despliegue compartido, preproducción o producción. Sprint 15.1 queda PARTIAL hasta que usuarios/owners reales registren UAT y se perfile la variación ACL/TERM observada con más escala; PHRASE exact-total/performance sigue siendo deuda independiente.

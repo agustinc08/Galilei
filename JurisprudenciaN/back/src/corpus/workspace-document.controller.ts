@@ -47,6 +47,22 @@ export class WorkspaceDocumentController {
     return this.workspaces.mine(user);
   }
 
+  @Get('admin/list')
+  @Roles(ROLES.ADMIN)
+  administered(@CurrentUser() user: AuthenticatedUser) {
+    return this.workspaces.administeredWorkspaces(user);
+  }
+
+  @Patch('admin/:workspaceId/active')
+  @Roles(ROLES.ADMIN)
+  setActive(
+    @Param('workspaceId') workspaceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { active: boolean },
+  ) {
+    return this.workspaces.setWorkspaceActive(workspaceId, user, body.active);
+  }
+
   @Post()
   @Roles(ROLES.ADMIN)
   @ApiOperation({
@@ -76,13 +92,27 @@ export class WorkspaceDocumentController {
     return this.workspaces.createFolder(workspaceId, user, body);
   }
 
+  @Patch(':workspaceId/folders/:folderId')
+  renameFolder(
+    @Param('workspaceId') workspaceId: string,
+    @Param('folderId') folderId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { name: string },
+  ) {
+    return this.workspaces.renameFolder(workspaceId, folderId, user, body);
+  }
+
   @Get(':workspaceId/documents')
   documents(
     @Param('workspaceId') workspaceId: string,
     @Query('folderId') folderId: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.workspaces.documentsInWorkspace(workspaceId, user, folderId);
+    return this.workspaces.documentsInWorkspace(
+      workspaceId,
+      user,
+      folderId === 'ROOT' ? null : folderId,
+    );
   }
 
   @Patch(':workspaceId/documents/:id/folder')
@@ -122,12 +152,42 @@ export class WorkspaceDocumentController {
     @Query('q') q: string | undefined,
     @Query('page') page: string | undefined,
     @Query('pageSize') pageSize: string | undefined,
+    @Query('folderId') folderId: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.workspaces.searchWorkspace(
       workspaceId,
       user,
       q ?? '',
+      positiveInt(page, 1),
+      Math.min(100, positiveInt(pageSize, 20)),
+      folderId === 'ROOT' ? null : folderId,
+    );
+  }
+
+  @Get(':workspaceId/member-candidates')
+  memberCandidates(
+    @Param('workspaceId') workspaceId: string,
+    @Query('q') q: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.memberCandidates(workspaceId, user, q ?? '');
+  }
+
+  @Get(':workspaceId/search/names')
+  searchNames(
+    @Param('workspaceId') workspaceId: string,
+    @Query('q') q: string | undefined,
+    @Query('folderId') folderId: string | undefined,
+    @Query('page') page: string | undefined,
+    @Query('pageSize') pageSize: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.searchNames(
+      workspaceId,
+      user,
+      q ?? '',
+      folderId === 'ROOT' ? null : folderId,
       positiveInt(page, 1),
       Math.min(100, positiveInt(pageSize, 20)),
     );
@@ -209,6 +269,14 @@ export class WorkspaceDocumentController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.workspaces.members(workspaceId, user);
+  }
+
+  @Get(':workspaceId/activity')
+  activity(
+    @Param('workspaceId') workspaceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.activity(workspaceId, user);
   }
 }
 
