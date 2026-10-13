@@ -1,6 +1,6 @@
 # Adquisición de jurisprudencia civil
 
-**Estado:** históricos globales y lote local Sprint 14.8 consolidados en Corpus/Search DEV; la cobertura de los 4.890 enlaces dinámicos restantes sigue parcial. **Corte vigente:** 2026-10-13 (America/Argentina/Buenos_Aires), Sprint 14.8. Las cifras Sprint 14.7 abajo son el corte anterior.
+**Estado:** históricos globales y lote local Sprint 14.8 consolidados en Corpus/Search DEV; 5.738/10.600 enlaces dinámicos están clasificados y 4.862 permanecen sin intento. **Corte vigente:** 2026-10-13 (America/Argentina/Buenos_Aires), auditoría de fuentes Civil posterior a Sprint 15.1.1. Las cifras Sprint 14.7 y las primeras cifras Sprint 14.8 abajo son cortes históricos supersedidos.
 
 ## Objetivo y alcance
 
@@ -502,4 +502,26 @@ La normalización enlazó todas las filas de visor con el checkpoint fuente y no
 - Los 452 grupos fuera del set seguro siguen retenidos para revisión: 328 conflictos, 106 candidatos, 15 mismo documento/archivo distinto, 2 coincidencias exactas de documento y 1 archivo inválido. Incluye cuatro muestras con discrepancias entre fechas fuente y firma PDF, marcadas para revisión de calidad; los metadatos fuente se preservan.
 - Search proyección verificada: 17.078 documentos, 18.799.500 tokens, `stale=0`, 0 discrepancias/100, ready. Paridad 40/40 y viewer smoke 6/6. Suite backend 93 PASS/15 omitidos; PG 7/7; Corpus 3/3; paquete Corpus 2/2; typecheck/build y migraciones PASS.
 - Search queda `REGRESSION` para PHRASE: p50/p95 1.710,58/2.621,10 ms frente a 270/538 ms en el corte anterior. La evidencia EXPLAIN muestra lecturas de heap extensas en formas de frase. Diagnosticar y optimizar esta ruta es el siguiente paso antes de reabrir la cola masiva.
-- El backlog Sprint 14.7 permanece: 4.862 enlaces pendientes, 18 errores técnicos y 10 documentos no disponibles (4.890 filas abiertas). No se intentó CAPTCHA/login ni se buscó una fuente alternativa en este sprint.
+- En el corte de cierre inicial de Sprint 14.8, el backlog Sprint 14.7 se reportó como 4.862 pendientes, 18 errores técnicos y 10 no disponibles (4.890 filas abiertas). Esa clasificación quedó supersedida por la revisión posterior del visor documentada abajo: 17 challenges humanos y 1 error de visor.
+
+### Checkpoint vigente del visor histórico y discovery profundo — 2026-10-13
+
+Se reconcilió `_recovery-work/sprint146/viewer/viewer-recovery.sqlite` (read-only) con las 10.600 filas del universo temático. El conteo vigente reemplaza el checkpoint anterior; no implica que las filas no intentadas compartan el resultado de las muestras.
+
+| Clasificación observada | Filas | Evidencia |
+|---|---:|---|
+| `PDF_ACCESSIBLE` | 5.710 | 5.050 objetos SHA únicos: 5.049 con firma PDF y parseo válidos; 1 con firma válida pero estructuralmente inválido. Total 105.074 páginas en el conjunto descargado. |
+| `DOCUMENT_UNAVAILABLE` | 10 | Ruta final `notFoundDocument.seam`, HTTP 200 y `text/html`; 8 filas guardan «No es posible acceder al documento solicitado». Ninguna tiene firma PDF. |
+| `HUMAN_CHALLENGE_REQUIRED` | 17 | Respuestas HTML con widget PJN visible y texto «VER DESAFÍO: Presione el botón y resuelva el desafío». No se sorteó el challenge. |
+| `VIEWER_ERROR` | 1 | 2017/K, expediente 91580/2007: visor modal vacío sin respuesta de documento. No se reclasifica como indisponibilidad. |
+| Sin intento | 4.862 | Estado desconocido; no se extrapola desde la muestra ni se ejecutó una descarga masiva en esta auditoría. |
+
+Los 452 grupos de identidad retenidos para revisión corresponden a 328 conflictos, 106 candidatos, 15 pares con misma identidad legal y archivo distinto, 2 coincidencias exactas de documento y 1 archivo inválido. No se fusionan automáticamente. Entre los 4.890 enlaces abiertos del análisis histórico, 4.862 no tienen intento, 17 requieren challenge, 10 reportan documento no disponible y 1 es error técnico del visor.
+
+El universo de origen es una base temática Civil, no un censo de todas las sentencias: 15.478 filas de resultados en 10 temas, 12.819 IDs de portal, 14.142 números de expediente distintos y 14.154 grupos expediente-año. Se conciliaron 4.758 claves seguras del set de visor con Corpus (4.756 claves de archivo exacto y 2 coincidencias exactas de documento). El 33,6% sólo representa una cuota inferior de ese universo temático; no es cobertura total de Galilei.
+
+El snapshot DEV actual contiene 17.078 documentos generales y 6.070 identificados como Civil por metadata judicial; 6.069 llevan Cámara Civil y 1 Juzgado Civil 64. Sólo 1.473 tienen `SECOND_INSTANCE` explícito y 1 tiene `FIRST_INSTANCE`; 4.596 importaciones recientes tienen la corte Cámara Civil pero `instance` sin completar. No se deben reinterpretar los 109 nombres de juzgados de origen en metadata de fallos de Cámara como sentencias publicadas de primera instancia.
+
+La auditoría de 20 PDFs locales —12 Salas y 13 años representados— dio 20 firmas válidas, 20 documentos con texto extraíble, 476 páginas en total y cero archivos rotos o imagen-only en la muestra. No es una validación de calidad para los 5.049 PDFs válidos. Los artefactos reproducibles están en `_recovery-work/jurisprudencia-discovery/` y permanecen ignorados por Git.
+
+**Estado de adquisición:** la clasificación histórica permanece parcial. Aún no se conoce el total oficial canónico de jurisprudencia Civil disponible; no hay porcentaje global de cobertura. Los próximos pasos son obtener un inventario/export autorizado y una ruta documental normal para primera instancia, después revisar los 452 grupos, y sólo entonces cuantificar de manera permitida los 4.862 enlaces sin intento. No iniciar descarga masiva ni resolver desafíos automáticamente.

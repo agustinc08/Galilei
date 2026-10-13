@@ -10,7 +10,7 @@ La auditoría inspeccionó 589 archivos source-like bajo rutas compilables: 576 
 
 ## Sprint 14 — corte vigente 2026-10-13
 
-**Resultado vigente:** Sprint 14.8 ingirió el lote civil local. Sprint 14.9.2 dejó PHRASE en PARTIAL / PHRASE REGRESSION REMAINS: benchmark comparable p95 2.427,38 ms; el total exacto no está demostrado para consultas que terminan por early exit. Los 452 grupos en revisión y 4.890 enlaces abiertos no cambiaron. Sprint 14.9.2 no realizó adquisición ni modificó su documento maestro.
+**Resultado vigente:** Sprint 14.8 ingirió el lote civil local; Sprint 14.9.2 dejó PHRASE en PARTIAL / PHRASE REGRESSION REMAINS (p95 comparable 2.427,38 ms; early exit no certifica total exacto). La auditoría posterior de fuentes Civil clasificó 5.738/10.600 enlaces y confirmó 4.862 sin intento, 17 challenges, 10 no disponibles y 1 error del visor; 452 grupos continúan en revisión. No se conoce un denominador oficial integral de cobertura. Ver corte de Sprint 15.1.1 + auditoría Civil al final de este documento.
 
 Detalle: docs 146–158. Manifiestos no versionados: `_recovery-work/sprint14/`. No reauditar Search, preproducción ni raíces locales.
 
@@ -68,7 +68,7 @@ Los originales se mantuvieron read-only; no hubo borrados, renombres, movimiento
 - 452 grupos jurídicos permanecen en revisión y no fueron fusionados automáticamente: 328 `CONFLICT`, 106 `CANDIDATE`, 15 `SAME_DOCUMENT_DIFFERENT_FILE`, 2 coincidencias exactas de documento y 1 archivo inválido. Cuatro PDFs con fechas de firma contradictorias quedaron retenidos para revisión de calidad.
 - Search proyección: 17.078 documentos, 18.799.500 tokens, `stale=0`, 0 discrepancias/100, lista; índice de tokens 395.116.544 bytes; DB 3.996.515.351 bytes. Paridad de adaptadores 40/40; viewer 6/6. TERM p50/p95 203,50/278,78 ms; PHRASE 1.710,58/2.621,10 ms, regresión frente al corte anterior de 270/538 ms. EXPLAIN apunta a lecturas aleatorias de heap/filtrado de frases en corpus; antes de reabrir el backlog de adquisición se debe optimizar y volver a medir esa ruta.
 - Verificación: suite backend 93 PASS y 15 omitidos (20 suites PASS, 5 omitidas); PostgreSQL 7/7, Corpus 3/3, paquete Corpus 2/2, typecheck, build Nest, estado de migraciones y verificación de proyección PASS. Las pruebas no alteraron los conteos.
-- Adquisición pendiente sin cambios: 4.862 enlaces pendientes, 18 errores técnicos y 10 no disponibles (4.890 filas abiertas). No se ejecutó acceso institucional ni preproducción. Dictamen: `PARTIAL / SEARCH REGRESSION`; sólo DEV local.
+- Corte de adquisición al cierre de Sprint 14.9.2 (histórico, supersedido por la auditoría Civil del 2026-10-13): 4.862 enlaces pendientes, 18 errores técnicos y 10 no disponibles (4.890 filas abiertas). No se ejecutó acceso institucional ni preproducción. Dictamen de ese corte: `PARTIAL / SEARCH REGRESSION`; sólo DEV local.
 
 ## Límites y siguiente gate
 
@@ -349,3 +349,15 @@ Dataset sintético 100/500/1.000/5.000, TERM exacto y realista: común p50/p95 3
 Seguridad, conteos, carpeta 2.500/5.000, paginación first/middle/last, concurrencia sintética 1/5/10, Search verify, paridad 40/40 y viewer 6/6: PASS. TERM general p50/p95 216/322 ms, +7,7%/+15,3% contra baseline Sprint 14.9.2 comparable; PHRASE quedó sin cambios y conserva su deuda. Suite Search específica 34/34 y prueba Workspace PostgreSQL dedicada PASS. No hubo acceso compartido, preproducción, producción ni UAT humano.
 
 Próximo trabajo técnico: perfilar el statement completo de page/hydration y reducir el exceso de candidatos/deduplicación de `CorpusSearchToken`; volver a medir count exacto de cero resultados. Mantener el tamaño piloto, las ACL y el contrato de total exacto. Evidencia local ignorada: `_recovery-work/sprint1511/`. Detalle en `BJC-ESPACIOS-DOCUMENTALES.md` y `BJC-SEARCH.md`.
+
+## Corte maestro — Galilei PC principal / Sprint 15.1.1 + auditoría de fuentes Civil (2026-10-13)
+
+La máquina principal queda en `feature/jurisprudencia`, creada desde el `origin/dev` más reciente observado, `f7e37bc12436110191da15121bf047a0184e2e5a`. La máquina de oficina conserva su línea prevista `feature/copernic`; no se tocaron archivos de Copernic.
+
+Snapshot PostgreSQL DEV confirmado por guard: PostgreSQL 16.15 en `127.0.0.1:55432`, base `buscador_juridico_civil_dev`, rol `bjc_dev`, 23/23 migraciones. El corte actual tiene 17.078 documentos Corpus, 6.070 Civil (6.069 Cámara por court field, 1 Juzgado Civil 64), 17.078 documentos Search y 18.799.500 tokens. De los registros Civil, 1.473 tienen `SECOND_INSTANCE`, 1 `FIRST_INSTANCE` y 4.596 carecen de `instance` explícita.
+
+La auditoría de adquisición de 10.600 enlaces históricos está parcial: 5.738 clasificados, 5.710 filas PDF accesibles/5.050 blobs únicos (5.049 válidos y 1 inválido), 10 documentos no disponibles, 17 challenges visibles, 1 error del visor y 4.862 sin intento. Se cruzaron 4.758 claves seguras; 452 grupos permanecen para revisión. La base original contiene 15.478 filas temáticas; no se encontró denominador oficial completo de Cámara, primera instancia o CSJN Civil, por lo que no se publica un porcentaje global de cobertura.
+
+El paquete runtime no versionado para PC oficina quedó en `_local-setup/office-runtime-transfer`, snapshot `galilei-pcmain-20261013T155544Z`, desde el SHA indicado. Incluye dump custom y los 17.098 blobs Corpus referenciados; workspace files/blobs actuales: 0. Manifiesto/checksums y todas las referencias verificadas; tamaño total 4.244.336.343 bytes. No contiene `_recovery-work`, secretos ni dependencias de build. La restauración en la otra PC aún no se ha ejecutado; el paquete está listo para transferir localmente.
+
+Los nueve artefactos de discovery están bajo `_recovery-work/jurisprudencia-discovery/` y excluidos del commit. Resumen por año/Sala, endpoint, oportunidades y políticas se documenta en `BJC-FUENTES-DE-DATOS.md` y `BJC-ADQUISICION-JURISPRUDENCIA.md`. Estado final de esta misión: runtime mirror listo; source inventory y gap analysis parciales por falta de censos oficiales y rutas autorizadas.

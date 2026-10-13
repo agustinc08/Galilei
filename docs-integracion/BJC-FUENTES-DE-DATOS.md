@@ -1,5 +1,25 @@
 # Fuentes de datos — estado y estrategia
 
+## Auditoría profunda Civil — corte 2026-10-13
+
+| Universo oficial | Qué se confirmó | Conteo / cobertura | Automatización y límite |
+|---|---|---|---|
+| PJN Cuantificación Civil | Inventario local de resultados temáticos en 10 temas, con Sala, fecha, expediente, carátula, ID y enlace al visor. | 15.478 filas; 12.819 IDs; 14.142 expedientes distintos; 14.154 grupos expediente-año. No es censo oficial completo. De 10.600 enlaces al visor hay 5.738 clasificados: 5.710 accesibles, 10 no disponibles, 17 challenge, 1 error técnico, 4.862 sin intento. | El visor puede entregar PDF, respuesta HTML de error o challenge. No tratar `200 application/pdf` sin firma como PDF; mantener sin intento como desconocido. La descarga nueva no se amplió en esta auditoría. |
+| CSJN — Tribunales Federales y Nacionales (TFN) | Anuncio oficial de 2025-09-05 dice que la búsqueda suma decisiones de primera instancia; régimen de Cámaras y tribunales orales desde 2013. Filtros visibles: jurisdicción, expediente, Sala/órgano, instancia, fecha, carátula y texto. | Total Civil, fecha más antigua de primera instancia y conteo por juzgado no publicados en el anuncio. Corpus actual: 1 documento de juzgado Civil; existen 109 etiquetas de juzgado de origen en metadatos de fallos de Cámara, no equivalentes a publicaciones de primera instancia. | No se confirmó API/cursor incremental soportado. Las rutas de documentos disallow no se consultaron ni descargaron. Prioridad P0: solicitar inventario/export autorizado y ruta documental normal. |
+| Secretaría de Jurisprudencia CSJN | Buscador de fallos completos 1994–2026, sumarios 1863–2026, tomos Fallos 1863–2026; filtro de materia Civil visible en Fallos Destacados 2015–2026. | No hay total Civil publicado confirmado. En el Corpus actual hay 0 documentos identificados con órgano CSJN. | P2: pequeño censo de metadatos de la materia Civil mediante páginas públicas ordinarias y con políticas de acceso verificadas. No descargar rutas bloqueadas ni tratar tomos completos como una sentencia sin segmentación. |
+| CIJ histórico | Robots permite algunas páginas generales, pero bloquea rutas de búsqueda y adjuntos; sitemap observado anteriormente contenía 873 URLs hacia `cij7.test:8081`. | 0 cruces confirmados en el reconciliation local de esta misión; 0 PDFs nuevos. No equivale a cero fallos publicados. | P3; solicitar canal institucional. No sustituir el host interno, sondear rutas prohibidas ni iniciar crawl. |
+| Datos Abiertos CSJN | Discovery anterior vio 307 conjuntos en el portal y no encontró dataset específico de fallos tras cinco términos. `/api/` y `/revision/` disallow; `Crawl-Delay: 10`. | Ningún conjunto Civil identificado; no se emite total. | Sólo páginas públicas permitidas; no consultar API/revision disallow ni inferir inexistencia por búsquedas de catálogo sin resultados. |
+
+El universo de 15.478 filas y la cuota 4.758/14.154 = 33,6% corresponden a una base temática y emparejamiento conservador de claves recuperadas; **no representan el porcentaje de cobertura de toda la jurisprudencia Civil oficial**. Los 6.070 documentos Civil del snapshot DEV (6.069 Cámara, 1 primera instancia) contienen fuentes/cohortes distintas y no son un denominador comparable. Evidencia estructurada no versionada: `_recovery-work/jurisprudencia-discovery/{sources,coverage,gap-matrix,endpoint-inventory,sample-results,pdf-health,duplicate-analysis,future-sync,final-summary}.json`.
+
+Fuentes oficiales consultadas:
+
+- [Portal oficial de sitios del PJN](https://servicios.pjn.gov.ar/portal/sitios.php) enlaza al buscador actual `sj.pjn.gov.ar`.
+- [Anuncio CSJN sobre la búsqueda TFN](https://w2.csjn.gov.ar/novedades/detalle/10964), 2025-09-05.
+- [Buscador de jurisprudencia de la Secretaría CSJN](https://sj.csjn.gov.ar/) y [fallos destacados](https://sjconsulta.csjn.gov.ar/sjconsulta/fallosDestacados/consulta.html).
+- [Consulta oficial de fallos completos](https://sjconsulta.csjn.gov.ar/sjconsulta/fallos/consulta.html) y [tomos Fallos](https://sjconsulta.csjn.gov.ar/sj/tomosFallos.do?method=iniciar).
+- [Robots de CIJ](https://www.cij.gov.ar/robots.txt); la ruta restringida permanece fuera de automatización.
+
 ## Actualización Sprint 14.3 (2026-10-09)
 
 | Fuente | Estado verificado |

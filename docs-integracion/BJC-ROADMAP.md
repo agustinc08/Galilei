@@ -19,11 +19,11 @@ Siguiente gate: publicar este commit en `origin/dev`, actualizar la PC de oficin
 
 **Actualizado:** 2026-10-13 tras cierre técnico Sprint 14.9.2. No repetir auditorías cerradas salvo evidencia contradictoria.
 
-**Estado vigente:** PHRASE continúa sobre el gate: p95 comparable 2.427,38 ms y early exit no certifica totalExact. Dominante medido: sort/agregado ordenado de 8.958 candidatos, ~402 ms inclusivos; experimentos de conteo completo tardaron 29,5–32,0 s. No avanzar a revisión de los 452 grupos ni a los 4.890 enlaces abiertos hasta cumplir p95 <=1.200 ms y exactitud del total. Detalle en BJC-SEARCH.md.
+**Estado al cierre de Sprint 14.9.2 (histórico):** PHRASE estaba sobre el gate: p95 comparable 2.427,38 ms y early exit no certificaba totalExact. El plan de esa fecha posponía revisión de los 452 grupos y 4.890 enlaces abiertos hasta cumplir latencia y exactitud. La auditoría de fuentes del 2026-10-13 añadió un siguiente sprint de discovery P0 que no requiere ingesta ni cambios de Search; ver la prioridad vigente al final.
 
 ## Gate vigente — Sprint 14.9.2 (2026-10-13)
 
-**Estado: PARTIAL / PHRASE REGRESSION REMAINS.** No se conservó una modificación del runtime. Se comprobó el coste del orden/agregado completo antes de la primera ventana y el coste prohibitivo de contar todos los textos vía ILIKE. El total exacto permanece pendiente cuando PHRASE sale temprano. Mantener la adquisición y los grupos de revisión sin cambios hasta que Search pase el gate de latencia y conteo exacto. Evidencia: _recovery-work/sprint1492/final-summary.json.
+**Estado al cierre de Sprint 14.9.2: PARTIAL / PHRASE REGRESSION REMAINS.** No se conservó una modificación del runtime. Se comprobó el coste del orden/agregado completo antes de la primera ventana y el coste prohibitivo de contar todos los textos vía ILIKE. El total exacto permanecía pendiente cuando PHRASE salía temprano. La restricción afectaba a esa fase técnica; la adquisición/ingesta sigue requiriendo sus propios gates. Evidencia: _recovery-work/sprint1492/final-summary.json.
 
 | Fase | Estado | Salida / evidencia |
 |---|---|---|
@@ -73,7 +73,7 @@ Siguiente paso: conseguir export Digesto y usuario/matriz de aceptación institu
 | Viewer | Ranges y páginas 1/50/109 PASS; límite muestreado 11,35 MiB | Considerar streaming si el corpus futuro incorpora objetos significativamente mayores. |
 | Curaduría | Lotes y reversión de clasificación E2E PASS | Validar flujos con equipo responsable y completar ACL institucional. |
 
-## Siguiente acción concreta
+## Siguiente acción concreta al cierre de Sprint 14.9.2 (histórica)
 
 Mantener **NOT READY FOR PREPRODUCTION**. Priorizar performance legacy/federada y dashboard; luego restauración/migraciones reproducibles en ambiente aislado. La siguiente sesión humana es UAT guiada y aceptación de matriz ACL; la aceptación no cambia los bloqueos técnicos por sí sola. Informe integral: `87-RESULTADO-SPRINT-11.md`.
 
@@ -247,3 +247,15 @@ Después de aceptación, elegir una sola línea siguiente: (A) compartir control
 Siguiente trabajo limitado al residual medido: el candidate CTE TERM consulta `CorpusSearchToken_token_trgm_idx`, produce 113.800 entradas para 5.000 IDs y usa `Unique`/`Gather Merge` más 10.000 lookups por PK. Perfilar el SQL completo de página e hidratación con primera y última página, mejorar candidate deduplication sólo si el EXPLAIN/benchmark lo justifica, y medir por separado el count exacto sin hits (500–590 ms). Repetir tres series a 1.000/5.000 y mantener p95 bajo 400/800 ms, max/p50 estable, seguridad A/B, folder ACL y total exacto antes de ampliar workspaces. No tocar PHRASE en ese tramo; su deuda independiente queda en `BJC-SEARCH.md`.
 
 El backup/migración, benchmark general y validaciones actuales están en `_recovery-work/sprint1511/` (DEV local, ignorado por Git). No declarar cierre por métricas sintéticas ni UAT humana; el piloto requiere después una instancia con usuarios reales y datos ficticios.
+
+## Prioridad de adquisición tras auditoría profunda — 2026-10-13
+
+La línea de jurisprudencia queda en `feature/jurisprudencia`; no integrar aún a `dev`. El runtime mirror para PC oficina está preparado y pendiente de transferencia/restauración local.
+
+1. **P0 — Censo/export autorizado de primera instancia Civil:** solicitar a la autoridad administradora el total por juzgado/fecha, campos estables, paginación/cursor y ruta documental normal. El portal TFN oficial anuncia primera instancia, pero no publica un total agregado; Galilei contiene sólo 1 documento Civil de primera instancia. Antes de estimar backfill, validar una muestra pequeña de metadatos y documentos mediante el canal permitido.
+2. **P1 — Revisar los 452 grupos ya adquiridos:** priorizar los 328 conflictos y 106 candidatos; documentar resolución jurídica por grupo y mantener separados 15 pares con archivo distinto, 2 coincidencias exactas y 1 PDF inválido. No auto-fusionar.
+3. **P1 — Cuantificar la cola de 4.862 enlaces no intentados:** sólo después de acordar un mecanismo permitido y un muestreo con límites; respetar los 17 challenges, clasificar 10 documentos no disponibles y resolver el único error técnico por la ruta normal. No ejecutar una descarga masiva como parte de esta misión.
+4. **P2 — Censo de enriquecimiento CSJN Civil:** consultar la materia Civil del buscador público/seleccionados y medir identificadores/deduplicación antes de incorporar PDFs; el total del filtro no está publicado y Corpus hoy no tiene registros con órgano CSJN.
+5. **P3 — CIJ histórico / Datos Abiertos:** dejar en espera hasta obtener un canal institucional autorizado; respetar rutas disallow y demora declarada.
+
+No puede calcularse ganancia documental global ni valor/costo numérico sin un denominador oficial. La prioridad P0 tiene la mayor relación valor/esfuerzo informativo: determina primero el universo real, calendario y ruta de recuperación de primera instancia; la revisión P1 aprovecha documentos ya obtenidos sin iniciar adquisición externa. Evidencia no versionada y matriz por año/Sala: `_recovery-work/jurisprudencia-discovery/`.
