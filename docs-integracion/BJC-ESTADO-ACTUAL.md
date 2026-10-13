@@ -1,5 +1,13 @@
 # Estado actual — Buscador Jurídico Civil
 
+## Auditoría de paridad de source — 2026-10-13
+
+**Resultado: SOURCE EQUIVALENCE PASS en `dev`.** El clone limpio del commit `373e7c0add34580baade5fe873849c97f2fda061` instaló backend y frontend con `pnpm install --frozen-lockfile`; Prisma validate/generate, backend/frontend typecheck y builds pasaron. La suite backend sin runtime pasó 90 tests; 19 tests/suites optativos quedaron omitidos. No se copió runtime ni SQLite histórica.
+
+La causa confirmada fue `.gitignore` raíz `**/logs/`, que ocultaba cinco fuentes `JurisprudenciaN/back/src/logs/` y la página `JurisprudenciaN/front/src/app/(admin)/admin/logs/page.tsx`. Se versionaron las seis, se limitaron las reglas de logs a rutas runtime y el test de paridad SQLite ahora se omite si no existe el fixture. Los JSON de ejecución en `JurisprudenciaN/back/logs/` siguen ignorados por su regla local. El fixture SQLite histórico es runtime de referencia optativo; no se subió.
+
+La auditoría inspeccionó 589 archivos source-like bajo rutas compilables: 576 ya versionados y 13 candidatos ignorados/no versionados; se añadieron los seis archivos de código requeridos. Los otros siete candidatos son salidas JSON runtime, configuración IDE local y `next-env.d.ts` generado. Ninguno de los seis archivos añadidos tuvo coincidencias en el escaneo de secretos; el mayor agregado mide menos de 9 KiB. `pnpm exec eslint .` en frontend sigue reportando cuatro errores preexistentes de `react-hooks/set-state-in-effect` en páginas Corpus/Digesto/Revisión y una advertencia de variable no usada en `ProtectedContent.tsx`; no bloqueó typecheck/build ni pertenece a esta corrección.
+
 ## Sprint 14 — corte vigente 2026-10-13
 
 **Resultado vigente:** Sprint 14.8 ingirió el lote civil local. Sprint 14.9.2 dejó PHRASE en PARTIAL / PHRASE REGRESSION REMAINS: benchmark comparable p95 2.427,38 ms; el total exacto no está demostrado para consultas que terminan por early exit. Los 452 grupos en revisión y 4.890 enlaces abiertos no cambiaron. Sprint 14.9.2 no realizó adquisición ni modificó su documento maestro.

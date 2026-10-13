@@ -1,5 +1,11 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Gate de portabilidad source — 2026-10-13
+
+**PASS en `dev`, commit `373e7c0add34580baade5fe873849c97f2fda061`.** El clone limpio instalado sólo desde los lockfiles validó Prisma, typecheck/build de backend y frontend y 90 tests backend sin runtime; 19 tests/suites optativos se omitieron por depender de PostgreSQL DEV o de la SQLite histórica. La regla global `**/logs/` fue reemplazada por exclusiones runtime específicas; se recuperaron seis fuentes ignoradas y el fixture SQLite real permanece fuera de Git. El lint frontend conserva cuatro errores previos de hooks y una advertencia; typecheck y builds están limpios.
+
+Siguiente gate: publicar este commit en `origin/dev`, actualizar la PC de oficina con `git pull --ff-only origin dev` e instalar dependencias con los lockfiles. La transferencia de DB/Corpus/PDFs continúa separada y requiere su flujo de runtime autorizado; este resultado sólo certifica source portable.
+
 ## Sprint 14 — recuperación pública de jurisprudencia (2026-10-08)
 
 | Fase | Estado | Evidencia / próximo insumo |
