@@ -98,11 +98,12 @@ function buildBooleanCandidateCte(
   values: SqlValue[],
   useTokenProjection: boolean,
   deferPhraseVerification = false,
+  scopePredicate = 'd."documentScope" = \'GENERAL\'',
 ) {
   const ctes: string[] = [];
   let nextId = 0;
   const nextName = () => `"corpusCandidateNode${nextId++}"`;
-  const eligible = 'd."visibility" = ANY($1::text[]) AND d."status" = \'INDEXED\'';
+  const eligible = `d."visibility" = ANY($1::text[]) AND d."status" = 'INDEXED' AND ${scopePredicate}`;
   const fields: Record<string, string> = {
     tema: 'd."subtitle"',
     sala: 'd."chamber"',
@@ -370,13 +371,19 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         readinessMs = performance.now() - readinessStartedAt;
       }
     }
+    const workspaceId = context.documentScope?.kind === 'WORKSPACE' ? context.documentScope.workspaceId : null;
+    const workspaceScope = workspaceId !== null;
     const values: SqlValue[] = [allowedVisibility(context.visibility)];
+    if (workspaceId) values.push(workspaceId);
+    const scopePredicate = workspaceId
+      ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2)`
+      : `d."documentScope" = 'GENERAL'`;
     const shortTermWindow = useTokenProjection && query.root?.type === 'term' && !query.root.field &&
       query.root.matchMode === 'contains' && [...normalizeSearchText(query.root.value)].length < 3;
     const deferredSinglePhrase = useTokenProjection && query.root?.type === 'phrase';
     const candidateBuildStartedAt = performance.now();
     const candidateCte = this.candidateStrategy === 'set-algebra-v2' && !shortTermWindow
-      ? buildBooleanCandidateCte(query, values, useTokenProjection, deferredSinglePhrase)
+      ? buildBooleanCandidateCte(query, values, useTokenProjection, deferredSinglePhrase, scopePredicate)
       : null;
     const candidateBuildMs = performance.now() - candidateBuildStartedAt;
     const activeCandidateStrategy = this.candidateStrategy === 'predicate-v1'
@@ -386,6 +393,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const predicates = [
       `d."visibility" = ANY($1::text[])`,
       `d."status" = 'INDEXED'`,
+      scopePredicate,
     ];
     if (shortTermWindow && query.root?.type === 'term') {
       values.push(pattern(query.root));
@@ -713,7 +721,9 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         linkedResultIds: row.linkedResultIds ?? [],
         visibility: row.visibility as SearchResult['visibility'],
         document: {
-          href: row.visibility === 'PUBLIC'
+          href: workspaceScope
+            ? `/api/workspaces/${workspaceId}/documents/${row.id}/file`
+            : row.visibility === 'PUBLIC'
             ? `/api/public/corpus/documents/${row.id}/file`
             : `/api/corpus/documents/${row.id}/file`,
           mimeType: row.fileMimeType,

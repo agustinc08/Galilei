@@ -60,6 +60,9 @@ Antes de auditar, investigar o modificar Buscador Jurídico Civil, leer `docs-in
 - Batch Digesto membership and batch Jurisprudencia review require preview and per-document results; classification reversal returns to SUGGESTED and must append an audit event, never erase history.
 - UAT remains `PENDING HUMAN ACCEPTANCE` until real users complete `79-UAT-PILOTO-USUARIOS.md`; E2E accounts are synthetic DEV identities.
 
+- Sprint 15 adds private document workspaces on the same Corpus/Search: always require active workspace membership; global ADMIN does not imply document access. General Corpus metadata/search must enforce `documentScope=GENERAL`; private SQL must constrain `PRIVATE_WORKSPACE` and the authorized workspace before count/page/snippet. Workspace PostgreSQL tests run only through `node scripts/with-dev-db-guard.cjs sprint15-postgres-tests` or `sprint15-full-tests`.
+- Sprint 15 DEV migration: `20261013130000_sprint15_private_document_workspaces`. Do not reindex the general Search projection for this additive scope column; use the existing DEV DB guard for Prisma generate/validate/status/deploy and keep workspace fixtures synthetic.
+
 
 - Sprint 12 confirmed `TECHNICAL PREPRODUCTION — NOT READY`: Search/concurrency remain blocking; `pg_restore` was blocked by Windows App Control and `bjc_dev` has no CREATEDB, so never restore over main DEV or claim recovery/migration-from-zero validation. Keep DEV local only; see `docs-integracion/97-PREPRODUCTION-GATE.md` and `98-RESULTADO-SPRINT-12.md`.
 - Sprint 12 added guard actions for search baseline/after, EXPLAIN, backup verification, DB preflight and concurrency. Any DB-facing action must remain behind `scripts/with-dev-db-guard.cjs` and exact local DEV identity validation.

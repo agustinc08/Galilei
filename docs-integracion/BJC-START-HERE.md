@@ -88,3 +88,7 @@ El Sprint 14.2 completó el inventario global de 226.770 resultados en 11.339 p�
 ## Estado vigente — Sprint 14.3
 
 Feed reciente CSJN: una sentencia Civil de primera instancia capturada y verificada end-to-end (Juzgado Civil 64, 2026-10-08). Corpus Civil: 1.254 documentos de Cámara y 1 de Juzgado; Search Projection lista con 12.263 documentos, 10.038.148 tokens y cero stale. El sync sigue parcial por ventana limitada de 20 resultados; el backfill filtrado 2013→hoy requiere intervención humana ante `cap-widget`. CIJ conserva leads sin match/descarga. Leer el detalle y gaps en `BJC-ADQUISICION-JURISPRUDENCIA.md`.
+
+## Estado vigente — Sprint 15
+
+MVP de espacios documentales privados implementado sobre Corpus/Search compartidos: dependencias, membership explícita, roles locales, carpetas, carga PDF, extracción, búsqueda aislada y visor con ACL. La migración aditiva está aplicada sólo en PostgreSQL DEV. Ver `BJC-ESPACIOS-DOCUMENTALES.md`; PHRASE sigue PARTIAL y esto no habilita preproducción ni producción.

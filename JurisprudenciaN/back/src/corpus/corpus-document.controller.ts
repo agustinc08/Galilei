@@ -134,7 +134,7 @@ function parsePage(value?: string) {
   return Number.isInteger(page) && page > 0 ? page : undefined;
 }
 
-function sendDocument(
+export function sendDocument(
   response: Response,
   file: { content: Buffer; filename: string; mimeType: string },
   download: boolean,

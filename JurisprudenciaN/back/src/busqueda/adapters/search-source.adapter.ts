@@ -25,6 +25,8 @@ export type SearchContext = {
     digestoTagId?: string;
   };
   sourceSystems?: Array<'JURISPRUDENCIA' | 'DIGESTO' | 'CORPUS'>;
+  /** Set only by an authenticated workspace service after membership authorization. */
+  documentScope?: { kind: 'GENERAL' } | { kind: 'WORKSPACE'; workspaceId: string };
 };
 
 export type SearchResult = {

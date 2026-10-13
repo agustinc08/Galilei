@@ -124,3 +124,12 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 5. Performance de Sprint 12.3 es baseline local in-process, no SLA ni medición de topología real. Medir 1/5/10 sólo en preprod autorizada y con toleración de IT.
 6. No desplegar a producción como consecuencia automática de Sprint 13; CIJ/CSJN masivo automatizado continúa NO GO.
 7. El modo preprod fail-closed requiere variables target explícitas y `BJC_PREPROD_DATABASE_APPROVED=true`, compara URL de conexión con host/puerto/base/rol declarados, rechaza loopback, exige storage/origin/JWT/rate limit y restringe a una réplica mientras el rate limit sea en memoria. Toda acción DB del guard valida además identidad/puerto/dirección efectiva al conectar. Esto no sustituye autorización institucional externa.
+
+## Decisión Sprint 15 — espacios privados por dependencia (2026-10-13)
+
+1. Galilei conserva dos scopes en el mismo Corpus y Search: `GENERAL` y `PRIVATE_WORKSPACE`. La búsqueda general excluye los privados por SQL; la privada exige membership activa y `WorkspaceDocument.workspaceId` antes del conteo, página y snippet.
+2. El rol global no confiere acceso workspace. ADMIN/EDITOR/VIEWER son roles locales; incluso ADMIN global requiere membership activa explícita para leer, buscar o descargar.
+3. Cada dependencia tiene un workspace. Los documentos privados permanecen RESTRICTED y nunca se promueven automáticamente. No se exponen rutas del storage ni enlaces estáticos.
+4. Reusar extracción PDF, páginas, Search AST/adapter y storage SHA existente. Hash igual en dos dependencias conserva dos documentos/vínculos lógicos y comparte un blob. Upload limitado a PDF; OCR_REQUIRED queda visible pero fuera de Search.
+5. Migración aditiva `20261013130000_sprint15_private_document_workspaces`, sólo DEV loopback, sin reindexar CorpusSearchToken. Backup pre-migración: manifiesto verificado Sprint 14.9. No se habilita producción ni aceptación institucional.
+6. Sprint 14.9.2 PHRASE permanece PARTIAL; Sprint 15 no altera ni optimiza esa semántica.

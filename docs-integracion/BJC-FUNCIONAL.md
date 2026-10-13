@@ -59,3 +59,7 @@ La búsqueda avanzada permite filtrar por colección, tema y etiqueta de Digesto
 ## Gate de uso Sprint 13
 
 El flujo de producto conserva el resultado técnico Sprint 12.3 en DEV, pero no hubo UAT institucional en esta Sprint: aceptación por Lector, Jurisprudencia, Digesto, Revisor e IT/Admin sigue PENDING. El manual 135 es borrador anterior a UAT. Ninguna sugerencia, membresía o selección editorial concede publicación/visibilidad. Matrices ACL, anonimización y retención están pendientes de los owners institucionales (docs 129–131). No existe despliegue compartido.
+
+## Mi espacio — Sprint 15
+
+Usuarios autenticados ven los espacios donde tienen membresía activa. ADMIN del workspace gestiona miembros; ADMIN/EDITOR organizan carpetas y suben hasta 20 PDFs por operación (20 MB cada uno); VIEWER busca y lee. Documentos recientes muestran estado y páginas. La búsqueda por texto devuelve total del espacio autorizado, snippet y acceso al viewer con página/resaltado. OCR_REQUIRED permite abrir el PDF y no produce resultados de texto. La UX de administración avanzada, cuotas, soft-delete y versionado queda pendiente. Detalle: `BJC-ESPACIOS-DOCUMENTALES.md`.

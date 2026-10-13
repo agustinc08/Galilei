@@ -24,8 +24,9 @@ export class CorpusDocumentAccessService {
     documentId: string,
     visibility: SearchVisibility,
     pageNumber?: number,
+    workspaceId?: string,
   ) {
-    const document = await this.visibleDocument(documentId, visibility);
+    const document = await this.visibleDocument(documentId, visibility, workspaceId);
     const latestFile = document.files[0];
     const latestExtraction = document.latestExtraction;
     const provenance = document.ingestions[0];
@@ -70,7 +71,9 @@ export class CorpusDocumentAccessService {
             version: latestFile.version,
             pageCount: latestFile.pageCount,
             href:
-              document.visibility === 'PUBLIC'
+              workspaceId
+                ? `/api/workspaces/${workspaceId}/documents/${document.id}/file`
+                : document.visibility === 'PUBLIC'
                 ? `/api/public/corpus/documents/${document.id}/file`
                 : `/api/corpus/documents/${document.id}/file`,
           }
@@ -89,8 +92,8 @@ export class CorpusDocumentAccessService {
     };
   }
 
-  async file(documentId: string, visibility: SearchVisibility) {
-    const document = await this.visibleDocument(documentId, visibility);
+  async file(documentId: string, visibility: SearchVisibility, workspaceId?: string) {
+    const document = await this.visibleDocument(documentId, visibility, workspaceId);
     const file = document.files[0];
     if (!file) throw new NotFoundException('Archivo no encontrado.');
     const content = await this.storage.get(file.storageKey);
@@ -117,8 +120,9 @@ export class CorpusDocumentAccessService {
     documentId: string,
     visibility: SearchVisibility,
     query: string,
+    workspaceId?: string,
   ) {
-    const document = await this.visibleDocument(documentId, visibility);
+    const document = await this.visibleDocument(documentId, visibility, workspaceId);
     const extraction = document.latestExtractionId
       ? await this.prisma.corpusExtraction.findUnique({
           where: { id: document.latestExtractionId },
@@ -332,6 +336,7 @@ export class CorpusDocumentAccessService {
   private async visibleDocument(
     documentId: string,
     visibility: SearchVisibility,
+    workspaceId?: string,
   ) {
     const allowed =
       visibility === 'ADMIN'
@@ -340,12 +345,16 @@ export class CorpusDocumentAccessService {
           ? ['PUBLIC', 'INTERNAL']
           : visibility === 'PUBLIC'
             ? ['PUBLIC']
-            : [];
+            : visibility === 'RESTRICTED' && workspaceId
+              ? ['RESTRICTED']
+              : [];
     if (!allowed.length)
       throw new NotFoundException('Documento no encontrado.');
     const document = await this.prisma.corpusDocument.findFirst({
       where: {
         id: documentId,
+        documentScope: workspaceId ? 'PRIVATE_WORKSPACE' : 'GENERAL',
+        ...(workspaceId ? { workspaceDocuments: { some: { workspaceId } } } : {}),
         visibility: { in: allowed },
         status: { in: ['INDEXED', 'OCR_REQUIRED'] },
       },

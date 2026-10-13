@@ -224,3 +224,6 @@ Tras cerrar el gate técnico, decidir el orden de revisión de los 452 grupos re
 **Siguiente alcance:** medir y reducir el agregado/orden de todos los candidatos y el I/O de heap de CorpusSearchToken, usando los EXPLAIN y cardinalidades de _recovery-work/sprint1491/. Mantener frase literal, conteo exacto, orden y página; repetir 10 warm + warmup y cold por separado, 40/40 paridad, projection verify, viewer y concurrencia 1/5/10. No crear índice sin hipótesis/EXPLAIN/estimación de tamaño y benchmark.
 
 No pasar todavía a la revisión de los 452 grupos; queda pendiente hasta obtener PHRASE p95 <=1.200 ms sin romper las validaciones. DEV loopback continúa siendo el único target autorizado.
+## Próximo trabajo después de Sprint 15
+
+MVP privado en DEV: implementado; suite backend, builds/typechecks, E2E ACL, Search verify, paridad 40/40 y viewer 6/6 PASS. Endpoint PHRASE tuvo 10/10 requests sin fallo y p95 2.226 ms, mejor que baseline comparable (2.427 ms) pero sobre el gate histórico de 1.200 ms. Próximo: UAT con usuarios/owners de dependencias y mejorar la administración de workspaces. Evaluar retiro lógico en fase posterior. Mantener adquisición histórica como línea separada. No desplegar a red compartida/producción sin infraestructura preprod autorizada y aceptación institucional.
