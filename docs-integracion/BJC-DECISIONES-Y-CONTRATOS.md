@@ -152,3 +152,11 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 5. El workflow exporta decisiones humanas (`groupId, decision, reviewer, reviewedAt, notes`) y sólo las valida. Importar una decisión no la aplica a DB. No existe flag ni ruta de escritura en el tooling J4.
 6. El modelo admite varios `CorpusDocumentFile` por documento con SHA único por documento y `CorpusIngestionRecord` con procedencia/fileId. Sin embargo, `linkExisting` exige SHA existente y no ambiguo; viewer y Search sirven la versión de archivo más alta y metadata expone la procedencia de ingesta más reciente. Añadir una representación sin política explícita podría cambiar el archivo visible. No crear migración en J4.
 7. La entidad `LegalDecision` queda sin decidir hasta integrar ramas y acordar el contrato. Se comparan alternativas A (entidad legal tipada), B (campos y relación de identidad en Corpus) y C (modelo actual conservador) en el artefacto local de J4.
+
+## Decisión Sprint J5 — evidencia de candidatos y colisiones (2026-10-14)
+
+1. No se recuperó `candidateDocumentId` para los 106 casos tras cruzar SHA, IDs source/portal/legacy, ingestas, metadataOriginal y legal keys completas contra el snapshot Corpus; quedan `NOT_RECOVERED`. Título fuzzy no es una clave de asociación.
+2. De los 321 conflictos `ONE_SHA_MULTIPLE_LEGAL_KEYS`, 194 tienen varios expedientes exactos impresos en el PDF y 127 conservan colisión de metadata. Un PDF multi-expediente no demuestra por sí solo decisiones independientes ni autoriza un link; validar expediente, fechas resolutivas y contexto.
+3. En los 7 metadata conflicts, un PDF confirma el expediente fuente y el expediente Corpus adicional en el mismo archivo; 6 conservan discrepancias críticas. Preservar ambos valores; no sobrescribirlos.
+4. Review tiers J5: 2 `HUMAN_READY`, 106 `HUMAN_NEEDS_CANDIDATE`, 6 `HUMAN_NEEDS_SOURCE_DATA`, 321 `HUMAN_STRUCTURAL`, 16 `MODEL_LIMITATION`. `AUTO_SAFE=0`; los cambios de tier son refinamientos de cola.
+5. La inspección usa una transacción PostgreSQL read-only y no escribe contenido Corpus/Search, Prisma ni migraciones. Search verify pasa, pero actualiza `verifiedAt`; el timestamp se restauró al valor previo de J4 y los conteos permanecieron iguales. Este update transitorio incumple el gate de cero escrituras, así que J5 queda `PARTIAL`. No se aplican links.
