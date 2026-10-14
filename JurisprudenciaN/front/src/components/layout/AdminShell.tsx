@@ -10,16 +10,20 @@ import styles from './layout.module.css';
 const navItems = [
   { href: '/dashboard', label: 'Inicio', roles: ['ADMIN', 'OPERADOR'] },
   { href: '/busqueda-avanzada', label: 'Buscar', roles: ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO'] },
-  { href: '/jurisprudencia', label: 'Jurisprudencia', roles: ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'] },
+  { href: '/jurisprudencia', label: 'Jurisprudencia', roles: ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO'] },
   { href: '/digesto', label: 'Digesto', roles: ['ADMIN', 'OPERADOR', 'DIGESTO'] },
   { href: '/corpus', label: 'Documentos', roles: ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA'] },
   { href: '/spaces', label: 'Mi espacio', roles: ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO'] },
   { href: '/revision', label: 'Revisión', roles: ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA'] },
   { href: '/estadisticas', label: 'Estado', roles: ['ADMIN', 'OPERADOR'] },
-  { href: '/consulta', label: 'Consulta pública', roles: ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO'] },
   { href: '/perfil', label: 'Perfil', roles: ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO'] },
   { href: '/admin/logs', label: 'Administración', roles: ['ADMIN'] },
 ];
+
+const roleLabels: Record<string, string> = {
+  ADMIN: 'Administración', OPERADOR: 'Operación', LECTOR: 'Consulta',
+  REVISOR: 'Revisión', JURISPRUDENCIA: 'Jurisprudencia', DIGESTO: 'Digesto',
+};
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -62,7 +66,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <strong>
               {user?.nombre} {user?.apellido ?? ''}
             </strong>
-            <span>{user?.rol.nombre}</span>
+            <span>{user ? roleLabels[user.rol.nombre] ?? 'Usuario' : ''}</span>
           </div>
         </header>
         <main className={styles.content}>{children}</main>

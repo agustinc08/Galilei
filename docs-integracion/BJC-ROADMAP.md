@@ -318,3 +318,7 @@ Tooling `READY FOR HUMAN REVIEW`; revisión humana `NOT STARTED`. Ejecutar prime
 ## Después de Sprint J8 — calidad del corpus cerrada (2026-10-14)
 
 J8 concluyó `CERTIFIED_WITH_KNOWN_GAPS` para los 6.070 documentos Civil actualmente adquiridos: manifiesto 100%, `BROKEN`/`UNKNOWN`/`UNRESOLVED` 0 y escrituras 0. La limpieza técnica de este snapshot queda cerrada; gaps históricos, OCR y colas humanas están documentados. Esto no afirma cobertura total Civil. No abrir una nueva adquisición/scraper como continuación de J8. Líneas siguientes posibles: certificación independiente de endpoint/ranking Search y ruta autenticada Viewer, UX/UAT o preparación de integración coordinada con `feature/copernic`. Detalle y re-ejecución: `BJC-CERTIFICACION-CORPUS-CIVIL.md`.
+
+## Después de Sprint J9 — resolver ACL/publicación antes de Browser UAT
+
+La operación PDF-first, permisos, publicación/archivo y paridad básica están implementados en DEV. J9 queda `PARTIAL`: el snapshot contiene 6.070 Civil certificados pero todos están `INTERNAL`, no hay asociaciones Corpus↔Sentencia y no existen filas Sentencia publicadas. Próximo paso: resolver ACL/decisión de publicación y su crosswalk; después ejecutar jornadas de navegador lector/operador, performance, responsive y regresión. No bulk-publish, backfill ni asumir permiso por certificación técnica. Ver `BJC-OPERACION-JURISPRUDENCIA.md`.

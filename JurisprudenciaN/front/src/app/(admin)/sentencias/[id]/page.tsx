@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { ArchivosPanel } from '@/components/archivos/ArchivosPanel';
@@ -83,6 +84,7 @@ export default function SentenciaDetailPage() {
   const [isFavorita, setIsFavorita] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [possibleDuplicates, setPossibleDuplicates] = useState<Array<{ id: number; caratula: string | null; expediente: string | null; sala: string | null; fecha: string | null }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingResumen, setIsSavingResumen] = useState(false);
   const [isSavingResena, setIsSavingResena] = useState(false);
@@ -164,6 +166,7 @@ export default function SentenciaDetailPage() {
       demandado: sentencia?.demandado ?? '',
       objeto: sentencia?.objeto ?? '',
       magistrados: sentencia?.magistrados ?? '',
+      juez: sentencia?.juez ?? '',
       observacionesInternas: sentencia?.observacionesInternas ?? '',
       estadoCarga: sentencia?.estadoCarga ?? 'BORRADOR',
       publicado: sentencia?.publicado ?? false,
@@ -203,6 +206,8 @@ export default function SentenciaDetailPage() {
       fecha: values.fecha ? new Date(values.fecha).toISOString() : undefined,
     });
     setFeedback('Sentencia actualizada.');
+    const duplicates = await api.get<{ data: typeof possibleDuplicates }>(`/sentencias/${id}/posibles-duplicados`);
+    setPossibleDuplicates(duplicates.data);
     await refreshSentencia();
   };
 
@@ -273,8 +278,16 @@ export default function SentenciaDetailPage() {
 
   const togglePublication = async () => {
     if (!sentencia) return;
+    if (!sentencia.publicado && !window.confirm('¿Publicar este fallo? Será visible en la consulta pública.')) return;
     await api.patch(`/sentencias/${id}/${sentencia.publicado ? 'despublicar' : 'publicar'}`);
     setFeedback(sentencia.publicado ? 'Sentencia despublicada.' : 'Sentencia publicada.');
+    await refreshSentencia();
+  };
+
+  const archiveSentence = async () => {
+    if (!sentencia || !window.confirm('¿Archivar este fallo? Dejará de aparecer en la consulta pública y conservará su historial.')) return;
+    await api.patch(`/sentencias/${id}/archivar`);
+    setFeedback('Fallo archivado.');
     await refreshSentencia();
   };
 
@@ -535,9 +548,14 @@ export default function SentenciaDetailPage() {
         description={`${sentencia.numeroSentencia ?? 'Sin número'} · ${formatDate(sentencia.fecha)}`}
         actions={
           <div className={styles.inlineActions}>
-            <Button variant="secondary" onClick={() => void togglePublication()}>
-              {sentencia.publicado ? 'Despublicar' : 'Publicar'}
-            </Button>
+            {sentencia.activo ? (
+              <>
+                <Button variant="secondary" onClick={() => void togglePublication()}>
+                  {sentencia.publicado ? 'Retirar de consulta' : 'Publicar fallo'}
+                </Button>
+                <Button variant="secondary" onClick={() => void archiveSentence()}>Archivar</Button>
+              </>
+            ) : <span>Fallo archivado</span>}
             {isAdmin ? (
               <Button variant="secondary" onClick={() => void toggleDestacada()}>
                 {sentencia.destacada ? 'Quitar destacada' : 'Marcar destacada'}
@@ -549,6 +567,12 @@ export default function SentenciaDetailPage() {
 
       {feedback ? <StatusMessage variant="success" title="Operacion realizada" message={feedback} /> : null}
       {error ? <StatusMessage variant="error" title="Error" message={error} /> : null}
+      {possibleDuplicates.length ? (
+        <SectionCard title="Posibles fallos relacionados">
+          <p>Encontramos decisiones que podrían corresponder al mismo expediente. Revisa antes de continuar; no se fusionaron automáticamente.</p>
+          <ul>{possibleDuplicates.map((item) => <li key={item.id}><Link href={`/sentencias/${item.id}`}>{item.caratula || item.expediente || `Fallo ${item.id}`}</Link> · {item.sala || 'Sin Sala informada'} · {item.fecha ? formatDate(item.fecha) : 'Fecha no informada'}</li>)}</ul>
+        </SectionCard>
+      ) : null}
 
       <div className={styles.twoColumn}>
         <div className={styles.panelStack}>

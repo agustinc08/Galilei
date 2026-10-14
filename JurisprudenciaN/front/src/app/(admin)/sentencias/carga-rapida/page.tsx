@@ -81,10 +81,6 @@ function buildObservacionesLink(currentLink: string) {
   return value ? `Link de apoyo: ${value}` : '';
 }
 
-function buildMagistrados(juez: string, magistrados: string) {
-  return [juez.trim(), magistrados.trim()].filter(Boolean).join('; ');
-}
-
 export default function CargaRapidaPage() {
   const { user } = useAuth();
   const { salas, tiposFallo, tribunalesOrigen, isLoading: isLoadingCatalogos } = useCatalogos();
@@ -115,7 +111,7 @@ export default function CargaRapidaPage() {
       sala: data.sala ?? '',
       salaId: data.salaId ?? '',
       fecha: toDateInput(data.fecha),
-      juez: '',
+      juez: data.juez ?? '',
       tribunalOrigen: data.tribunalOrigen ?? '',
       tribunalOrigenId: data.tribunalOrigenId ?? '',
       actor: data.actor ?? '',
@@ -221,7 +217,8 @@ export default function CargaRapidaPage() {
           actor: sentencia.actor || undefined,
           demandado: sentencia.demandado || undefined,
           objeto: sentencia.objeto || undefined,
-          magistrados: buildMagistrados(sentencia.juez, sentencia.magistrados) || undefined,
+          juez: sentencia.juez || undefined,
+          magistrados: sentencia.magistrados || undefined,
           expediente: sentencia.expediente || undefined,
           observacionesInternas: buildObservacionesLink(sentencia.link) || undefined,
         },

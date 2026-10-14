@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import styles from './consulta.module.css';
 import { Button } from '@/components/ui/Button';
 import { HighlightText } from './HighlightText';
@@ -28,13 +29,13 @@ export function ConsultaResultadoCard({
   onMissingPdf,
   query,
 }: Props) {
+  const searchParams = useSearchParams();
+  const returnTo = `/consulta${searchParams.size ? `?${searchParams.toString()}` : ''}`;
+  const detailQuery = new URLSearchParams({ returnTo });
+  if (query) detailQuery.set('q', query);
   const publicIdentifier = item.slugPublico ?? String(item.sentenciaId ?? item.id);
   const hasPdf = item.pdfDisponible === true || Boolean(item.archivoPdfId);
-  const documentHref = publicIdentifier
-    ? `/fallos/${publicIdentifier}${
-        query ? `?q=${encodeURIComponent(query)}` : ''
-      }`
-    : null;
+  const documentHref = publicIdentifier ? `/fallos/${publicIdentifier}?${detailQuery.toString()}` : null;
 
   return (
     <article
@@ -102,7 +103,7 @@ export function ConsultaResultadoCard({
           {selected ? 'Seleccionado' : 'Seleccionar'}
         </Button>
         {publicIdentifier ? (
-          <Link href={`/fallos/${publicIdentifier}`}>
+          <Link href={`/fallos/${publicIdentifier}?${detailQuery.toString()}`}>
             <Button variant="secondary">Detalle</Button>
           </Link>
         ) : null}

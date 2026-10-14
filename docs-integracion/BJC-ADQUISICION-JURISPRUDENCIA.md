@@ -594,3 +594,7 @@ La herramienta sólo prepara decisiones humanas y exports con detección de vers
 ## Cierre J8 — calidad del corpus actualmente adquirido (2026-10-14)
 
 J8 certificó la integridad técnica de los 6.070 documentos ya adquiridos: cero archivos perdidos/corruptos, cero desconocidos y Search completo. No adquirió jurisprudencia ni midió el universo total disponible. La revisión de Sala histórica continúa pendiente. Toda nueva adquisición cambia el universo certificado y requiere una nueva auditoría; este cierre no autoriza scraping ni equivale a cobertura completa. Ver `BJC-CERTIFICACION-CORPUS-CIVIL.md`.
+
+## J9 — canal manual de Jurisprudencia
+
+J9 incorpora PDFs manuales mediante el pipeline Corpus y los mantiene internos hasta una publicación explícita. No se ejecutó scraper ni adquisición nueva. Los 6.070 documentos certificados existentes están `INTERNAL`, sin asociación a Sentencia; la certificación J8 no es autorización de publicación. No cambiar ACL ni visibilidad sin decisión de publicación explícita. Operación y límites: `BJC-OPERACION-JURISPRUDENCIA.md`.

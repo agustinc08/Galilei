@@ -449,3 +449,9 @@ Generación read-only y sentinelas PostgreSQL/Search iguales; J6.1 sigue intacto
 ## Sprint J8 — certificación final del corpus Civil (2026-10-14)
 
 `CERTIFIED_WITH_KNOWN_GAPS`: manifiesto determinista 6.070/6.070, sin duplicados ni faltantes; 0 `BROKEN`, `UNRESOLVED` o `UNKNOWN`. Archivos y provenance 6.070/6.070 válidos/completos; Search 6.070/6.070 presente, stale 0; Viewer 6.069 `READY` y 1 `TEXT_MISSING`. Se clasificaron las 50 páginas vacías: 46 legítimas y 4 candidatas OCR. Los 1.254 faltantes históricos de Sala están tipados entre revisión humana, ambiguos, sin evidencia propia y texto insuficiente; no se aplicó ninguna decisión ni corrección. PostgreSQL/Search, timestamps y storage no cambiaron. El 100% técnico significa estado conocido del corpus adquirido, no metadata completa ni universo total Civil. Detalle: `BJC-CERTIFICACION-CORPUS-CIVIL.md`; artefactos locales ignorados en `_recovery-work/jurisprudencia-j8/`.
+
+## Sprint J9 — workflow operativo (2026-10-14)
+
+Implementados búsqueda como entrada de Jurisprudencia, filtros progresivos, PDF-first para borrador, ingestión manual por Corpus, campo separado `juez`, acciones explícitas de publicar/retirar/archivar, controles de rol y aviso de posibles duplicados. Migración aditiva J9 aplicada en DEV con backup verificado; no hubo backfill ni escrituras al corpus certificado. Backend 97 PASS/16 omitidos, PostgreSQL J9 1/1 PASS, builds backend/frontend y typecheck PASS; J8 revalidado en `CERTIFIED_WITH_KNOWN_GAPS`.
+
+**PARTIAL por ACL de publicación:** el snapshot DEV tiene 21.109 Sentencias y 0 publicadas; los 6.070 documentos Civil certificados están `INTERNAL` y sin asociación `JURISPRUDENCIA/SENTENCIA`. No se habilitó su lectura pública masiva sin decisión ACL. Browser E2E/UAT pendiente. Contrato y evidencia: `BJC-OPERACION-JURISPRUDENCIA.md` y `_recovery-work/jurisprudencia-j9/` (ignorado).

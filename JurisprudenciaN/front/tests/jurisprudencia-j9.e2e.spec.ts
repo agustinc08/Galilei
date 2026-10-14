@@ -1,0 +1,67 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { expect, test } from '@playwright/test';
+
+const credentials = JSON.parse(readFileSync(resolve(process.cwd(), '../../_recovery-work/sprint10/acceptance/credentials.json'), 'utf8')) as {
+  accounts: Record<string, { email: string; password: string }>;
+};
+const apiBase = 'http://localhost:4001/api';
+
+async function signIn(page: import('@playwright/test').Page, account: { email: string; password: string }) {
+  await page.goto('/login');
+  await page.getByLabel('Correo electrónico').fill(account.email);
+  await page.getByLabel('Contraseña').fill(account.password);
+  await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+}
+
+test('J9 lector entra a Jurisprudencia, filtra sin controles de operador y mantiene la consulta', async ({ page, request }) => {
+  await signIn(page, credentials.accounts.reader);
+  await expect(page.getByRole('link', { name: 'Jurisprudencia', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Jurisprudencia', exact: true }).click();
+  await expect(page).toHaveURL(/\/consulta$/u);
+  await expect(page.getByRole('heading', { name: 'Jurisprudencia', exact: true })).toBeVisible();
+  await expect(page.getByLabel('TemaTodos los temas')).toBeVisible();
+  await expect(page.getByLabel('SalaTodas las salas')).toBeVisible();
+  await expect(page.getByLabel('Fecha desde')).toBeVisible();
+  await expect(page.getByLabel('Fecha hasta')).toBeVisible();
+  await expect(page.getByLabel('Tipo de falloTodos los tipos')).toBeVisible();
+  await expect(page.getByLabel('Expediente')).toBeVisible();
+  await expect(page.getByRole('button', { name: '+ Nuevo fallo' })).toHaveCount(0);
+  await expect(page.getByText('Últimos fallos publicados')).toBeVisible();
+  await expect(page.getByText('0 resultados')).toBeVisible();
+
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.screenshot({ path: resolve(process.cwd(), '../../_recovery-work/jurisprudencia-j9/reader-search-1366.png'), fullPage: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.screenshot({ path: resolve(process.cwd(), '../../_recovery-work/jurisprudencia-j9/reader-search-1920.png'), fullPage: true });
+
+  await page.getByRole('button', { name: 'Más filtros' }).click();
+  await expect(page.getByLabel('N° sumario')).toBeVisible();
+  await page.getByLabel('Expediente').fill('EXP-J9-SINTETICO');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(page).toHaveURL(/expediente=EXP-J9-SINTETICO/u);
+  await expect(page.getByText('No encontramos resultados con esos filtros.')).toBeVisible();
+
+  const login = await request.post(`${apiBase}/auth/login`, { data: credentials.accounts.reader });
+  expect(login.ok()).toBeTruthy();
+  const token = (await login.json()).accessToken as string;
+  const headers = { Authorization: `Bearer ${token}` };
+  for (const [method, route] of [
+    ['POST', '/sentencias'], ['PATCH', '/sentencias/1'], ['PATCH', '/sentencias/1/publicar'],
+    ['DELETE', '/sentencias/1'], ['POST', '/archivos/upload/jurisprudencia'],
+  ] as const) {
+    const response = await request.fetch(`${apiBase}${route}`, { method, headers });
+    expect(response.status(), `${method} ${route}`).toBe(403);
+  }
+});
+
+test('J9 operator can reach PDF-first intake and invalid file is rejected', async ({ page }) => {
+  await signIn(page, credentials.accounts.operator);
+  await page.getByRole('link', { name: 'Jurisprudencia', exact: true }).click();
+  await expect(page.getByRole('button', { name: '+ Nuevo fallo' })).toBeVisible();
+  await page.getByRole('button', { name: '+ Nuevo fallo' }).click();
+  await expect(page.getByRole('heading', { name: 'Nuevo fallo' })).toBeVisible();
+  await page.locator('input[type="file"]').setInputFiles({ name: 'not-a-pdf.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a PDF') });
+  await page.getByRole('button', { name: 'Subir PDF y continuar' }).click();
+  await expect(page.getByText('No pudimos procesar este archivo. Comprueba que sea un PDF válido y vuelve a intentarlo.')).toBeVisible();
+});

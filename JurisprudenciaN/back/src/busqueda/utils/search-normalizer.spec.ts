@@ -1,8 +1,15 @@
-import { buildSumarioSearchData, normalizeQueryText, normalizeSearchText } from './search-normalizer';
+import {
+  buildSentenciaSearchData,
+  buildSumarioSearchData,
+  normalizeQueryText,
+  normalizeSearchText,
+} from './search-normalizer';
 
 describe('SearchNormalizer', () => {
   it('removes vowel accents but preserves enye as a distinct letter', () => {
-    expect(normalizeSearchText('prescripción')).toBe(normalizeSearchText('prescripcion'));
+    expect(normalizeSearchText('prescripción')).toBe(
+      normalizeSearchText('prescripcion'),
+    );
     expect(normalizeSearchText('Peña')).toBe('peña');
     expect(normalizeSearchText('Pena')).toBe('pena');
     expect(normalizeSearchText('Peña')).not.toBe(normalizeSearchText('Pena'));
@@ -13,13 +20,28 @@ describe('SearchNormalizer', () => {
   });
 
   it('keeps query operators and punctuation while normalizing query text', () => {
-    expect(normalizeQueryText(' DAÑO + "Prescripción" ')).toBe('daño + "prescripcion"');
+    expect(normalizeQueryText(' DAÑO + "Prescripción" ')).toBe(
+      'daño + "prescripcion"',
+    );
   });
 
   it('writes normalized search data using Spanish-safe normalization', () => {
-    const result = buildSumarioSearchData({ numeroSumario: '1', tema: 'Pena', texto: 'Peña y prescripción' });
+    const result = buildSumarioSearchData({
+      numeroSumario: '1',
+      tema: 'Pena',
+      texto: 'Peña y prescripción',
+    });
     expect(result.textoBusquedaNormalizado).toContain('peña');
     expect(result.textoBusquedaNormalizado).toContain('pena');
     expect(result.textoBusquedaNormalizado).toContain('prescripcion');
+  });
+
+  it('includes the separately captured judge in global sentence search text', () => {
+    const result = buildSentenciaSearchData({
+      juez: 'Jueza Civil de primera instancia',
+    });
+    expect(result.textoBusquedaNormalizado).toContain(
+      'jueza civil de primera instancia',
+    );
   });
 });

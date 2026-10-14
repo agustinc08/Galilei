@@ -109,18 +109,23 @@ export function BusquedaJurisprudenciaForm({
           </div>
         </div>
 
+        <div className={consultaStyles.filtersGrid}>
+          <Select label="Tema" value={values.tema ?? ''} onChange={(event) => setField('tema', event.target.value)} options={[{ label: 'Todos los temas', value: '' }, ...temas.map((item) => ({ label: item, value: item }))]} />
+          <Select label="Sala" value={values.sala ?? ''} onChange={(event) => setField('sala', event.target.value)} options={[{ label: 'Todas las salas', value: '' }, ...salas.map((item) => ({ label: item, value: item }))]} />
+          <Input label="Fecha desde" type="date" value={values.fechaDesde ?? ''} onChange={(event) => setField('fechaDesde', event.target.value)} />
+          <Input label="Fecha hasta" type="date" value={values.fechaHasta ?? ''} onChange={(event) => setField('fechaHasta', event.target.value)} />
+          <Select label="Tipo de fallo" value={values.tipoFallo ?? ''} onChange={(event) => setField('tipoFallo', event.target.value)} options={[{ label: 'Todos los tipos', value: '' }, ...tiposFallo.map((item) => ({ label: item, value: item }))]} />
+          <Input label="Expediente" value={values.expediente ?? ''} onChange={(event) => setField('expediente', event.target.value)} />
+        </div>
+
         {showAdvanced ? (
           <div className={consultaStyles.filtersGrid}>
             <Input label="Frase exacta" value={values.fraseExacta ?? ''} onChange={(event) => setField('fraseExacta', event.target.value)} />
             <Input label="Excluir" value={values.excluir ?? ''} onChange={(event) => setField('excluir', event.target.value)} />
             <Select label="Operador" value={values.operador ?? 'AND'} onChange={(event) => setField('operador', event.target.value)} options={[{ label: 'AND', value: 'AND' }, { label: 'OR', value: 'OR' }]} />
             <Select label="Buscar en" value={values.buscarEn ?? 'todo'} onChange={(event) => setField('buscarEn', event.target.value)} options={buscarEnOptions} />
-            <Select label="Tema" value={values.tema ?? ''} onChange={(event) => setField('tema', event.target.value)} options={[{ label: 'Todos', value: '' }, ...temas.map((item) => ({ label: item, value: item }))]} />
-            <Select label="Sala" value={values.sala ?? ''} onChange={(event) => setField('sala', event.target.value)} options={[{ label: 'Todas', value: '' }, ...salas.map((item) => ({ label: item, value: item }))]} />
-            <Select label="Tipo de fallo" value={values.tipoFallo ?? ''} onChange={(event) => setField('tipoFallo', event.target.value)} options={[{ label: 'Todos', value: '' }, ...tiposFallo.map((item) => ({ label: item, value: item }))]} />
             <Select label="Tribunal origen" value={values.tribunalOrigen ?? ''} onChange={(event) => setField('tribunalOrigen', event.target.value)} options={[{ label: 'Todos', value: '' }, ...tribunalesOrigen.map((item) => ({ label: item, value: item }))]} />
             <Input label="Magistrados" value={values.magistrados ?? ''} onChange={(event) => setField('magistrados', event.target.value)} />
-            <Input label="Expediente" value={values.expediente ?? ''} onChange={(event) => setField('expediente', event.target.value)} />
             <Input label="Carátula" value={values.caratula ?? ''} onChange={(event) => setField('caratula', event.target.value)} />
             <Input label="Actor" value={values.actor ?? ''} onChange={(event) => setField('actor', event.target.value)} />
             <Input label="Demandado" value={values.demandado ?? ''} onChange={(event) => setField('demandado', event.target.value)} />

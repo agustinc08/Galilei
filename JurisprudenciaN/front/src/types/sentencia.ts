@@ -153,7 +153,9 @@ export type Sentencia = {
   anonimizado?: boolean;
   objeto?: string | null;
   magistrados?: string | null;
+  juez?: string | null;
   publicado: boolean;
+  publishedAt?: string | null;
   activo: boolean;
   observacionesInternas?: string | null;
   resumenIa?: string | null;
@@ -209,6 +211,7 @@ export type SentenciaFormValues = {
   demandado: string;
   objeto: string;
   magistrados: string;
+  juez: string;
   observacionesInternas: string;
   estadoCarga: string;
   publicado: boolean;

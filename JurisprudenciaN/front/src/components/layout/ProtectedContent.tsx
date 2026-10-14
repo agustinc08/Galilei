@@ -20,7 +20,6 @@ export function ProtectedContent({
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, isLoading, user } = useAuth();
-  const role = user?.rol.nombre ?? '';
   const routeRoles = pathname === '/corpus'
     ? ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA']
     : pathname.startsWith('/admin/logs')
@@ -31,7 +30,9 @@ export function ProtectedContent({
         ? ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA']
         : pathname.startsWith('/digesto')
           ? ['ADMIN', 'OPERADOR', 'DIGESTO']
-          : pathname.startsWith('/jurisprudencia') || pathname.startsWith('/sentencias') || pathname.startsWith('/sumarios')
+          : pathname.startsWith('/jurisprudencia')
+            ? ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO']
+            : pathname.startsWith('/sentencias') || pathname.startsWith('/sumarios')
             ? ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA']
             : undefined;
   const effectiveRoles = allowedRoles ?? routeRoles;

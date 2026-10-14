@@ -54,6 +54,8 @@ function buildPublicTimeline(data: FichaSentencia) {
 export function FalloPublicoViewer({ identifier }: Props) {
   const searchParams = useSearchParams();
   const highlightQuery = searchParams.get('q') ?? '';
+  const requestedReturn = searchParams.get('returnTo') ?? '';
+  const backHref = requestedReturn.startsWith('/consulta') ? requestedReturn : `/consulta${highlightQuery ? `?q=${encodeURIComponent(highlightQuery)}` : ''}`;
   const [data, setData] = useState<FichaSentencia | null>(null);
   const [relacionados, setRelacionados] = useState<FalloRelacionadoPublico[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -144,7 +146,7 @@ export function FalloPublicoViewer({ identifier }: Props) {
     <DocumentoViewerLayout
       title={title}
       subtitle={subtitle}
-      backHref={`/consulta${highlightQuery ? `?q=${encodeURIComponent(highlightQuery)}` : ''}`}
+      backHref={backHref}
       backLabel="Volver a consulta"
       sidePanel={
         <>

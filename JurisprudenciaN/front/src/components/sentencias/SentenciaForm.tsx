@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import styles from './sentencias.module.css';
 import { Button } from '@/components/ui/Button';
-import { Checkbox } from '@/components/ui/Checkbox';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { StatusMessage } from '@/components/ui/StatusMessage';
@@ -139,6 +138,7 @@ export function SentenciaForm({
         <Input label="Demandado" value={values.demandado} onChange={(event) => update('demandado', event.target.value)} />
         <Input label="Objeto" value={values.objeto} onChange={(event) => update('objeto', event.target.value)} />
         <Input label="Magistrados" value={values.magistrados} onChange={(event) => update('magistrados', event.target.value)} />
+        <Input label="Juez" value={values.juez} onChange={(event) => update('juez', event.target.value)} />
       </div>
 
       <Textarea
@@ -147,15 +147,7 @@ export function SentenciaForm({
         onChange={(event) => update('observacionesInternas', event.target.value)}
       />
 
-      <div className={styles.checkboxGrid}>
-        <Input
-          label="Estado de carga"
-          value={values.estadoCarga}
-          onChange={(event) => update('estadoCarga', event.target.value)}
-        />
-        <Checkbox label="Publicada" checked={values.publicado} onChange={(event) => update('publicado', event.target.checked)} />
-        <Checkbox label="Activa" checked={values.activo} onChange={(event) => update('activo', event.target.checked)} />
-      </div>
+      <p role="note">Los cambios se guardan como borrador. La publicación y el archivo se gestionan con acciones explícitas.</p>
 
       <div className={styles.inlineActions}>
         <Button type="submit" disabled={isSaving}>

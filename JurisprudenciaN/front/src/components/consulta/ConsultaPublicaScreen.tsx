@@ -55,6 +55,7 @@ function ConsultaPublicaScreenContent() {
   const [pdfMessage, setPdfMessage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [temas, setTemas] = useState<string[]>([]);
+  const [recentlyPublished, setRecentlyPublished] = useState<Array<{ id: number; slugPublico: string | null; caratula: string | null; expediente: string | null; sala: string | null; fecha: string | null; publishedAt: string | null }>>([]);
 
   const filters = useMemo<ConsultaPublicaFilters>(
     () => ({
@@ -113,6 +114,14 @@ function ConsultaPublicaScreenContent() {
 
   useEffect(() => {
     let active = true;
+    void api.get<{ data: typeof recentlyPublished }>('/public/sentencias/recientes', { skipAuth: true })
+      .then((response) => { if (active) setRecentlyPublished(response.data); })
+      .catch(() => { if (active) setRecentlyPublished([]); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
 
     const load = async () => {
       setIsLoading(true);
@@ -129,13 +138,9 @@ function ConsultaPublicaScreenContent() {
 
         if (!active) return;
         setResult(response);
-      } catch (loadError) {
+      } catch {
         if (!active) return;
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'No se pudo ejecutar la consulta pública.',
-        );
+        setError('No pudimos completar la búsqueda. Intenta nuevamente.');
       } finally {
         if (active) {
           setIsLoading(false);
@@ -220,12 +225,17 @@ function ConsultaPublicaScreenContent() {
             </Link>
           </div>
         ) : null}
-        <div className={styles.heroKicker}>Consulta pública de jurisprudencia</div>
-        <h1 className={styles.heroTitle}>Sistema Web de Consulta de Jurisprudencia</h1>
+        <div className={styles.heroKicker}>Consulta pública</div>
+        <h1 className={styles.heroTitle}>Jurisprudencia</h1>
         <p className={styles.heroSubtitle}>
-          Cámara Nacional de Apelaciones en lo Civil. Búsqueda por texto libre,
-          sala, fecha, tribunal, tipo de fallo, tema, magistrados y expediente.
+          Busca fallos y sumarios por tema, texto, sala, fecha, tipo o expediente.
         </p>
+        {user && ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user.rol.nombre) ? (
+          <div className={styles.publicHeader}>
+            <Link href="/sentencias"><Button variant="secondary">Gestionar fallos</Button></Link>
+            <Link href="/sentencias/nueva"><Button>+ Nuevo fallo</Button></Link>
+          </div>
+        ) : null}
       </section>
 
       <BusquedaJurisprudenciaForm
@@ -243,6 +253,22 @@ function ConsultaPublicaScreenContent() {
         mostrarGuardarBusqueda={false}
         mostrarFiltrosInternos={false}
       />
+
+      {recentlyPublished.length ? (
+        <Card>
+          <h2>Últimos fallos publicados</h2>
+          <ul>
+            {recentlyPublished.map((item) => (
+              <li key={item.id}>
+                {item.slugPublico ? <Link href={`/fallos/${item.slugPublico}`}>{item.caratula || item.expediente || 'Fallo publicado'}</Link> : <strong>{item.caratula || item.expediente || 'Fallo publicado'}</strong>}
+                <span> · {item.sala || 'Sin Sala informada'} · {item.fecha ? new Date(item.fecha).toLocaleDateString('es-AR') : 'Fecha no informada'}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : (
+        <Card><h2>Últimos fallos publicados</h2><p>Todavía no hay fallos incorporados recientemente.</p></Card>
+      )}
 
       <div className={styles.toolbar}>
         <div className={styles.toolbarLeft}>
@@ -298,14 +324,6 @@ function ConsultaPublicaScreenContent() {
         />
       ) : null}
 
-      {result && result.meta.total > 300 ? (
-        <div className={styles.alert}>
-          La búsqueda arroja demasiados resultados. Se muestran los primeros{' '}
-          {result.meta.pageSize} sumarios. Si lo desea, refine la búsqueda utilizando
-          intervalos de fecha.
-        </div>
-      ) : null}
-
       {isLoading ? (
         <LoadingSpinner label="Consultando sumarios publicados..." />
       ) : error ? (
@@ -318,8 +336,10 @@ function ConsultaPublicaScreenContent() {
         <EmptyState title="Sin datos" description="No se pudo cargar la consulta." />
       ) : result.data.length === 0 ? (
         <EmptyState
-          title="Sin resultados"
-          description="Intenta usar menos filtros o términos más generales."
+          title="No encontramos resultados con esos filtros."
+          description="Modifica la búsqueda o limpia los filtros para probar de nuevo."
+          actionLabel="Limpiar filtros"
+          actionHref="/consulta"
         />
       ) : (
         <>

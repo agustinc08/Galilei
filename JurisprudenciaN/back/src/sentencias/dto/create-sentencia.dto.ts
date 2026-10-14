@@ -100,6 +100,12 @@ export class CreateSentenciaDto {
   @MaxLength(500)
   magistrados?: string;
 
+  @ApiPropertyOptional({ example: 'Dra. María Pérez' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  juez?: string;
+
   @ApiPropertyOptional({ example: 'Notas internas no publicas' })
   @IsOptional()
   @IsString()
