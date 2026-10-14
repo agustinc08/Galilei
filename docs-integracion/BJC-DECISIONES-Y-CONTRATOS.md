@@ -168,3 +168,10 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 3. J6 analizó 194 grupos (148 SHA únicos): 8 `SINGLE_DECISION_PRIMARY_CASE`, 174 `MULTI_CASE_SINGLE_DECISION`, 0 `TRUE_MULTI_DECISION_PDF`, 3 ambiguos y 9 insuficientes. Las identidades primaria confirmadas/probables son propuestas para revisión, no links aplicados.
 4. Las 127 colisiones de metadata quedan en propuestas: 107 `UNKNOWN`, 17 filas fuente múltiples, 2 conflictos entre fuente y Corpus y 1 conflicto de año de expediente. No hay arreglo seguro ni corrección aplicada; 20 requieren decisión humana.
 5. No se añade entidad `LegalDecision`, relación ni migración con estos resultados. El paquete J6 es local/ignorado y la decisión de schema permanece pendiente de coordinación entre ramas.
+
+## Decisión Sprint J6.1 — workflow de revisión humana (2026-10-14)
+
+1. Las decisiones humanas se capturan fuera de DB y se mantienen separadas de la propuesta de máquina. El ledger registra `groupId`, `decision`, `reviewer`, `reviewedAt`, `notes`, confianza/tiempo opcionales, `reviewInputHash`, Git SHA y referencia al snapshot J6.
+2. El paquete reproducible usa review-v3 y evidencia J5 por SHA; muestra 187 filas estructuralmente listas (P0=8, P1=174, P2=5). Seis SHA enlazan a un CorpusDocument del grafo J5; en 181 casos el snapshot de revisión no tiene candidato exacto. Las 127 colisiones de metadata, incluidas 107 sin procedencia, permanecen fuera de la ronda.
+3. La UI HTML es local y estática, sin requests externos ni persistencia DB. La persona exporta checkpoint CSV/JSON y puede importarlo para continuar; hash/snapshot diferentes se rechazan. Validar o resumir sólo genera archivos en recovery.
+4. J6.1 queda `READY FOR HUMAN UAT`, no CLOSED. No hay decisiones reales, métricas de acuerdo humano ni cambios Prisma/Corpus/Search/Viewer. No aplicar las decisiones sin un dry-run aprobado posterior.

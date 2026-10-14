@@ -405,3 +405,9 @@ Readiness: 2 listos para decisión humana, 106 sin candidato, 6 con datos críti
 J6 completó el análisis reproducible de los 321 grupos y la cola de revisión V3. Pruebas Node: 15/15 PASS; artefactos deterministas: 11/11 PASS. La DB DEV se mantuvo read-only, con cero intentos de mutación y sentinelas sin cambios. Search: 17.078 documentos, 18.799.500 tokens, 0 stale, 0 diferencias en muestra 100; `verifiedAt` estable.
 
 Resultado `PARTIAL`: la identidad primaria tiene 187 propuestas confirmadas/probables listas para revisión estructural y 134 ambiguas/limitadas; las 127 colisiones de metadata incluyen 107 sin procedencia suficiente. No se aplicaron links ni correcciones, y no se decidió schema. Paquete local ignorado: `_recovery-work/jurisprudencia-j6/`.
+
+## Sprint J6.1 — estado vigente (2026-10-14)
+
+Review tool local listo para revisión humana: 187 casos (P0 8, P1 174, P2 5), sample-20 determinista (P0 4/P1 12/P2 4), 14/14 tests J6.1 PASS (29/29 junto con J6). Snapshot J6.1 `52bdf980e36c84d5cd1f1452bb76f577ac75f4828dd47b425da7f0d7efd669a8`; referencia J6 `541be6ede30c0f0e9cd68a9fbb7bad23d23b3f3f77d7f67ee354d686ecc3b3ac`. La app es HTML offline; no hace writes DB. Se verifica igualdad de sentinelas heredados de J6 y paridad Search (17.078/18.799.500, stale 0, mismatch 0/100, verifiedAt intacto).
+
+**J6.1: READY FOR HUMAN UAT. Human UAT: NOT STARTED.** No inventar decisiones/acuerdo ni declarar cierre antes de revisar los 20 casos. Los 107 `UNKNOWN` de metadata continúan separados, sin correcciones ni asociaciones.

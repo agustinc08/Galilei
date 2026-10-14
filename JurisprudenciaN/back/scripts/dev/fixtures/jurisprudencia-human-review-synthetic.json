@@ -1,0 +1,312 @@
+{
+  "schemaVersion": "galilei-human-review-input-v1",
+  "mission": "SYNTHETIC TEST DATA",
+  "reviewInputHash": "3f19c08656bf341be8d9f8d153dcb2c2632ce1f12e0d774180f9feb76226e77a",
+  "snapshot": {
+    "gitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "j6SummarySha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "counts": {
+    "totalReviewable": 10,
+    "priorities": {
+      "P0": 2,
+      "P1": 6,
+      "P2": 2,
+      "P3": 0
+    }
+  },
+  "cases": [
+    {
+      "groupId": "SYNTH-001",
+      "priority": "P0",
+      "classification": "SINGLE_DECISION_PRIMARY_CASE",
+      "source": {
+        "caseNumber": "1/2020",
+        "year": 2020,
+        "chamber": "A"
+      },
+      "machineProposal": {
+        "primaryCase": "1/2020"
+      }
+    },
+    {
+      "groupId": "SYNTH-002",
+      "priority": "P0",
+      "classification": "SINGLE_DECISION_PRIMARY_CASE",
+      "source": {
+        "caseNumber": "2/2020",
+        "year": 2020,
+        "chamber": "B"
+      },
+      "machineProposal": {
+        "primaryCase": "2/2020"
+      }
+    },
+    {
+      "groupId": "SYNTH-003",
+      "priority": "P1",
+      "classification": "MULTI_CASE_SINGLE_DECISION",
+      "source": {
+        "caseNumber": "3/2021",
+        "year": 2021,
+        "chamber": "A"
+      },
+      "machineProposal": {
+        "primaryCase": "3/2021"
+      }
+    },
+    {
+      "groupId": "SYNTH-004",
+      "priority": "P1",
+      "classification": "MULTI_CASE_SINGLE_DECISION",
+      "source": {
+        "caseNumber": "4/2021",
+        "year": 2021,
+        "chamber": "B"
+      },
+      "machineProposal": {
+        "primaryCase": "4/2021"
+      }
+    },
+    {
+      "groupId": "SYNTH-005",
+      "priority": "P1",
+      "classification": "MULTI_CASE_SINGLE_DECISION",
+      "source": {
+        "caseNumber": "5/2022",
+        "year": 2022,
+        "chamber": "C"
+      },
+      "machineProposal": {
+        "primaryCase": "5/2022"
+      }
+    },
+    {
+      "groupId": "SYNTH-006",
+      "priority": "P1",
+      "classification": "MULTI_CASE_SINGLE_DECISION",
+      "source": {
+        "caseNumber": "6/2022",
+        "year": 2022,
+        "chamber": "D"
+      },
+      "machineProposal": {
+        "primaryCase": "6/2022"
+      }
+    },
+    {
+      "groupId": "SYNTH-007",
+      "priority": "P1",
+      "classification": "MULTI_CASE_SINGLE_DECISION",
+      "source": {
+        "caseNumber": "7/2023",
+        "year": 2023,
+        "chamber": "A"
+      },
+      "machineProposal": {
+        "primaryCase": "7/2023"
+      }
+    },
+    {
+      "groupId": "SYNTH-008",
+      "priority": "P1",
+      "classification": "MULTI_CASE_SINGLE_DECISION",
+      "source": {
+        "caseNumber": "8/2023",
+        "year": 2023,
+        "chamber": "B"
+      },
+      "machineProposal": {
+        "primaryCase": "8/2023"
+      }
+    },
+    {
+      "groupId": "SYNTH-009",
+      "priority": "P2",
+      "classification": "INSUFFICIENT",
+      "source": {
+        "caseNumber": "9/2024",
+        "year": 2024,
+        "chamber": "C"
+      },
+      "machineProposal": {
+        "primaryCase": "9/2024"
+      }
+    },
+    {
+      "groupId": "SYNTH-010",
+      "priority": "P2",
+      "classification": "INSUFFICIENT",
+      "source": {
+        "caseNumber": "10/2024",
+        "year": 2024,
+        "chamber": "D"
+      },
+      "machineProposal": {
+        "primaryCase": "10/2024"
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "groupId": "SYNTH-001",
+      "status": "REVIEWED",
+      "decision": "CONFIRM_PRIMARY_IDENTITY",
+      "reviewer": "TEST-REVIEWER",
+      "reviewedAt": "2026-10-14T10:00:00.000Z",
+      "notes": "",
+      "confidence": "CONFIRMED",
+      "machineProposal": {
+        "primaryCase": "1/2020"
+      },
+      "reviewInputHash": "3f19c08656bf341be8d9f8d153dcb2c2632ce1f12e0d774180f9feb76226e77a",
+      "gitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "j6SnapshotRef": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "timeSpentSeconds": 21
+    },
+    {
+      "groupId": "SYNTH-002",
+      "status": "REVIEWED",
+      "decision": "CONFIRM_MULTI_CASE_SINGLE_DECISION",
+      "reviewer": "TEST-REVIEWER",
+      "reviewedAt": "2026-10-14T10:01:00.000Z",
+      "notes": "",
+      "confidence": "CONFIRMED",
+      "machineProposal": {
+        "primaryCase": "2/2020"
+      },
+      "reviewInputHash": "3f19c08656bf341be8d9f8d153dcb2c2632ce1f12e0d774180f9feb76226e77a",
+      "gitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "j6SnapshotRef": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "timeSpentSeconds": 35
+    },
+    {
+      "groupId": "SYNTH-003",
+      "status": "REVIEWED",
+      "decision": "SAME_DECISION_DIFFERENT_REPRESENTATION",
+      "reviewer": "TEST-REVIEWER",
+      "reviewedAt": "2026-10-14T10:02:00.000Z",
+      "notes": "",
+      "confidence": "PROBABLE",
+      "machineProposal": {
+        "primaryCase": "3/2021"
+      },
+      "reviewInputHash": "3f19c08656bf341be8d9f8d153dcb2c2632ce1f12e0d774180f9feb76226e77a",
+      "gitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "j6SnapshotRef": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "timeSpentSeconds": 42
+    },
+    {
+      "groupId": "SYNTH-004",
+      "status": "REVIEWED",
+      "decision": "SAME_DECISION_DIFFERENT_VERSION",
+      "reviewer": "TEST-REVIEWER",
+      "reviewedAt": "2026-10-14T10:03:00.000Z",
+      "notes": "",
+      "confidence": "PROBABLE",
+      "machineProposal": {
+        "primaryCase": "4/2021"
+      },
+      "reviewInputHash": "3f19c08656bf341be8d9f8d153dcb2c2632ce1f12e0d774180f9feb76226e77a",
+      "gitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "j6SnapshotRef": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "timeSpentSeconds": 48
+    },
+    {
+      "groupId": "SYNTH-005",
+      "status": "REVIEWED",
+      "decision": "KEEP_SEPARATE_RELATED",
+      "reviewer": "TEST-REVIEWER",
+      "reviewedAt": "2026-10-14T10:04:00.000Z",
+      "notes": "",
+      "confidence": "CONFIRMED",
+      "machineProposal": {
+        "primaryCase": "5/2022"
+      },
+      "reviewInputHash": "3f19c08656bf341be8d9f8d153dcb2c2632ce1f12e0d774180f9feb76226e77a",
+      "gitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "j6SnapshotRef": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "timeSpentSeconds": 53
+    },
+    {
+      "groupId": "SYNTH-006",
+      "status": "REVIEWED",
+      "decision": "SOURCE_METADATA_WRONG",
+      "reviewer": "TEST-REVIEWER",
+      "reviewedAt": "2026-10-14T10:05:00.000Z",
+      "notes": "",
+      "confidence": "PROBABLE",
+      "machineProposal": {
+        "primaryCase": "6/2022"
+      },
+      "reviewInputHash": "3f19c08656bf341be8d9f8d153dcb2c2632ce1f12e0d774180f9feb76226e77a",
+      "gitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "j6SnapshotRef": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "timeSpentSeconds": 32
+    },
+    {
+      "groupId": "SYNTH-007",
+      "status": "REVIEWED",
+      "decision": "CORPUS_METADATA_WRONG",
+      "reviewer": "TEST-REVIEWER",
+      "reviewedAt": "2026-10-14T10:06:00.000Z",
+      "notes": "",
+      "confidence": "PROBABLE",
+      "machineProposal": {
+        "primaryCase": "7/2023"
+      },
+      "reviewInputHash": "3f19c08656bf341be8d9f8d153dcb2c2632ce1f12e0d774180f9feb76226e77a",
+      "gitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "j6SnapshotRef": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "timeSpentSeconds": 28
+    },
+    {
+      "groupId": "SYNTH-008",
+      "status": "REVIEWED",
+      "decision": "AMBIGUOUS",
+      "reviewer": "TEST-REVIEWER",
+      "reviewedAt": "2026-10-14T10:07:00.000Z",
+      "notes": "Two docket candidates remain plausible.",
+      "confidence": "UNSURE",
+      "machineProposal": {
+        "primaryCase": "8/2023"
+      },
+      "reviewInputHash": "3f19c08656bf341be8d9f8d153dcb2c2632ce1f12e0d774180f9feb76226e77a",
+      "gitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "j6SnapshotRef": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "timeSpentSeconds": 67
+    },
+    {
+      "groupId": "SYNTH-009",
+      "status": "REVIEWED",
+      "decision": "INSUFFICIENT_EVIDENCE",
+      "reviewer": "TEST-REVIEWER",
+      "reviewedAt": "2026-10-14T10:08:00.000Z",
+      "notes": "No resolutory excerpt in the synthetic sample.",
+      "confidence": "UNSURE",
+      "machineProposal": {
+        "primaryCase": "9/2024"
+      },
+      "reviewInputHash": "3f19c08656bf341be8d9f8d153dcb2c2632ce1f12e0d774180f9feb76226e77a",
+      "gitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "j6SnapshotRef": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "timeSpentSeconds": 72
+    },
+    {
+      "groupId": "SYNTH-010",
+      "status": "SKIPPED",
+      "decision": "",
+      "reviewer": "TEST-REVIEWER",
+      "reviewedAt": "2026-10-14T10:09:00.000Z",
+      "notes": "",
+      "confidence": "",
+      "machineProposal": {
+        "primaryCase": "10/2024"
+      },
+      "reviewInputHash": "3f19c08656bf341be8d9f8d153dcb2c2632ce1f12e0d774180f9feb76226e77a",
+      "gitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "j6SnapshotRef": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "timeSpentSeconds": 12
+    }
+  ]
+}

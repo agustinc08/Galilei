@@ -289,3 +289,7 @@ J5 reconstruyó la cola, el grafo y el paquete HTML/CSV, pero los 106 candidatos
 ## Continuidad después de Sprint J6 (2026-10-14)
 
 Siguiente paso: `J6.1 — HUMAN REVIEW UAT` sobre las 187 filas `HUMAN_STRUCTURAL_READY`, usando review-v3 HTML/CSV y registrando decisiones fuera de la DB. Revisar separadamente las 134 filas ambiguas/limitadas. Mantener las 107 colisiones sin evidencia como `UNKNOWN`; no inferir procedencia ni corregir metadata. No aplicar links ni diseñar migraciones `LegalDecision` hasta disponer de decisiones verificadas y contrato coordinado entre ramas. El paquete de J6 está en `_recovery-work/jurisprudencia-j6/` y no se versiona.
+
+## Continuidad después de Sprint J6.1 (2026-10-14)
+
+Fase A terminó `READY FOR HUMAN UAT`. La persona debe revisar primero la muestra de 20 casos en `_recovery-work/jurisprudencia-j61/sample-20.json`, usando el filtro “Ver sólo la muestra UAT de 20 casos” de la UI y exportando checkpoints. Aún no hay decisiones humanas. Al recibir el ledger, ejecutar `validate` y `summary`, analizar acuerdo sólo sobre la muestra revisada y recoger observaciones sobre evidencia/tiempo. Sólo si UAT pasa, iniciar `J6.2 — SAFE DECISION APPLICATION DRY RUN`; traducir decisiones a acciones y rollback propuestos, sin writes y con análisis de colisión Copernic. No cambiar schema antes de coordinar ramas.
