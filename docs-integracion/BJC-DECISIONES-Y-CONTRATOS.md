@@ -175,3 +175,10 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 2. El paquete reproducible usa review-v3 y evidencia J5 por SHA; muestra 187 filas estructuralmente listas (P0=8, P1=174, P2=5). Seis SHA enlazan a un CorpusDocument del grafo J5; en 181 casos el snapshot de revisión no tiene candidato exacto. Las 127 colisiones de metadata, incluidas 107 sin procedencia, permanecen fuera de la ronda.
 3. La UI HTML es local y estática, sin requests externos ni persistencia DB. La persona exporta checkpoint CSV/JSON y puede importarlo para continuar; hash/snapshot diferentes se rechazan. Validar o resumir sólo genera archivos en recovery.
 4. J6.1 queda `READY FOR HUMAN UAT`, no CLOSED. No hay decisiones reales, métricas de acuerdo humano ni cambios Prisma/Corpus/Search/Viewer. No aplicar las decisiones sin un dry-run aprobado posterior.
+
+## Contrato analítico J7 — calidad, provenance y duplicados (2026-10-14)
+
+1. Las bandas de calidad y prioridades J7 son clasificación explicable de auditoría, no verdad jurídica ni dato persistido. `REVIEW` indica revisión sugerida; no implica que el documento sea incorrecto.
+2. Un SHA igual prueba identidad de bytes, pero no identidad de decisión. Texto normalizado igual con SHA distinto indica representaciones candidatas; no autoriza borrar, fusionar ni enlazar CorpusDocuments.
+3. Claves jurídicas incompletas o múltiples permanecen candidatas. Provenance completa describe trazabilidad disponible, no validación independiente de la fuente.
+4. J7 produce propuestas P1/P2 sin aplicarlas; cualquier reparación exige un sprint posterior con dry-run y controles explícitos. J6.1 conserva su estado `READY FOR HUMAN UAT`; ningún resultado automático equivale a decisión humana.

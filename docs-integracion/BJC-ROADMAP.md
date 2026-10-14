@@ -293,3 +293,7 @@ Siguiente paso: `J6.1 — HUMAN REVIEW UAT` sobre las 187 filas `HUMAN_STRUCTURA
 ## Continuidad después de Sprint J6.1 (2026-10-14)
 
 Fase A terminó `READY FOR HUMAN UAT`. La persona debe revisar primero la muestra de 20 casos en `_recovery-work/jurisprudencia-j61/sample-20.json`, usando el filtro “Ver sólo la muestra UAT de 20 casos” de la UI y exportando checkpoints. Aún no hay decisiones humanas. Al recibir el ledger, ejecutar `validate` y `summary`, analizar acuerdo sólo sobre la muestra revisada y recoger observaciones sobre evidencia/tiempo. Sólo si UAT pasa, iniciar `J6.2 — SAFE DECISION APPLICATION DRY RUN`; traducir decisiones a acciones y rollback propuestos, sin writes y con análisis de colisión Copernic. No cambiar schema antes de coordinar ramas.
+
+## Continuidad después de Sprint J7 (2026-10-14)
+
+J7 cerró la auditoría read-only del snapshot: 6.070 documentos, archivos válidos y provenance completa; cero SHA duplicados; 12 grupos de texto normalizado igual con SHA distinto; 4 casos con claves jurídicas múltiples; 1.254 filas sin Sala (principalmente `CSJN_TFN_HISTORICAL`). Las propuestas P1/P2 siguen sin aplicar y no habilitan cambios automáticos. Cuando el usuario vuelva, continuar con **J6.1 — HUMAN REVIEW UAT** según su cola de 187 casos; J7 no alteró la cola ni registró decisiones.

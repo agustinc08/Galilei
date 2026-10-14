@@ -110,6 +110,10 @@ El buscador CSJN Tribunales Federales y Nacionales es una fuente oficial públic
 
 El censo local DEV fue auditado de forma read-only y confirma 1 documento Civil `FIRST_INSTANCE`, órgano observado `JUZGADO CIVIL 64 - SECRETARIA Nº 94`; 6.069 `SECOND_INSTANCE`; 0 instancia desconocida. La búsqueda de evidencia `JUZGADO ... PRIMERA/1RA INSTANCIA ... CIVIL` en `metadataOriginal` de filas `SECOND_INSTANCE` encontró 0. Este órgano observado no es un roster vigente completo. Denominador oficial, lista total de juzgados y fecha inicial histórica: UNKNOWN.
 
+### Snapshot de fuentes del Corpus — Sprint J7 (2026-10-14)
+
+El mapa read-only local del Corpus Civil registra `CIVIL_CUANTIFICACION_DANOS` 4.815 documentos/archivos (2015–2026 principalmente), `CSJN_TFN_HISTORICAL` 1.254 (2008–2013) y `TFN_ACTUAL_CIVIL` 1 (2026); provenance completa en los 6.070. Esto describe exclusivamente el snapshot DEV, no cobertura total ni equivalencia entre etiquetas de fuente. J7 detectó 341 filas SHA con más de un source record, sin fusionarlas; 4 documentos tienen múltiples claves jurídicas candidatas. La matriz por año/Sala/fuente y aliases aparentes está en `_recovery-work/jurisprudencia-j7/source-map.json` y `corpus-distribution.json` (local/ignorado). No se infirieron fuentes faltantes ni se modificó metadata.
+
 Fuentes oficiales, consultadas 14/10/2026: [CSJN — buscador Tribunales Federales y Nacionales](https://www.csjn.gov.ar/tribunales-federales-nacionales/inicio.html), [Consejo de la Magistratura — incorporación de primera instancia (05/09/2025)](https://consejomagistratura.gov.ar/index.php/2025/09/05/la-corte-suprema-amplia-el-acceso-a-las-decisiones-judiciales/) y [PJN](https://pjn.gov.ar/). La portada PJN enlaza Consulta Jurisprudencia, pero la cobertura/export de primera instancia no se pudo confirmar allí de forma independiente. El archivo CIJ oficial se encuentra rotulado histórico tras su disolución por Acordada 10/2025.
 
 ## Sprint J3 — ingestión de censo autorizado

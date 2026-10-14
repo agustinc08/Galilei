@@ -200,6 +200,7 @@ const actions = {
   'civil-quantification-snapshot': 'pnpm.cmd exec ts-node scripts/sources/civil/quantification-corpus-snapshot.ts',
   'sprint148-audit': 'node scripts/dev/sprint148-live-audit.cjs',
   'sprint-j1-audit': 'node scripts/dev/sprint-j1-audit.cjs',
+  'j7-corpus-quality-audit': 'node scripts/dev/jurisprudencia-corpus-quality-audit.cjs',
   'sprint-j5-readonly': 'node scripts/dev/jurisprudencia-candidate-recovery.cjs',
   'sprint-j6-readonly': 'node scripts/dev/jurisprudencia-primary-identity.cjs',
   'sprint-j5-restore-projection-marker': 'node scripts/dev/sprint-j5-restore-projection-marker.cjs',
