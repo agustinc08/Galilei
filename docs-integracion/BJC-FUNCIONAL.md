@@ -104,3 +104,9 @@ DOC OLE válido se convierte a TXT con LibreOffice headless aislado; archivos in
 Search general y privado pasaron la golden suite, paginación, filtros ACL y navegación UI. El submit de búsqueda Copernic ahora sincroniza query/filtros con la History API integrada en Next para que la inicialización concurrente del workspace no pierda la consulta. El Viewer mantiene PDF highlight fail-closed y OCR sólo con contexto/página, sin geometría inferida.
 
 La E2E privada pasó 2/2 para OCR, RTF/DOC preview/descarga, F3, filtros, roles y denegación cruzada. Dictamen DEV: CERTIFIED_WITH_KNOWN_LIMITATIONS; no equivale a UAT humana, preproducción o producción. Ver `BJC-CERTIFICACION-SEARCH-VIEWER.md`.
+
+## UX de documentos por dependencia — Sprint 15.6
+
+En `/spaces`, una sola dependencia abre directamente; varias requieren elegir por nombre antes de entrar. El encabezado mantiene Sala/Juzgado/Secretaría activo. Búsqueda y árbol expresan alcance humano, los nombres de fuentes de red no revelan UNC, y el uploader autorizado informa destino y acceso compartido antes de seleccionar/confirmar la carga. Estados OCR se presentan como «Procesando documento…», «No pudimos extraer el texto de este archivo» y «Texto reconocido automáticamente».
+
+La evidencia UI/E2E cubre miembro, edición/carga autorizada, rol lector, entrada única/múltiple, carpetas y navegación, búsqueda, preview, descarga, F3, mensajes de denegación, y responsive. No existe hoy en backend el ámbito «sólo yo» ni autorización por carpeta para un subconjunto de personas; no afirmar ni simular estas funciones. Dictamen de la experiencia completa: PARTIAL y UAT humana pendiente. Contrato y tareas humanas: `BJC-UX-ESPACIOS-DOCUMENTALES.md`.

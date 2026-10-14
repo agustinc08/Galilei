@@ -166,3 +166,11 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 - Si no existe mapping PDF.js unívoco, Viewer muestra fallback de contexto y página, sin highlight. OCR no produce bbox visual no certificado.
 - Copernic sincroniza query/filtros locales mediante History API de Next para evitar perder el submit durante inicialización de workspace; los datos siguen recargándose desde endpoints con ACL.
 - Estado de certificación en DEV no autoriza producción ni sustituye UAT humana. Detalle en `BJC-CERTIFICACION-SEARCH-VIEWER.md`.
+
+## Contrato UX/permisos — Sprint 15.6 (2026-10-14)
+
+- La entrada de una sola dependencia es directa; con varias, el usuario elige nombres humanos. Un workspaceId técnico puede seguir en la URL/API pero no se presenta como opción o nombre al usuario.
+- Para el modelo vigente, todo documento de una dependencia queda al alcance de las membresías activas que autoricen los endpoints. La interfaz debe decirlo antes de la carga y no llamar «privado — sólo yo» o «restringido a personas elegidas» a una carpeta.
+- El enum Corpus `RESTRICTED` mantiene la separación del scope `PRIVATE_WORKSPACE` frente a `GENERAL`; no es ACL por miembro o carpeta. No reinterpretar ni cambiar estas semantics sólo en UI.
+- Errores 403/404 en rutas documentales no deben revelar existencia ni nombres ajenos; texto común: «No encontramos este documento o no tenés acceso».
+- Antes de habilitar propiedad individual o restricciones por carpeta se requiere contrato de datos y predicados consistentes para lista/árbol/Search/count/snippet/metadata/matches/file/upload/move, más pruebas de mismo SHA entre ámbitos. El diseño de producto/seguridad es `BJC-UX-ESPACIOS-DOCUMENTALES.md`.

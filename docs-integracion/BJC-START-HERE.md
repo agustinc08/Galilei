@@ -103,3 +103,7 @@ MVP de espacios documentales privados implementado sobre Corpus/Search compartid
 Estado actual: Search + Viewer **CERTIFIED_WITH_KNOWN_LIMITATIONS para beta técnica controlada en DEV**. Inicio recomendado: leer `BJC-CERTIFICACION-SEARCH-VIEWER.md`, luego `BJC-SEARCH.md` y `BJC-ESPACIOS-DOCUMENTALES.md`. Golden suite reproducible: `pnpm search:golden` desde `JurisprudenciaN/back` con PostgreSQL DEV local en 127.0.0.1:55432.
 
 UAT institucional y preproducción siguen pendientes. OCR visual bbox, prueba XSS/SQLi exhaustiva y auditoría WCAG quedan fuera del dictamen. No iniciar NEAR/RAG ni integrar ramas sin coordinación.
+
+## Estado vigente — Sprint 15.6 (2026-10-14)
+
+Copernic mejoró la navegación para salas y juzgados: acceso directo para dependencia única, selector humano cuando hay varias, carpetas/alcance/preview y carga compartida con lenguaje claro. La certificación integral queda **PARTIAL** porque el modelo actual no ofrece archivos sólo personales ni carpetas restringidas por persona. Leer `BJC-UX-ESPACIOS-DOCUMENTALES.md`, `BJC-ESPACIOS-DOCUMENTALES.md` y `BJC-ESTADO-ACTUAL.md`. UAT humana, integración de ramas y diseño de ACL fina siguen pendientes; no tratar DEV como preproducción o producción.

@@ -63,3 +63,9 @@ Search general no cambió y mantiene documentScope=GENERAL. Detalle UX, resultad
 La sincronización de una fuente puede encolar OCR cuando el SHA del archivo no cambia y la extracción indica páginas candidatas, el job existente se reutiliza: no repite OCR ni reindexado. Un cambio de SHA invalida la extracción anterior y genera trabajo nuevo; un rename inequívoco conserva el contenido y no dispara OCR. Los jobs y provenance son locales y la fuente/original permanece read-only.
 
 El worker no escanea roots en segundo plano ni realiza fetch externo desde documentos. Su cola está limitada, procesa un trabajo a la vez por instancia y usa retries/leases persistentes. Las pruebas de fuente usan fixtures sintéticos/locales; no habilitan acceso a una UNC ni aceptación de una dependencia real.
+
+## UX de fuentes para Sprint 15.6
+
+La administración de carpetas de red, estado de sincronización y diagnóstico queda bajo permisos de gestión; no se incorpora al panel normal de búsqueda. En la navegación se presenta el nombre configurado de la carpeta y las subcarpetas relativas, nunca la ruta UNC como título. Si el origen no está disponible, el usuario ve un mensaje general y los resultados ya incorporados conservan su disponibilidad autorizada.
+
+Las fuentes actuales siguen compartidas dentro de la dependencia mediante membresía. La interfaz no permite tratar una fuente o carpeta como personal o restringida a usuarios seleccionados; esos permisos no existen aún en el backend.

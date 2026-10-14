@@ -294,3 +294,9 @@ Siguiente alcance recomendado: **Search + Viewer final certification**, con gold
 ## Prioridad después de Sprint 15.5 — 2026-10-14
 
 Search + Viewer cerró sus gates técnicos principales con estado CERTIFIED_WITH_KNOWN_LIMITATIONS en DEV. No iniciar NEAR, semantic search, RAG ni adquisición dentro de esta continuidad. Próximo foco opcional: UX-1 Zero-Training UX, después de preparar integración coordinada entre ramas; UAT institucional, preproducción y hardening de la matriz XSS/SQLi/WCAG deben continuar como gates separados. No se inició UX automáticamente.
+
+## Sprint 15.6 — resultado y próxima decisión (2026-10-14)
+
+La UX de entrada, dependencia, carpetas compartidas, Search, preview y upload se hizo más clara. E2E autenticado 2/2 y matriz responsive 7/7 sin overflow pasaron; no se completó UAT humana. La misión cero capacitación completa queda **PARTIAL**: el backend no implementa documentos personales ni ACL por carpeta. No anunciar ni emular «Mis documentos — sólo yo» o «Restringido — usuarios elegidos» hasta contar con datos, autorización uniforme en todas las rutas y regresiones anti-leak. La integración Workspace PostgreSQL no certificó su expectativa de una sola ejecución OCR en presencia de un backend activo; ver detalle en `BJC-ESTADO-ACTUAL.md`. Contrato de UX y alcance: `BJC-UX-ESPACIOS-DOCUMENTALES.md`.
+
+Próximo trabajo permitido: integración coordinada de ramas sólo después de comparar las decisiones de UX y los contratos ACL; luego diseñar un alcance backend dedicado para propietario personal y carpetas restringidas, con regresión DB/API/árbol/Search/count/preview/download/upload/move antes de activar controles. Human UAT sigue pendiente. No comenzar Search features, RAG, NEAR, scraping ni adquisición por esta conclusión.
