@@ -160,3 +160,11 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 3. En los 7 metadata conflicts, un PDF confirma el expediente fuente y el expediente Corpus adicional en el mismo archivo; 6 conservan discrepancias críticas. Preservar ambos valores; no sobrescribirlos.
 4. Review tiers J5: 2 `HUMAN_READY`, 106 `HUMAN_NEEDS_CANDIDATE`, 6 `HUMAN_NEEDS_SOURCE_DATA`, 321 `HUMAN_STRUCTURAL`, 16 `MODEL_LIMITATION`. `AUTO_SAFE=0`; los cambios de tier son refinamientos de cola.
 5. La inspección usa una transacción PostgreSQL read-only y no escribe contenido Corpus/Search, Prisma ni migraciones. Search verify pasa, pero actualiza `verifiedAt`; el timestamp se restauró al valor previo de J4 y los conteos permanecieron iguales. Este update transitorio incumple el gate de cero escrituras, así que J5 queda `PARTIAL`. No se aplican links.
+
+## Decisión Sprint J6 — identidad primaria y alcance de una representación (2026-10-14)
+
+1. `PRIMARY_CASE` identifica el expediente objeto de la decisión; una cita, antecedente o expediente relacionado se registra como rol distinto y nunca se promueve a identidad primaria por aparecer en el mismo PDF.
+2. `MULTI_CASE_SINGLE_DECISION` describe una sentencia única que resuelve expedientes acumulados. `TRUE_MULTI_DECISION_PDF` requiere evidencia separada de más de una decisión oficial (encabezados/fechas resolutivas independientes, identidades de expediente disjuntas y resultados resolutorios separados). Repeticiones de encabezados de página o fórmulas como “reunidas las señoras jueces” no bastan.
+3. J6 analizó 194 grupos (148 SHA únicos): 8 `SINGLE_DECISION_PRIMARY_CASE`, 174 `MULTI_CASE_SINGLE_DECISION`, 0 `TRUE_MULTI_DECISION_PDF`, 3 ambiguos y 9 insuficientes. Las identidades primaria confirmadas/probables son propuestas para revisión, no links aplicados.
+4. Las 127 colisiones de metadata quedan en propuestas: 107 `UNKNOWN`, 17 filas fuente múltiples, 2 conflictos entre fuente y Corpus y 1 conflicto de año de expediente. No hay arreglo seguro ni corrección aplicada; 20 requieren decisión humana.
+5. No se añade entidad `LegalDecision`, relación ni migración con estos resultados. El paquete J6 es local/ignorado y la decisión de schema permanece pendiente de coordinación entre ramas.

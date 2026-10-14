@@ -285,3 +285,7 @@ Search PHRASE conserva su gate técnico independiente y este Sprint no modifica 
 ## Continuidad después de Sprint J5 (2026-10-14)
 
 J5 reconstruyó la cola, el grafo y el paquete HTML/CSV, pero los 106 candidatos siguen sin ID. Continuar con `J5.1 — HUMAN REVIEW UAT` para los 2 casos listos y el paquete estructural priorizado; registrar decisiones y observaciones fuera de DB hasta tener un flujo de asociación aprobado. Mantener los 6 conflictos críticos como pendientes; no inferir un ganador desde firma o título. Los 194 PDFs multi-expediente requieren revisión de alcance antes de cualquier link; no hay propuesta `AUTO_SAFE`. Si llega un export autorizado, priorizar J3.1 para medir sólo el alcance provisto. No iniciar schema/migración mientras `feature/copernic` mantenga cambios Prisma paralelos.
+
+## Continuidad después de Sprint J6 (2026-10-14)
+
+Siguiente paso: `J6.1 — HUMAN REVIEW UAT` sobre las 187 filas `HUMAN_STRUCTURAL_READY`, usando review-v3 HTML/CSV y registrando decisiones fuera de la DB. Revisar separadamente las 134 filas ambiguas/limitadas. Mantener las 107 colisiones sin evidencia como `UNKNOWN`; no inferir procedencia ni corregir metadata. No aplicar links ni diseñar migraciones `LegalDecision` hasta disponer de decisiones verificadas y contrato coordinado entre ramas. El paquete de J6 está en `_recovery-work/jurisprudencia-j6/` y no se versiona.
