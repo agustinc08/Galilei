@@ -159,3 +159,10 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 - `.doc` OLE usa LibreOffice headless como parser local de último recurso. Perfil temporal aislado, seguridad de macros alta, actualización de vínculos remotos deshabilitada, timeout, tamaño limitado y rechazo de marcadores de macros/objetos embebidos. Word COM y ejecución de macros quedan prohibidos.
 - La migración `20261014110000_sprint154a1_local_document_processing` agrega estado/provenance/job; no edita migraciones anteriores ni reconstruye Search global.
 - `OCR_ENABLED` se desactiva por defecto en `NODE_ENV=production`; la disponibilidad de herramientas y del modelo español se detecta al arrancar. La evidencia sintética no sustituye revisión jurídica de calidad sobre una muestra autorizada.
+## Contratos confirmados — Sprint 15.5 (2026-10-14)
+
+- Search paginado puede devolver total como límite inferior con `hasMore=true`; la última página y páginas fuera de rango exponen total exacto. No mostrar el límite inferior como total definitivo.
+- El span de Search conserva offsets UTF-16 del texto original. PREFIX/SUFFIX extienden el rango al token original completo, cuidando pares surrogate.
+- Si no existe mapping PDF.js unívoco, Viewer muestra fallback de contexto y página, sin highlight. OCR no produce bbox visual no certificado.
+- Copernic sincroniza query/filtros locales mediante History API de Next para evitar perder el submit durante inicialización de workspace; los datos siguen recargándose desde endpoints con ACL.
+- Estado de certificación en DEV no autoriza producción ni sustituye UAT humana. Detalle en `BJC-CERTIFICACION-SEARCH-VIEWER.md`.

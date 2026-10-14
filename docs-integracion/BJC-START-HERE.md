@@ -98,3 +98,8 @@ Feed reciente CSJN: una sentencia Civil de primera instancia capturada y verific
 ## Estado vigente — Sprint 15
 
 MVP de espacios documentales privados implementado sobre Corpus/Search compartidos: dependencias, membership explícita, roles locales, carpetas, carga PDF, extracción, búsqueda aislada y visor con ACL. La migración aditiva está aplicada sólo en PostgreSQL DEV. Ver `BJC-ESPACIOS-DOCUMENTALES.md`; PHRASE sigue PARTIAL y esto no habilita preproducción ni producción.
+## Estado de inicio — Sprint 15.5 (2026-10-14)
+
+Estado actual: Search + Viewer **CERTIFIED_WITH_KNOWN_LIMITATIONS para beta técnica controlada en DEV**. Inicio recomendado: leer `BJC-CERTIFICACION-SEARCH-VIEWER.md`, luego `BJC-SEARCH.md` y `BJC-ESPACIOS-DOCUMENTALES.md`. Golden suite reproducible: `pnpm search:golden` desde `JurisprudenciaN/back` con PostgreSQL DEV local en 127.0.0.1:55432.
+
+UAT institucional y preproducción siguen pendientes. OCR visual bbox, prueba XSS/SQLi exhaustiva y auditoría WCAG quedan fuera del dictamen. No iniciar NEAR/RAG ni integrar ramas sin coordinación.

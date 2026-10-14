@@ -99,3 +99,8 @@ La carga privada ofrece PDF/TXT/RTF/DOC/DOCX/ODT; TXT, RTF, DOCX y ODT muestran 
 Galilei acepta PDF nativo, PDF escaneado e híbrido, TXT, RTF, DOC, DOCX y ODT. Para PDF, conserva el texto nativo y envía sólo páginas con menos de 25 caracteres al worker OCR local. La interfaz informa “Reconociendo texto…”; al terminar, Search puede encontrar texto OCR y el Viewer abre el documento/página y presenta contexto. En páginas OCR no se muestra un highlight visual no certificado.
 
 DOC OLE válido se convierte a TXT con LibreOffice headless aislado; archivos inválidos, cifrados, con marcadores de macros u objetos embebidos, o que exceden timeout/límites se rechazan con estado diagnóstico. Ningún formato requiere cloud ni Word COM. ACL de workspaces y permisos de descarga continúan aplicándose antes de exponer texto o archivo. El cierre técnico es DEV local, no aceptación institucional.
+## Sprint 15.5 — cierre Search + Viewer
+
+Search general y privado pasaron la golden suite, paginación, filtros ACL y navegación UI. El submit de búsqueda Copernic ahora sincroniza query/filtros con la History API integrada en Next para que la inicialización concurrente del workspace no pierda la consulta. El Viewer mantiene PDF highlight fail-closed y OCR sólo con contexto/página, sin geometría inferida.
+
+La E2E privada pasó 2/2 para OCR, RTF/DOC preview/descarga, F3, filtros, roles y denegación cruzada. Dictamen DEV: CERTIFIED_WITH_KNOWN_LIMITATIONS; no equivale a UAT humana, preproducción o producción. Ver `BJC-CERTIFICACION-SEARCH-VIEWER.md`.

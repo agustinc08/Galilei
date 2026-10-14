@@ -250,3 +250,10 @@ En el microbenchmark local de una pasada, preparación de página p50/p95: 2,785
 Las páginas conservan `textKind=NATIVE` u `OCR` y provenance del archivo SHA, motor, versión, idioma, DPI, página y advertencias. Cuando termina el OCR, se reindexa únicamente el documento afectado; no se ejecuta un rebuild global. En PDF híbrido, el texto nativo y OCR se combinan en orden de página y sólo se procesan páginas candidatas.
 
 Search aplica el scope/ACL existente también a texto OCR privado. Una coincidencia OCR admite snippet/contexto, página y navegación F3/Shift+F3. No se declara geometría de texto OCR ni se dibuja highlight sobre PDF.js mientras esa correspondencia no esté certificada. El estado de procesamiento se expone con copy de usuario, no como código técnico `OCR_PENDING`.
+## Sprint 15.5 — certificación Search + Viewer
+
+Estado técnico: **CERTIFIED_WITH_KNOWN_LIMITATIONS para beta controlada en DEV**. La suite versionada ejecuta 319 casos PostgreSQL (300 queries sintéticas generadas + 19 contratos), todos PASS. La muestra local real contiene 300 documentos, 4 fuentes, 10 buckets de año y 299 PDF/1 TXT; sus IDs quedan sólo en evidencia ignorada.
+
+Se verificaron 325 resultados paginados sin duplicados ni faltantes; el total es límite inferior mientras haya más páginas y exacto en la última o fuera de rango. La página fuera de rango ahora ejecuta COUNT exacto. Spans PREFIX/SUFFIX cubren el token completo, con límites UTF-16. Workspace A/B, conteos, snippets, Viewer y descargas respetan ACL. La gramática y mediciones, incluidos límites y latencias, están en `BJC-CERTIFICACION-SEARCH-VIEWER.md`.
+
+OCR ofrece texto, contexto, página y F3/Shift+F3; su highlight visual sigue sin certificación y se omite. UAT institucional, matriz exhaustiva XSS/SQLi y SLO de producción siguen pendientes.
