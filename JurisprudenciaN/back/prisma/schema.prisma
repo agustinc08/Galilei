@@ -18,27 +18,30 @@ model Rol {
 }
 
 model Usuario {
-  id                  Int                @id @default(autoincrement())
-  nombre              String
-  apellido            String?
-  email               String             @unique
-  passwordHash        String
-  activo              Boolean            @default(true)
-  rolId               Int
-  rol                 Rol                @relation(fields: [rolId], references: [id])
-  favoritos           Favorito[]
-  busquedas           BusquedaGuardada[]
-  eventos             EventoConsulta[]
-  accionesLog         AccionLog[]
-  workspaceMemberships WorkspaceMembership[]
-  workspaceFoldersCreated WorkspaceFolder[] @relation("WorkspaceFolderCreator")
-  workspaceDocumentsUploaded WorkspaceDocument[] @relation("WorkspaceDocumentUploader")
-  resenasActualizadas Sentencia[]        @relation("ResenaUpdatedBy")
-  resenasPublicadas   Sentencia[]        @relation("ResenaPublishedBy")
-  citasCreadas        CitaFallo[]        @relation("CitaCreatedBy")
-  citasActualizadas   CitaFallo[]        @relation("CitaUpdatedBy")
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  id                         Int                   @id @default(autoincrement())
+  nombre                     String
+  apellido                   String?
+  email                      String                @unique
+  passwordHash               String
+  activo                     Boolean               @default(true)
+  rolId                      Int
+  rol                        Rol                   @relation(fields: [rolId], references: [id])
+  favoritos                  Favorito[]
+  busquedas                  BusquedaGuardada[]
+  eventos                    EventoConsulta[]
+  accionesLog                AccionLog[]
+  workspaceMemberships       WorkspaceMembership[]
+  documentSourcesCreated     DocumentSource[]      @relation("DocumentSourceCreator")
+  workspaceFoldersCreated    WorkspaceFolder[]     @relation("WorkspaceFolderCreator")
+  workspaceDocumentsUploaded WorkspaceDocument[]   @relation("WorkspaceDocumentUploader")
+  personalWorkspaceDocuments WorkspaceDocument[]   @relation("WorkspaceDocumentOwner")
+  personalWorkspaceFolders   WorkspaceFolder[]     @relation("WorkspaceFolderOwner")
+  resenasActualizadas        Sentencia[]           @relation("ResenaUpdatedBy")
+  resenasPublicadas          Sentencia[]           @relation("ResenaPublishedBy")
+  citasCreadas               CitaFallo[]           @relation("CitaCreatedBy")
+  citasActualizadas          CitaFallo[]           @relation("CitaUpdatedBy")
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
 
   @@index([email])
   @@index([activo])
@@ -471,6 +474,7 @@ model CorpusDocument {
   files               CorpusDocumentFile[]
   ingestions          CorpusIngestionRecord[]
   extractions         CorpusExtraction[]
+  ocrJobs             CorpusOcrJob[]
   links               CorpusDocumentLink[]
   locations           CorpusDocumentLocation[]
   associations        CorpusDocumentAssociation[]
@@ -479,6 +483,7 @@ model CorpusDocument {
   digestoTopics       CorpusDocumentTopic[]
   digestoTags         CorpusDocumentTag[]
   workspaceDocuments  WorkspaceDocument[]
+  sourceFiles         SourceFile[]
   importRunItems      CorpusImportRunItem[]
   latestExtraction    CorpusExtraction?              @relation("LatestCorpusExtraction", fields: [latestExtractionId], references: [id], onDelete: SetNull)
   createdAt           DateTime                       @default(now())
@@ -498,6 +503,122 @@ enum CorpusDocumentScope {
   PRIVATE_WORKSPACE
 }
 
+enum DocumentSourceType {
+  MANUAL_UPLOAD
+  NETWORK_FOLDER
+  LOCAL_AGENT
+}
+
+enum DocumentSourceStatus {
+  UNKNOWN
+  CONNECTED
+  OFFLINE
+  ACCESS_DENIED
+  ERROR
+}
+
+enum SourceFileStatus {
+  DISCOVERED
+  UNCHANGED
+  NEW
+  MODIFIED
+  PROCESSING
+  INDEXED
+  MISSING
+  ERROR
+  UNSUPPORTED
+}
+
+enum SourceScanRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+model DocumentSource {
+  id                   String               @id @default(cuid())
+  workspaceId          String
+  name                 String
+  type                 DocumentSourceType   @default(NETWORK_FOLDER)
+  path                 String
+  enabled              Boolean              @default(true)
+  status               DocumentSourceStatus @default(UNKNOWN)
+  lastScanStartedAt    DateTime?
+  lastScanCompletedAt  DateTime?
+  lastSuccessfulScanAt DateTime?
+  lastError            String?              @db.Text
+  createdById          Int
+  workspace            DocumentWorkspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy            Usuario              @relation("DocumentSourceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  files                SourceFile[]
+  runs                 SourceScanRun[]
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@index([workspaceId, enabled])
+  @@index([workspaceId, createdAt])
+}
+
+model SourceFile {
+  id              String           @id @default(cuid())
+  sourceId        String
+  relativePath    String
+  normalizedPath  String
+  fileName        String
+  extension       String
+  sizeBytes       BigInt
+  modifiedAt      DateTime
+  sha256          String?
+  documentId      String?
+  status          SourceFileStatus @default(DISCOVERED)
+  lastSeenAt      DateTime         @default(now())
+  lastProcessedAt DateTime?
+  lastError       String?          @db.Text
+  source          DocumentSource   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  document        CorpusDocument?  @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([sourceId, normalizedPath])
+  @@index([sourceId, status])
+  @@index([sourceId, sha256])
+  @@index([documentId])
+}
+
+model SourceScanRun {
+  id                   String              @id @default(cuid())
+  sourceId             String
+  activeLockSourceId   String?             @unique
+  status               SourceScanRunStatus @default(QUEUED)
+  startedAt            DateTime            @default(now())
+  completedAt          DateTime?
+  scanComplete         Boolean             @default(false)
+  filesSeen            Int                 @default(0)
+  indexedCount         Int                 @default(0)
+  newCount             Int                 @default(0)
+  modifiedCount        Int                 @default(0)
+  unchangedCount       Int                 @default(0)
+  metadataOnlyCount    Int                 @default(0)
+  renamedCount         Int                 @default(0)
+  missingCount         Int                 @default(0)
+  unsupportedCount     Int                 @default(0)
+  errorCount           Int                 @default(0)
+  bytesSeen            BigInt              @default(0)
+  hashCount            Int                 @default(0)
+  hashMs               Int                 @default(0)
+  enumerationMs        Int                 @default(0)
+  metadataComparisonMs Int                 @default(0)
+  processingMs         Int                 @default(0)
+  totalDurationMs      Int                 @default(0)
+  errorMessage         String?             @db.Text
+  source               DocumentSource      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  createdAt            DateTime            @default(now())
+
+  @@index([sourceId, startedAt(sort: Desc)])
+}
+
 enum WorkspaceDependencyType {
   JUZGADO
   SALA
@@ -511,15 +632,22 @@ enum WorkspaceRole {
   VIEWER
 }
 
+enum WorkspaceVisibilityScope {
+  INHERIT
+  PERSONAL
+  DEPENDENCY_SHARED
+  RESTRICTED
+}
+
 model DocumentDependency {
-  id        String                   @id @default(cuid())
-  code      String                   @unique
+  id        String                  @id @default(cuid())
+  code      String                  @unique
   name      String
   type      WorkspaceDependencyType
-  active    Boolean                  @default(true)
+  active    Boolean                 @default(true)
   workspace DocumentWorkspace?
-  createdAt DateTime                 @default(now())
-  updatedAt DateTime                 @updatedAt
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
 
   @@index([active, type, name])
 }
@@ -532,6 +660,7 @@ model DocumentWorkspace {
   members      WorkspaceMembership[]
   folders      WorkspaceFolder[]
   documents    WorkspaceDocument[]
+  sources      DocumentSource[]
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
 
@@ -539,15 +668,16 @@ model DocumentWorkspace {
 }
 
 model WorkspaceMembership {
-  id          String        @id @default(cuid())
-  workspaceId String
-  userId      Int
-  role        WorkspaceRole
-  active      Boolean       @default(true)
-  workspace   DocumentWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        Usuario       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id           String                 @id @default(cuid())
+  workspaceId  String
+  userId       Int
+  role         WorkspaceRole
+  active       Boolean                @default(true)
+  workspace    DocumentWorkspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user         Usuario                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderGrants WorkspaceFolderGrant[]
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
 
   @@unique([workspaceId, userId])
   @@index([userId, active])
@@ -555,38 +685,58 @@ model WorkspaceMembership {
 }
 
 model WorkspaceFolder {
-  id          String            @id @default(cuid())
-  workspaceId String
-  parentId    String?
-  name        String
-  createdById Int
-  workspace   DocumentWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  parent      WorkspaceFolder?  @relation("WorkspaceFolderTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children    WorkspaceFolder[] @relation("WorkspaceFolderTree")
-  createdBy   Usuario           @relation("WorkspaceFolderCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  documents   WorkspaceDocument[]
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id              String                   @id @default(cuid())
+  workspaceId     String?
+  ownerUserId     Int?
+  parentId        String?
+  name            String
+  visibilityScope WorkspaceVisibilityScope @default(DEPENDENCY_SHARED)
+  createdById     Int
+  workspace       DocumentWorkspace?       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownerUser       Usuario?                 @relation("WorkspaceFolderOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  parent          WorkspaceFolder?         @relation("WorkspaceFolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children        WorkspaceFolder[]        @relation("WorkspaceFolderTree")
+  createdBy       Usuario                  @relation("WorkspaceFolderCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  documents       WorkspaceDocument[]
+  grants          WorkspaceFolderGrant[]
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
 
   @@index([workspaceId, parentId, name])
+  @@index([ownerUserId, parentId, name])
 }
 
 model WorkspaceDocument {
-  id          String            @id @default(cuid())
-  workspaceId String
-  documentId  String
-  folderId    String?
+  id           String             @id @default(cuid())
+  workspaceId  String?
+  ownerUserId  Int?
+  documentId   String
+  folderId     String?
   uploadedById Int
-  workspace   DocumentWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  document    CorpusDocument    @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  folder      WorkspaceFolder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  uploadedBy  Usuario           @relation("WorkspaceDocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-  createdAt   DateTime          @default(now())
+  workspace    DocumentWorkspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownerUser    Usuario?           @relation("WorkspaceDocumentOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  document     CorpusDocument     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  folder       WorkspaceFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  uploadedBy   Usuario            @relation("WorkspaceDocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  createdAt    DateTime           @default(now())
 
   @@unique([workspaceId, documentId])
   @@index([workspaceId, createdAt])
   @@index([workspaceId, folderId, createdAt])
+  @@index([ownerUserId, createdAt])
   @@index([documentId])
+}
+
+model WorkspaceFolderGrant {
+  id           String              @id @default(cuid())
+  folderId     String
+  membershipId String
+  folder       WorkspaceFolder     @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  membership   WorkspaceMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  createdAt    DateTime            @default(now())
+
+  @@unique([folderId, membershipId])
+  @@index([membershipId, folderId])
 }
 
 model CorpusDocumentRepositoryRoot {
@@ -748,6 +898,7 @@ model CorpusDocumentFile {
   version          Int                     @default(1)
   document         CorpusDocument          @relation(fields: [documentId], references: [id], onDelete: Cascade)
   extractions      CorpusExtraction[]
+  ocrJobs          CorpusOcrJob[]
   ingestions       CorpusIngestionRecord[]
   createdAt        DateTime                @default(now())
 
@@ -800,6 +951,7 @@ model CorpusExtraction {
   errorStage       String?
   errorAt          DateTime?
   retryable        Boolean              @default(false)
+  provenance       Json?
   extractedAt      DateTime             @default(now())
   document         CorpusDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
   file             CorpusDocumentFile   @relation(fields: [fileId], references: [id], onDelete: Cascade)
@@ -812,14 +964,50 @@ model CorpusExtraction {
 }
 
 model CorpusDocumentPage {
-  id           String           @id @default(cuid())
-  extractionId String
-  pageNumber   Int
-  text         String           @db.Text
-  extraction   CorpusExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  id               String           @id @default(cuid())
+  extractionId     String
+  pageNumber       Int
+  text             String           @db.Text
+  textKind         String           @default("NATIVE")
+  processingStatus String           @default("TEXT_NATIVE")
+  ocrConfidence    Float?
+  extraction       CorpusExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
 
   @@unique([extractionId, pageNumber])
   @@index([pageNumber])
+}
+
+model CorpusOcrJob {
+  id               String             @id @default(cuid())
+  queueName        String             @default("default")
+  documentId       String
+  fileId           String
+  fileSha256       String
+  fingerprint      String
+  processorVersion String
+  languages        String
+  dpi              Int
+  pageNumbers      Json
+  status           String             @default("PENDING")
+  attemptCount     Int                @default(0)
+  maxAttempts      Int                @default(2)
+  timeoutMs        Int                @default(90000)
+  startedAt        DateTime?
+  completedAt      DateTime?
+  leaseExpiresAt   DateTime?
+  errorCode        String?
+  errorDetail      String?            @db.Text
+  provenance       Json?
+  document         CorpusDocument     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  file             CorpusDocumentFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@unique([fileId, fingerprint])
+  @@index([status, createdAt])
+  @@index([queueName, status, createdAt])
+  @@index([documentId, createdAt])
+  @@index([fileId, fileSha256])
 }
 
 // Cross-domain reference only; ownership/curation remains in Jurisprudencia or Digesto.
@@ -855,7 +1043,7 @@ model DigestoCollection {
 }
 
 model DigestoCollectionMembership {
-  id           String           @id @default(cuid())
+  id           String            @id @default(cuid())
   collectionId String
   documentId   String
   collection   DigestoCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
@@ -892,12 +1080,12 @@ model CorpusDocumentTopic {
 }
 
 model DigestoTag {
-  id         String                @id @default(cuid())
+  id         String              @id @default(cuid())
   name       String
-  normalized String                @unique
+  normalized String              @unique
   documents  CorpusDocumentTag[]
-  createdAt  DateTime              @default(now())
-  updatedAt  DateTime              @updatedAt
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
 }
 
 model CorpusDocumentTag {

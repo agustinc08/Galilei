@@ -234,3 +234,52 @@ Se incorpora `GET /api/sentencias/revision/cola-publicacion`, autenticado para A
 
 La lista `GET /api/sentencias?publicado=false&activo=true&excluirRevision=true` permite mostrar los demás activos no publicados aparte de la cola. No altera el comportamiento histórico de `/sentencias` cuando el parámetro se omite. No se cambió schema ni se creó migración.
 
+## Decisión Sprint 15.2 — fuentes documentales de workspace (2026-10-13)
+
+1. Cada fuente es propiedad de un workspace; todas las operaciones exigen membership ADMIN activa de ese workspace. El rol global no suple membership.
+2. La carpeta se representa por una UNC, pero el backend accede con la identidad de proceso Windows. No persistir usuario/password SMB ni servir el path UNC a resultados/Search.
+3. MVP procesa sólo PDFs de hasta 20 MiB mediante el pipeline existente. Incrementalidad se confirma por metadata y SHA; renames sólo se aceptan cuando la pareja de hashes es inequívoca.
+4. `MISSING` y `OFFLINE` son estados de reconciliación, nunca órdenes de borrar documentos, vínculos privados o blobs. Sólo reconciliar ausencias después de enumeración completa.
+5. Runs son asíncronos, uno activo por fuente; un reinicio marca los runs abandonados como FAILED para liberar el lock. No se almacenan credenciales SMB.
+6. Search general permanece `GENERAL`. Search privada preserva ACL workspace antes del conteo/página/snippet y puede devolver alias, nunca path. Sin filtro por fuente en esta entrega.
+7. Migración aditiva sólo a DEV loopback tras backup verificado. UNC real y UAT requieren validación posterior con identidad/permisos institucionales. Paridad 40/40 no se afirma sin la fixture SQLite disponible.
+
+## Decisión Sprint 15.4A — formatos y OCR (2026-10-14)
+
+1. P0 reconoce PDF/TXT/RTF/DOC/DOCX/ODT por contenido, conserva el original y no confía en MIME del cliente. Upload/fuente: máximo 20 MiB; ZIP/XML aplican límites documentados en `BJC-PROCESAMIENTO-DOCUMENTAL.md`.
+2. TXT/RTF/DOCX/ODT se procesan sin ejecutar Office, macros, scripts, objetos o relaciones externas. DOC se detecta y rechaza por falta de extractor local seguro; no se declara soporte funcional.
+3. `OCR_REQUIRED` es sólo detección de página de texto escaso. Sin motor/modelo local no se genera OCR ni se afirma indexación OCR; texto nativo disponible sigue buscando. Cloud OCR queda excluido.
+4. No se añadió schema, migración, paquete o binary y no se reindexó/reconstruyó Search global. ACL de workspace y Search general permanecen como límites obligatorios.
+5. Mantener 15.4A **PARTIAL** hasta provisionar y validar OCR local/worker y resolver `.doc`; no iniciar 15.4B automáticamente.
+## Decisiones Sprint 15.4A.1 — procesamiento local (2026-10-14)
+
+- OCR usa Tesseract local + Poppler, sin proveedor cloud. El default de calidad/costo se fija en 250 DPI y `spa`; `eng` es opcional. No se OCRiza una página con texto nativo suficiente.
+- Los jobs viven en PostgreSQL DEV para sobrevivir reinicios. Backpressure por cantidad de jobs pendientes, un worker por proceso, lease/heartbeat, recuperación de jobs stale e idempotencia por SHA de archivo/páginas/engine/renderer/idioma/DPI. Máximo dos intentos totales; Search sólo actualiza el documento afectado.
+- El OCR no tiene highlight visual certificado: Preview muestra contexto OCR y navegación de página; no inventa coordenadas.
+- `.doc` OLE usa LibreOffice headless como parser local de último recurso. Perfil temporal aislado, seguridad de macros alta, actualización de vínculos remotos deshabilitada, timeout, tamaño limitado y rechazo de marcadores de macros/objetos embebidos. Word COM y ejecución de macros quedan prohibidos.
+- La migración `20261014110000_sprint154a1_local_document_processing` agrega estado/provenance/job; no edita migraciones anteriores ni reconstruye Search global.
+- `OCR_ENABLED` se desactiva por defecto en `NODE_ENV=production`; la disponibilidad de herramientas y del modelo español se detecta al arrancar. La evidencia sintética no sustituye revisión jurídica de calidad sobre una muestra autorizada.
+## Contratos confirmados — Sprint 15.5 (2026-10-14)
+
+- Search paginado puede devolver total como límite inferior con `hasMore=true`; la última página y páginas fuera de rango exponen total exacto. No mostrar el límite inferior como total definitivo.
+- El span de Search conserva offsets UTF-16 del texto original. PREFIX/SUFFIX extienden el rango al token original completo, cuidando pares surrogate.
+- Si no existe mapping PDF.js unívoco, Viewer muestra fallback de contexto y página, sin highlight. OCR no produce bbox visual no certificado.
+- Copernic sincroniza query/filtros locales mediante History API de Next para evitar perder el submit durante inicialización de workspace; los datos siguen recargándose desde endpoints con ACL.
+- Estado de certificación en DEV no autoriza producción ni sustituye UAT humana. Detalle en `BJC-CERTIFICACION-SEARCH-VIEWER.md`.
+
+## Contrato UX/permisos — Sprint 15.6 (2026-10-14)
+
+- La entrada de una sola dependencia es directa; con varias, el usuario elige nombres humanos. Un workspaceId técnico puede seguir en la URL/API pero no se presenta como opción o nombre al usuario.
+- Para el modelo vigente, todo documento de una dependencia queda al alcance de las membresías activas que autoricen los endpoints. La interfaz debe decirlo antes de la carga y no llamar «privado — sólo yo» o «restringido a personas elegidas» a una carpeta.
+- El enum Corpus `RESTRICTED` mantiene la separación del scope `PRIVATE_WORKSPACE` frente a `GENERAL`; no es ACL por miembro o carpeta. No reinterpretar ni cambiar estas semantics sólo en UI.
+- Errores 403/404 en rutas documentales no deben revelar existencia ni nombres ajenos; texto común: «No encontramos este documento o no tenés acceso».
+- Antes de habilitar propiedad individual o restricciones por carpeta se requiere contrato de datos y predicados consistentes para lista/árbol/Search/count/snippet/metadata/matches/file/upload/move, más pruebas de mismo SHA entre ámbitos. El diseño de producto/seguridad es `BJC-UX-ESPACIOS-DOCUMENTALES.md`.
+
+## Contrato de privacidad aplicado — Sprint 15.6.1 (2026-10-14)
+
+- El alcance personal es `GLOBAL_PER_USER`: una fila personal tiene `workspaceId=NULL` y `ownerUserId` autenticado; su acceso no se deriva de la dependencia activa y no lo obtiene un administrador global por defecto.
+- Una fila de workspace tiene `workspaceId` y `ownerUserId=NULL`. La base exige exactamente uno de esos ámbitos. El mismo blob/SHA puede tener asociaciones personales y compartidas separadas; ACL se decide por asociación.
+- Una carpeta de workspace usa `INHERIT`, `DEPENDENCY_SHARED` o `RESTRICTED`. La lectura requiere que toda la ruta efectiva autorice. Un hijo no amplía una carpeta restringida: el backend rechaza `DEPENDENCY_SHARED` mientras su padre efectivo sea restringido. Para ampliar, primero se confirma el cambio de la carpeta restringida superior.
+- Los grants apuntan a membresías activas del workspace. Sólo las personas ADMIN/EDITOR autorizadas pueden editar ACL; una persona creadora y ADMIN conservan acceso. Al desactivar/quitar membership, el grant deja de autorizar inmediatamente.
+- Personal→dependencia y Compartido→Personal son transiciones de audiencia; los endpoints requieren permiso y confirmación explícita. Los documentos con `SourceFile` vinculado no admiten estas transiciones personales.
+- Search y su conteo, árbol, metadata, snippets/matches, Viewer y download comparten el mismo límite; el acceso ajeno se oculta con 404. No hay caché de ACL con grants obsoletos. El contrato completo y las limitaciones externas están en `BJC-ESPACIOS-DOCUMENTALES.md` y `BJC-UX-ESPACIOS-DOCUMENTALES.md`.

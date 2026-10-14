@@ -1,4 +1,5 @@
 import type { SearchQueryAst } from '../utils/search-ast';
+import type { CorpusFileType } from '../utils/search-filters';
 
 export type SearchVisibility = 'PUBLIC' | 'INTERNAL' | 'ADMIN' | 'RESTRICTED';
 export type SearchDialect = 'modern' | 'legacy-reference';
@@ -16,6 +17,11 @@ export type SearchContext = {
     sala?: string;
     fechaDesde?: string;
     fechaHastaExclusive?: string;
+    /** ISO calendar dates; both endpoints are inclusive and use CorpusDocument.decisionDate. */
+    dateFrom?: string;
+    dateTo?: string;
+    /** File type derived from the latest CorpusDocumentFile MIME type. */
+    types?: CorpusFileType[];
     expediente?: string;
     numeroSentencia?: string;
     caratula?: string;
@@ -30,7 +36,15 @@ export type SearchContext = {
   /** Set only by an authenticated workspace service after membership authorization. */
   documentScope?:
     | { kind: 'GENERAL' }
-    | { kind: 'WORKSPACE'; workspaceId: string; folderId?: string | null };
+    | {
+        kind: 'WORKSPACE';
+        workspaceId: string;
+        userId: number;
+        folderId?: string | null;
+        sourceId?: string;
+        sourceFolder?: string;
+      }
+    | { kind: 'PERSONAL'; userId: number; folderId?: string | null };
 };
 
 export type SearchResult = {

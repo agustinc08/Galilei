@@ -72,6 +72,7 @@
     "search:projection:rebuild": "node scripts/with-dev-db-guard.cjs sprint122-search-projection-rebuild",
     "search:projection:verify": "node scripts/with-dev-db-guard.cjs sprint122-search-projection-verify",
     "search:projection:repair": "node scripts/with-dev-db-guard.cjs sprint122-search-projection-repair",
+    "search:golden": "node scripts/with-dev-db-guard.cjs sprint155-golden",
     "search:rebuild": "node scripts/with-dev-db-guard.cjs sprint122-search-projection-rebuild",
     "search:verify": "node scripts/with-dev-db-guard.cjs sprint122-search-projection-verify",
     "search:repair": "node scripts/with-dev-db-guard.cjs sprint122-search-projection-repair",

@@ -15,6 +15,11 @@ import type {
 } from '../busqueda/utils/search-ast';
 import { visitSearchLiterals } from '../busqueda/utils/search-ast';
 import { normalizeSearchText } from '../busqueda/utils/search-normalizer';
+import {
+  mimeTypesForCorpusTypes,
+  validateCorpusTypes,
+  validateSearchDateRange,
+} from '../busqueda/utils/search-filters';
 
 type SqlValue = string | string[] | number | boolean | Date | null;
 type SearchRow = {
@@ -104,7 +109,7 @@ function buildBooleanCandidateCte(
   const ctes: string[] = [];
   let nextId = 0;
   const nextName = () => `"corpusCandidateNode${nextId++}"`;
-  const eligible = `d."visibility" = ANY($1::text[]) AND d."status" = 'INDEXED' AND ${scopePredicate}`;
+  const eligible = `d."visibility" = ANY($1::text[]) AND d."status" IN ('INDEXED', 'OCR_REQUIRED') AND ${scopePredicate}`;
   const fields: Record<string, string> = {
     tema: 'd."subtitle"',
     sala: 'd."chamber"',
@@ -374,29 +379,159 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     }
     const documentScopeValue: unknown = context.documentScope;
     const documentScope = typeof documentScopeValue === 'object' && documentScopeValue !== null
-      ? documentScopeValue as { kind?: unknown; workspaceId?: unknown; folderId?: unknown }
+      ? documentScopeValue as { kind?: unknown; workspaceId?: unknown; userId?: unknown; folderId?: unknown; sourceId?: unknown; sourceFolder?: unknown }
       : undefined;
     const isWorkspaceScope = documentScope?.kind === 'WORKSPACE';
+    const isPersonalScope = documentScope?.kind === 'PERSONAL';
     const workspaceId = isWorkspaceScope && typeof documentScope.workspaceId === 'string'
       ? documentScope.workspaceId
       : null;
+    const userId = (isWorkspaceScope || isPersonalScope) && Number.isSafeInteger(documentScope?.userId) && Number(documentScope?.userId) > 0
+      ? Number(documentScope?.userId)
+      : null;
     const folderId = isWorkspaceScope ? documentScope.folderId : undefined;
-    const workspaceFolderId = typeof folderId === 'string' || folderId === null ? folderId : undefined;
-    const hasWorkspaceFolderScope = Boolean(isWorkspaceScope && documentScope && Object.prototype.hasOwnProperty.call(documentScope, 'folderId') && (typeof workspaceFolderId === 'string' || workspaceFolderId === null));
-    const workspaceScope = workspaceId !== null;
+    const scopedFolderId = isPersonalScope ? documentScope.folderId : folderId;
+    const workspaceFolderId = typeof scopedFolderId === 'string' || scopedFolderId === null ? scopedFolderId : undefined;
+    const hasWorkspaceFolderScope = Boolean((isWorkspaceScope || isPersonalScope) && documentScope && Object.prototype.hasOwnProperty.call(documentScope, 'folderId') && (typeof workspaceFolderId === 'string' || workspaceFolderId === null));
     const values: SqlValue[] = [allowedVisibility(context.visibility)];
     if (workspaceId) values.push(workspaceId);
-    if (typeof workspaceFolderId === 'string') values.push(workspaceFolderId);
-    const scopePredicate = workspaceId
-      ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ' AND workspaceDocument."folderId" = $3') : ''})`
-      : `d."documentScope" = 'GENERAL'`;
+    const workspaceFolderIdIndex = typeof workspaceFolderId === 'string' ? values.push(workspaceFolderId) : null;
+    const userIdIndex = userId !== null ? values.push(userId) : null;
+    const workspaceScope = workspaceId !== null;
+    const personalScope = isPersonalScope && userId !== null;
+    const sourceId = isWorkspaceScope && typeof documentScope?.sourceId === 'string'
+      ? documentScope.sourceId
+      : null;
+    const sourceFolder = isWorkspaceScope && typeof documentScope?.sourceFolder === 'string'
+      ? documentScope.sourceFolder
+      : null;
+    const sourceIdIndex = sourceId && sourceId !== '__manual_upload__'
+      ? values.push(sourceId)
+      : null;
+    const sourceFolderIndex = sourceFolder ? values.push(sourceFolder) : null;
+    const sourcePredicate = sourceId === '__manual_upload__'
+      ? ' AND NOT EXISTS (SELECT 1 FROM "SourceFile" sourceFile JOIN "DocumentSource" source ON source."id" = sourceFile."sourceId" WHERE sourceFile."documentId" = d."id" AND source."workspaceId" = $2)'
+      : sourceIdIndex
+        ? ` AND EXISTS (SELECT 1 FROM "SourceFile" sourceFile JOIN "DocumentSource" source ON source."id" = sourceFile."sourceId" WHERE sourceFile."documentId" = d."id" AND sourceFile."sourceId" = $${sourceIdIndex} AND source."workspaceId" = $2${sourceFolderIndex ? ` AND (sourceFile."normalizedPath" = $${sourceFolderIndex} OR (left(sourceFile."normalizedPath", char_length($${sourceFolderIndex})) = $${sourceFolderIndex} AND substring(sourceFile."normalizedPath" from char_length($${sourceFolderIndex}) + 1 for 1) = E'\\\\'))` : ''})`
+        : '';
+    const workspaceMembershipAcl = userIdIndex
+      ? `EXISTS (
+          SELECT 1 FROM "WorkspaceMembership" membership
+          JOIN "DocumentWorkspace" activeWorkspace ON activeWorkspace."id" = membership."workspaceId"
+          WHERE membership."workspaceId" = $2
+            AND membership."userId" = $${userIdIndex}
+            AND membership."active" = TRUE AND activeWorkspace."active" = TRUE
+        )`
+      : 'FALSE';
+    const workspaceFolderAcl = userIdIndex
+      ? `
+        AND (
+          workspaceDocument."folderId" IS NULL
+          OR workspaceDocument."folderId" IN (
+            WITH RECURSIVE folder_chain AS (
+              SELECT folder."id" AS "targetId", folder."id" AS "ancestorId",
+                     folder."parentId", folder."workspaceId", folder."ownerUserId",
+                     folder."visibilityScope", folder."createdById"
+                FROM "WorkspaceFolder" folder
+               WHERE folder."workspaceId" = $2 AND folder."ownerUserId" IS NULL
+              UNION ALL
+              SELECT chain."targetId", parent."id", parent."parentId",
+                     parent."workspaceId", parent."ownerUserId",
+                     parent."visibilityScope", parent."createdById"
+                FROM folder_chain chain
+                JOIN "WorkspaceFolder" parent ON parent."id" = chain."parentId"
+               WHERE parent."workspaceId" = chain."workspaceId"
+                 AND parent."ownerUserId" IS NULL
+            )
+            SELECT chain."targetId"
+              FROM folder_chain chain
+             GROUP BY chain."targetId"
+            HAVING bool_and(
+              CASE chain."visibilityScope"::text
+                WHEN 'PERSONAL' THEN chain."ownerUserId" = $${userIdIndex}
+                WHEN 'RESTRICTED' THEN EXISTS (
+                  SELECT 1 FROM "WorkspaceMembership" grant_membership
+                   WHERE grant_membership."workspaceId" = chain."workspaceId"
+                     AND grant_membership."userId" = $${userIdIndex}
+                     AND grant_membership."active" = TRUE
+                     AND (
+                       grant_membership."role" = 'ADMIN'
+                       OR chain."createdById" = grant_membership."userId"
+                       OR EXISTS (
+                         SELECT 1 FROM "WorkspaceFolderGrant" grant_row
+                          WHERE grant_row."folderId" = chain."ancestorId"
+                            AND grant_row."membershipId" = grant_membership."id"
+                       )
+                     )
+                )
+                ELSE TRUE
+              END
+            )
+          )
+        )`
+      : ' AND FALSE';
+    const personalFolderAcl = userIdIndex
+      ? `
+        AND NOT EXISTS (
+          WITH RECURSIVE folder_chain AS (
+            SELECT folder."id" AS "ancestorId", folder."parentId", folder."workspaceId",
+                   folder."ownerUserId", folder."visibilityScope"
+              FROM "WorkspaceFolder" folder WHERE folder."id" = workspaceDocument."folderId"
+            UNION ALL
+            SELECT parent."id", parent."parentId", parent."workspaceId",
+                   parent."ownerUserId", parent."visibilityScope"
+              FROM folder_chain chain JOIN "WorkspaceFolder" parent ON parent."id" = chain."parentId"
+             WHERE parent."workspaceId" IS NULL AND parent."ownerUserId" = $${userIdIndex}
+          )
+          SELECT 1 FROM folder_chain chain
+           WHERE chain."ownerUserId" <> $${userIdIndex}
+              OR chain."visibilityScope" = 'RESTRICTED'
+        )`
+      : ' AND FALSE';
+    const scopePredicate = workspaceId && userIdIndex
+      ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND ${workspaceMembershipAcl} AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2 AND workspaceDocument."ownerUserId" IS NULL${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${workspaceFolderAcl})${sourcePredicate}`
+      : isPersonalScope && userIdIndex
+        ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" IS NULL AND workspaceDocument."ownerUserId" = $${userIdIndex}${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${personalFolderAcl})`
+        : isWorkspaceScope || isPersonalScope
+          ? `FALSE`
+          : `d."documentScope" = 'GENERAL'`;
+    const dateRange = validateSearchDateRange(
+      context.filters?.dateFrom,
+      context.filters?.dateTo,
+    );
+    const types = validateCorpusTypes(context.filters?.types);
+    const filterPredicates: string[] = [];
+    if (dateRange.dateFrom) {
+      values.push(dateRange.dateFrom);
+      filterPredicates.push(`d."decisionDate" >= $${values.length}::date`);
+    }
+    if (dateRange.dateTo) {
+      values.push(dateRange.dateTo);
+      filterPredicates.push(`d."decisionDate" < ($${values.length}::date + INTERVAL '1 day')`);
+    }
+    if (types) {
+      values.push(mimeTypesForCorpusTypes(types));
+      filterPredicates.push(`EXISTS (
+        SELECT 1 FROM "CorpusDocumentFile" currentFile
+         WHERE currentFile."documentId" = d."id"
+           AND currentFile."version" = (
+             SELECT max(latestFile."version") FROM "CorpusDocumentFile" latestFile
+              WHERE latestFile."documentId" = d."id"
+           )
+           AND lower(btrim(split_part(currentFile."mimeType", ';', 1))) = ANY($${values.length}::text[])
+      )`);
+    }
+    const filterPredicate = filterPredicates.join(' AND ');
+    const candidateScopePredicate = filterPredicate
+      ? `(${scopePredicate}) AND (${filterPredicate})`
+      : scopePredicate;
     const shortTermWindow = useTokenProjection && query.root?.type === 'term' && !query.root.field &&
       query.root.matchMode === 'contains' && [...normalizeSearchText(query.root.value)].length < 3;
     const deferredSinglePhrase = useTokenProjection && query.root?.type === 'phrase';
     const candidateValuesStart = values.length + 1;
     const candidateBuildStartedAt = performance.now();
     const candidateCte = this.candidateStrategy === 'set-algebra-v2' && !shortTermWindow
-      ? buildBooleanCandidateCte(query, values, useTokenProjection, deferredSinglePhrase, scopePredicate)
+      ? buildBooleanCandidateCte(query, values, useTokenProjection, deferredSinglePhrase, candidateScopePredicate)
       : null;
     const candidateValuesEnd = candidateCte ? values.length : values.length - 1;
     const candidateBuildMs = performance.now() - candidateBuildStartedAt;
@@ -406,8 +541,9 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const boundedCandidatePage = this.candidateStrategy === 'set-algebra-v2';
     const predicates = [
       `d."visibility" = ANY($1::text[])`,
-      `d."status" = 'INDEXED'`,
+      `d."status" IN ('INDEXED', 'OCR_REQUIRED')`,
       scopePredicate,
+      ...(filterPredicate ? [filterPredicate] : []),
     ];
     if (shortTermWindow && query.root?.type === 'term') {
       values.push(pattern(query.root));
@@ -426,7 +562,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       predicates.push(`d."decisionDate" < $${values.length}::date`);
     }
     const structured: Array<
-      [keyof NonNullable<SearchContext['filters']>, string]
+      [Exclude<keyof NonNullable<SearchContext['filters']>, 'dateFrom' | 'dateTo' | 'types'>, string]
     > = [
       ['expediente', 'd."caseNumber"'],
       ['numeroSentencia', 'd."caseNumber"'],
@@ -485,6 +621,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     let total = 0;
     let queryCount = readinessQueryCount + 1;
     let workspaceTermTotalExact = false;
+    let outOfRangeTotalExact = false;
     let phraseCandidateCount: number | undefined;
     let pageSnippetHydrationMs = 0;
     let responseMappingMs = 0;
@@ -703,6 +840,29 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
           throw error;
         }
       }
+      const pageHasResults = rows.rows.some((row) => row.id !== null);
+      if (boundedCandidatePage && page > 1 && !pageHasResults) {
+        const exactCountStartedAt = performance.now();
+        const exactCountSql = candidateCte
+          ? `${candidateCte} SELECT COUNT(*)::text AS total FROM "corpusSearchCandidates" candidates JOIN "CorpusDocument" d ON d."id" = candidates."id" WHERE ${where}`
+          : `SELECT COUNT(*)::text AS total FROM "CorpusDocument" d WHERE ${where}`;
+        try {
+          const exactCount = await this.pool.query<{ total: string }>(
+            exactCountSql,
+            values,
+          );
+          total = Number(exactCount.rows[0]?.total ?? 0);
+          outOfRangeTotalExact = true;
+          countMs += performance.now() - exactCountStartedAt;
+          queryCount += 1;
+        } catch (error) {
+          countMs += performance.now() - exactCountStartedAt;
+          failedQuery = 'COUNT';
+          errorCode = (error as { code?: string })?.code;
+          errorMessage = (error as { message?: string })?.message;
+          throw error;
+        }
+      }
     } catch (error) {
       failedQuery = failedQuery ?? 'PAGE';
       errorCode = errorCode ?? (error as { code?: string })?.code;
@@ -732,7 +892,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const hasMore = boundedCandidatePage
       ? Boolean(rows.rows[0]?.hasMore)
       : false;
-    const totalExact = workspaceTermTotalExact || (boundedCandidatePage
+    const totalExact = workspaceTermTotalExact || outOfRangeTotalExact || (boundedCandidatePage
         ? (deferredSinglePhrase ? Boolean(rows.rows[0]?.totalExact) : (rows.rows.length === 0 ? page === 1 : !hasMore))
         : true);
     const mappingStartedAt = performance.now();
@@ -771,6 +931,8 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         document: {
           href: workspaceScope
             ? `/api/workspaces/${workspaceId}/documents/${row.id}/file`
+            : personalScope
+              ? `/api/personal/documents/${row.id}/file`
             : row.visibility === 'PUBLIC'
             ? `/api/public/corpus/documents/${row.id}/file`
             : `/api/corpus/documents/${row.id}/file`,

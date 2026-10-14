@@ -10,8 +10,10 @@ import {
 } from './document-storage.adapter';
 import {
   BasicDocumentTextExtractor,
+  extractionProvenance,
   InvalidPdfError,
   type DocumentTextExtractor,
+  type ExtractionResult,
 } from './document-text-extractor';
 import { normalizeSearchText } from '../busqueda/utils/search-normalizer';
 
@@ -188,16 +190,24 @@ export class CorpusIngestionService {
           extractorVersion: extracted.extractorVersion,
           status: extracted.status,
           text: extracted.text,
+          ...(extracted.provenance
+            ? { provenance: extracted.provenance as Prisma.InputJsonValue }
+            : {}),
           pages: {
             create: extracted.pages.map((page) => ({
               pageNumber: page.pageNumber,
               text: page.text,
+              textKind: 'NATIVE',
+              processingStatus:
+                extracted.formatDetected === 'PDF' &&
+                extracted.ocrRequiredPages.includes(page.pageNumber)
+                  ? 'OCR_REQUIRED'
+                  : 'TEXT_NATIVE',
             })),
           },
         },
       });
       const metadata = item.metadata ?? {};
-      const indexed = extracted.status === 'TEXT_EXTRACTED';
       const searchText = normalizeSearchText(
         [
           document.title,
@@ -224,13 +234,20 @@ export class CorpusIngestionService {
         }),
         this.prisma.corpusDocumentFile.update({
           where: { id: file.id },
-          data: { pageCount: extracted.pages.length || null },
+          data: {
+            pageCount: extracted.pages.length || null,
+            mimeType: extracted.mimeDetected,
+          },
         }),
         this.prisma.corpusIngestionRecord.update({
           where: { id: ingestion.id },
           data: {
             status:
               extracted.status === 'OCR_REQUIRED' ? 'OCR_REQUIRED' : 'INDEXED',
+            metadataOriginal: withExtractionProvenance(
+              item.metadataOriginal,
+              extracted,
+            ),
           },
         }),
       ]);
@@ -337,11 +354,15 @@ export class CorpusIngestionService {
       include: { document: true },
       orderBy: { createdAt: 'asc' },
     });
-    const matchingDocuments = new Set(matchingFiles.map((file) => file.documentId));
+    const matchingDocuments = new Set(
+      matchingFiles.map((file) => file.documentId),
+    );
     if (!matchingFiles.length)
       throw new Error('No existe un archivo Corpus con el SHA indicado.');
     if (matchingDocuments.size !== 1)
-      throw new Error('CORPUS_HASH_AMBIGUOUS: el SHA pertenece a varios documentos Corpus.');
+      throw new Error(
+        'CORPUS_HASH_AMBIGUOUS: el SHA pertenece a varios documentos Corpus.',
+      );
     const matchingFile = matchingFiles[0];
     const ingestion = await this.prisma.corpusIngestionRecord.create({
       data: {
@@ -388,6 +409,10 @@ export class CorpusIngestionService {
       content,
     );
     const extracted = sanitizeExtraction(extractedRaw);
+    const priorIngestions = await this.prisma.corpusIngestionRecord.findMany({
+      where: { documentId },
+      select: { id: true, metadataOriginal: true },
+    });
     const extraction = await this.prisma.corpusExtraction.create({
       data: {
         documentId,
@@ -396,10 +421,19 @@ export class CorpusIngestionService {
         extractorVersion: extracted.extractorVersion,
         status: extracted.status,
         text: extracted.text,
+        ...(extracted.provenance
+          ? { provenance: extracted.provenance as Prisma.InputJsonValue }
+          : {}),
         pages: {
           create: extracted.pages.map((page) => ({
             pageNumber: page.pageNumber,
             text: page.text,
+            textKind: 'NATIVE',
+            processingStatus:
+              extracted.formatDetected === 'PDF' &&
+              extracted.ocrRequiredPages.includes(page.pageNumber)
+                ? 'OCR_REQUIRED'
+                : 'TEXT_NATIVE',
           })),
         },
       },
@@ -427,17 +461,23 @@ export class CorpusIngestionService {
           latestExtractionId: extraction.id,
         },
       }),
-      this.prisma.corpusIngestionRecord.updateMany({
-        where: { documentId },
-        data: {
-          status:
-            extracted.status === 'OCR_REQUIRED' ? 'OCR_REQUIRED' : 'INDEXED',
-          errorStage: null,
-          errorMessage: null,
-          errorAt: null,
-          retryable: false,
-        },
-      }),
+      ...priorIngestions.map((ingestion) =>
+        this.prisma.corpusIngestionRecord.update({
+          where: { id: ingestion.id },
+          data: {
+            status:
+              extracted.status === 'OCR_REQUIRED' ? 'OCR_REQUIRED' : 'INDEXED',
+            errorStage: null,
+            errorMessage: null,
+            errorAt: null,
+            retryable: false,
+            metadataOriginal: withExtractionProvenance(
+              ingestion.metadataOriginal,
+              extracted,
+            ),
+          },
+        }),
+      ),
     ]);
     return {
       extractionId: extraction.id,
@@ -466,15 +506,33 @@ function mimeFor(filename: string) {
     : 'text/plain';
 }
 
+function withExtractionProvenance(
+  original: unknown,
+  extracted: ExtractionResult,
+) {
+  const base =
+    typeof original === 'object' &&
+    original !== null &&
+    !Array.isArray(original)
+      ? (original as Prisma.InputJsonObject)
+      : original === undefined || original === null
+        ? {}
+        : { sourceMetadata: original as Prisma.InputJsonValue };
+  return {
+    ...base,
+    extractionProvenance: extractionProvenance(extracted),
+  } as Prisma.InputJsonObject;
+}
+
 export function sanitizeExtraction<
   T extends { text: string; pages: Array<{ text: string }> },
 >(extracted: T): T {
   return {
     ...extracted,
-    text: extracted.text.replace(/\u0000/gu, ''),
+    text: extracted.text.replaceAll('\u0000', ''),
     pages: extracted.pages.map((page) => ({
       ...page,
-      text: page.text.replace(/\u0000/gu, ''),
+      text: page.text.replaceAll('\u0000', ''),
     })),
   };
 }

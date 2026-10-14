@@ -266,7 +266,7 @@ function buildWhere(query: SearchQueryAst, context: SearchContext, values: SqlVa
     values.push(context.filters.fechaHastaExclusive);
     predicates.push(`t."fecha" < $${values.length}::date`);
   }
-  const exactFilters: Array<[keyof NonNullable<SearchContext['filters']>, string]> = [
+  const exactFilters: Array<[Exclude<keyof NonNullable<SearchContext['filters']>, 'dateFrom' | 'dateTo' | 'types'>, string]> = [
     ['expediente', 't."expediente"'], ['numeroSentencia', 't."numeroSentencia"'],
     ['caratula', 't."caratula"'], ['tribunalOrigen', 't."tribunalOrigen"'], ['tipoFallo', 't."tipoFallo"'],
   ];

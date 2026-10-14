@@ -330,3 +330,61 @@ J9.1 implementa la mejora de UX de Jurisprudencia con build, typecheck, lint dir
 
 J9.1 pasa de `PARTIAL` a `CLOSED` en DEV: sumarios reales=0 y soporte sintético PASS; cola operator de 56 derivada y separada; 21.083 históricos fuera de esa cola; PDF real y sintético visibles; print browser PASS; contenido largo/responsive PASS. Conteos siguen 6.014 publicados, 56 casos no publicados. No iniciar scraper, IA/resúmenes, Search optimization, adquisición o RAG desde este cierre. Esperar el cierre UX de `feature/copernic`; luego preparar integración coordinada, sin merge en este sprint. UAT institucional/preproducción/producción siguen pendientes.
 
+## Resultado Sprint 15.2 — 2026-10-13
+
+**PARTIAL de verificación ambiental.** La base funcional de fuentes UNC está implementada y validada con fixtures locales: alta, sincronización incremental, rename inequívoco, reconciliación segura, Search/Viewer privado y ACL ADMIN. Builds y typechecks pasan. No abrir el acceso a dependencias hasta probar la identidad Windows del backend en una UNC aprobada y completar UAT con owners. La paridad legacy 40/40 queda pendiente porque falta el SQLite de referencia en esta PC; Search general, projection verify y Viewer 6/6 sí pasaron independientemente.
+
+Próximos pasos ordenados: (1) obtener/recuperar el SQLite legacy local y repetir parity 40/40; (2) pedir a IT un share de prueba no productivo con permisos de lectura para la identidad de servicio y ejecutar test-access/scan controlado; (3) completar UAT con una dependencia piloto y su política de retención/administración; (4) volver a medir Search PHRASE según el gate previo, sin mezclar esa optimización con escaneo de fuentes. No desplegar en red compartida ni producción en esta Sprint.
+## Prioridad después de Sprint 15.3 — 2026-10-13
+
+Sprint 15.3 queda PARTIAL. Se validó Classic Search de tres paneles, preview persistente, filtros de fuente/carpeta, página y teclado en DEV; PHRASE exact-span y refinamientos tipo/fecha continúan sin contrato backend suficiente. Mantener el preview y Search general bajo la ACL actual y no declarar aceptación humana.
+
+Siguiente candidato recomendado: Sprint 15.4A — formatos/OCR con alcance acotado y módulos de extracción separados. Dejar NEAR para después: modificaría parser/AST/executor y coincide con zonas de Search compartidas por feature/jurisprudencia, con riesgo de integración mayor. Antes de 15.4A, acordar la representación de offsets/extracciones para que pueda soportar preview, página y calidad revisable; no inferir OCR correcto por indexación. No mergear ninguna rama al cerrar esta etapa.
+
+Archivos compartidos que requerirán resolución coordinada al integrar ramas: corpus-search.adapter.ts, workspace-document.service.ts, workspace-document.controller.ts, BJC-ESTADO-ACTUAL.md, BJC-ROADMAP.md; los módulos UI de Copernic son nuevos y tienen menor probabilidad de colisión.
+
+## Prioridad después de Sprint 15.3.1 — 2026-10-14
+
+Sprint 15.3.1 queda **PARTIAL**: los filtros privados y el contrato de spans pasan pruebas backend/browser; la limitación restante es probar el mapeo exacto entre texto extraído y text layer PDF.js en más documentos, manteniendo el comportamiento fail-closed cuando no se puede resolver. No afirmar highlight exacto para PDF arbitrario ni promover UAT humana por pruebas sintéticas.
+
+Siguiente paso técnico: recopilar fixtures PDF representativos autorizados/locales, comparar texto de extractor con PDF.js y añadir casos de mapeo (repeticiones, saltos de línea, ítems separados, acentos y ligaduras) sin introducir heurísticas. Luego elegir 15.4A (formatos/OCR) antes que NEAR si sigue siendo el cambio con menos choque con Search compartido por `feature/jurisprudencia`. No hacer merge de otras ramas ni desplegar.
+
+La medición general Search V2 mantuvo p95 de TERM común y PHRASE de dos palabras; el benchmark de PHRASE de tres palabras no se capturó comparablemente en before/after. Los filtros privados tienen p95 de 18–26 ms en el fixture sintético, que no es SLO. Evidencia: `_recovery-work/sprint1531/` (local ignorado).
+
+## Prioridad después de Sprint 15.3.2 — 2026-10-14
+
+Sprint 15.3.2 queda **PARTIAL**. El mapper determinista produjo 0 falsos mappings y el Viewer presenta fallback cuando falta un anclaje confiable; la muestra de 25 PDFs/827 páginas todavía dejó 83/221 spans sin mapping, incluidos TERM frecuentes y PHRASE. No avanzar a la certificación universal de Search→PDF.js.
+
+Siguiente paso técnico: ampliar la muestra local con text layers que separen palabras por espacios geométricos, saltos/guiones y segmentación de extractores distintos; identificar clases TERM/PHRASE que puedan resolverse con anclaje de contexto manteniendo cero falsos mappings. No introducir fuzzy matching ni reconstruir Search. Mantener reporte PARTIAL hasta que los casos habituales tengan highlight determinista o fallback validado por clase.
+
+Cuando el gate visual y los casos habituales cierren, elegir 15.4A — formatos/OCR antes que NEAR mientras `feature/jurisprudencia` siga tocando Search compartido. Hoy esa rama también modifica `CorpusPdfViewer.tsx` y `BJC-SEARCH.md`, `BJC-FUNCIONAL.md`, `BJC-ESTADO-ACTUAL.md` y `BJC-ROADMAP.md`; resolver esas colisiones al integrar, sin merge automático. No tocar ACL, migraciones, producción ni adquisición dentro de esta continuidad.
+
+## Prioridad después de Sprint 15.3.3 — 2026-10-14
+
+Los 83 fallos de mapping anteriores se clasificaron y todos los spans de la muestra base (221/221) quedaron ubicados con 0 falsos highlights auditados. Diez casos reales se revisaron visualmente y el flujo mantiene fail-closed ante discrepancias sin ancla. La nueva muestra de 45 PDFs/968 páginas añade evidencia en 11 productores; queda explícitamente fuera de certificación universal la alineación de seis páginas base con diferencias de glifos, OCR, ligaduras y columnas. El p95 de preparación de página observado subió de la referencia de pasada local 5,832 ms a 8,144 ms, con alineación p95 de 0,888 ms; perfilar y repetir medición antes de ampliar cobertura o afirmar que no hay costo.
+
+Siguiente trabajo recomendado: revisar la diferencia de seis páginas a nivel de categoría sin introducir matching difuso; medir varias pasadas comparables para confirmar el costo de preparación; conservar anclas de contexto exactas, verificación de orden/puntuación y fallback sin highlight. Luego abordar 15.4A (formatos/OCR) con text layer ausente separado de calidad de OCR. Search backend y schema permanecen fuera de alcance; no mergear otras ramas ni tratar pruebas sintéticas como UAT humana.
+
+## Prioridad después de Sprint 15.4A — 2026-10-14
+
+Sprint 15.4A queda **PARTIAL**: detección, formatos textuales, preview/descarga y ACL pasan la evidencia sintética; OCR local y `.doc` seguro no están disponibles. Siguiente línea recomendada: **15.4A.1 — provisionar motor/modelo OCR local y worker acotado, más una ruta segura para DOC**. Es el gate de producto pendiente y de mayor riesgo: motor/modelo aprobado para Windows, calidad con ground truth autorizado, memoria/latencia y backpressure deben preceder a cualquier promesa de OCR. Mantener original y provenance, no OCR masivo ni cloud, y no abrir 15.4B hasta verificar ese pipeline. Artefactos 15.4A: `_recovery-work/sprint154a/`.
+## Cierre Sprint 15.4A.1 — 2026-10-14
+
+**CLOSED técnicamente en DEV local; UAT humana y preproducción siguen pendientes.** OCR español local y DOC OLE seguro quedaron implementados, con cola persistente/backpressure/restart recovery, Search incremental, ACL, preview y regresiones. Prisma migración/status, suite backend (128 PASS; 20 opt-in omitidos), builds/typechecks/lint y Playwright OCR/DOC 1/1 pasaron. Tras cleanup, la proyección quedó en 17.078 documentos / 18.799.500 tokens, stale=0, mismatch=0/100, rebuild=0. El benchmark DOC p95 fue 57,57 s frente al timeout de 60 s; mantener este límite visible para cargas por lotes.
+
+Siguiente alcance recomendado: **Search + Viewer final certification**, con golden query suite, paginación, ACL, match/mapping, todos los formatos, OCR, carreras del Viewer, F3, resize, errores y rendimiento. No iniciar NEAR, Semantic Search o RAG automáticamente. Mantener local-only hasta cumplir preproducción y aceptación humana; la muestra OCR actual es sintética y no certifica calidad jurídica de documentos reales.
+## Prioridad después de Sprint 15.5 — 2026-10-14
+
+Search + Viewer cerró sus gates técnicos principales con estado CERTIFIED_WITH_KNOWN_LIMITATIONS en DEV. No iniciar NEAR, semantic search, RAG ni adquisición dentro de esta continuidad. Próximo foco opcional: UX-1 Zero-Training UX, después de preparar integración coordinada entre ramas; UAT institucional, preproducción y hardening de la matriz XSS/SQLi/WCAG deben continuar como gates separados. No se inició UX automáticamente.
+
+## Sprint 15.6 — resultado y próxima decisión (2026-10-14)
+
+La UX de entrada, dependencia, carpetas compartidas, Search, preview y upload se hizo más clara. E2E autenticado 2/2 y matriz responsive 7/7 sin overflow pasaron; no se completó UAT humana. La misión cero capacitación completa queda **PARTIAL**: el backend no implementa documentos personales ni ACL por carpeta. No anunciar ni emular «Mis documentos — sólo yo» o «Restringido — usuarios elegidos» hasta contar con datos, autorización uniforme en todas las rutas y regresiones anti-leak. La integración Workspace PostgreSQL no certificó su expectativa de una sola ejecución OCR en presencia de un backend activo; ver detalle en `BJC-ESTADO-ACTUAL.md`. Contrato de UX y alcance: `BJC-UX-ESPACIOS-DOCUMENTALES.md`.
+
+Próximo trabajo permitido: integración coordinada de ramas sólo después de comparar las decisiones de UX y los contratos ACL; luego diseñar un alcance backend dedicado para propietario personal y carpetas restringidas, con regresión DB/API/árbol/Search/count/preview/download/upload/move antes de activar controles. Human UAT sigue pendiente. No comenzar Search features, RAG, NEAR, scraping ni adquisición por esta conclusión.
+
+## Sprint 15.6.1 — resultado vigente y siguiente paso (2026-10-14)
+
+**CLOSED técnicamente en DEV local.** Se completaron documentos `GLOBAL_PER_USER`, carpetas compartidas/restringidas con grants a membresías activas, revocación inmediata en Search/Viewer/download, transiciones con confirmación y seguridad para documentos sincronizados. Herencia es acumulativa: no se puede ensanchar un hijo dentro de una carpeta restringida; se debe cambiar primero el alcance del padre. La corrida OCR histórica se volvió determinística usando cola y storage únicos por ejecución; seis integraciones Workspace consecutivas pasaron. E2E, Search golden, Source, Prisma y Search Verify también pasaron; DB/storage sintético se limpiaron y el baseline quedó intacto. Detalle/evidencia: `BJC-ESTADO-ACTUAL.md`, `BJC-ESPACIOS-DOCUMENTALES.md` y `_recovery-work/sprint1561/`.
+
+Siguiente paso: preparación de integración coordinada de `feature/copernic` con `feature/jurisprudencia`, con revisión conjunta de los archivos compartidos (`workspace-document.service.ts`, controllers/Search y los documentos de estado/contratos). Esta conclusión no realiza merge/cherry-pick. Mantener UAT humana, verificación UNC aprobada, preproducción y producción como gates independientes. No iniciar NEAR, semantic search, RAG, scraper, AI summaries ni adquisición dentro de esta continuidad.

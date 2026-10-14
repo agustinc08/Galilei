@@ -9,13 +9,14 @@ import { downloadBlob } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import type { PdfMatch } from "@/app/(admin)/corpus/[id]/CorpusPdfViewer";
+import styles from "../../../copernic-search.module.css";
 
 const CorpusPdfViewer = dynamic(
   () =>
     import("@/app/(admin)/corpus/[id]/CorpusPdfViewer").then(
       (module) => module.CorpusPdfViewer,
     ),
-  { ssr: false, loading: () => <p>Cargando PDF…</p> },
+  { ssr: false, loading: () => <p>Cargando documento…</p> },
 );
 
 type DocumentInfo = {
@@ -28,18 +29,65 @@ type DocumentInfo = {
     mimeType: string;
   } | null;
   extraction: { status: string; pageCount: number } | null;
+  selectedPage?: { pageNumber: number; text: string; textKind?: 'NATIVE' | 'OCR' };
 };
 type Matches = {
   total: number;
+  returned: number;
+  exactTotalKnown: boolean;
   truncated: boolean;
-  matches: Array<PdfMatch & { context: string; total: number }>;
+  matches: Array<PdfMatch & {
+    context: string;
+    contextBefore: string;
+    contextAfter: string;
+    text: string;
+    kind: "TERM" | "PHRASE";
+    pageOccurrenceOrdinal: number;
+    total: number;
+  }>;
 };
+
+function fileTypeLabel(mimeType: string | undefined) {
+  if (mimeType === "application/pdf") return "PDF";
+  if (mimeType === "text/plain") return "TXT";
+  if (mimeType === "application/rtf" || mimeType === "text/rtf") return "RTF";
+  if (mimeType === "application/msword") return "DOC";
+  if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return "DOCX";
+  if (mimeType === "application/vnd.oasis.opendocument.text") return "ODT";
+  return "documento";
+}
+function renderTextMatch(
+  text: string,
+  matches: Matches["matches"],
+  page: number,
+  activeOrdinal?: number,
+) {
+  const ordered = matches
+    .filter((match) => match.page === page)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const output: React.ReactNode[] = [];
+  let cursor = 0;
+  for (const match of ordered) {
+    const start = Math.max(cursor, match.start);
+    const end = Math.min(text.length, match.end);
+    if (end <= start) continue;
+    if (start > cursor) output.push(text.slice(cursor, start));
+    output.push(
+      <mark className={match.ordinal === activeOrdinal ? "bjc-text-match-current" : "bjc-text-match"} key={`${match.ordinal}-${start}-${end}`}>
+        {text.slice(start, end)}
+      </mark>,
+    );
+    cursor = end;
+  }
+  if (cursor < text.length) output.push(text.slice(cursor));
+  return output;
+}
 
 function viewerError(cause: unknown, fallback: string) {
   if (cause instanceof ApiError) {
     if (cause.status === 401) return "Tu sesión venció. Volvé a ingresar.";
     if (cause.status === 403 || cause.status === 404)
-      return "El espacio o documento ya no está disponible para tu cuenta.";
+      return "No encontramos este documento o no tenés acceso.";
     if (cause.status >= 500)
       return "Ocurrió un problema al abrir el documento. Podés volver a intentarlo.";
   }
@@ -52,7 +100,20 @@ export default function WorkspaceDocumentViewer() {
   const initialQuery = searchParams.get("q") ?? "";
   const workspaceName = searchParams.get("workspaceName");
   const backParams = new URLSearchParams();
-  for (const key of ["workspaceId", "folderId", "q", "searchFolderMode"]) {
+  for (const key of [
+    "workspaceId",
+    "folderId",
+    "sourceId",
+    "sourceFolder",
+    "type",
+    "datePreset",
+    "dateFrom",
+    "dateTo",
+    "q",
+    "searchFolderMode",
+    "selected",
+    "match",
+  ]) {
     const value = searchParams.get(key);
     if (value !== null) backParams.set(key, value);
   }
@@ -69,27 +130,42 @@ export default function WorkspaceDocumentViewer() {
   const [pageCount, setPageCount] = useState(0);
   const [active, setActive] = useState(0);
   const [error, setError] = useState("");
+  const effectivePageCount =
+    pageCount || document?.extraction?.pageCount || document?.file?.pageCount || 0;
+  const isPdf = document?.file?.mimeType === "application/pdf";
+
+  useEffect(() => {
+    let alive = true;
+    void api.get<DocumentInfo>(
+      `/workspaces/${params.workspaceId}/documents/${params.id}`,
+      { query: { pageNumber: page } },
+    )
+      .then((info) => {
+        if (alive) setDocument(info);
+      })
+      .catch((cause: unknown) => {
+        if (alive)
+          setError(viewerError(cause, "No se pudo abrir este documento."));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [params.workspaceId, params.id, page]);
 
   useEffect(() => {
     let alive = true;
     let objectUrl: string | null = null;
-    void Promise.all([
-      api.get<DocumentInfo>(
-        `/workspaces/${params.workspaceId}/documents/${params.id}`,
-      ),
-      api.download(
-        `/workspaces/${params.workspaceId}/documents/${params.id}/file`,
-      ),
-    ])
-      .then(([info, blob]) => {
+    void api.download(
+      `/workspaces/${params.workspaceId}/documents/${params.id}/file`,
+    )
+      .then((blob) => {
         if (!alive) return;
         objectUrl = URL.createObjectURL(blob);
-        setDocument(info);
         setPdf(objectUrl);
       })
       .catch((cause: unknown) => {
         if (alive)
-          setError(viewerError(cause, "No se pudo abrir el documento privado."));
+          setError(viewerError(cause, "No se pudo abrir este documento."));
       });
     return () => {
       alive = false;
@@ -108,20 +184,26 @@ export default function WorkspaceDocumentViewer() {
         { query: { q: query } },
       );
       setMatches(data);
-      setActive(0);
-      if (data.matches[0]) setPage(data.matches[0].page);
+      const cameFromSearch = searchParams.has("searchPage");
+      const requestedOrdinal = Math.max(1, Number(searchParams.get("match") ?? 1));
+      const requestedIndex = cameFromSearch
+        ? data.matches.findIndex((match) => match.ordinal === requestedOrdinal)
+        : 0;
+      const nextIndex = requestedIndex >= 0 ? requestedIndex : 0;
+      setActive(nextIndex);
+      if (data.matches[nextIndex]) setPage(data.matches[nextIndex].page);
     } catch (cause) {
       setError(viewerError(cause, "No se pudo buscar dentro del documento."));
     }
-  }, [params.id, params.workspaceId, query]);
+  }, [params.id, params.workspaceId, query, searchParams]);
   async function downloadPdf() {
     try {
       const blob = await api.download(
         `/workspaces/${params.workspaceId}/documents/${params.id}/file?download=true`,
       );
-      downloadBlob(blob, document?.file?.filename ?? "documento.pdf");
+      downloadBlob(blob, document?.file?.filename ?? "documento");
     } catch (cause) {
-      setError(viewerError(cause, "No se pudo descargar el PDF privado."));
+      setError(viewerError(cause, "No se pudo descargar este documento."));
     }
   }
   useEffect(() => {
@@ -135,30 +217,36 @@ export default function WorkspaceDocumentViewer() {
   return (
     <>
       <nav aria-label="Ruta del documento">
-        <Link href={backHref}>← Volver al espacio</Link>
+        <Link href={backHref}>← Volver a los documentos</Link>
         <span>
-          　›　{workspaceName ?? "Espacio documental"}　›　
+          　›　{workspaceName ?? "Documentos de la dependencia"}　›　
           {document?.file?.filename ?? "Documento"}
         </span>
       </nav>
       <PageHeader
-        title={document?.title ?? "Documento privado"}
+        title={document?.title ?? "Documento"}
         description={
           document?.file?.filename ??
-          "Visor con acceso controlado por workspace"
+          `Documento compartido con ${workspaceName ?? "tu dependencia"}`
         }
       />
-      {error && (
-        <p role="alert" style={{ color: "#b42318" }}>
-          {error}
-        </p>
+      {error ? (
+        <p className={styles.viewerError} role="alert">{error}</p>
+      ) : (
+        <>
+      {document?.status === "OCR_PROCESSING" && (
+        <Card>
+          <p>Procesando documento… La búsqueda se actualizará cuando termine.</p>
+        </Card>
       )}
       {document?.status === "OCR_REQUIRED" && (
         <Card>
-          <p>
-            El PDF está disponible para lectura. No se incluyó en búsqueda
-            porque requiere OCR.
-          </p>
+          <p>Procesando documento… El texto todavía no está disponible para buscar.</p>
+        </Card>
+      )}
+      {document?.status === "OCR_FAILED" && (
+        <Card>
+          <p>No pudimos extraer el texto de este archivo.</p>
         </Card>
       )}
       <Card>
@@ -172,14 +260,14 @@ export default function WorkspaceDocumentViewer() {
             aria-label="Buscar en el documento"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar y resaltar en el PDF"
+            placeholder="Buscar y resaltar en el documento"
           />
           <button>Buscar</button>
         </form>
         {matches && (
           <p>
             {matches.total} coincidencias
-            {matches.truncated ? " (muestra truncada)" : ""}{" "}
+            {matches.truncated ? ` (mostrando ${matches.returned} primeras; total exacto desconocido)` : ""}{" "}
             {current && `· página ${current.page}`}
           </p>
         )}
@@ -218,25 +306,39 @@ export default function WorkspaceDocumentViewer() {
             marginBottom: 12,
           }}
         >
-          <button
+          {isPdf && (<button
             disabled={page <= 1}
             onClick={() => setPage((value) => Math.max(1, value - 1))}
           >
             Página anterior
-          </button>
+          </button>)}
           <span>
-            Página {page} de{" "}
-            {pageCount || document?.extraction?.pageCount || "?"}
+            {isPdf ? "Página " + page + " de " + (effectivePageCount || "?") : "Texto extraído"}
           </span>
-          <button
-            disabled={!!pageCount && page >= pageCount}
+          {isPdf && (<button
+            disabled={!!effectivePageCount && page >= effectivePageCount}
             onClick={() => setPage((value) => value + 1)}
           >
             Página siguiente
+          </button>)}
+          <button onClick={() => void downloadPdf()}>
+            Descargar {fileTypeLabel(document?.file?.mimeType)}
           </button>
-          <button onClick={() => void downloadPdf()}>Descargar PDF</button>
         </div>
-        {pdf ? (
+        {document?.file && !isPdf ? (
+          <pre className={styles.textPreview} aria-label="Texto extraído del documento">
+            {renderTextMatch(
+              document.selectedPage?.text ?? "",
+              matches?.matches ?? [],
+              page,
+              current?.ordinal,
+            )}
+          </pre>
+        ) : pdf ? (
+          <>
+          {document?.selectedPage?.textKind === 'OCR' && (
+            <p role="status">Texto reconocido automáticamente. La navegación está disponible; el resaltado visual no está disponible para texto reconocido.</p>
+          )}
           <CorpusPdfViewer
             file={pdf}
             page={page}
@@ -244,10 +346,13 @@ export default function WorkspaceDocumentViewer() {
             activeMatch={active}
             onLoadSuccess={setPageCount}
           />
+          </>
         ) : (
-          <p>Cargando PDF…</p>
+          <p>Cargando documento…</p>
         )}
       </Card>
+        </>
+      )}
     </>
   );
 }

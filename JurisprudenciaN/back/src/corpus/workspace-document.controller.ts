@@ -14,7 +14,11 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { WorkspaceDependencyType, WorkspaceRole } from '@prisma/client';
+import {
+  WorkspaceDependencyType,
+  WorkspaceRole,
+  WorkspaceVisibilityScope,
+} from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ROLES } from '../auth/constants';
@@ -87,9 +91,44 @@ export class WorkspaceDocumentController {
   createFolder(
     @Param('workspaceId') workspaceId: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { name: string; parentId?: string | null },
+    @Body()
+    body: {
+      name: string;
+      parentId?: string | null;
+      visibilityScope?: WorkspaceVisibilityScope;
+      userIds?: number[];
+    },
   ) {
     return this.workspaces.createFolder(workspaceId, user, body);
+  }
+
+  @Patch(':workspaceId/folders/:folderId/access')
+  setRestrictedFolderMembers(
+    @Param('workspaceId') workspaceId: string,
+    @Param('folderId') folderId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body()
+    body: {
+      userIds?: number[];
+      visibilityScope?: WorkspaceVisibilityScope;
+      confirmAccessChange?: boolean;
+    },
+  ) {
+    return this.workspaces.setRestrictedFolderMembers(
+      workspaceId,
+      folderId,
+      user,
+      body,
+    );
+  }
+
+  @Get(':workspaceId/folders/:folderId/access')
+  restrictedFolderMembers(
+    @Param('workspaceId') workspaceId: string,
+    @Param('folderId') folderId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.restrictedFolderMembers(workspaceId, folderId, user);
   }
 
   @Patch(':workspaceId/folders/:folderId')
@@ -120,9 +159,25 @@ export class WorkspaceDocumentController {
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { folderId?: string | null },
+    @Body() body: { folderId?: string | null; confirmVisibilityChange?: boolean },
   ) {
-    return this.workspaces.moveDocument(workspaceId, id, user, body.folderId);
+    return this.workspaces.moveDocument(
+      workspaceId,
+      id,
+      user,
+      body.folderId,
+      body.confirmVisibilityChange,
+    );
+  }
+
+  @Patch(':workspaceId/documents/:id/personal')
+  makeDocumentPersonal(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { folderId?: string | null; confirmAccessChange: boolean },
+  ) {
+    return this.workspaces.makeDocumentPersonal(workspaceId, id, user, body);
   }
 
   @Post(':workspaceId/documents/upload')
@@ -153,6 +208,11 @@ export class WorkspaceDocumentController {
     @Query('page') page: string | undefined,
     @Query('pageSize') pageSize: string | undefined,
     @Query('folderId') folderId: string | undefined,
+    @Query('sourceId') sourceId: string | undefined,
+    @Query('sourceFolder') sourceFolder: string | undefined,
+    @Query('type') type: string | undefined,
+    @Query('dateFrom') dateFrom: string | undefined,
+    @Query('dateTo') dateTo: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.workspaces.searchWorkspace(
@@ -162,7 +222,27 @@ export class WorkspaceDocumentController {
       positiveInt(page, 1),
       Math.min(100, positiveInt(pageSize, 20)),
       folderId === 'ROOT' ? null : folderId,
+      sourceId,
+      sourceFolder,
+      { type, dateFrom, dateTo },
     );
+  }
+
+  @Get(':workspaceId/search/sources')
+  searchSources(
+    @Param('workspaceId') workspaceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.searchSources(workspaceId, user);
+  }
+
+  @Get(':workspaceId/search/sources/:sourceId/folders')
+  searchSourceFolders(
+    @Param('workspaceId') workspaceId: string,
+    @Param('sourceId') sourceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.searchSourceFolders(workspaceId, sourceId, user);
   }
 
   @Get(':workspaceId/member-candidates')
@@ -174,11 +254,25 @@ export class WorkspaceDocumentController {
     return this.workspaces.memberCandidates(workspaceId, user, q ?? '');
   }
 
+  @Get(':workspaceId/membership-candidates')
+  membershipCandidates(
+    @Param('workspaceId') workspaceId: string,
+    @Query('q') q: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.membershipCandidates(workspaceId, user, q ?? '');
+  }
+
   @Get(':workspaceId/search/names')
   searchNames(
     @Param('workspaceId') workspaceId: string,
     @Query('q') q: string | undefined,
     @Query('folderId') folderId: string | undefined,
+    @Query('sourceId') sourceId: string | undefined,
+    @Query('sourceFolder') sourceFolder: string | undefined,
+    @Query('type') type: string | undefined,
+    @Query('dateFrom') dateFrom: string | undefined,
+    @Query('dateTo') dateTo: string | undefined,
     @Query('page') page: string | undefined,
     @Query('pageSize') pageSize: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
@@ -190,6 +284,9 @@ export class WorkspaceDocumentController {
       folderId === 'ROOT' ? null : folderId,
       positiveInt(page, 1),
       Math.min(100, positiveInt(pageSize, 20)),
+      sourceId,
+      sourceFolder,
+      { type, dateFrom, dateTo },
     );
   }
 

@@ -12,6 +12,7 @@ import {
 } from './document-storage.adapter';
 import type { SearchVisibility } from '../busqueda/adapters/search-source.adapter';
 import { findDocumentMatches } from './corpus-document-matches';
+import { canReadWorkspaceDocument } from './workspace-document-acl';
 
 @Injectable()
 export class CorpusDocumentAccessService {
@@ -20,13 +21,27 @@ export class CorpusDocumentAccessService {
     this.storage = new LocalDocumentStorageAdapter();
   }
 
+  canReadWorkspaceDocument(documentId: string, workspaceId: string, userId: number) {
+    return canReadWorkspaceDocument(this.prisma, documentId, {
+      kind: 'WORKSPACE',
+      workspaceId,
+      userId,
+    });
+  }
+
   async metadata(
     documentId: string,
     visibility: SearchVisibility,
     pageNumber?: number,
     workspaceId?: string,
+    userId?: number,
   ) {
-    const document = await this.visibleDocument(documentId, visibility, workspaceId);
+    const document = await this.visibleDocument(
+      documentId,
+      visibility,
+      workspaceId,
+      userId,
+    );
     const latestFile = document.files[0];
     const latestExtraction = document.latestExtraction;
     const provenance = document.ingestions[0];
@@ -34,7 +49,13 @@ export class CorpusDocumentAccessService {
       pageNumber && latestExtraction
         ? await this.prisma.corpusDocumentPage.findFirst({
             where: { extractionId: latestExtraction.id, pageNumber },
-            select: { pageNumber: true, text: true },
+            select: {
+              pageNumber: true,
+              text: true,
+              textKind: true,
+              processingStatus: true,
+              ocrConfidence: true,
+            },
           })
         : null;
     return {
@@ -70,10 +91,11 @@ export class CorpusDocumentAccessService {
             sha256: latestFile.sha256,
             version: latestFile.version,
             pageCount: latestFile.pageCount,
-            href:
-              workspaceId
-                ? `/api/workspaces/${workspaceId}/documents/${document.id}/file`
-                : document.visibility === 'PUBLIC'
+            href: workspaceId
+              ? `/api/workspaces/${workspaceId}/documents/${document.id}/file`
+              : userId
+                ? `/api/personal/documents/${document.id}/file`
+              : document.visibility === 'PUBLIC'
                 ? `/api/public/corpus/documents/${document.id}/file`
                 : `/api/corpus/documents/${document.id}/file`,
           }
@@ -92,8 +114,18 @@ export class CorpusDocumentAccessService {
     };
   }
 
-  async file(documentId: string, visibility: SearchVisibility, workspaceId?: string) {
-    const document = await this.visibleDocument(documentId, visibility, workspaceId);
+  async file(
+    documentId: string,
+    visibility: SearchVisibility,
+    workspaceId?: string,
+    userId?: number,
+  ) {
+    const document = await this.visibleDocument(
+      documentId,
+      visibility,
+      workspaceId,
+      userId,
+    );
     const file = document.files[0];
     if (!file) throw new NotFoundException('Archivo no encontrado.');
     const content = await this.storage.get(file.storageKey);
@@ -102,7 +134,16 @@ export class CorpusDocumentAccessService {
       throw new InternalServerErrorException(
         'La integridad del archivo no pudo verificarse.',
       );
-    if (!['application/pdf', 'text/plain'].includes(file.mimeType))
+    if (
+      ![
+        'application/pdf',
+        'text/plain',
+        'application/rtf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.oasis.opendocument.text',
+      ].includes(file.mimeType)
+    )
       throw new NotFoundException('Tipo de archivo no disponible.');
     return {
       content,
@@ -121,26 +162,66 @@ export class CorpusDocumentAccessService {
     visibility: SearchVisibility,
     query: string,
     workspaceId?: string,
+    userId?: number,
   ) {
-    const document = await this.visibleDocument(documentId, visibility, workspaceId);
+    const document = await this.visibleDocument(
+      documentId,
+      visibility,
+      workspaceId,
+      userId,
+    );
     const extraction = document.latestExtractionId
       ? await this.prisma.corpusExtraction.findUnique({
           where: { id: document.latestExtractionId },
           select: {
             pages: {
               orderBy: { pageNumber: 'asc' },
-              select: { pageNumber: true, text: true },
+              select: { pageNumber: true, text: true, textKind: true },
             },
           },
         })
       : null;
-    return findDocumentMatches(extraction?.pages ?? [], query);
+    const metadata =
+      typeof document.metadata === 'object' &&
+      document.metadata !== null &&
+      !Array.isArray(document.metadata)
+        ? (document.metadata as Record<string, unknown>)
+        : {};
+    const metadataText = (...keys: string[]) => {
+      const value = keys
+        .map((key) => metadata[key])
+        .find((item) => typeof item === 'string');
+      return typeof value === 'string' ? value : null;
+    };
+    const pages = (extraction?.pages ?? []).map((page) => ({
+      ...page,
+      textKind:
+        page.textKind === 'OCR' ? ('OCR' as const) : ('NATIVE' as const),
+    }));
+    return findDocumentMatches(pages, query, 500, {
+      tema: document.subtitle,
+      sala: document.chamber,
+      tipoFallo: document.documentType,
+      tribunalOrigen: document.court,
+      expediente: document.caseNumber,
+      caratula: document.title,
+      actor: metadataText('actor', 'actorPublico'),
+      demandado: metadataText('demandado', 'demandadoPublico'),
+      objeto: metadataText('objeto'),
+      magistrados: metadataText('magistrados'),
+      numeroSentencia: document.caseNumber,
+      numeroSumario: document.searchText,
+    });
   }
 
   async institutionalSummary() {
     const institutional = {
       ingestions: {
-        some: { sourceSystem: { is: { code: { in: ['JURISPRUDENCIA_LOCAL_PDF', 'DIGESTO_LOCAL'] } } } },
+        some: {
+          sourceSystem: {
+            is: { code: { in: ['JURISPRUDENCIA_LOCAL_PDF', 'DIGESTO_LOCAL'] } },
+          },
+        },
       },
     } satisfies Prisma.CorpusDocumentWhereInput;
     const [
@@ -162,7 +243,7 @@ export class CorpusDocumentAccessService {
       digestoMemberships,
       sourceMissing,
       jurisprudencePending,
-      ] = await Promise.all([
+    ] = await Promise.all([
       this.prisma.corpusDocumentLocation.count({
         where: { document: institutional },
       }),
@@ -194,7 +275,9 @@ export class CorpusDocumentAccessService {
         where: { document: institutional },
       }),
       this.prisma.corpusImportRun.findMany({
-        where: { sourceCode: { in: ['JURISPRUDENCIA_LOCAL_PDF', 'DIGESTO_LOCAL'] } },
+        where: {
+          sourceCode: { in: ['JURISPRUDENCIA_LOCAL_PDF', 'DIGESTO_LOCAL'] },
+        },
         orderBy: { startedAt: 'desc' },
         take: 5,
         select: {
@@ -216,12 +299,28 @@ export class CorpusDocumentAccessService {
         where: { document: institutional },
         _count: { _all: true },
       }),
-      this.prisma.corpusDocument.count({ where: { ...institutional, editorialStatus: 'SELECTED' } }),
-      this.prisma.corpusDocument.count({ where: { ...institutional, editorialStatus: 'NOT_SELECTED' } }),
-      this.prisma.corpusDocument.count({ where: { ingestions: { some: { sourceSystem: { is: { code: 'DIGESTO_LOCAL' } } } } } }),
-      this.prisma.digestoCollectionMembership.count({ where: { document: institutional } }),
-      this.prisma.corpusDocumentLocation.count({ where: { sourceMissing: true, document: institutional } }),
-      this.prisma.corpusDocument.count({ where: { ...institutional, editorialStatus: 'REVIEW_PENDING' } }),
+      this.prisma.corpusDocument.count({
+        where: { ...institutional, editorialStatus: 'SELECTED' },
+      }),
+      this.prisma.corpusDocument.count({
+        where: { ...institutional, editorialStatus: 'NOT_SELECTED' },
+      }),
+      this.prisma.corpusDocument.count({
+        where: {
+          ingestions: {
+            some: { sourceSystem: { is: { code: 'DIGESTO_LOCAL' } } },
+          },
+        },
+      }),
+      this.prisma.digestoCollectionMembership.count({
+        where: { document: institutional },
+      }),
+      this.prisma.corpusDocumentLocation.count({
+        where: { sourceMissing: true, document: institutional },
+      }),
+      this.prisma.corpusDocument.count({
+        where: { ...institutional, editorialStatus: 'REVIEW_PENDING' },
+      }),
     ]);
     return {
       physicalFiles,
@@ -236,7 +335,12 @@ export class CorpusDocumentAccessService {
       unresolved,
       pendingAssociations,
       classifications,
-      classificationCounts: Object.fromEntries(classificationGroups.map((item) => [item.reviewStatus, item._count._all])),
+      classificationCounts: Object.fromEntries(
+        classificationGroups.map((item) => [
+          item.reviewStatus,
+          item._count._all,
+        ]),
+      ),
       selected,
       notSelected,
       digestoDocuments,
@@ -250,14 +354,19 @@ export class CorpusDocumentAccessService {
   async institutionalReviewQueue(filter = 'all', page = 1, pageSize = 50) {
     const institutional = {
       ingestions: {
-        some: { sourceSystem: { is: { code: { in: ['JURISPRUDENCIA_LOCAL_PDF', 'DIGESTO_LOCAL'] } } } },
+        some: {
+          sourceSystem: {
+            is: { code: { in: ['JURISPRUDENCIA_LOCAL_PDF', 'DIGESTO_LOCAL'] } },
+          },
+        },
       },
     } satisfies Prisma.CorpusDocumentWhereInput;
     const where: Prisma.CorpusDocumentWhereInput = { ...institutional };
     if (filter === 'unresolved')
       where.associations = { some: { confidence: 'UNRESOLVED' } };
     else if (filter === 'unclassified') where.classifications = { none: {} };
-    else if (filter === 'classification') where.classifications = { some: { reviewStatus: 'SUGGESTED' } };
+    else if (filter === 'classification')
+      where.classifications = { some: { reviewStatus: 'SUGGESTED' } };
     else if (filter === 'ocr') where.status = 'OCR_REQUIRED';
     else if (filter === 'failed')
       where.status = { in: ['INVALID_PDF', 'EXTRACTION_FAILED'] };
@@ -275,7 +384,8 @@ export class CorpusDocumentAccessService {
         { chamber: null },
         { instance: null },
       ];
-    else if (filter === 'sourceMissing') where.locations = { some: { sourceMissing: true } };
+    else if (filter === 'sourceMissing')
+      where.locations = { some: { sourceMissing: true } };
     else if (filter !== 'all') throw new Error('REVIEW_FILTER_UNSUPPORTED');
     const safePage = Math.max(1, Math.trunc(page));
     const safePageSize = Math.min(100, Math.max(1, Math.trunc(pageSize)));
@@ -297,11 +407,21 @@ export class CorpusDocumentAccessService {
           caseNumber: true,
           decisionDate: true,
           visibility: true,
-          locations: { where: { sourceMissing: true }, select: { id: true }, take: 1 },
+          locations: {
+            where: { sourceMissing: true },
+            select: { id: true },
+            take: 1,
+          },
           editorialStatus: true,
           anonymizationStatus: true,
           associations: {
-            select: { id: true, targetId: true, confidence: true, reviewStatus: true, evidence: true },
+            select: {
+              id: true,
+              targetId: true,
+              confidence: true,
+              reviewStatus: true,
+              evidence: true,
+            },
             take: 5,
           },
           classifications: {
@@ -337,6 +457,7 @@ export class CorpusDocumentAccessService {
     documentId: string,
     visibility: SearchVisibility,
     workspaceId?: string,
+    userId?: number,
   ) {
     const allowed =
       visibility === 'ADMIN'
@@ -345,16 +466,40 @@ export class CorpusDocumentAccessService {
           ? ['PUBLIC', 'INTERNAL']
           : visibility === 'PUBLIC'
             ? ['PUBLIC']
-            : visibility === 'RESTRICTED' && workspaceId
+            : visibility === 'RESTRICTED' && (workspaceId || userId)
               ? ['RESTRICTED']
               : [];
     if (!allowed.length)
       throw new NotFoundException('Documento no encontrado.');
+    if (workspaceId) {
+      if (
+        !Number.isSafeInteger(userId) ||
+        !(await canReadWorkspaceDocument(this.prisma, documentId, {
+          kind: 'WORKSPACE',
+          workspaceId,
+          userId: userId as number,
+        }))
+      )
+        throw new NotFoundException('Documento no encontrado.');
+    } else if (userId) {
+      if (
+        !Number.isSafeInteger(userId) ||
+        !(await canReadWorkspaceDocument(this.prisma, documentId, {
+          kind: 'PERSONAL',
+          userId,
+        }))
+      )
+        throw new NotFoundException('Documento no encontrado.');
+    }
     const document = await this.prisma.corpusDocument.findFirst({
       where: {
         id: documentId,
-        documentScope: workspaceId ? 'PRIVATE_WORKSPACE' : 'GENERAL',
-        ...(workspaceId ? { workspaceDocuments: { some: { workspaceId } } } : {}),
+        documentScope: workspaceId || userId ? 'PRIVATE_WORKSPACE' : 'GENERAL',
+        ...(workspaceId
+          ? { workspaceDocuments: { some: { workspaceId } } }
+          : userId
+            ? { workspaceDocuments: { some: { workspaceId: null, ownerUserId: userId } } }
+            : {}),
         visibility: { in: allowed },
         status: { in: ['INDEXED', 'OCR_REQUIRED'] },
       },
@@ -425,6 +570,7 @@ function safeFilename(filename: string) {
   const basename =
     filename.replace(/\\/gu, '/').split('/').pop() ?? 'documento';
   const clean = basename
+    // eslint-disable-next-line no-control-regex -- remove control chars from uploaded file names
     .replace(/[\u0000-\u001f\u007f]/gu, '')
     .replace(/[<>:"|?*]/gu, '_')
     .trim();
