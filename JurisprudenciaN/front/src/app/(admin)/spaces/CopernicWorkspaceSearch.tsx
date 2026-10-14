@@ -415,10 +415,10 @@ export function CopernicWorkspaceSearch() {
         else next.set(key, String(value));
       }
       const href = `/spaces${next.size ? `?${next.toString()}` : ""}`;
-      if (replace) router.replace(href, { scroll: false });
-      else router.push(href, { scroll: false });
+      if (replace) window.history.replaceState(null, "", href);
+      else window.history.pushState(null, "", href);
     },
-    [router],
+    [],
   );
 
   useEffect(() => {
@@ -692,7 +692,7 @@ export function CopernicWorkspaceSearch() {
   const commitSearch = useCallback(
     (event?: React.FormEvent<HTMLFormElement>, nextPage = 1) => {
       event?.preventDefault();
-      const q = draftQuery.trim();
+      const q = (queryInputRef.current?.value ?? draftQuery).trim();
       if (!q || !workspaceId) return;
       navigate({ q, page: nextPage, selected: null, match: null });
     },

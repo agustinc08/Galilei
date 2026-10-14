@@ -90,11 +90,26 @@ function normalizeWithOffsets(source: string): NormalizedWithOffsets {
 
 function isWordCharacterAt(source: string, index: number) {
   if (index < 0 || index >= source.length) return false;
-  const codePoint = source.codePointAt(index);
+  const current = source.charCodeAt(index);
+  const previous = source.charCodeAt(index - 1);
+  const codePointIndex =
+    current >= 0xdc00 && current <= 0xdfff && previous >= 0xd800 && previous <= 0xdbff
+      ? index - 1
+      : index;
+  const codePoint = source.codePointAt(codePointIndex);
   return (
     codePoint !== undefined &&
     /[\p{L}\p{N}]/u.test(String.fromCodePoint(codePoint))
   );
+}
+
+function previousCodePointStart(source: string, index: number) {
+  if (index < 2) return index - 1;
+  const current = source.charCodeAt(index - 1);
+  const previous = source.charCodeAt(index - 2);
+  return current >= 0xdc00 && current <= 0xdfff && previous >= 0xd800 && previous <= 0xdbff
+    ? index - 2
+    : index - 1;
 }
 
 function literalMatchesField(
@@ -125,8 +140,8 @@ function occurrencesInPage(
   while (cursor <= normalized.text.length - needle.length) {
     const foundAt = normalized.text.indexOf(needle, cursor);
     if (foundAt < 0) break;
-    const start = normalized.offsets[foundAt]?.start;
-    const end = normalized.offsets[foundAt + needle.length - 1]?.end;
+    let start = normalized.offsets[foundAt]?.start;
+    let end = normalized.offsets[foundAt + needle.length - 1]?.end;
     if (start === undefined || end === undefined) break;
     const startBoundary = !isWordCharacterAt(page.text, start - 1);
     const endBoundary = !isWordCharacterAt(page.text, end);
@@ -137,6 +152,16 @@ function occurrencesInPage(
           ? startBoundary
           : endBoundary;
     if (boundaryMatches) {
+      if (literal.type === 'term' && literal.matchMode === 'prefix') {
+        while (isWordCharacterAt(page.text, end)) {
+          const codePoint = page.text.codePointAt(end);
+          end += codePoint !== undefined && codePoint > 0xffff ? 2 : 1;
+        }
+      } else if (literal.type === 'term' && literal.matchMode === 'suffix') {
+        while (isWordCharacterAt(page.text, start - 1)) {
+          start = previousCodePointStart(page.text, start);
+        }
+      }
       const contextStart = Math.max(0, start - 64);
       const contextEnd = Math.min(page.text.length, end + 96);
       const contextBefore = page.text.slice(contextStart, start);

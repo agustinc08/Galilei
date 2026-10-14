@@ -536,6 +536,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     let total = 0;
     let queryCount = readinessQueryCount + 1;
     let workspaceTermTotalExact = false;
+    let outOfRangeTotalExact = false;
     let phraseCandidateCount: number | undefined;
     let pageSnippetHydrationMs = 0;
     let responseMappingMs = 0;
@@ -754,6 +755,29 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
           throw error;
         }
       }
+      const pageHasResults = rows.rows.some((row) => row.id !== null);
+      if (boundedCandidatePage && page > 1 && !pageHasResults) {
+        const exactCountStartedAt = performance.now();
+        const exactCountSql = candidateCte
+          ? `${candidateCte} SELECT COUNT(*)::text AS total FROM "corpusSearchCandidates" candidates JOIN "CorpusDocument" d ON d."id" = candidates."id" WHERE ${where}`
+          : `SELECT COUNT(*)::text AS total FROM "CorpusDocument" d WHERE ${where}`;
+        try {
+          const exactCount = await this.pool.query<{ total: string }>(
+            exactCountSql,
+            values,
+          );
+          total = Number(exactCount.rows[0]?.total ?? 0);
+          outOfRangeTotalExact = true;
+          countMs += performance.now() - exactCountStartedAt;
+          queryCount += 1;
+        } catch (error) {
+          countMs += performance.now() - exactCountStartedAt;
+          failedQuery = 'COUNT';
+          errorCode = (error as { code?: string })?.code;
+          errorMessage = (error as { message?: string })?.message;
+          throw error;
+        }
+      }
     } catch (error) {
       failedQuery = failedQuery ?? 'PAGE';
       errorCode = errorCode ?? (error as { code?: string })?.code;
@@ -783,7 +807,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const hasMore = boundedCandidatePage
       ? Boolean(rows.rows[0]?.hasMore)
       : false;
-    const totalExact = workspaceTermTotalExact || (boundedCandidatePage
+    const totalExact = workspaceTermTotalExact || outOfRangeTotalExact || (boundedCandidatePage
         ? (deferredSinglePhrase ? Boolean(rows.rows[0]?.totalExact) : (rows.rows.length === 0 ? page === 1 : !hasMore))
         : true);
     const mappingStartedAt = performance.now();

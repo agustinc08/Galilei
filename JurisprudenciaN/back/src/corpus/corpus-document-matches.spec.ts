@@ -62,6 +62,20 @@ describe('findDocumentMatches', () => {
     expect(result.exactTotalKnown).toBe(false);
   });
 
+  it.each([1, 10, 100])('reports exact navigation counts for %i matches', (count) => {
+    const result = findDocumentMatches(
+      [{ pageNumber: 1, text: 'fallo '.repeat(count) }],
+      'fallo',
+    );
+    expect(result).toMatchObject({
+      total: count,
+      returned: count,
+      exactTotalKnown: true,
+      truncated: false,
+    });
+    expect(result.matches).toHaveLength(count);
+  });
+
   it('returns original-text spans with vowel accent folding and keeps ñ distinct', () => {
     const result = findDocumentMatches(
       [
@@ -84,6 +98,27 @@ describe('findDocumentMatches', () => {
       findDocumentMatches([{ pageNumber: 1, text: 'Daño moral' }], 'danio')
         .matches,
     ).toHaveLength(0);
+  });
+
+  it('maps prefix and suffix matches to the full original token, including UTF-16 text before it', () => {
+    const page = [{ pageNumber: 1, text: '📚 Daño y responsabilidad.' }];
+    const prefix = findDocumentMatches(page, 'respons%');
+    const suffix = findDocumentMatches(page, '%bilidad');
+
+    expect(prefix.matches[0]).toMatchObject({
+      start: '📚 Daño y '.length,
+      end: '📚 Daño y responsabilidad'.length,
+      text: 'responsabilidad',
+      term: 'respons',
+      kind: 'TERM',
+    });
+    expect(suffix.matches[0]).toMatchObject({
+      start: '📚 Daño y '.length,
+      end: '📚 Daño y responsabilidad'.length,
+      text: 'responsabilidad',
+      term: 'bilidad',
+      kind: 'TERM',
+    });
   });
 
   it('marks an adjacent phrase as one exact span and rejects separated or punctuated words', () => {
