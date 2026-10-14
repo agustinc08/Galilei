@@ -67,8 +67,10 @@ model Sentencia {
   anonimizado                              Boolean                     @default(false)
   objeto                                   String?
   magistrados                              String?
+  juez                                     String?
   estadoCarga                              String                      @default("BORRADOR")
   publicado                                Boolean                     @default(false)
+  publishedAt                              DateTime?
   activo                                   Boolean                     @default(true)
   observacionesInternas                    String?
   resumenIa                                String?

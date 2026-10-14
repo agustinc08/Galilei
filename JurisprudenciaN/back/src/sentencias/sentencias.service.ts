@@ -34,6 +34,18 @@ type CitaData = {
   citaCopiable: string;
 };
 
+type PublicationReviewQueueItem = {
+  documentId: string;
+  title: string;
+  caseNumber: string | null;
+  chamber: string | null;
+  decisionDate: Date | null;
+  published: boolean;
+  reason:
+    | 'Identidad jurídica ambigua'
+    | 'Representación documental requiere revisión';
+};
+
 type FalloRelacionadoResumen = {
   id: number;
   numeroSentencia: string | null;
@@ -106,18 +118,13 @@ function initials(value?: string | null) {
     return null;
   }
 
-  const words = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const words = value.trim().split(/\s+/).filter(Boolean);
 
   if (!words.length) {
     return null;
   }
 
-  return words
-    .map((word) => `${word.charAt(0).toUpperCase()}.`)
-    .join(' ');
+  return words.map((word) => `${word.charAt(0).toUpperCase()}.`).join(' ');
 }
 
 function toPublicParticipants(sentencia: {
@@ -148,8 +155,59 @@ export class SentenciasService {
     private readonly logsService: LogsService,
   ) {}
 
-  private get client() {
-    return this.prisma as any;
+  async getPublicationReviewQueue() {
+    const items = await this.prisma.$queryRaw<
+      PublicationReviewQueueItem[]
+    >(Prisma.sql`
+      WITH review_candidates AS (
+        SELECT DISTINCT c.id AS "documentId", c.title,
+          c."caseNumber" AS "caseNumber", c.chamber,
+          c."decisionDate" AS "decisionDate",
+          'Identidad jurídica ambigua'::text AS reason
+        FROM "CorpusDocument" c
+        INNER JOIN "CorpusDocumentLink" l
+          ON l."documentId" = c.id
+         AND l."targetDomain" = 'JURISPRUDENCIA'
+         AND l."targetType" = 'SENTENCIA'
+        WHERE l.metadata->>'publicationStatus' = 'REQUIRES_REVIEW_LEGAL_KEY_COLLISION'
+          AND NOT EXISTS (
+            SELECT 1 FROM "Sentencia" s
+            WHERE s."legacyId" = 'CORPUS:' || c.id
+              AND s.publicado = TRUE AND s.activo = TRUE
+          )
+
+        UNION
+
+        SELECT DISTINCT c.id AS "documentId", c.title,
+          c."caseNumber" AS "caseNumber", c.chamber,
+          c."decisionDate" AS "decisionDate",
+          'Representación documental requiere revisión'::text AS reason
+        FROM "CorpusDocument" c
+        INNER JOIN "CorpusIngestionRecord" i ON i."documentId" = c.id
+        INNER JOIN "CorpusSourceSystem" source ON source.id = i."sourceSystemId"
+        INNER JOIN "CorpusDocumentFile" f ON f.id = i."fileId"
+        WHERE source.code = 'CIVIL_CUANTIFICACION_DANOS'
+          AND f."mimeType" = 'text/plain'
+          AND NOT EXISTS (
+            SELECT 1 FROM "Sentencia" s
+            WHERE s."legacyId" = 'CORPUS:' || c.id
+              AND s.publicado = TRUE AND s.activo = TRUE
+          )
+      )
+      SELECT "documentId", title, "caseNumber", chamber, "decisionDate", reason,
+        FALSE AS published
+      FROM review_candidates
+      ORDER BY "decisionDate" DESC NULLS LAST, title, "documentId"
+    `);
+
+    return {
+      data: items,
+      meta: {
+        total: items.length,
+        definition:
+          'Estado persistido de colisión jurídica o archivo text/plain de la fuente civil cuantificada.',
+      },
+    };
   }
 
   private async resolveCatalogFields(input: {
@@ -160,12 +218,18 @@ export class SentenciasService {
     tipoFallo?: string | null;
     tribunalOrigen?: string | null;
   }) {
-    const { sala, tipoFallo, tribunalOrigen } =
+    const rawCatalogValues: unknown =
       await this.catalogosService.getCatalogValueIds({
         salaId: input.salaId,
         tipoFalloId: input.tipoFalloId,
         tribunalOrigenId: input.tribunalOrigenId,
       });
+    const catalogValues = rawCatalogValues as {
+      sala?: { nombre?: string | null } | null;
+      tipoFallo?: { nombre?: string | null } | null;
+      tribunalOrigen?: { nombre?: string | null } | null;
+    };
+    const { sala, tipoFallo, tribunalOrigen } = catalogValues;
 
     return {
       ...(input.salaId !== undefined && {
@@ -186,7 +250,16 @@ export class SentenciasService {
   async findAll(query: QuerySentenciasDto) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
-    const where = this.buildWhere(query);
+    let where = this.buildWhere(query);
+    if (query.excluirRevision) {
+      const reviewQueue = await this.getPublicationReviewQueue();
+      where = {
+        ...where,
+        legacyId: {
+          notIn: reviewQueue.data.map((item) => `CORPUS:${item.documentId}`),
+        },
+      };
+    }
 
     const [data, total] = await this.prisma.$transaction([
       this.prisma.sentencia.findMany({
@@ -247,7 +320,7 @@ export class SentenciasService {
   }
 
   async findOne(id: number, usuarioId?: number) {
-    const sentencia = await this.client.sentencia.findUnique({
+    const sentencia = await this.prisma.sentencia.findUnique({
       where: { id },
       include: {
         sumarios: true,
@@ -273,7 +346,7 @@ export class SentenciasService {
   }
 
   async findCompleta(id: number, usuarioId?: number) {
-    const sentencia = await this.client.sentencia.findUnique({
+    const sentencia = await this.prisma.sentencia.findUnique({
       where: { id },
       include: {
         citasFallo: {
@@ -335,7 +408,7 @@ export class SentenciasService {
   }
 
   async findByNumero(numeroSentencia: string, usuarioId?: number) {
-    const sentencia = await this.client.sentencia.findFirst({
+    const sentencia = await this.prisma.sentencia.findFirst({
       where: {
         numeroSentencia: {
           equals: numeroSentencia.trim(),
@@ -383,7 +456,9 @@ export class SentenciasService {
   ) {
     const numeroSentencia = dto.sentencia.numeroSentencia?.trim();
     if (!numeroSentencia) {
-      throw new BadRequestException('El número de sentencia es obligatorio para la carga rápida');
+      throw new BadRequestException(
+        'El número de sentencia es obligatorio para la carga rápida',
+      );
     }
 
     const catalogFields = await this.resolveCatalogFields(dto.sentencia);
@@ -429,7 +504,9 @@ export class SentenciasService {
         });
 
         if (!existingSumario) {
-          throw new NotFoundException('Sumario no encontrado para carga rápida');
+          throw new NotFoundException(
+            'Sumario no encontrado para carga rápida',
+          );
         }
       }
 
@@ -458,7 +535,12 @@ export class SentenciasService {
             },
           });
 
-      return { sentencia, sumario, createdSentencia: !existente, updatedSumario: Boolean(dto.sumario.id) };
+      return {
+        sentencia,
+        sumario,
+        createdSentencia: !existente,
+        updatedSumario: Boolean(dto.sumario.id),
+      };
     });
 
     if (usuarioId) {
@@ -517,7 +599,8 @@ export class SentenciasService {
   async crearCompleta(dto: CrearSentenciaCompletaDto, usuarioId?: number) {
     const catalogFields = await this.resolveCatalogFields(dto.sentencia);
     const opciones = dto.opcionesPublicacion;
-    const publicarSentencia = opciones?.publicarSentencia ?? dto.sentencia.publicado ?? false;
+    const publicarSentencia =
+      opciones?.publicarSentencia ?? dto.sentencia.publicado ?? false;
     const publicarSumarios = opciones?.publicarSumarios ?? false;
     const publicarResena = opciones?.publicarResena ?? false;
     const anonimizar = opciones?.anonimizar ?? false;
@@ -528,8 +611,10 @@ export class SentenciasService {
       (publicarSentencia ? 'PUBLICADA' : 'COMPLETA');
 
     const sentencia = await this.prisma.$transaction(async (tx) => {
-      const actorOriginal = anonimizar ? dto.sentencia.actor ?? null : null;
-      const demandadoOriginal = anonimizar ? dto.sentencia.demandado ?? null : null;
+      const actorOriginal = anonimizar ? (dto.sentencia.actor ?? null) : null;
+      const demandadoOriginal = anonimizar
+        ? (dto.sentencia.demandado ?? null)
+        : null;
       const actorPublico = anonimizar ? initials(actorOriginal) : null;
       const demandadoPublico = anonimizar ? initials(demandadoOriginal) : null;
 
@@ -613,7 +698,11 @@ export class SentenciasService {
     return { data: sentencia };
   }
 
-  async agregarSumariosLote(id: number, dto: CrearSumariosLoteDto, usuarioId?: number) {
+  async agregarSumariosLote(
+    id: number,
+    dto: CrearSumariosLoteDto,
+    usuarioId?: number,
+  ) {
     await this.ensureExists(id);
 
     const sumarios = await this.prisma.$transaction(async (tx) => {
@@ -645,9 +734,15 @@ export class SentenciasService {
     return { data: sumarios };
   }
 
-  async update(id: number, updateSentenciaDto: UpdateSentenciaDto, usuarioId?: number) {
+  async update(
+    id: number,
+    updateSentenciaDto: UpdateSentenciaDto,
+    usuarioId?: number,
+  ) {
     await this.ensureExists(id);
-    const before = await this.prisma.sentencia.findUniqueOrThrow({ where: { id } });
+    const before = await this.prisma.sentencia.findUniqueOrThrow({
+      where: { id },
+    });
     const catalogFields = await this.resolveCatalogFields({
       salaId: updateSentenciaDto.salaId,
       tipoFalloId: updateSentenciaDto.tipoFalloId,
@@ -657,7 +752,7 @@ export class SentenciasService {
       tribunalOrigen: updateSentenciaDto.tribunalOrigen,
     });
 
-    const sentencia = await this.client.sentencia.update({
+    const sentencia = await this.prisma.sentencia.update({
       where: { id },
       data: {
         ...updateSentenciaDto,
@@ -686,7 +781,7 @@ export class SentenciasService {
   }
 
   async anonimizar(id: number, usuarioId?: number) {
-    const actual = await this.client.sentencia.findUnique({
+    const actual = await this.prisma.sentencia.findUnique({
       where: { id },
       select: {
         id: true,
@@ -704,7 +799,7 @@ export class SentenciasService {
     const actorBase = actual.actorOriginal ?? actual.actor;
     const demandadoBase = actual.demandadoOriginal ?? actual.demandado;
 
-    const sentencia = await this.client.sentencia.update({
+    const sentencia = await this.prisma.sentencia.update({
       where: { id },
       data: {
         actorOriginal: actual.actorOriginal ?? actual.actor ?? null,
@@ -741,7 +836,7 @@ export class SentenciasService {
   }
 
   async desanonimizar(id: number, usuarioId?: number) {
-    const actual = await this.client.sentencia.findUnique({
+    const actual = await this.prisma.sentencia.findUnique({
       where: { id },
       select: {
         id: true,
@@ -754,7 +849,7 @@ export class SentenciasService {
       throw new NotFoundException('Sentencia no encontrada');
     }
 
-    const sentencia = await this.client.sentencia.update({
+    const sentencia = await this.prisma.sentencia.update({
       where: { id },
       data: {
         actor: actual.actorOriginal ?? undefined,
@@ -789,7 +884,7 @@ export class SentenciasService {
   }
 
   async getResumen(id: number) {
-    const sentencia = await this.client.sentencia.findUnique({
+    const sentencia = await this.prisma.sentencia.findUnique({
       where: { id },
       select: {
         id: true,
@@ -810,7 +905,7 @@ export class SentenciasService {
   async updateResumen(id: number, dto: UpdateResumenDto) {
     await this.ensureExists(id);
 
-    const sentencia = await this.client.sentencia.update({
+    const sentencia = await this.prisma.sentencia.update({
       where: { id },
       data: {
         ...(dto.resumenIa !== undefined && { resumenIa: dto.resumenIa }),
@@ -839,7 +934,7 @@ export class SentenciasService {
 
   async updateResena(id: number, dto: UpdateResenaDto, usuarioId?: number) {
     await this.ensureExists(id);
-    const before = await this.client.sentencia.findUnique({
+    const before = await this.prisma.sentencia.findUnique({
       where: { id },
       select: {
         id: true,
@@ -849,7 +944,7 @@ export class SentenciasService {
       },
     });
 
-    const sentencia = await this.client.sentencia.update({
+    const sentencia = await this.prisma.sentencia.update({
       where: { id },
       data: {
         resena: dto.resena ?? null,
@@ -885,7 +980,7 @@ export class SentenciasService {
   }
 
   async getResena(id: number) {
-    const sentencia = await this.client.sentencia.findUnique({
+    const sentencia = await this.prisma.sentencia.findUnique({
       where: { id },
       select: {
         id: true,
@@ -905,10 +1000,14 @@ export class SentenciasService {
     return { data: sentencia };
   }
 
-  async setResenaPublicada(id: number, resenaPublicada: boolean, usuarioId?: number) {
+  async setResenaPublicada(
+    id: number,
+    resenaPublicada: boolean,
+    usuarioId?: number,
+  ) {
     await this.ensureExists(id);
 
-    const actual = await this.client.sentencia.findUnique({
+    const actual = await this.prisma.sentencia.findUnique({
       where: { id },
       select: {
         id: true,
@@ -926,7 +1025,7 @@ export class SentenciasService {
       throw new BadRequestException('No se puede publicar una reseña vacía');
     }
 
-    const sentencia = await this.client.sentencia.update({
+    const sentencia = await this.prisma.sentencia.update({
       where: { id },
       data: {
         resenaPublicada,
@@ -997,11 +1096,15 @@ export class SentenciasService {
   }
 
   async getFicha(id: number) {
-    const sentencia = await this.client.sentencia.findUnique({
+    const sentencia = await this.prisma.sentencia.findUnique({
       where: { id },
       include: {
         citasFallo: {
-          orderBy: [{ confirmada: 'desc' }, { creadaManual: 'desc' }, { createdAt: 'desc' }],
+          orderBy: [
+            { confirmada: 'desc' },
+            { creadaManual: 'desc' },
+            { createdAt: 'desc' },
+          ],
         },
         referenciasNormativas: {
           orderBy: { createdAt: 'asc' },
@@ -1037,7 +1140,7 @@ export class SentenciasService {
     if (!sentencia) {
       throw new NotFoundException('Sentencia no encontrada');
     }
-    const archivosPdf = this.filterValidPdfs(sentencia.archivosPdf) as ArchivoPdf[];
+    const archivosPdf = this.filterValidPdfs(sentencia.archivosPdf);
 
     return {
       data: {
@@ -1089,12 +1192,48 @@ export class SentenciasService {
 
   async setPublicado(id: number, publicado: boolean, usuarioId?: number) {
     await this.ensureExists(id);
-    const before = await this.prisma.sentencia.findUniqueOrThrow({ where: { id } });
-
-    const sentencia = await this.prisma.sentencia.update({
+    const before = await this.prisma.sentencia.findUniqueOrThrow({
       where: { id },
-      data: { publicado },
     });
+    if (publicado && !before.activo) {
+      throw new BadRequestException('No se puede publicar un fallo archivado.');
+    }
+
+    const publishedAt = publicado ? new Date() : null;
+    const sentenciaActualizada = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.sentencia.update({
+        where: { id },
+        data: {
+          publicado,
+          publishedAt,
+          estadoCarga: publicado ? 'PUBLICADA' : 'BORRADOR',
+        },
+      });
+      const links = await tx.corpusDocumentLink.findMany({
+        where: {
+          targetDomain: 'JURISPRUDENCIA',
+          targetType: 'SENTENCIA',
+          targetId: String(id),
+          relationship: 'ASSOCIATED_WITH',
+        },
+        select: { documentId: true },
+      });
+      if (links.length) {
+        await tx.corpusDocument.updateMany({
+          where: {
+            id: { in: links.map((link) => link.documentId) },
+            documentScope: 'GENERAL',
+          },
+          data: { visibility: publicado ? 'PUBLIC' : 'INTERNAL' },
+        });
+      }
+      return updated;
+    });
+
+    const sentencia =
+      publicado && !sentenciaActualizada.slugPublico
+        ? (await this.generarSlug(id, sentenciaActualizada)).data
+        : sentenciaActualizada;
 
     if (usuarioId) {
       await this.logsService.registrarAccion({
@@ -1111,9 +1250,140 @@ export class SentenciasService {
     return { data: sentencia };
   }
 
+  async archive(id: number, usuarioId?: number) {
+    await this.ensureExists(id);
+    const before = await this.prisma.sentencia.findUniqueOrThrow({
+      where: { id },
+    });
+    const sentencia = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.sentencia.update({
+        where: { id },
+        data: {
+          publicado: false,
+          publishedAt: null,
+          activo: false,
+          estadoCarga: 'ARCHIVADA',
+        },
+      });
+      const links = await tx.corpusDocumentLink.findMany({
+        where: {
+          targetDomain: 'JURISPRUDENCIA',
+          targetType: 'SENTENCIA',
+          targetId: String(id),
+          relationship: 'ASSOCIATED_WITH',
+        },
+        select: { documentId: true },
+      });
+      if (links.length)
+        await tx.corpusDocument.updateMany({
+          where: {
+            id: { in: links.map((link) => link.documentId) },
+            documentScope: 'GENERAL',
+          },
+          data: { visibility: 'INTERNAL' },
+        });
+      return updated;
+    });
+    if (usuarioId)
+      await this.logsService.registrarAccion({
+        usuarioId,
+        entidad: 'SENTENCIA',
+        entidadId: id,
+        accion: 'ARCHIVAR',
+        descripcion: 'Archivó sentencia y la retiró de la consulta pública',
+        datosAntes: before,
+        datosDespues: sentencia,
+      });
+    return { data: sentencia };
+  }
+
+  async findRecentPublished(limit = 10) {
+    const data = await this.prisma.sentencia.findMany({
+      where: { publicado: true, activo: true },
+      orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 20),
+      include: {
+        sumarios: {
+          where: { activo: true, publicado: true },
+          orderBy: { id: 'asc' },
+          take: 3,
+        },
+      },
+    });
+    return { data };
+  }
+
+  async findPotentialDuplicates(id: number) {
+    const current = await this.prisma.sentencia.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        expediente: true,
+        sala: true,
+        fecha: true,
+        numeroSentencia: true,
+        caratula: true,
+      },
+    });
+    if (!current) throw new NotFoundException('Sentencia no encontrada');
+    const identity = current.expediente?.trim();
+    if (!identity && !current.numeroSentencia?.trim()) return { data: [] };
+    const matches = await this.prisma.sentencia.findMany({
+      where: {
+        id: { not: id },
+        activo: true,
+        OR: [
+          ...(identity
+            ? [
+                {
+                  expediente: {
+                    equals: identity,
+                    mode: 'insensitive' as const,
+                  },
+                  ...(current.sala
+                    ? {
+                        sala: {
+                          equals: current.sala,
+                          mode: 'insensitive' as const,
+                        },
+                      }
+                    : {}),
+                  ...(current.fecha ? { fecha: current.fecha } : {}),
+                },
+              ]
+            : []),
+          ...(current.numeroSentencia
+            ? [
+                {
+                  numeroSentencia: {
+                    equals: current.numeroSentencia,
+                    mode: 'insensitive' as const,
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+      orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
+      take: 5,
+      select: {
+        id: true,
+        expediente: true,
+        sala: true,
+        fecha: true,
+        numeroSentencia: true,
+        caratula: true,
+        publicado: true,
+      },
+    });
+    return { data: matches };
+  }
+
   async setDestacada(id: number, destacada: boolean, usuarioId?: number) {
     await this.ensureExists(id);
-    const before = await this.prisma.sentencia.findUniqueOrThrow({ where: { id } });
+    const before = await this.prisma.sentencia.findUniqueOrThrow({
+      where: { id },
+    });
 
     const sentencia = await this.prisma.sentencia.update({
       where: { id },
@@ -1126,7 +1396,9 @@ export class SentenciasService {
         entidad: 'SENTENCIA',
         entidadId: id,
         accion: destacada ? 'DESTACAR' : 'QUITAR_DESTACADA',
-        descripcion: destacada ? 'Marcó sentencia como destacada' : 'Quitó sentencia de destacadas',
+        descripcion: destacada
+          ? 'Marcó sentencia como destacada'
+          : 'Quitó sentencia de destacadas',
         datosAntes: before,
         datosDespues: sentencia,
       });
@@ -1150,10 +1422,12 @@ export class SentenciasService {
     return { data };
   }
 
-  async generarSlug(id: number) {
-    const sentencia = await this.prisma.sentencia.findUnique({
-      where: { id },
-    });
+  async generarSlug(id: number, publishedSnapshot?: Sentencia) {
+    const sentencia =
+      publishedSnapshot ??
+      (await this.prisma.sentencia.findUnique({
+        where: { id },
+      }));
 
     if (!sentencia) {
       throw new NotFoundException('Sentencia no encontrada');
@@ -1165,10 +1439,16 @@ export class SentenciasService {
       );
     }
 
-    const temaPrincipal = await this.getTemaPrincipalPublico(sentencia.id);
+    const temaPrincipal = publishedSnapshot
+      ? null
+      : await this.getTemaPrincipalPublico(sentencia.id);
     const anio = sentencia.fecha?.getFullYear();
     const slugBase = slugify(
-      [sentencia.sala, temaPrincipal ?? sentencia.objeto, anio ?? sentencia.numeroSentencia]
+      [
+        sentencia.sala,
+        temaPrincipal ?? sentencia.objeto,
+        anio ?? sentencia.numeroSentencia,
+      ]
         .filter(Boolean)
         .join(' '),
     );
@@ -1203,7 +1483,7 @@ export class SentenciasService {
 
   async getPublicIdentity(identifier: string) {
     const where = this.publicIdentifierWhere(identifier);
-    const sentencia = await this.client.sentencia.findFirst({
+    const sentencia = await this.prisma.sentencia.findFirst({
       where,
       select: { id: true, slugPublico: true },
     });
@@ -1216,7 +1496,7 @@ export class SentenciasService {
   }
 
   async getPublicBySlug(slug: string) {
-    const sentencia = await this.client.sentencia.findFirst({
+    const sentencia = await this.prisma.sentencia.findFirst({
       where: this.publicIdentifierWhere(slug),
       include: {
         citasFallo: {
@@ -1278,16 +1558,17 @@ export class SentenciasService {
         expediente: sentencia.expediente,
         tribunalOrigen: sentencia.tribunalOrigen,
         caratula: sentencia.caratula,
-        actor: publicParticipants.actor,
-        demandado: publicParticipants.demandado,
+        actor: publicParticipants.actor ?? null,
+        demandado: publicParticipants.demandado ?? null,
         objeto: sentencia.objeto,
         magistrados: sentencia.magistrados,
+        juez: sentencia.juez,
         resumen: sentencia.resumenPublicado ? sentencia.resumenIa : null,
         resena: sentencia.resenaPublicada ? sentencia.resena : null,
         cita: this.buildCita({
           ...sentencia,
-          actor: publicParticipants.actor,
-          demandado: publicParticipants.demandado,
+          actor: publicParticipants.actor ?? null,
+          demandado: publicParticipants.demandado ?? null,
         }),
         citasFallo: sentencia.citasFallo,
         referenciasNormativas: sentencia.referenciasNormativas,
@@ -1300,7 +1581,7 @@ export class SentenciasService {
   }
 
   async getPublicCitasBySlug(slug: string) {
-    const sentencia = await this.client.sentencia.findFirst({
+    const sentencia = await this.prisma.sentencia.findFirst({
       where: this.publicIdentifierWhere(slug),
       select: {
         id: true,
@@ -1319,7 +1600,7 @@ export class SentenciasService {
   }
 
   async getPublicFichaBySlug(slug: string) {
-    const sentencia = await this.client.sentencia.findFirst({
+    const sentencia = await this.prisma.sentencia.findFirst({
       where: this.publicIdentifierWhere(slug),
       include: {
         citasFallo: {
@@ -1376,10 +1657,11 @@ export class SentenciasService {
           expediente: sentencia.expediente,
           tribunalOrigen: sentencia.tribunalOrigen,
           caratula: sentencia.caratula,
-          actor: publicParticipants.actor,
-          demandado: publicParticipants.demandado,
+          actor: publicParticipants.actor ?? null,
+          demandado: publicParticipants.demandado ?? null,
           objeto: sentencia.objeto,
           magistrados: sentencia.magistrados,
+          juez: sentencia.juez,
         },
         resumen: {
           texto: sentencia.resumenPublicado ? sentencia.resumenIa : null,
@@ -1389,8 +1671,8 @@ export class SentenciasService {
         resena: sentencia.resenaPublicada ? sentencia.resena : null,
         cita: this.buildCita({
           ...sentencia,
-          actor: publicParticipants.actor,
-          demandado: publicParticipants.demandado,
+          actor: publicParticipants.actor ?? null,
+          demandado: publicParticipants.demandado ?? null,
         }),
         sumarios: sentencia.sumarios,
         citasFallo: sentencia.citasFallo,
@@ -1422,7 +1704,9 @@ export class SentenciasService {
 
   async remove(id: number, usuarioId?: number) {
     await this.ensureExists(id);
-    const before = await this.prisma.sentencia.findUniqueOrThrow({ where: { id } });
+    const before = await this.prisma.sentencia.findUniqueOrThrow({
+      where: { id },
+    });
 
     const sentencia = await this.prisma.sentencia.update({
       where: { id },
@@ -1451,13 +1735,17 @@ export class SentenciasService {
       activo: true,
       OR: [
         { slugPublico: identifier },
-        ...(Number.isInteger(numericId) && numericId > 0 ? [{ id: numericId }] : []),
+        ...(Number.isInteger(numericId) && numericId > 0
+          ? [{ id: numericId }]
+          : []),
       ],
     };
   }
 
-  private filterValidPdfs<T extends Pick<ArchivoPdf, 'rutaArchivo'>>(archivos: T[]): T[] {
-    return obtenerPdfsReales(archivos as Array<T & { id: number }>) as T[];
+  private filterValidPdfs<T extends Pick<ArchivoPdf, 'rutaArchivo'>>(
+    archivos: T[],
+  ): T[] {
+    return obtenerPdfsReales(archivos as Array<T & { id: number }>);
   }
 
   private normalizePdfState<
@@ -1485,7 +1773,12 @@ export class SentenciasService {
 
   private async getTemaPrincipalPublico(sentenciaId: number) {
     const sumario = await this.prisma.sumario.findFirst({
-      where: { sentenciaId, activo: true, publicado: true, tema: { not: null } },
+      where: {
+        sentenciaId,
+        activo: true,
+        publicado: true,
+        tema: { not: null },
+      },
       orderBy: { id: 'asc' },
       select: { tema: true },
     });
@@ -1661,7 +1954,8 @@ export class SentenciasService {
           )
           .join('')}</ul>`
       : '<p>Sin referencias normativas.</p>';
-    const referenciasJurisprudenciales = data.referenciasJurisprudenciales.length
+    const referenciasJurisprudenciales = data.referenciasJurisprudenciales
+      .length
       ? `<ul>${data.referenciasJurisprudenciales
           .map(
             (item) =>

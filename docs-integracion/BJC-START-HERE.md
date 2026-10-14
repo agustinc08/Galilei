@@ -1,6 +1,6 @@
 # Buscador Jurídico Civil — inicio rápido
 
-**Actualizado:** 2026-10-09, Sprint 14.3. Empezar por `BJC-ADQUISICION-JURISPRUDENCIA.md` para adquisición, `BJC-SEARCH.md` para Search y `BJC-ESTADO-ACTUAL.md` para el estado general.
+**Actualizado:** 2026-10-14, Sprint J9.0.1. Empezar por `BJC-ESTADO-ACTUAL.md` para el estado general, `BJC-OPERACION-JURISPRUDENCIA.md` para publicación/roles, `BJC-SEARCH.md` para Search y `BJC-ADQUISICION-JURISPRUDENCIA.md` para adquisición.
 
 ## Qué estamos construyendo
 
@@ -15,6 +15,9 @@ Una búsqueda jurídica civil sobre datos con procedencia, permisos y curaduría
 - No acceder a producción ni a bases/servidores institucionales. Para la excepción TFN del flujo normal autorizado en Sprint 14.2 y sus límites, seguir `BJC-ADQUISICION-JURISPRUDENCIA.md`; CIJ mantiene las restricciones previas.
 
 ## Resultado actual
+
+- **J9.0.1 cerrado en DEV.** 6.014 fallos Civil publicados sobre 6.070 certificados; 56 quedan en revisión por ambigüedad legal/modelo. No hubo exposición de workspaces ni cambio de visibilidad global; E2E de PDF válido, navegación del lector, archive y deduplicación pasa. Performance de búsqueda media requiere el próximo sprint de Search (p50 8,35 s, p95 10,51 s). Esto no abre preproducción ni producción. Detalle: `BJC-OPERACION-JURISPRUDENCIA.md`.
+- DB DEV verificada después de cleanup: 17.078 Corpus, 17.078 estados de proyección y 18.799.500 tokens; cero residuos sintéticos de J9.0.1.
 
 - **Sprint 13 — preproducción técnica BLOCKED / NOT EXECUTED; UAT PENDING.** No se identificó host separado autorizado ni DB/storage preprod. La ausencia de ambiente no es una falla funcional; DEV no se promovió como preprod. Ver docs 126–139.
 - **Último gate de software verificado: Sprint 12.3 READY WITH NON-BLOCKING ADJUSTMENTS**, sólo para avanzar a preprod/UAT. Backend 86 PASS y 15 opt-in omitidos; PostgreSQL 7/7, Corpus 3/3, paquete 2/2; typecheck/build backend y frontend PASS; Playwright 5/5. Evidencia DEV doc 125, no smoke preprod.
@@ -43,9 +46,9 @@ Una búsqueda jurídica civil sobre datos con procedencia, permisos y curaduría
 - Si una fuente física desaparece en el futuro, registrar `sourceMissing` y requerir revisión; no eliminar automáticamente CorpusDocument.
 - Ingesta real, migraciones y fixtures sólo en DEV guardado. CIJ/CSJN sólo con canal oficialmente autorizado.
 
-## Siguiente trabajo
+## Próximo trabajo
 
-**Sprint 9 — workflow real de Jurisprudencia + Digesto + Curaduría:** revisar asociaciones, aprobar/rechazar temas, seleccionar con motivo, guardar responsable/historial, resolver permisos/anonimización y conectar colecciones Digesto. Mantener OCR como piloto separado y local para los 399 pendientes; añadir resaltado dentro del PDF y validación funcional con usuarios.
+Completar el sprint final de Search priorizando la consulta media, que en J9.0.1 midió p50 8,35 s/p95 10,51 s sobre DEV. Después continuar J9.1 de UX/UAT. Preproducción sigue sin destino autorizado y no se habilita red compartida; revisar `BJC-ROADMAP.md` y `BJC-ESTADO-ACTUAL.md` antes de retomar.
 
 ## Estado de cierre Sprint 10 (2026-10-08)
 

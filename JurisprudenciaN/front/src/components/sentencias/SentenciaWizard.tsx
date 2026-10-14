@@ -53,6 +53,7 @@ const initialSentencia: SentenciaFormValues = {
   demandado: '',
   objeto: '',
   magistrados: '',
+  juez: '',
   observacionesInternas: '',
   estadoCarga: 'BORRADOR',
   publicado: false,

@@ -87,7 +87,7 @@ export default function PerfilPage() {
               <div className={styles.listItem}><strong>Nombre</strong><span>{user.nombre}</span></div>
               <div className={styles.listItem}><strong>Apellido</strong><span>{user.apellido || '-'}</span></div>
               <div className={styles.listItem}><strong>Correo electrónico</strong><span>{user.email}</span></div>
-              <div className={styles.listItem}><strong>Rol</strong><span>{user.rol.nombre}</span></div>
+              <div className={styles.listItem}><strong>Área</strong><span>{{ ADMIN: 'Administración', OPERADOR: 'Operación', LECTOR: 'Consulta', REVISOR: 'Revisión', JURISPRUDENCIA: 'Jurisprudencia', DIGESTO: 'Digesto' }[user.rol.nombre] ?? 'Usuario'}</span></div>
               <div className={styles.listItem}><strong>Estado</strong><span>{user.activo ? 'Activo' : 'Inactivo'}</span></div>
               <div className={styles.listItem}><strong>Fecha de creacion</strong><span>{formatDate(user.createdAt)}</span></div>
               <div className={styles.listItem}><strong>Ultimo acceso</strong><span>{user.ultimoAcceso ? formatDate(user.ultimoAcceso) : '-'}</span></div>

@@ -99,6 +99,12 @@ export function DocumentoSidePanel({
       </DocumentoAccordion>
 
       <DocumentoAccordion title="Más información">
+        {sentencia.juez ? (
+          <div className={styles.section}>
+            <strong>Juez</strong>
+            <div className={styles.item}>{sentencia.juez}</div>
+          </div>
+        ) : null}
         {magistrados.length > 0 ? (
           <div className={styles.section}>
             <strong>Votos / Magistrados</strong>

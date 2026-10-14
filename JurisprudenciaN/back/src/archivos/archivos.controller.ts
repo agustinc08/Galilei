@@ -33,7 +33,9 @@ export class ArchivosController {
   constructor(private readonly archivosService: ArchivosService) {}
 
   @Post('upload/sentencia/:sentenciaId')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 100 * 1024 * 1024 } }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -55,6 +57,22 @@ export class ArchivosController {
     return this.archivosService.uploadSentenciaPdf(sentenciaId, file, user.id);
   }
 
+  @Post('upload/jurisprudencia')
+  @Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.JURISPRUDENCIA)
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 100 * 1024 * 1024 } }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Incorpora un PDF y crea un borrador de Jurisprudencia',
+  })
+  uploadJurisprudenciaDraft(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.archivosService.uploadJurisprudenciaDraft(file, user.id);
+  }
+
   @Get('sentencia/:sentenciaId')
   @ApiOperation({ summary: 'Lista PDFs de una sentencia' })
   findBySentencia(@Param('sentenciaId', ParseIntPipe) sentenciaId: number) {
@@ -74,8 +92,10 @@ export class ArchivosController {
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ) {
-    const { archivo, absolutePath } =
-      await this.archivosService.getDownload(id, user.id);
+    const { archivo, absolutePath } = await this.archivosService.getDownload(
+      id,
+      user.id,
+    );
 
     res.setHeader('Content-Type', archivo.mimeType ?? 'application/pdf');
     res.setHeader(

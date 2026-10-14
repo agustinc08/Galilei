@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { formatTipoFallo } from '@/lib/jurisprudencia-labels';
 import type { ArchivoPdf } from '@/types/archivo';
 import type { ApiResponse } from '@/types/common';
 import type { FalloRelacionadoPublico, FichaSentencia } from '@/types/sentencia';
@@ -54,6 +55,8 @@ function buildPublicTimeline(data: FichaSentencia) {
 export function FalloPublicoViewer({ identifier }: Props) {
   const searchParams = useSearchParams();
   const highlightQuery = searchParams.get('q') ?? '';
+  const requestedReturn = searchParams.get('returnTo') ?? '';
+  const backHref = requestedReturn.startsWith('/consulta') ? requestedReturn : `/consulta${highlightQuery ? `?q=${encodeURIComponent(highlightQuery)}` : ''}`;
   const [data, setData] = useState<FichaSentencia | null>(null);
   const [relacionados, setRelacionados] = useState<FalloRelacionadoPublico[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -127,12 +130,15 @@ export function FalloPublicoViewer({ identifier }: Props) {
   }
 
   const title = buildTitle(data);
+  const salaLabel = data.sentencia.sala
+    ? (data.sentencia.sala.toLowerCase().startsWith('sala') ? data.sentencia.sala : `Sala ${data.sentencia.sala}`)
+    : 'Sin Sala informada';
   const subtitle = [
-    data.sentencia.sala ? `Sala ${data.sentencia.sala}` : null,
-    formatDate(data.sentencia.fecha),
+    salaLabel,
+    data.sentencia.fecha ? formatDate(data.sentencia.fecha) : null,
     data.sentencia.expediente ? `Expte. ${data.sentencia.expediente}` : null,
     data.sentencia.tribunalOrigen,
-    data.sentencia.tipoFallo,
+    formatTipoFallo(data.sentencia.tipoFallo),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -144,8 +150,8 @@ export function FalloPublicoViewer({ identifier }: Props) {
     <DocumentoViewerLayout
       title={title}
       subtitle={subtitle}
-      backHref={`/consulta${highlightQuery ? `?q=${encodeURIComponent(highlightQuery)}` : ''}`}
-      backLabel="Volver a consulta"
+      backHref={backHref}
+      backLabel="Volver a resultados"
       sidePanel={
         <>
           <div className={styles.institutionalBlock}>
@@ -210,7 +216,7 @@ export function FalloPublicoViewer({ identifier }: Props) {
           <div className={styles.publicHeader}>
             <div>
               <span>Fallo publicado</span>
-              <strong>{data.cita.citaBreve}</strong>
+              <strong>{[title, salaLabel, data.sentencia.fecha ? formatDate(data.sentencia.fecha) : null].filter(Boolean).join(' · ')}</strong>
             </div>
             <div className={styles.publicHeaderActions}>
               <Button variant="secondary" onClick={() => window.print()}>

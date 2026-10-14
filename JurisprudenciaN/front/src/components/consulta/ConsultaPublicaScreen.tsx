@@ -10,10 +10,8 @@ import { BusquedaJurisprudenciaForm } from '@/components/busqueda/BusquedaJurisp
 import { ResultadosJurisprudencia } from '@/components/busqueda/ResultadosJurisprudencia';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Select } from '@/components/ui/Select';
-import { SuggestionTag } from '@/components/ui/SuggestionTag';
 import { StatusMessage } from '@/components/ui/StatusMessage';
 import { useAuth } from '@/hooks/use-auth';
 import { useCatalogos } from '@/hooks/use-catalogos';
@@ -55,6 +53,7 @@ function ConsultaPublicaScreenContent() {
   const [pdfMessage, setPdfMessage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [temas, setTemas] = useState<string[]>([]);
+  const [recentlyPublished, setRecentlyPublished] = useState<Array<{ id: number; slugPublico: string | null; caratula: string | null; expediente: string | null; sala: string | null; fecha: string | null; publishedAt: string | null }>>([]);
 
   const filters = useMemo<ConsultaPublicaFilters>(
     () => ({
@@ -113,6 +112,14 @@ function ConsultaPublicaScreenContent() {
 
   useEffect(() => {
     let active = true;
+    void api.get<{ data: typeof recentlyPublished }>('/public/sentencias/recientes', { skipAuth: true })
+      .then((response) => { if (active) setRecentlyPublished(response.data); })
+      .catch(() => { if (active) setRecentlyPublished([]); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
 
     const load = async () => {
       setIsLoading(true);
@@ -129,13 +136,9 @@ function ConsultaPublicaScreenContent() {
 
         if (!active) return;
         setResult(response);
-      } catch (loadError) {
+      } catch {
         if (!active) return;
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'No se pudo ejecutar la consulta pública.',
-        );
+        setError('No pudimos completar la búsqueda. Intenta nuevamente.');
       } finally {
         if (active) {
           setIsLoading(false);
@@ -152,6 +155,27 @@ function ConsultaPublicaScreenContent() {
 
   const currentData = result?.data ?? [];
   const selectedItems = currentData.filter((item) => selectedIds.includes(item.id));
+  const activeFilters = ([
+    { key: 'q', label: 'Búsqueda', value: filters.q ?? '' },
+    { key: 'tema', label: 'Tema', value: filters.tema ?? '' },
+    { key: 'sala', label: 'Sala', value: filters.sala ? (filters.sala.toLowerCase().startsWith('sala') ? filters.sala : `Sala ${filters.sala}`) : '' },
+    { key: 'fechaDesde', label: 'Desde', value: filters.fechaDesde ? new Date(`${filters.fechaDesde}T12:00:00`).toLocaleDateString('es-AR') : '' },
+    { key: 'fechaHasta', label: 'Hasta', value: filters.fechaHasta ? new Date(`${filters.fechaHasta}T12:00:00`).toLocaleDateString('es-AR') : '' },
+    { key: 'tipoFallo', label: 'Tipo', value: filters.tipoFallo ?? '' },
+    { key: 'expediente', label: 'Expediente', value: filters.expediente ?? '' },
+    { key: 'numeroSumario', label: 'Nº sumario', value: filters.numeroSumario ?? '' },
+    { key: 'numeroSentencia', label: 'Sentencia', value: filters.numeroSentencia ?? '' },
+    { key: 'magistrados', label: 'Magistrados', value: filters.magistrados ?? '' },
+    { key: 'caratula', label: 'Carátula', value: filters.caratula ?? '' },
+    { key: 'tribunalOrigen', label: 'Tribunal', value: filters.tribunalOrigen ?? '' },
+    { key: 'actor', label: 'Actor', value: filters.actor ?? '' },
+    { key: 'demandado', label: 'Demandado', value: filters.demandado ?? '' },
+    { key: 'objeto', label: 'Objeto', value: filters.objeto ?? '' },
+    { key: 'anio', label: 'Año', value: filters.anio ?? '' },
+    { key: 'fraseExacta', label: 'Frase exacta', value: filters.fraseExacta ?? '' },
+    { key: 'excluir', label: 'Excluir', value: filters.excluir ?? '' },
+    { key: 'pdf', label: 'PDF', value: filters.pdf === 'conPdf' ? 'Con PDF' : filters.pdf === 'sinPdf' ? 'Sin PDF' : '' },
+  ] satisfies Array<{ key: keyof ConsultaPublicaFilters; label: string; value: string }>).filter((item) => Boolean(item.value));
 
   const updateRoute = (next: ConsultaPublicaFilters) => {
     const queryString = buildQueryString(next);
@@ -160,8 +184,10 @@ function ConsultaPublicaScreenContent() {
 
   const handleSearch = (nextValues: ConsultaPublicaFilters) => {
     const pdf = nextValues.pdf || (nextValues.soloConPdf === 'true' ? 'conPdf' : 'todos');
+    const sala = nextValues.sala?.trim().replace(/^sala\s+/iu, '') ?? '';
     updateRoute({
       ...nextValues,
+      sala,
       pdf,
       soloConPdf: '',
       page: 1,
@@ -220,12 +246,16 @@ function ConsultaPublicaScreenContent() {
             </Link>
           </div>
         ) : null}
-        <div className={styles.heroKicker}>Consulta pública de jurisprudencia</div>
-        <h1 className={styles.heroTitle}>Sistema Web de Consulta de Jurisprudencia</h1>
+        <h1 className={styles.heroTitle}>Jurisprudencia</h1>
         <p className={styles.heroSubtitle}>
-          Cámara Nacional de Apelaciones en lo Civil. Búsqueda por texto libre,
-          sala, fecha, tribunal, tipo de fallo, tema, magistrados y expediente.
+          Cámara Nacional de Apelaciones en lo Civil
         </p>
+        {user && ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user.rol.nombre) ? (
+          <div className={styles.publicHeader}>
+            <Link href="/sentencias"><Button variant="secondary">Gestionar fallos</Button></Link>
+            <Link href="/sentencias/nueva"><Button>+ Nuevo fallo</Button></Link>
+          </div>
+        ) : null}
       </section>
 
       <BusquedaJurisprudenciaForm
@@ -244,23 +274,48 @@ function ConsultaPublicaScreenContent() {
         mostrarFiltrosInternos={false}
       />
 
+      {recentlyPublished.length ? (
+        <Card>
+          <details className={styles.latestDetails}>
+            <summary>Últimos fallos publicados <span>({recentlyPublished.length})</span></summary>
+            <ul className={styles.latestList}>
+            {recentlyPublished.slice(0, 4).map((item) => (
+              <li key={item.id}>
+                {item.slugPublico ? <Link href={`/fallos/${item.slugPublico}`}>{item.caratula || item.expediente || 'Fallo publicado'}</Link> : <strong>{item.caratula || item.expediente || 'Fallo publicado'}</strong>}
+                <span> · {item.sala || 'Sin Sala informada'} · {item.fecha ? new Date(item.fecha).toLocaleDateString('es-AR') : 'Fecha no informada'}</span>
+              </li>
+            ))}
+            </ul>
+          </details>
+        </Card>
+      ) : null}
+
+      {activeFilters.length ? (
+        <div className={styles.activeFilters} aria-label="Filtros activos">
+          <span className={styles.activeFiltersLabel}>Buscando con:</span>
+          {activeFilters.map((filter) => (
+            <span className={styles.filterChip} key={filter.key}>
+              <span><strong>{filter.label}:</strong> {filter.value}</span>
+              <button
+                type="button"
+                aria-label={`Quitar filtro ${filter.label}`}
+                onClick={() => updateRoute({ ...filters, [filter.key]: '', page: 1 })}
+              >×</button>
+            </span>
+          ))}
+          <Button variant="ghost" onClick={handleClear}>Limpiar filtros</Button>
+        </div>
+      ) : null}
+
       <div className={styles.toolbar}>
         <div className={styles.toolbarLeft}>
           <strong>
-            {result
-              ? `${result.meta.total} resultados`
+            {isLoading
+              ? 'Buscando…'
+              : result
+                ? `${result.meta.total.toLocaleString('es-AR')} ${result.meta.total === 1 ? 'resultado' : 'resultados'}`
               : 'Consulta pública de sumarios y fallos publicados'}
           </strong>
-          {result?.meta.sortUsed ? <span>Orden aplicado: {result.meta.sortUsed}</span> : null}
-          {result?.meta.tiempoMs !== undefined ? <span>{result.meta.tiempoMs} ms</span> : null}
-          {result?.meta.expandedTerms?.length ? (
-            <span>
-              También se buscó por:{' '}
-              {result.meta.expandedTerms.map((term) => (
-                <SuggestionTag key={term} label={term} />
-              ))}
-            </span>
-          ) : null}
         </div>
         <div className={styles.toolbarRight}>
           <Select
@@ -273,8 +328,8 @@ function ConsultaPublicaScreenContent() {
             }}
             options={[
               { label: 'Relevancia', value: 'relevancia:desc' },
-              { label: 'Fecha desc', value: 'fecha:desc' },
-              { label: 'Fecha asc', value: 'fecha:asc' },
+              { label: 'Fecha más reciente', value: 'fecha:desc' },
+              { label: 'Fecha más antigua', value: 'fecha:asc' },
               { label: 'Sala', value: 'sala:asc' },
               { label: 'N° sentencia', value: 'numeroSentencia:asc' },
             ]}
@@ -282,13 +337,7 @@ function ConsultaPublicaScreenContent() {
         </div>
       </div>
 
-      <Card>
-        <p>
-          La consulta pública muestra solo fallos y sumarios publicados. El buscador
-          admite palabras parciales, tildes, Ñ, frases entre comillas y términos
-          excluidos anteponiendo `-`.
-        </p>
-      </Card>
+      <p className={styles.scopeNote}>La búsqueda incluye fallos y sumarios publicados.</p>
 
       {pdfMessage ? (
         <StatusMessage
@@ -298,16 +347,8 @@ function ConsultaPublicaScreenContent() {
         />
       ) : null}
 
-      {result && result.meta.total > 300 ? (
-        <div className={styles.alert}>
-          La búsqueda arroja demasiados resultados. Se muestran los primeros{' '}
-          {result.meta.pageSize} sumarios. Si lo desea, refine la búsqueda utilizando
-          intervalos de fecha.
-        </div>
-      ) : null}
-
       {isLoading ? (
-        <LoadingSpinner label="Consultando sumarios publicados..." />
+        <LoadingSpinner label="Buscando fallos…" />
       ) : error ? (
         <StatusMessage
           variant="error"
@@ -315,12 +356,15 @@ function ConsultaPublicaScreenContent() {
           message={error}
         />
       ) : !result ? (
-        <EmptyState title="Sin datos" description="No se pudo cargar la consulta." />
+        <div className={styles.emptyState} role="status"><strong>No hay resultados para mostrar.</strong></div>
       ) : result.data.length === 0 ? (
-        <EmptyState
-          title="Sin resultados"
-          description="Intenta usar menos filtros o términos más generales."
-        />
+        <div className={styles.emptyState} role="status">
+          <strong>No encontramos fallos con estos criterios.</strong>
+          <span>Modificá la búsqueda o quitá los filtros para probar de nuevo.</span>
+          <div className={styles.emptyActions}>
+            <Button variant="secondary" onClick={handleClear}>Limpiar filtros</Button>
+          </div>
+        </div>
       ) : (
         <>
           <ResultadosJurisprudencia

@@ -1,0 +1,11 @@
+sourceRecordId,portalId,expediente,expedienteYear,decisionYear,decisionDate,court,title,documentUrl
+P-001,PORTAL-001,101/2020,2020,2021,2021-03-10,Juzgado Nacional de Primera Instancia en lo Civil N° 1,Fixture uno,https://example.test/doc/1
+P-002,,102/2020,2020,,2020-04-11,Juzgado Nacional de Primera Instancia en lo Civil N° 2,Fixture dos,
+P-003,,103/2020,2020,,2020-05-12,Juzgado Nacional de Primera Instancia en lo Civil N° 3,Fixture tres,
+P-004,,104/2020,2020,,2020-06-13,Juzgado Nacional de Primera Instancia en lo Civil N° 4,Fixture cuatro,
+P-005,,201/2019,2019,,2019-07-14,Juzgado Nacional de Primera Instancia en lo Civil N° 5,Fixture cinco,
+P-006,,202/2019,2019,,2019-08-15,Juzgado Nacional de Primera Instancia en lo Civil N° 6,Fixture seis,
+P-007,,301/2018,2018,,2018-09-16,Juzgado Nacional de Primera Instancia en lo Civil N° 7,Fixture siete,
+P-008,PORTAL-001,401/2017,2017,,2017-10-17,Juzgado Nacional de Primera Instancia en lo Civil N° 8,ID de portal duplicado,
+P-010,,501/2016,2016,,31/02/2016,Juzgado Nacional de Primera Instancia en lo Civil N° 9,Fecha inválida,
+P-011,,601/2015,2015,,2015-01-01,Tribunal Fantasía,Órgano desconocido,

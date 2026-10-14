@@ -13,8 +13,16 @@ export class PublicSentenciasController {
     private readonly iaService: IaService,
   ) {}
 
+  @Get('recientes')
+  @ApiOperation({ summary: 'Últimos fallos incorporados y publicados' })
+  recientes() {
+    return this.sentenciasService.findRecentPublished(10);
+  }
+
   @Get(':slug/citas')
-  @ApiOperation({ summary: 'Obtiene citas confirmadas de una sentencia publica' })
+  @ApiOperation({
+    summary: 'Obtiene citas confirmadas de una sentencia publica',
+  })
   findCitasBySlug(@Param('slug') slug: string) {
     return this.sentenciasService.getPublicCitasBySlug(slug);
   }
@@ -32,10 +40,21 @@ export class PublicSentenciasController {
   }
 
   @Get(':slug/relacionados')
-  @ApiOperation({ summary: 'Obtiene fallos publicos relacionados por IA o fallback textual' })
+  @ApiOperation({
+    summary: 'Obtiene fallos publicos relacionados por IA o fallback textual',
+  })
   async relacionados(@Param('slug') slug: string) {
-    const sentencia = await this.sentenciasService.getPublicIdentity(slug);
-    return this.iaService.buscarSimilaresPublicos(sentencia.id, 5);
+    const identity: unknown =
+      await this.sentenciasService.getPublicIdentity(slug);
+    if (
+      typeof identity !== 'object' ||
+      identity === null ||
+      !('id' in identity) ||
+      typeof identity.id !== 'number'
+    ) {
+      throw new Error('Identidad pública de sentencia inválida');
+    }
+    return this.iaService.buscarSimilaresPublicos(identity.id, 5);
   }
 
   @Get(':slug')

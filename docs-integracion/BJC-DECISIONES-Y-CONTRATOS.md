@@ -133,3 +133,104 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 4. Reusar extracción PDF, páginas, Search AST/adapter y storage SHA existente. Hash igual en dos dependencias conserva dos documentos/vínculos lógicos y comparte un blob. Upload limitado a PDF; OCR_REQUIRED queda visible pero fuera de Search.
 5. Migración aditiva `20261013130000_sprint15_private_document_workspaces`, sólo DEV loopback, sin reindexar CorpusSearchToken. Backup pre-migración: manifiesto verificado Sprint 14.9. No se habilita producción ni aceptación institucional.
 6. Sprint 14.9.2 PHRASE permanece PARTIAL; Sprint 15 no altera ni optimiza esa semántica.
+
+## Decisión Sprint J2 — identidad jurídica y de archivo (2026-10-14)
+
+1. `SHA-256` identifica bytes de un archivo, no una decisión judicial. `LegalDecisionIdentity` debe apoyarse en ID nativo estable cuando exista y, con evidencia corroborada, expediente, órgano, Sala si corresponde y fecha de decisión. El campo de expediente/año se conserva separado del año de decisión; carátula es evidencia descriptiva, no clave de unión.
+2. Una misma decisión puede conservar varios `CorpusDocumentFile` con hashes diferentes y su propio `CorpusIngestionRecord`/metadataOriginal. No sobrescribir ni fusionar archivos para normalizar versiones, OCR, correcciones o redacciones.
+3. El esquema actual soporta varios archivos dentro de un `CorpusDocument`, pero `CorpusDocument` no es una entidad `LegalDecision` tipada y `CorpusIngestionService.linkExisting` exige SHA ya presente y único. Su límite es funcional y de servicio, no prueba de que dos SHA representen decisiones distintas.
+4. Regla de linker v2: SHA igual + metadatos jurídicos consistentes habilita `LINK_FILE_EXACT`; expediente/órgano/Sala/fecha iguales con SHA diferente puede ser identidad jurídica `HIGH`, pero `allowedAction=REVIEW` hasta comparar representación y recibir revisión aprobada. SHA distinto con fecha conflictiva se rechaza; título solo queda `LOW/REVIEW`. Sin escritura automática.
+5. No se crea migración en J2. Para escribir una segunda representación bajo una decisión existente se requiere un flujo que preserve cada file ID/hash/provenance y compruebe el comportamiento de extracción, Search y “latest file”; alternativamente proponer entidad LegalDecision/DecisionRepresentation, con coordinación previa de schema porque Copernic desarrolla en paralelo.
+6. La búsqueda CSJN de primera instancia es fuente de consulta pública confirmada, no un censo total probado. Sin export oficial/estable y permiso de automatización se mantiene denominator `UNKNOWN` y acquisition piloto en cero.
+
+## Decisión Sprint J4 — identidad legal y workflow de review (2026-10-14)
+
+1. La `LEGAL_KEY` de tooling se deriva de jurisdicción, órgano normalizado, Sala para Cámara o número de juzgado para primera instancia, expediente y fecha de decisión. Es reproducible pero no es PK ni se escribe en DB. Título queda como evidencia auxiliar y SHA identifica sólo bytes.
+2. La identidad de representación conserva SHA-256, MIME, tamaño, páginas, fuente, ID de registro y hash de texto normalizado. La normalización preserva palabras y orden; no hace OCR ni reordena párrafos. Se extraen encabezado, fecha, Sala, resolutorio, firmas y marcas impresas con patrones observables.
+3. `SAME_TEXT_RENDER` requiere clave legal completa y hash textual conservador igual. `SAME_DECISION_DIFFERENT_VERSION` requiere clave legal completa y evidencia independiente concordante: firma/resolutorio o marca documental junto con marcador/resolutorio; la similitud textual no decide sola. Casos con evidencia parcial quedan `INCONCLUSIVE`/human review.
+4. `AUTO_SAFE` es sólo una propuesta respaldada, nunca una escritura ni un aumento de coverage. En J4 no hubo acciones `AUTO_SAFE`; 16 propuestas quedan `MODEL_LIMITATION`, 7 `SOURCE_DATA_REQUIRED` y 428 `HUMAN_REQUIRED`.
+5. El workflow exporta decisiones humanas (`groupId, decision, reviewer, reviewedAt, notes`) y sólo las valida. Importar una decisión no la aplica a DB. No existe flag ni ruta de escritura en el tooling J4.
+6. El modelo admite varios `CorpusDocumentFile` por documento con SHA único por documento y `CorpusIngestionRecord` con procedencia/fileId. Sin embargo, `linkExisting` exige SHA existente y no ambiguo; viewer y Search sirven la versión de archivo más alta y metadata expone la procedencia de ingesta más reciente. Añadir una representación sin política explícita podría cambiar el archivo visible. No crear migración en J4.
+7. La entidad `LegalDecision` queda sin decidir hasta integrar ramas y acordar el contrato. Se comparan alternativas A (entidad legal tipada), B (campos y relación de identidad en Corpus) y C (modelo actual conservador) en el artefacto local de J4.
+
+## Decisión Sprint J5 — evidencia de candidatos y colisiones (2026-10-14)
+
+1. No se recuperó `candidateDocumentId` para los 106 casos tras cruzar SHA, IDs source/portal/legacy, ingestas, metadataOriginal y legal keys completas contra el snapshot Corpus; quedan `NOT_RECOVERED`. Título fuzzy no es una clave de asociación.
+2. De los 321 conflictos `ONE_SHA_MULTIPLE_LEGAL_KEYS`, 194 tienen varios expedientes exactos impresos en el PDF y 127 conservan colisión de metadata. Un PDF multi-expediente no demuestra por sí solo decisiones independientes ni autoriza un link; validar expediente, fechas resolutivas y contexto.
+3. En los 7 metadata conflicts, un PDF confirma el expediente fuente y el expediente Corpus adicional en el mismo archivo; 6 conservan discrepancias críticas. Preservar ambos valores; no sobrescribirlos.
+4. Review tiers J5: 2 `HUMAN_READY`, 106 `HUMAN_NEEDS_CANDIDATE`, 6 `HUMAN_NEEDS_SOURCE_DATA`, 321 `HUMAN_STRUCTURAL`, 16 `MODEL_LIMITATION`. `AUTO_SAFE=0`; los cambios de tier son refinamientos de cola.
+5. La inspección usa una transacción PostgreSQL read-only y no escribe contenido Corpus/Search, Prisma ni migraciones. Search verify pasa, pero actualiza `verifiedAt`; el timestamp se restauró al valor previo de J4 y los conteos permanecieron iguales. Este update transitorio incumple el gate de cero escrituras, así que J5 queda `PARTIAL`. No se aplican links.
+
+## Decisión Sprint J6 — identidad primaria y alcance de una representación (2026-10-14)
+
+1. `PRIMARY_CASE` identifica el expediente objeto de la decisión; una cita, antecedente o expediente relacionado se registra como rol distinto y nunca se promueve a identidad primaria por aparecer en el mismo PDF.
+2. `MULTI_CASE_SINGLE_DECISION` describe una sentencia única que resuelve expedientes acumulados. `TRUE_MULTI_DECISION_PDF` requiere evidencia separada de más de una decisión oficial (encabezados/fechas resolutivas independientes, identidades de expediente disjuntas y resultados resolutorios separados). Repeticiones de encabezados de página o fórmulas como “reunidas las señoras jueces” no bastan.
+3. J6 analizó 194 grupos (148 SHA únicos): 8 `SINGLE_DECISION_PRIMARY_CASE`, 174 `MULTI_CASE_SINGLE_DECISION`, 0 `TRUE_MULTI_DECISION_PDF`, 3 ambiguos y 9 insuficientes. Las identidades primaria confirmadas/probables son propuestas para revisión, no links aplicados.
+4. Las 127 colisiones de metadata quedan en propuestas: 107 `UNKNOWN`, 17 filas fuente múltiples, 2 conflictos entre fuente y Corpus y 1 conflicto de año de expediente. No hay arreglo seguro ni corrección aplicada; 20 requieren decisión humana.
+5. No se añade entidad `LegalDecision`, relación ni migración con estos resultados. El paquete J6 es local/ignorado y la decisión de schema permanece pendiente de coordinación entre ramas.
+
+## Decisión Sprint J6.1 — workflow de revisión humana (2026-10-14)
+
+1. Las decisiones humanas se capturan fuera de DB y se mantienen separadas de la propuesta de máquina. El ledger registra `groupId`, `decision`, `reviewer`, `reviewedAt`, `notes`, confianza/tiempo opcionales, `reviewInputHash`, Git SHA y referencia al snapshot J6.
+2. El paquete reproducible usa review-v3 y evidencia J5 por SHA; muestra 187 filas estructuralmente listas (P0=8, P1=174, P2=5). Seis SHA enlazan a un CorpusDocument del grafo J5; en 181 casos el snapshot de revisión no tiene candidato exacto. Las 127 colisiones de metadata, incluidas 107 sin procedencia, permanecen fuera de la ronda.
+3. La UI HTML es local y estática, sin requests externos ni persistencia DB. La persona exporta checkpoint CSV/JSON y puede importarlo para continuar; hash/snapshot diferentes se rechazan. Validar o resumir sólo genera archivos en recovery.
+4. J6.1 queda `READY FOR HUMAN UAT`, no CLOSED. No hay decisiones reales, métricas de acuerdo humano ni cambios Prisma/Corpus/Search/Viewer. No aplicar las decisiones sin un dry-run aprobado posterior.
+
+## Contrato analítico J7 — calidad, provenance y duplicados (2026-10-14)
+
+1. Las bandas de calidad y prioridades J7 son clasificación explicable de auditoría, no verdad jurídica ni dato persistido. `REVIEW` indica revisión sugerida; no implica que el documento sea incorrecto.
+2. Un SHA igual prueba identidad de bytes, pero no identidad de decisión. Texto normalizado igual con SHA distinto indica representaciones candidatas; no autoriza borrar, fusionar ni enlazar CorpusDocuments.
+3. Claves jurídicas incompletas o múltiples permanecen candidatas. Provenance completa describe trazabilidad disponible, no validación independiente de la fuente.
+4. J7 produce propuestas P1/P2 sin aplicarlas; cualquier reparación exige un sprint posterior con dry-run y controles explícitos. J6.1 conserva su estado `READY FOR HUMAN UAT`; ningún resultado automático equivale a decisión humana.
+
+## Contrato de propuestas J7.1 — recuperación dry-run (2026-10-14)
+
+1. `AUTO_SAFE_DRY_RUN` significa candidata a operación determinística futura, no aplicación, veracidad productiva ni publicación. Toda propuesta exige precondiciones de valor actual, `updatedAt`, SHA del archivo y hash de `metadataOriginal`, más recálculo de clave y Search cuando corresponda.
+2. `HUMAN_CONFIRMATION_REQUIRED`, `SOURCE_DATA_REQUIRED`, `MODEL_LIMITATION`, `NO_CHANGE_REQUIRED` y `UNRESOLVED` son estados de análisis y no autorizan escritura. No se completan campos por expediente aproximado, citas ni inferencias masivas de fuente.
+3. Una reparación de metadata que altere evidencia de un pack humano debe invalidarlo o volverlo stale; J7.1 cruzó SHA contra J6.1 y no encontró pack afectado por sus cinco propuestas. El hash J6.1 permanece `2b04cdb75acaa36dec515b7b7d8e8928dc80186d10bb6b293d119317b6f1827d` y no se registraron decisiones.
+4. La identificación de texto igual con SHA distinto sólo permite proponer relación de representación tras evidencia legal suficiente; no permite fusionar/borrar documentos. Los source records múltiples se preservan salvo duplicidad de identidad probada. En J7.1 los 341 casos fueron provenance esperada.
+5. El número docket sin año puede indicar limitación del parser; normalizar su lectura no inventa un año ni completa una clave legal parcial. No cambiar runtime ni datos como parte de J7.1.
+
+## Contrato J7.1.1 — normalizador de expediente Civil (2026-10-14)
+
+1. `normalizeCivilCaseReference()` es una función pura versionada `civil-case-normalizer-v2`; la cadena cruda se conserva en `evidence.rawPreserved`. Sus estados separan canónico, legacy, multi-expediente, parcial, ambiguo, malformado y no soportado.
+2. El número canónico elimina separadores de agrupación observados, pero conserva ceros iniciales. Los años de dos dígitos permanecen de dos dígitos; nunca se infiere siglo. Un expediente legacy sin año puede ser reconocido como número, pero conserva `canonicalYear=null` y la clave legal sigue parcial.
+3. La barra sólo separa número/año en una forma completa; listas explícitas conservan cada caso y nunca eligen uno. Año contradictorio, año agrupado sin corroboración o lista incierta quedan ambiguos. El parser no recibe texto del fallo ni citas.
+4. J7.1.1 no persiste identidad ni reconstruye Search. Los tres cambios frente al normalizador anterior en filas ya válidas son ceros iniciales preservados y corroborados por referencia de origen; no hubo otros cambios de identidad sin justificar. Evidencia real detallada local/ignorada en `_recovery-work/jurisprudencia-j711/`.
+
+
+## Contrato J7.1.2 — propuesta conservadora de Sala histórica (2026-10-14)
+
+1. AUTO_SAFE_DRY_RUN exige un campo raw estructurado explícito y consistente. Encabezado, tribunal, firma, título, filename y source reference son señales diagnósticas; no se autoaplican si la validación conocida muestra desacuerdos.
+2. Cita de una Sala, expediente relacionado y composición judicial no equivalen a la Sala del fallo analizado. Varias Salas propias plausibles se clasifican AMBIGUOUS; una cita en cuerpo no habilita propuesta automática. OCR/texto ausente queda TEXT_INSUFFICIENT.
+3. J7.1.2 clasificó 1.254/1.254 filas históricas: 0 auto-safe, 365 probables, 39 ambiguas, 849 sin evidencia propia y 1 con texto insuficiente. No completó campos, no generó decisiones humanas ni modificó el pack J6.1.
+4. La validación en 4.816 documentos con Sala conocida produjo 4.479 aciertos/4.479 predicciones para la regla estructurada. La regla de encabezado tuvo 13 desacuerdos/4.722 y tribunal 11/4.576; se mantienen como revisión humana. Las cuatro propuestas auto-safe anteriores de J7.1 fueron degradadas o no reproducidas.
+5. El filtro Search usa CorpusDocument.chamber en vivo. Un eventual cambio individual de ese campo no requiere rebuild ni reindex de la proyección tokenizada; J7.1.2 no aplicó cambios. La validez jurídica del dato sigue requiriendo evidencia de fuente y revisión conforme al flujo vigente.
+
+## Contrato J7.1.3 — revisión humana de Sala histórica
+
+El paquete `j713-review-v1` conserva `machineProposalSala` separado de `humanDecisionSala` (ledger de decisiones). Cada caso liga `reviewId` determinístico, documentId, SHA de archivo, clasificación, evidencia/página, propuesta, impacto sobre clave jurídica y filtro exacto, e `inputHash`. Las citas del cuerpo se rotulan “Referencia a otra Sala / evidencia no primaria”. La UI nunca escribe Corpus ni Search.
+
+Decisiones permitidas: `CONFIRM_PROPOSAL`, `SET_OTHER_SALA` (Sala A–M obligatoria), `NO_SALA_EVIDENCE`, `AMBIGUOUS`, `NOT_APPLICABLE` y `SKIP`; comentario opcional. Checkpoint/export JSON contiene input hash, revisión del pack, revisor, timestamp y decisiones; al importar se validan hashes globales y por caso (documentId, SHA, propuesta), duplicados, estados y Sala. CSV es una salida validable; JSON es fuente autoritativa. `--apply` responde “Apply mode is not implemented.” No se genera SQL ni herramienta de aplicación.
+
+Las prioridades ordenan utilidad/evidencia: P0 evidencia propia corroborada y completitud de clave; P1 encabezado propio en página/zona inicial; P2 otra evidencia propia singular; P3 evidencia auxiliar/cola ambigua. La prioridad no equivale a confianza jurídica.
+
+## Contrato de certificación de corpus Civil — J8
+
+Cada documento del manifiesto J8 tiene estados explícitos para archivo, provenance, páginas, Search, Viewer, normalización, Sala, clave jurídica y representaciones. Los estados del corte suman 6.070: `CERTIFIED` 4.814, `CERTIFIED_WITH_KNOWN_GAP` 874, `HUMAN_REVIEW_PENDING` 365 y `MODEL_LIMITATION` 17; `BROKEN`, `UNRESOLVED` y `UNKNOWN` son cero. Un gap histórico o una revisión humana pendiente no se convierte en fallo técnico ni se promueve silenciosamente a limpio. Ningún estado J8 implica una escritura persistida. Contrato y detalle: `BJC-CERTIFICACION-CORPUS-CIVIL.md`.
+
+## Contrato de publicación Jurisprudencia — J9 / J9.0.1
+
+Las filas nuevas comienzan como borrador. La publicación sólo ocurre mediante acción explícita/auditada; en workflow nuevo propaga `PUBLIC` únicamente a vínculos Corpus `GENERAL` de esa sentencia; retirar/archivar revierte esa visibilidad. El backfill J9.0.1 es un camino legacy limitado: crea o enlaza sólo filas workflow aprobadas desde fuentes institucionales certificadas, mantiene Corpus `INTERNAL`, no toca ACL privadas, contenido, provenance, páginas ni Search projection y no asigna fecha/autor ficticios. Reconciliación: 6.014 publicadas y 56 en revisión; `PRIVATE_CONFLICT=0`, `WORKSPACE_CONFLICT=0`, `UNKNOWN=0`; dry-run idempotente `wouldCreate=0`. Los casos de colisión no se fusionan y permanecen borradores/inactivos. J9 queda cerrado en DEV con esos límites, sin autorización para preproducción/producción. Ver `BJC-OPERACION-JURISPRUDENCIA.md`.
+
+## Contrato UX J9.1
+
+La UI mantiene separación lector/operador y conserva los controles de consulta legados sin cambiar Search semantics, workflow, Viewer core, ACL, datos, Prisma ni migraciones. La etiqueta “Borradores y no publicados” cubre el query histórico de operación y no equivale al conjunto de 56 casos en revisión de J9.0.1. Los sumarios se exponen sólo si son reader-visible; el snapshot auditado tiene cero. Evidencia, alcance responsive y UAT pendiente en `BJC-UX-JURISPRUDENCIA.md`.
+
+
+## Contrato operativo J9.1.1 — cola de revisión de publicación (2026-10-14)
+
+Se incorpora `GET /api/sentencias/revision/cola-publicacion`, autenticado para ADMIN, OPERADOR y JURISPRUDENCIA. Devuelve metadatos mínimos y motivo legible de documentos no publicados, derivados de (a) marca persistida `REQUIRES_REVIEW_LEGAL_KEY_COLLISION` o (b) archivo `text/plain` de la fuente civil `CIVIL_CUANTIFICACION_DANOS`. El endpoint excluye cualquier sentencia activa publicada, no expone paths ni texto documental y no realiza escrituras. El total se obtiene de la consulta; no es una constante frontend.
+
+La lista `GET /api/sentencias?publicado=false&activo=true&excluirRevision=true` permite mostrar los demás activos no publicados aparte de la cola. No altera el comportamiento histórico de `/sentencias` cuando el parámetro se omite. No se cambió schema ni se creó migración.
+

@@ -19,11 +19,11 @@ Siguiente gate: publicar este commit en `origin/dev`, actualizar la PC de oficin
 
 **Actualizado:** 2026-10-13 tras cierre técnico Sprint 14.9.2. No repetir auditorías cerradas salvo evidencia contradictoria.
 
-**Estado vigente:** PHRASE continúa sobre el gate: p95 comparable 2.427,38 ms y early exit no certifica totalExact. Dominante medido: sort/agregado ordenado de 8.958 candidatos, ~402 ms inclusivos; experimentos de conteo completo tardaron 29,5–32,0 s. No avanzar a revisión de los 452 grupos ni a los 4.890 enlaces abiertos hasta cumplir p95 <=1.200 ms y exactitud del total. Detalle en BJC-SEARCH.md.
+**Estado al cierre de Sprint 14.9.2 (histórico):** PHRASE estaba sobre el gate: p95 comparable 2.427,38 ms y early exit no certificaba totalExact. El plan de esa fecha posponía revisión de los 452 grupos y 4.890 enlaces abiertos hasta cumplir latencia y exactitud. La auditoría de fuentes del 2026-10-13 añadió un siguiente sprint de discovery P0 que no requiere ingesta ni cambios de Search; ver la prioridad vigente al final.
 
 ## Gate vigente — Sprint 14.9.2 (2026-10-13)
 
-**Estado: PARTIAL / PHRASE REGRESSION REMAINS.** No se conservó una modificación del runtime. Se comprobó el coste del orden/agregado completo antes de la primera ventana y el coste prohibitivo de contar todos los textos vía ILIKE. El total exacto permanece pendiente cuando PHRASE sale temprano. Mantener la adquisición y los grupos de revisión sin cambios hasta que Search pase el gate de latencia y conteo exacto. Evidencia: _recovery-work/sprint1492/final-summary.json.
+**Estado al cierre de Sprint 14.9.2: PARTIAL / PHRASE REGRESSION REMAINS.** No se conservó una modificación del runtime. Se comprobó el coste del orden/agregado completo antes de la primera ventana y el coste prohibitivo de contar todos los textos vía ILIKE. El total exacto permanecía pendiente cuando PHRASE salía temprano. La restricción afectaba a esa fase técnica; la adquisición/ingesta sigue requiriendo sus propios gates. Evidencia: _recovery-work/sprint1492/final-summary.json.
 
 | Fase | Estado | Salida / evidencia |
 |---|---|---|
@@ -73,7 +73,7 @@ Siguiente paso: conseguir export Digesto y usuario/matriz de aceptación institu
 | Viewer | Ranges y páginas 1/50/109 PASS; límite muestreado 11,35 MiB | Considerar streaming si el corpus futuro incorpora objetos significativamente mayores. |
 | Curaduría | Lotes y reversión de clasificación E2E PASS | Validar flujos con equipo responsable y completar ACL institucional. |
 
-## Siguiente acción concreta
+## Siguiente acción concreta al cierre de Sprint 14.9.2 (histórica)
 
 Mantener **NOT READY FOR PREPRODUCTION**. Priorizar performance legacy/federada y dashboard; luego restauración/migraciones reproducibles en ambiente aislado. La siguiente sesión humana es UAT guiada y aceptación de matriz ACL; la aceptación no cambia los bloqueos técnicos por sí sola. Informe integral: `87-RESULTADO-SPRINT-11.md`.
 
@@ -247,3 +247,86 @@ Después de aceptación, elegir una sola línea siguiente: (A) compartir control
 Siguiente trabajo limitado al residual medido: el candidate CTE TERM consulta `CorpusSearchToken_token_trgm_idx`, produce 113.800 entradas para 5.000 IDs y usa `Unique`/`Gather Merge` más 10.000 lookups por PK. Perfilar el SQL completo de página e hidratación con primera y última página, mejorar candidate deduplication sólo si el EXPLAIN/benchmark lo justifica, y medir por separado el count exacto sin hits (500–590 ms). Repetir tres series a 1.000/5.000 y mantener p95 bajo 400/800 ms, max/p50 estable, seguridad A/B, folder ACL y total exacto antes de ampliar workspaces. No tocar PHRASE en ese tramo; su deuda independiente queda en `BJC-SEARCH.md`.
 
 El backup/migración, benchmark general y validaciones actuales están en `_recovery-work/sprint1511/` (DEV local, ignorado por Git). No declarar cierre por métricas sintéticas ni UAT humana; el piloto requiere después una instancia con usuarios reales y datos ficticios.
+
+## Prioridad de adquisición tras auditoría profunda — 2026-10-13
+
+La línea de jurisprudencia queda en `feature/jurisprudencia`; no integrar aún a `dev`. El runtime mirror para PC oficina está preparado y pendiente de transferencia/restauración local.
+
+1. **P0 — Censo/export autorizado de primera instancia Civil:** solicitar a la autoridad administradora el total por juzgado/fecha, campos estables, paginación/cursor y ruta documental normal. El portal TFN oficial anuncia primera instancia, pero no publica un total agregado; Galilei contiene sólo 1 documento Civil de primera instancia. Antes de estimar backfill, validar una muestra pequeña de metadatos y documentos mediante el canal permitido.
+2. **P1 — Revisar los 452 grupos ya adquiridos:** priorizar los 328 conflictos y 106 candidatos; documentar resolución jurídica por grupo y mantener separados 15 pares con archivo distinto, 2 coincidencias exactas y 1 PDF inválido. No auto-fusionar.
+3. **P1 — Cuantificar la cola de 4.862 enlaces no intentados:** sólo después de acordar un mecanismo permitido y un muestreo con límites; respetar los 17 challenges, clasificar 10 documentos no disponibles y resolver el único error técnico por la ruta normal. No ejecutar una descarga masiva como parte de esta misión.
+4. **P2 — Censo de enriquecimiento CSJN Civil:** consultar la materia Civil del buscador público/seleccionados y medir identificadores/deduplicación antes de incorporar PDFs; el total del filtro no está publicado y Corpus hoy no tiene registros con órgano CSJN.
+5. **P3 — CIJ histórico / Datos Abiertos:** dejar en espera hasta obtener un canal institucional autorizado; respetar rutas disallow y demora declarada.
+
+No puede calcularse ganancia documental global ni valor/costo numérico sin un denominador oficial. La prioridad P0 tiene la mayor relación valor/esfuerzo informativo: determina primero el universo real, calendario y ruta de recuperación de primera instancia; la revisión P1 aprovecha documentos ya obtenidos sin iniciar adquisición externa. Evidencia no versionada y matriz por año/Sala: `_recovery-work/jurisprudencia-discovery/`.
+
+## Cierre parcial Sprint J1 — 2026-10-13
+
+Se clasificaron con evidencia de procedencia los 4.596 registros Civil sin instancia y se aplicó `SECOND_INSTANCE` a todos; Search permaneció íntegro. Quedan 451 grupos para revisión humana/asociación soportada (328 conflictos, 106 candidatos, 15 SHA alternativos y 2 matches jurídicos con SHA diferente) y un PDF corrupto rechazado. No hubo adquisición externa, desafío, fusión ni documento duplicado. El coverage engine está preparado para recibir censo oficial CSV/JSON; hoy la cobertura sólo puede medirse dentro del set temático conocido.
+
+**Próximo trabajo recomendado: obtener un censo/export autorizado de primera instancia Civil**, con conteo por Juzgado y una ruta documental normal. Es la brecha sin denominador y hoy Galilei sólo tiene un fallo Civil de primera instancia; solicitar el universo antes de estimar backfill. En paralelo, mantener los 451 casos en export de revisión y definir un contrato de asociación que conserve SHA/identidad de archivo antes de enlazar los dos matches jurídicos exactos. No iniciar descarga masiva ni automatizar desafíos.
+
+## Actualización Sprint J2 — 2026-10-14
+
+El buscador CSJN actual ya confirma consulta de fallos de primera instancia, pero la evidencia oficial revisada no establece que sea un censo Civil completo ni documenta exportación, IDs estables, total/paginación o permiso de automatización. Siguiente acción recomendada: **gestionar el export autorizado** usando el borrador técnico no enviado en `_recovery-work/jurisprudencia-j2/authorized-export-request.md`. No iniciar adquisición del piloto hasta confirmar el permiso y la forma estable del feed. Al recibirlo, validar importador/coverage en fixtures y luego una muestra de hasta 20 documentos aprobados.
+
+El importador y el identity linker v2 quedan read-only/dry-run. Los 451 casos están divididos por causa y los PDFs fuente están presentes; seguir resolución por P0/P1/P2/P3 en el artefacto local, conservando separada la identidad de bytes.
+
+## Después de Sprint J3 — 2026-10-14
+
+J3 quedó CLOSED en readiness: solicitud institucional preparada sin enviar y pipeline local de intake/reconcile/gaps probado con fixtures sintéticos. El siguiente paso técnico independiente recomendado es diseñar la representación de identidad legal/archivos y el orden de revisión de los 451 grupos ya adquiridos, en read-only/dry-run; no fusionar por coincidencia de metadata o por SHA distinto. Si llega el export autorizado antes, priorizar J3.1 para medir sólo `coverage within supplied authorized census`, validar alcance y producir gaps sin descarga masiva.
+
+## Sprint J4 — prioridad después de clasificación (2026-10-14)
+
+J4 cerró el diseño/tooling read-only para 451 grupos: 428 requieren decisión humana, 7 corregir/aclarar datos de fuente, 16 dependen de soporte explícito del modelo y no hubo propuestas `AUTO_SAFE`. No iniciar J4.1 con escrituras. Próximo orden recomendado: (1) revisión humana P0 de las 2 identidades legales y 15 pares de archivo, conservando cada SHA y usando el paquete local; (2) aclarar los 7 metadata conflicts; (3) revisar los 106 candidatos cuando se obtengan candidate IDs/evidencia Corpus; (4) diseñar LegalDecision/DecisionRepresentation sólo tras coordinar el schema entre ramas. El HTML/CSV local y validador no aplican decisiones a DB.
+
+Search PHRASE conserva su gate técnico independiente y este Sprint no modifica runtime, datos ni métricas de búsqueda. J4 artefactos reproducibles/performance están en `_recovery-work/jurisprudencia-j4/`; propuesta de schema sigue UNDECIDED. No hacer adquisiciones nuevas por este orden de revisión.
+
+## Continuidad después de Sprint J5 (2026-10-14)
+
+J5 reconstruyó la cola, el grafo y el paquete HTML/CSV, pero los 106 candidatos siguen sin ID. Continuar con `J5.1 — HUMAN REVIEW UAT` para los 2 casos listos y el paquete estructural priorizado; registrar decisiones y observaciones fuera de DB hasta tener un flujo de asociación aprobado. Mantener los 6 conflictos críticos como pendientes; no inferir un ganador desde firma o título. Los 194 PDFs multi-expediente requieren revisión de alcance antes de cualquier link; no hay propuesta `AUTO_SAFE`. Si llega un export autorizado, priorizar J3.1 para medir sólo el alcance provisto. No iniciar schema/migración mientras `feature/copernic` mantenga cambios Prisma paralelos.
+
+## Continuidad después de Sprint J6 (2026-10-14)
+
+Siguiente paso: `J6.1 — HUMAN REVIEW UAT` sobre las 187 filas `HUMAN_STRUCTURAL_READY`, usando review-v3 HTML/CSV y registrando decisiones fuera de la DB. Revisar separadamente las 134 filas ambiguas/limitadas. Mantener las 107 colisiones sin evidencia como `UNKNOWN`; no inferir procedencia ni corregir metadata. No aplicar links ni diseñar migraciones `LegalDecision` hasta disponer de decisiones verificadas y contrato coordinado entre ramas. El paquete de J6 está en `_recovery-work/jurisprudencia-j6/` y no se versiona.
+
+## Continuidad después de Sprint J6.1 (2026-10-14)
+
+Fase A terminó `READY FOR HUMAN UAT`. La persona debe revisar primero la muestra de 20 casos en `_recovery-work/jurisprudencia-j61/sample-20.json`, usando el filtro “Ver sólo la muestra UAT de 20 casos” de la UI y exportando checkpoints. Aún no hay decisiones humanas. Al recibir el ledger, ejecutar `validate` y `summary`, analizar acuerdo sólo sobre la muestra revisada y recoger observaciones sobre evidencia/tiempo. Sólo si UAT pasa, iniciar `J6.2 — SAFE DECISION APPLICATION DRY RUN`; traducir decisiones a acciones y rollback propuestos, sin writes y con análisis de colisión Copernic. No cambiar schema antes de coordinar ramas.
+
+## Continuidad después de Sprint J7 (2026-10-14)
+
+J7 cerró la auditoría read-only del snapshot: 6.070 documentos, archivos válidos y provenance completa; cero SHA duplicados; 12 grupos de texto normalizado igual con SHA distinto; 4 casos con claves jurídicas múltiples; 1.254 filas sin Sala (principalmente `CSJN_TFN_HISTORICAL`). Las propuestas P1/P2 siguen sin aplicar y no habilitan cambios automáticos. Cuando el usuario vuelva, continuar con **J6.1 — HUMAN REVIEW UAT** según su cola de 187 casos; J7 no alteró la cola ni registró decisiones.
+
+## Continuidad después de Sprint J7.1 (2026-10-14)
+
+J7.1 cerró el dry-run con `READ_ONLY_PASS`, determinismo aprobado en dos ejecuciones y sentinelas DEV idénticos. La anomalía dominante de los 1.092 expedientes/años es límite de parsing (1.089), no evidencia de datos incorrectos; los 1.254 faltantes de Sala coinciden exactamente con la fuente histórica, donde sólo cuatro tienen evidencia inequívoca disponible. Cero reparaciones fueron aplicadas. Próxima recomendación única: **J7.1.1 — NORMALIZER HARDENING**, limitada a parser/tests y fixtures sintéticos, sin modificar metadata del Corpus ni inventar año. J6.1 sigue `READY FOR HUMAN UAT` como flujo independiente; no iniciar UAT ni el siguiente sprint automáticamente.
+
+## Continuidad después de Sprint J7.1.1 (2026-10-14)
+
+J7.1.1 reconoce 1.079/1.089 referencias con reglas determinísticas conservadoras; nueve quedan parciales y una malformada, sin escribir filas ni Search. Próxima recomendación: **J7.1.2 — LEGAL KEY COMPLETENESS / HISTORICAL SALA RECOVERY**, dado que la clave jurídica sigue parcial y hay 1.254 documentos históricos sin Sala. Mantener J6.1 `READY FOR HUMAN UAT` como línea independiente; no iniciar UAT ni J7.1.2 automáticamente. Una futura recalculación persistida del caso/año requeriría primero un dry-run independiente y evaluar la actualización del paquete J6.1 si alcanza sus expedientes.
+
+
+## Continuidad después de Sprint J7.1.2 (2026-10-14)
+
+J7.1.2 confirmó el universo histórico exacto (1.254/1.254) y cero metadata raw estructurada de Sala. El detector clasificó 365 como propuestas humanas, 39 ambiguas, 849 sin Sala propia y 1 con texto insuficiente. La precisión del encabezado no cumple cero falsos positivos (13 discrepancias en validación conocida), por lo que las cuatro propuestas auto-safe heredadas se degradaron/no reprodujeron y no hay backfill automático. Clave parcial: 1.241 sólo Sala, 2 sólo expediente/año y 13 múltiples. Próxima recomendación: J7.1.3 — HISTORICAL METADATA HUMAN REVIEW PACK para revisión por evidencia, sin aplicar valores; mantener J6.1 UAT separada y sin decisiones humanas. Si no se realizará revisión de esos 365 casos, puede retomarse J6.1 por separado.
+
+## Después de J7.1.3 — UAT acotada de Sala histórica
+
+Tooling `READY FOR HUMAN REVIEW`; revisión humana `NOT STARTED`. Ejecutar primero la muestra local determinista de 25, exportando checkpoints periódicos. Después medir acuerdo con propuesta, Sala alternativa, ambigüedad, falta de evidencia y tiempo promedio. Con esos resultados decidir si conviene revisar los restantes, mantener el faltante histórico como desconocido, solicitar otra fuente o cerrar con gaps conocidos. No revisar automáticamente los 365 ni aplicar Salas; cualquier aplicación futura requiere sprint y revalidación separados.
+
+## Después de Sprint J8 — calidad del corpus cerrada (2026-10-14)
+
+J8 concluyó `CERTIFIED_WITH_KNOWN_GAPS` para los 6.070 documentos Civil actualmente adquiridos: manifiesto 100%, `BROKEN`/`UNKNOWN`/`UNRESOLVED` 0 y escrituras 0. La limpieza técnica de este snapshot queda cerrada; gaps históricos, OCR y colas humanas están documentados. Esto no afirma cobertura total Civil. No abrir una nueva adquisición/scraper como continuación de J8. Líneas siguientes posibles: certificación independiente de endpoint/ranking Search y ruta autenticada Viewer, UX/UAT o preparación de integración coordinada con `feature/copernic`. Detalle y re-ejecución: `BJC-CERTIFICACION-CORPUS-CIVIL.md`.
+
+## Después de Sprint J9.0.1 — UX y Search
+
+J9 está `CLOSED` en DEV tras validar elegibilidad/ACL, workflow público de 6.014 fallos, ciclo PDF navegador, paginación, Viewer, roles, regresión de espacios privados, responsive e idempotencia. 56 registros quedan fuera de publicación y conservados para revisión de identidad legal/modelo; no ejecutar un backfill más amplio hasta resolverlos con evidencia. La consulta media `responsabilidad civil` tiene p50 8.353 ms y p95 10.507 ms con 10 muestras; el próximo alcance técnico es el sprint final de Search, preservando ranking y paridad. Después puede seguir J9.1 de UX/zero-training. Preproducción institucional sigue bloqueada por falta de destino autorizado y UAT; no asumir que el cierre J9 habilita producción. Ver `BJC-OPERACION-JURISPRUDENCIA.md`.
+
+J9.1 implementa la mejora de UX de Jurisprudencia con build, typecheck, lint dirigido y E2E/responsive de interfaz PASS. El cierre es `PARTIAL`: el DEV no tiene sumarios visibles a lectores, la pestaña no publicados muestra universo legado amplio, la captura no verificó un PDF renderizado y UAT humana no se ejecutó. No se alteraron Search, Viewer core, Corpus, datos ni schema. Contrato/evidencia: `BJC-UX-JURISPRUDENCIA.md` y `_recovery-work/jurisprudencia-j91/`.
+
+
+## Después de Sprint J9.1.1 — 2026-10-14
+
+J9.1 pasa de `PARTIAL` a `CLOSED` en DEV: sumarios reales=0 y soporte sintético PASS; cola operator de 56 derivada y separada; 21.083 históricos fuera de esa cola; PDF real y sintético visibles; print browser PASS; contenido largo/responsive PASS. Conteos siguen 6.014 publicados, 56 casos no publicados. No iniciar scraper, IA/resúmenes, Search optimization, adquisición o RAG desde este cierre. Esperar el cierre UX de `feature/copernic`; luego preparar integración coordinada, sin merge en este sprint. UAT institucional/preproducción/producción siguen pendientes.
+

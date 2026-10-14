@@ -1,0 +1,33 @@
+source_record_id,fuero,jurisdiccion,instancia,organo,juzgado_numero,secretaria,expediente,expediente_anio,fecha_decision,caratula,tipo_resolucion,url_metadata,url_documento,estado_documento
+synthetic-001,Civil,Nacional,Primera Instancia,Juzgado Nacional de Primera Instancia en lo Civil N° 7,7,1,CIV 10001/2020,2020,2021-03-04,DEMO A c/ DEMO B,Sentencia,https://example.invalid/metadata/1,https://example.invalid/view/1,VIEWER
+synthetic-002,Civil,Nacional,Primera Instancia,Juzgado Civil 12,12,2,CIV 10002/2020,2020,2021-04-05,DEMO C c/ DEMO D,Interlocutoria,https://example.invalid/metadata/2,,NO_DOCUMENT
+synthetic-003,Civil,Nacional,Segunda Instancia,Cámara Nacional de Apelaciones en lo Civil,,,20001/2019,2019,2020-05-06,DEMO E c/ DEMO F,Sentencia,https://example.invalid/metadata/3,https://example.invalid/view/3,VIEWER
+synthetic-004,Laboral,Nacional,Primera Instancia,Juzgado Nacional del Trabajo N° 1,1,,30001/2020,2020,2021-01-02,DEMO G c/ DEMO H,Sentencia,https://example.invalid/metadata/4,,NO_DOCUMENT
+synthetic-005,Civil,Nacional,Primera Instancia,Juzgado Civil 5,5,,40001/2020,2020,2021-02-03,DEMO I c/ DEMO J,Sentencia,https://example.invalid/metadata/5,,NO_DOCUMENT
+synthetic-006,Civil,Nacional,Primera Instancia,Juzgado Civil 6,6,,50001/2020,2020,2021-03-04,DEMO K c/ DEMO L,Sentencia,https://example.invalid/metadata/6,,NO_DOCUMENT
+synthetic-007,Civil,Nacional,Primera Instancia,Juzgado Civil 8,8,,60001/2020,2020,2021-04-05,DEMO M c/ DEMO N,Sentencia,https://example.invalid/metadata/7,,NO_DOCUMENT
+synthetic-008,Civil,Nacional,Primera Instancia,Juzgado Civil 9,9,,70001/2020,2020,2021-05-06,DEMO O c/ DEMO P,Sentencia,https://example.invalid/metadata/8,,NO_DOCUMENT
+synthetic-009,Civil,Nacional,Primera Instancia,Juzgado Civil 10,10,,80001/2020,2020,2021-06-07,DEMO Q c/ DEMO R,Sentencia,https://example.invalid/metadata/9,,NO_DOCUMENT
+synthetic-010,Civil,Nacional,Primera Instancia,Juzgado Civil 11,11,,90001/2020,2020,2021-07-08,DEMO S c/ DEMO T,Sentencia,https://example.invalid/metadata/10,,NO_DOCUMENT
+synthetic-011,Civil,Nacional,Primera Instancia,Juzgado Civil 13,13,,100001/2020,2020,2021-08-09,DEMO U c/ DEMO V,Sentencia,https://example.invalid/metadata/11,,NO_DOCUMENT
+synthetic-012,Civil,Nacional,Primera Instancia,Juzgado Civil 14,14,,110001/2020,2020,2021-09-10,DEMO W c/ DEMO X,Sentencia,https://example.invalid/metadata/12,,NO_DOCUMENT
+synthetic-013,Civil,Nacional,Primera Instancia,Juzgado Civil 15,15,,120001/2020,2020,2021-10-11,DEMO Y c/ DEMO Z,Sentencia,https://example.invalid/metadata/13,,NO_DOCUMENT
+synthetic-014,Civil,Nacional,Primera Instancia,Juzgado Civil 16,16,,130001/2020,2020,2021-11-12,DEMO AA c/ DEMO AB,Sentencia,https://example.invalid/metadata/14,,NO_DOCUMENT
+synthetic-015,Civil,Nacional,Primera Instancia,Juzgado Civil 17,17,,140001/2020,2020,2021-12-13,DEMO AC c/ DEMO AD,Sentencia,https://example.invalid/metadata/15,,NO_DOCUMENT
+synthetic-016,Civil,Nacional,Primera Instancia,Juzgado Civil 18,18,,150001/2020,2020,2022-01-14,DEMO AE c/ DEMO AF,Sentencia,https://example.invalid/metadata/16,,NO_DOCUMENT
+synthetic-017,Civil,Nacional,Primera Instancia,Juzgado Civil 19,19,,160001/2020,2020,2022-02-15,DEMO AG c/ DEMO AH,Sentencia,https://example.invalid/metadata/17,,NO_DOCUMENT
+synthetic-018,Civil,Nacional,Primera Instancia,Juzgado Civil 20,20,,170001/2020,2020,2022-03-16,DEMO AI c/ DEMO AJ,Sentencia,https://example.invalid/metadata/18,,NO_DOCUMENT
+synthetic-019,Civil,Nacional,Primera Instancia,Juzgado Civil 21,21,,180001/2020,2020,2022-04-17,DEMO AK c/ DEMO AL,Sentencia,https://example.invalid/metadata/19,,NO_DOCUMENT
+synthetic-020,Civil,Nacional,Primera Instancia,Juzgado Civil 22,22,,190001/2020,2020,2022-05-18,DEMO AM c/ DEMO AN,Sentencia,https://example.invalid/metadata/20,,NO_DOCUMENT
+synthetic-021,Civil,Nacional,Primera Instancia,Juzgado Civil 23,23,,200001/2020,2020,2022-06-19,DEMO AO c/ DEMO AP,Sentencia,https://example.invalid/metadata/21,,NO_DOCUMENT
+synthetic-022,Civil,Nacional,Primera Instancia,Juzgado Civil 24,24,,210001/2020,2020,2022-07-20,DEMO AQ c/ DEMO AR,Sentencia,https://example.invalid/metadata/22,,NO_DOCUMENT
+synthetic-023,Civil,Nacional,Primera Instancia,Juzgado Civil 25,25,,220001/2020,2020,2022-08-21,DEMO AS c/ DEMO AT,Sentencia,https://example.invalid/metadata/23,,NO_DOCUMENT
+synthetic-024,Civil,Nacional,Primera Instancia,Juzgado Civil 26,26,,230001/2020,2020,2022-09-22,DEMO AU c/ DEMO AV,Sentencia,https://example.invalid/metadata/24,,NO_DOCUMENT
+synthetic-025,Civil,Nacional,Primera Instancia,Juzgado Civil 27,27,,240001/2020,2020,2022-10-23,DEMO AW c/ DEMO AX,Sentencia,https://example.invalid/metadata/25,,NO_DOCUMENT
+synthetic-001,Civil,Nacional,Primera Instancia,Juzgado Nacional de Primera Instancia en lo Civil N° 7,7,1,CIV 10001/2020,2020,2021-03-04,DEMO A c/ DEMO B,Sentencia,https://example.invalid/metadata/1,https://example.invalid/view/1,VIEWER
+synthetic-002,Civil,Nacional,Primera Instancia,Juzgado Civil 12,12,2,CIV 10002/2020,2020,2021-04-06,DEMO C c/ DEMO D,Interlocutoria,https://example.invalid/metadata/2,,NO_DOCUMENT
+synthetic-028,Civil,Nacional,Primera Instancia,Juzgado Civil 30,30,,270001/2020,2020,31/02/2023,DEMO BC c/ DEMO BD,Sentencia,https://example.invalid/metadata/28,,NO_DOCUMENT
+,Civil,Nacional,Primera Instancia,Juzgado Civil 31,31,,280001/2020,2020,2023-02-27,DEMO BE c/ DEMO BF,Sentencia,https://example.invalid/metadata/29,,NO_DOCUMENT
+synthetic-030,Civil,Nacional,Primera Instancia,Órgano Judicial Desconocido,,,290001/2020,2020,2023-03-28,NIÑO ÑANDÚ c/ DEMOSTRACIÓN,"Sentencia, ejemplo",https://example.invalid/metadata/30,,NO_DOCUMENT
+same-identity-a,Civil,Nacional,Primera Instancia,Juzgado Civil 40,40,,300001/2020,2020,2023-04-29,DEMO SAME A c/ B,Sentencia,https://example.invalid/metadata/31,,NO_DOCUMENT
+same-identity-b,Civil,Nacional,Primera Instancia,Juzgado Civil 40,40,,300001/2020,2020,2023-04-29,DEMO SAME A c/ B,Sentencia,https://example.invalid/metadata/32,,NO_DOCUMENT

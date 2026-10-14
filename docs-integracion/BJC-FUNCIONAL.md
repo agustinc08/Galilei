@@ -69,3 +69,17 @@ Usuarios autenticados ven los espacios donde tienen membresía activa. ADMIN del
 La home privada comunica dependencia, rol y alcance; simplifica la entrada de usuario con un solo espacio y ofrece selector a usuarios multi-espacio. La raíz y breadcrumbs ubican al usuario. Search privado incluye filtro de carpeta y coincidencia por nombre, y los resultados conducen al viewer protegido. Carga por selector/drag-and-drop gestiona hasta 20 PDFs con errores y duplicados por archivo. Admin de espacio opera membresías, roles, carpetas y actividad; Admin Galilei gestiona disponibilidad de workspaces sin heredar acceso documental.
 
 Playwright y las pruebas PostgreSQL sintéticas pasaron para Admin global/workspace, Editor, Viewer, multi-workspace, sin workspace y aislamiento A/B; includes descarga/viewer cruzado 404 y universo general separado. Responsive smoke capturó home a 1366×768 y 1920×1080. Esto no reemplaza UAT real: falta aceptación de usuarios/owners de dependencias y el estado Sprint 15.1 permanece PARTIAL. PHRASE a 500/1.000 documentos sigue parcial con ventana 100 y total no exacto; no se modificó el motor. Ver matriz, límites y rendimiento en `BJC-ESPACIOS-DOCUMENTALES.md`.
+
+## Sprint J9 — consulta y operación de Jurisprudencia
+
+`/jurisprudencia` entra a búsqueda. Tema/texto, Sala, fechas, tipo y expediente quedan visibles; filtros adicionales se despliegan bajo “Más filtros”, la paginación conserva la URL y el lector vuelve al resultado. La consulta conserva impresión. El operador carga primero el PDF, completa metadata como borrador y publica con acción confirmada; puede retirar o archivar con historial. El rol Jurisprudencia no añade acceso a espacios privados. J9.0.1 publicó mediante workflow 6.014 fallos Civil certificados por J8; 56 casos ambiguos permanecen en revisión. El backfill conserva los documentos Corpus en `INTERNAL` y no cambia ACL/workspaces. El resultado publicado no fabrica sumarios; cuando Corpus carece de sumario se muestra un extracto de texto. Performance y alcance: `BJC-OPERACION-JURISPRUDENCIA.md`.
+
+### J9.1 — familiaridad y UX de Jurisprudencia (2026-10-14)
+
+La interfaz lector prioriza búsqueda; conserva filtros legacy visibles y secundarios, Enter, chips activos, limpieza explícita, tarjetas densas y paginación simple. Detalle y wrapper Viewer identifican el fallo y ofrecen volver. Gestión agrupa borradores/no publicados, publicados y archivados, con alta PDF como acción principal. Responsive pasó matrices hasta 2560 px y smoke en 375/768/1366. Gap DEV: cero sumarios visibles a lectores; el listado no publicados incluye 21.119 filas históricas activas, frente al subconjunto J9 de 56 en revisión. Viewer core, Search, Corpus y schema no cambiaron. UAT humana no ejecutada. Contrato: `BJC-UX-JURISPRUDENCIA.md`.
+
+
+### J9.1.1 — cierre dirigido (2026-10-14)
+
+La operación distingue la cola derivada de 56 documentos de los 21.083 activos no publicados ajenos a la revisión; no hay publicación automática. En el workflow publicado los 6.014 fallos siguen sin sumarios reader-visible; 25.138 sumarios legacy no se asocian sin cruce jurídico. Un fixture sintético verifica número, temas, varios sumarios y contenido extenso (carátula 433 caracteres, sumario 4.397). PDF real/sintético se renderizó en Edge y el print seleccionado invocó `window.print()`. Test de overflow 1366/1920 dio 0. Viewer core y Search quedan intactos. J9.1.1 `CLOSED` sólo en DEV; UAT institucional pendiente.
+

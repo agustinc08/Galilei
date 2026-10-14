@@ -29,6 +29,16 @@ export class QuerySentenciasDto extends PaginationQueryDto {
   @IsBoolean()
   activo?: boolean;
 
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Excluye las sentencias del conjunto que requiere revisión de publicación.',
+  })
+  @IsOptional()
+  @BooleanQuery()
+  @IsBoolean()
+  excluirRevision?: boolean;
+
   @ApiPropertyOptional({ example: 'EXP 123' })
   @IsOptional()
   @IsString()

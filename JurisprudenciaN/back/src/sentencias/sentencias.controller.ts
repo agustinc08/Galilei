@@ -50,6 +50,16 @@ export class SentenciasController {
     return this.sentenciasService.getDestacadas();
   }
 
+  @Get('revision/cola-publicacion')
+  @Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.JURISPRUDENCIA)
+  @ApiOperation({
+    summary:
+      'Lista documentos civiles que requieren revisión antes de publicar',
+  })
+  getPublicationReviewQueue() {
+    return this.sentenciasService.getPublicationReviewQueue();
+  }
+
   @Get()
   @ApiOperation({ summary: 'Lista sentencias con filtros y paginación' })
   findAll(@Query() query: QuerySentenciasDto) {
@@ -73,16 +83,49 @@ export class SentenciasController {
     @Body() dto: CrearSentenciaCompletaDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.sentenciasService.crearCompleta(dto, user.id);
+    const safeDto = {
+      ...dto,
+      sentencia: {
+        ...dto.sentencia,
+        publicado: false,
+        activo: true,
+        estadoCarga: 'BORRADOR',
+      },
+      sumarios: dto.sumarios?.map((sumario) => ({
+        ...sumario,
+        publicado: false,
+        activo: true,
+      })),
+      opcionesPublicacion: {
+        ...dto.opcionesPublicacion,
+        publicarSentencia: false,
+        publicarSumarios: false,
+        publicarResena: false,
+        estadoCarga: 'BORRADOR',
+      },
+    };
+    return this.sentenciasService.crearCompleta(safeDto, user.id);
   }
 
   @Post('carga-rapida')
-  @ApiOperation({ summary: 'Crea o actualiza sentencia y agrega un sumario en un paso' })
+  @ApiOperation({
+    summary: 'Crea o actualiza sentencia y agrega un sumario en un paso',
+  })
   cargaRapida(
     @Body() dto: CargaRapidaSentenciaDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.sentenciasService.cargaRapida(dto, user.id);
+    const safeDto = {
+      ...dto,
+      sentencia: {
+        ...dto.sentencia,
+        publicado: false,
+        activo: true,
+        estadoCarga: 'BORRADOR',
+      },
+      sumario: { ...dto.sumario, publicado: false, activo: true },
+    };
+    return this.sentenciasService.cargaRapida(safeDto, user.id);
   }
 
   @Post(':id/sumarios/lote')
@@ -162,13 +205,17 @@ export class SentenciasController {
   }
 
   @Post(':id/resena/generar-ia')
-  @ApiOperation({ summary: 'Genera un borrador de reseña con Ollama y RAG local' })
+  @ApiOperation({
+    summary: 'Genera un borrador de reseña con Ollama y RAG local',
+  })
   generarResenaIa(@Param('id', ParseIntPipe) id: number) {
     return this.iaService.generarResenaSugerida(id);
   }
 
   @Get(':id/similares')
-  @ApiOperation({ summary: 'Obtiene fallos similares por embeddings o fallback textual' })
+  @ApiOperation({
+    summary: 'Obtiene fallos similares por embeddings o fallback textual',
+  })
   similares(
     @Param('id', ParseIntPipe) id: number,
     @Query('limit') limit = '10',
@@ -195,7 +242,9 @@ export class SentenciasController {
   }
 
   @Get(':id/documento')
-  @ApiOperation({ summary: 'Obtiene los datos del visor documental de la sentencia' })
+  @ApiOperation({
+    summary: 'Obtiene los datos del visor documental de la sentencia',
+  })
   getDocumento(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: AuthenticatedUser,
@@ -272,13 +321,27 @@ export class SentenciasController {
     return this.sentenciasService.findOne(id, user.id);
   }
 
+  @Get(':id/posibles-duplicados')
+  @ApiOperation({
+    summary: 'Busca decisiones que podrían ser la misma sentencia',
+  })
+  findPotentialDuplicates(@Param('id', ParseIntPipe) id: number) {
+    return this.sentenciasService.findPotentialDuplicates(id);
+  }
+
   @Post()
   @ApiOperation({ summary: 'Crea una sentencia' })
   create(
     @Body() createSentenciaDto: CreateSentenciaDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.sentenciasService.create(createSentenciaDto, user.id);
+    const safeDto = {
+      ...createSentenciaDto,
+      publicado: false,
+      activo: true,
+      estadoCarga: 'BORRADOR',
+    };
+    return this.sentenciasService.create(safeDto, user.id);
   }
 
   @Post(':id/generar-slug')
@@ -294,11 +357,15 @@ export class SentenciasController {
     @Body() updateSentenciaDto: UpdateSentenciaDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.sentenciasService.update(id, updateSentenciaDto, user.id);
+    const safeDto = { ...updateSentenciaDto };
+    delete safeDto.publicado;
+    delete safeDto.activo;
+    delete safeDto.estadoCarga;
+    return this.sentenciasService.update(id, safeDto, user.id);
   }
 
   @Patch(':id/publicar')
-  @Roles(ROLES.ADMIN, ROLES.OPERADOR)
+  @Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Publica una sentencia' })
   publicar(
     @Param('id', ParseIntPipe) id: number,
@@ -308,13 +375,23 @@ export class SentenciasController {
   }
 
   @Patch(':id/despublicar')
-  @Roles(ROLES.ADMIN, ROLES.OPERADOR)
+  @Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Despublica una sentencia' })
   despublicar(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.sentenciasService.setPublicado(id, false, user.id);
+  }
+
+  @Patch(':id/archivar')
+  @Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.JURISPRUDENCIA)
+  @ApiOperation({ summary: 'Archiva una sentencia sin eliminar su historial' })
+  archivar(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.sentenciasService.archive(id, user.id);
   }
 
   @Patch(':id/destacar')
@@ -344,6 +421,6 @@ export class SentenciasController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.sentenciasService.remove(id, user.id);
+    return this.sentenciasService.archive(id, user.id);
   }
 }

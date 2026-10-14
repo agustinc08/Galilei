@@ -1,6 +1,6 @@
 # Adquisición de jurisprudencia civil
 
-**Estado:** históricos globales y lote local Sprint 14.8 consolidados en Corpus/Search DEV; la cobertura de los 4.890 enlaces dinámicos restantes sigue parcial. **Corte vigente:** 2026-10-13 (America/Argentina/Buenos_Aires), Sprint 14.8. Las cifras Sprint 14.7 abajo son el corte anterior.
+**Estado:** históricos globales y lote local Sprint 14.8 consolidados en Corpus/Search DEV; 5.738/10.600 enlaces dinámicos están clasificados y 4.862 permanecen sin intento. **Corte vigente:** 2026-10-13 (America/Argentina/Buenos_Aires), auditoría de fuentes Civil posterior a Sprint 15.1.1. Las cifras Sprint 14.7 y las primeras cifras Sprint 14.8 abajo son cortes históricos supersedidos.
 
 ## Objetivo y alcance
 
@@ -502,4 +502,99 @@ La normalización enlazó todas las filas de visor con el checkpoint fuente y no
 - Los 452 grupos fuera del set seguro siguen retenidos para revisión: 328 conflictos, 106 candidatos, 15 mismo documento/archivo distinto, 2 coincidencias exactas de documento y 1 archivo inválido. Incluye cuatro muestras con discrepancias entre fechas fuente y firma PDF, marcadas para revisión de calidad; los metadatos fuente se preservan.
 - Search proyección verificada: 17.078 documentos, 18.799.500 tokens, `stale=0`, 0 discrepancias/100, ready. Paridad 40/40 y viewer smoke 6/6. Suite backend 93 PASS/15 omitidos; PG 7/7; Corpus 3/3; paquete Corpus 2/2; typecheck/build y migraciones PASS.
 - Search queda `REGRESSION` para PHRASE: p50/p95 1.710,58/2.621,10 ms frente a 270/538 ms en el corte anterior. La evidencia EXPLAIN muestra lecturas de heap extensas en formas de frase. Diagnosticar y optimizar esta ruta es el siguiente paso antes de reabrir la cola masiva.
-- El backlog Sprint 14.7 permanece: 4.862 enlaces pendientes, 18 errores técnicos y 10 documentos no disponibles (4.890 filas abiertas). No se intentó CAPTCHA/login ni se buscó una fuente alternativa en este sprint.
+- En el corte de cierre inicial de Sprint 14.8, el backlog Sprint 14.7 se reportó como 4.862 pendientes, 18 errores técnicos y 10 no disponibles (4.890 filas abiertas). Esa clasificación quedó supersedida por la revisión posterior del visor documentada abajo: 17 challenges humanos y 1 error de visor.
+
+### Checkpoint vigente del visor histórico y discovery profundo — 2026-10-13
+
+Se reconcilió `_recovery-work/sprint146/viewer/viewer-recovery.sqlite` (read-only) con las 10.600 filas del universo temático. El conteo vigente reemplaza el checkpoint anterior; no implica que las filas no intentadas compartan el resultado de las muestras.
+
+| Clasificación observada | Filas | Evidencia |
+|---|---:|---|
+| `PDF_ACCESSIBLE` | 5.710 | 5.050 objetos SHA únicos: 5.049 con firma PDF y parseo válidos; 1 con firma válida pero estructuralmente inválido. Total 105.074 páginas en el conjunto descargado. |
+| `DOCUMENT_UNAVAILABLE` | 10 | Ruta final `notFoundDocument.seam`, HTTP 200 y `text/html`; 8 filas guardan «No es posible acceder al documento solicitado». Ninguna tiene firma PDF. |
+| `HUMAN_CHALLENGE_REQUIRED` | 17 | Respuestas HTML con widget PJN visible y texto «VER DESAFÍO: Presione el botón y resuelva el desafío». No se sorteó el challenge. |
+| `VIEWER_ERROR` | 1 | 2017/K, expediente 91580/2007: visor modal vacío sin respuesta de documento. No se reclasifica como indisponibilidad. |
+| Sin intento | 4.862 | Estado desconocido; no se extrapola desde la muestra ni se ejecutó una descarga masiva en esta auditoría. |
+
+Los 452 grupos de identidad retenidos para revisión corresponden a 328 conflictos, 106 candidatos, 15 pares con misma identidad legal y archivo distinto, 2 coincidencias exactas de documento y 1 archivo inválido. No se fusionan automáticamente. Entre los 4.890 enlaces abiertos del análisis histórico, 4.862 no tienen intento, 17 requieren challenge, 10 reportan documento no disponible y 1 es error técnico del visor.
+
+El universo de origen es una base temática Civil, no un censo de todas las sentencias: 15.478 filas de resultados en 10 temas, 12.819 IDs de portal, 14.142 números de expediente distintos y 14.154 grupos expediente-año. Se conciliaron 4.758 claves seguras del set de visor con Corpus (4.756 claves de archivo exacto y 2 coincidencias exactas de documento). El 33,6% sólo representa una cuota inferior de ese universo temático; no es cobertura total de Galilei.
+
+El snapshot DEV actual contiene 17.078 documentos generales y 6.070 identificados como Civil por metadata judicial; 6.069 llevan Cámara Civil y 1 Juzgado Civil 64. Sólo 1.473 tienen `SECOND_INSTANCE` explícito y 1 tiene `FIRST_INSTANCE`; 4.596 importaciones recientes tienen la corte Cámara Civil pero `instance` sin completar. No se deben reinterpretar los 109 nombres de juzgados de origen en metadata de fallos de Cámara como sentencias publicadas de primera instancia.
+
+La auditoría de 20 PDFs locales —12 Salas y 13 años representados— dio 20 firmas válidas, 20 documentos con texto extraíble, 476 páginas en total y cero archivos rotos o imagen-only en la muestra. No es una validación de calidad para los 5.049 PDFs válidos. Los artefactos reproducibles están en `_recovery-work/jurisprudencia-discovery/` y permanecen ignorados por Git.
+
+**Estado de adquisición:** la clasificación histórica permanece parcial. Aún no se conoce el total oficial canónico de jurisprudencia Civil disponible; no hay porcentaje global de cobertura. Los próximos pasos son obtener un inventario/export autorizado y una ruta documental normal para primera instancia, después revisar los 452 grupos, y sólo entonces cuantificar de manera permitida los 4.862 enlaces sin intento. No iniciar descarga masiva ni resolver desafíos automáticamente.
+
+## Sprint J1 — reconciliación Civil + clasificación + coverage (2026-10-13)
+
+El auditado de DEV confirmó 17.078 documentos Corpus, de los cuales 6.070 son Civil (6.069 Cámara y 1 Juzgado Civil 64). Los 4.596 sin instancia tenían en `metadataOriginal` del ingreso la corte exacta `Cámara Nacional de Apelaciones en lo Civil` y Sala explícita A–M, siempre desde `CIVIL_CUANTIFICACION_DANOS`. Con esa evidencia determinística se actualizaron 4.596 campos `instance=SECOND_INSTANCE`, sin cambiar texto, PDF, `metadataOriginal` ni tokens. El resultado es 6.069 `SECOND_INSTANCE`, 1 `FIRST_INSTANCE` y 0 Civil sin instancia. La verificación Search mantuvo 17.078 documentos, 18.799.500 tokens, stale=0 y 0 mismatches/100; la misma operación repetida omitió 4.596 y actualizó 0.
+
+De los 452 grupos retenidos, la reclasificación deja 328 conflictos agrupados por seis combinaciones de causa, 106 candidatos en revisión, 15 identidades legales con SHA distinto, 2 matches de identidad jurídica con SHA distinto y 1 PDF corrupto rechazado. No se realizó ninguna fusión ni asociación sobre esos grupos: los dos matches comparten expediente, tribunal, Sala y fecha, pero sus SHA difieren, no hay fila `Sentencia` de destino y el enlace de ingesta existente exige SHA idéntico. La exportación humana contiene los 451 grupos no rechazados; el PDF inválido comienza con `%PDF-`, carece de `%%EOF` y el parser devuelve `Invalid PDF structure.`
+
+El coverage engine reutilizable es `JurisprudenciaN/back/scripts/dev/jurisprudencia-coverage.cjs`; acepta CSV/JSON de censo con portalId, expediente, año, Sala/Juzgado, fecha, URL y estado de match. Snapshot actual: 14.154 grupos expediente-año del universo temático conocido; 4.758 PDFs adquiridos tienen clave segura, de los cuales 4.756 enlazan por SHA exacto con Corpus y 2 tienen sólo identidad jurídica alta y quedan sin vínculo por SHA distinto. El match efectivo Corpus/set conocido es 4.756 (33,6% **dentro de ese set temático**), sin inferencia de cobertura Civil total. Los cortes por año, Sala, instancia y órgano están en `_recovery-work/jurisprudencia-j1/`; estos artefactos y backups permanecen excluidos de Git. Estado J1: **PARTIAL**, porque 451 grupos siguen pendientes de revisión o de un contrato de asociación compatible.
+
+## Sprint J2 — primera instancia y canal de censo (2026-10-14)
+
+La página oficial del buscador CSJN Tribunales Federales y Nacionales expone filtros por jurisdicción, expediente, Cámara, tipo de oficina/tribunal, carátula, palabras clave y fecha; sus resultados incluyen acciones «Descargar» y «Ver Fallo». La instrucción pública fija el inicio visible desde 21/08/2013 y deriva los anteriores a otra consulta. El Consejo informó el 05/09/2025 que se añadieron sentencias de primera instancia conforme Acordada 10/2025. Esto confirma una vía pública de consulta, no la exhaustividad del universo Civil ni un censo/export completo. No se halló documentación oficial revisada de export CSV/JSON, ID estable, paginación total o permiso de automatización; adquisición piloto: 0 documentos hasta recibir un mecanismo autorizado.
+
+Fuentes revisadas el 14/10/2026: [buscador oficial CSJN](https://www.csjn.gov.ar/tribunales-federales-nacionales/inicio.html), [informe oficial del Consejo sobre primera instancia](https://consejomagistratura.gov.ar/index.php/2025/09/05/la-corte-suprema-amplia-el-acceso-a-las-decisiones-judiciales/) y [portal oficial PJN](https://pjn.gov.ar/). El archivo CIJ quedó sólo como repositorio histórico, no como denominador ni ruta automatizable.
+
+Se preparó `_recovery-work/jurisprudencia-j2/authorized-export-request.md`; no se envió. Solicita alcance/rango y exclusiones, conteos por año y juzgado, ID estable, expediente y año separado de fecha/año de decisión, órgano, carátula, tipo de resolución, metadata/document URL, disponibilidad, condiciones de reutilización y permiso de automatización. El censo futuro usa el importador local CSV/JSON en modo read-only por defecto; ningún URL se descarga desde el importador.
+
+## Sprint J3 — preparación del intake autorizado (2026-10-14)
+
+Pipeline de recepción local listo en `JurisprudenciaN/back/scripts/dev/first-instance/intake.cjs`: CSV UTF-8 (coma o punto y coma), JSON y NDJSON; mapping explícito; validación por fila; preservación de la fila original; clasificación de Cámara/otros fueros/órganos desconocidos; duplicados de ID idénticos o conflictivos; posibles duplicados de identidad legal; hashes SHA-256 de origen/snapshot; conciliación read-only; funnel limitado a `coverage within supplied authorized census`; y manifiesto P0–P3 sin solicitudes ni descargas. XLSX debe exportarse a CSV UTF-8. Los archivos recibidos y runs quedan bajo `_recovery-work/authorized-exports/`, ignorados por Git.
+
+Se completó un paquete de solicitud técnica/email/schema/ejemplo/README en `_recovery-work/jurisprudencia-j3/request-pack/`; permanece sin enviar y el destinatario está como placeholder. El export no fue recibido. Completeness sigue `UNKNOWN`; la única fila local de primera instancia sirvió para smoke EXACT sobre DEV read-only. Ninguna ruta automatizada de adquisición queda habilitada por este pipeline. Próxima etapa, si llega el archivo: J3.1 — intake real, conciliación y gaps dentro del alcance declarado, todavía sin descargas masivas.
+
+## Sprint J5 — recuperación de candidatos y procedencia (2026-10-14)
+
+El grafo read-only relaciona 533 registros fuente, 293 SHA únicos de la cola y el snapshot Corpus de 17.078 documentos, 17.098 archivos y 17.685 ingestas. Los 106 casos `CANDIDATE` se buscaron por SHA, IDs source/portal/legacy, provenance de ingesta y legal key exacta; resultado: 0 documentos candidatos y 106 `NOT_RECOVERED`. No se usó título fuzzy ni se inventaron IDs.
+
+Los 321 grupos estructurales se dividieron por evidencia PDF: 194 grupos tienen expedientes fuente distintos impresos en el mismo PDF (`MULTI_DOCKET_PDF`); 127 permanecen como `SOURCE_METADATA_COLLISION`. Es evidencia de varios expedientes en un archivo, no prueba de varias decisiones independientes. Se revisaron 148 SHA únicos con texto local extraído y hash comprobado. En la subcola de 7 metadata conflicts, un PDF confirma el expediente fuente y un expediente Corpus adicional en una representación; 6 conservan discrepancias críticas. No se alteraron metadata ni enlaces.
+
+Review V2 queda en 2 `HUMAN_READY`, 106 `HUMAN_NEEDS_CANDIDATE`, 6 `HUMAN_NEEDS_SOURCE_DATA`, 321 `HUMAN_STRUCTURAL` y 16 `MODEL_LIMITATION`; `POTENTIAL_AUTO_SAFE=0`. El paquete reproducible e ignorado por Git está en `_recovery-work/jurisprudencia-j5/`. Corpus, archivos, ingestas y tokens no cambiaron. Search verify dio 17.078 documentos, 18.799.500 tokens, stale 0, mismatch 0/100 y rebuild 0. El comando oficial refresca `verifiedAt`; ese marcador se restauró al timestamp anterior de J4. Ese update transitorio viola el gate estricto de cero escrituras, por lo que J5 cierra `PARTIAL`, aunque el estado final quedó restaurado. No se aplicaron asociaciones.
+
+## Sprint J6 — identidad primaria y colisiones (2026-10-14)
+
+J6 procesó los 321 grupos de la cola J5: 194 grupos multi-expediente y 127 colisiones de metadata. Los 194 grupos corresponden a 148 SHA únicos, todos con extracción local completa después de verificar el SHA del PDF. Clasificación multi-expediente: 8 sentencia con primaria única, 174 sentencia única con varios expedientes acumulados, 0 PDFs con múltiples decisiones separadas, 3 ambiguos y 9 insuficientes. Se identificaron 182 primarias confirmadas y 5 probables; 3 ambiguas y 4 sin primaria hallada. Son resultados de revisión; no se aplicaron asociaciones.
+
+En las 127 colisiones, 107 carecen de evidencia de procedencia suficiente, 17 tienen múltiples filas fuente, 2 contienen conflicto fuente/Corpus y 1 conflicto de año. No hubo correcciones seguras; 20 filas requieren decisión humana y 107 quedan sin acción automatizable. La cola Review V3 totaliza 451: 2 `HUMAN_READY`, 106 `HUMAN_NEEDS_CANDIDATE`, 6 `HUMAN_NEEDS_SOURCE_DATA`, 187 `HUMAN_STRUCTURAL_READY`, 134 `HUMAN_STRUCTURAL_AMBIGUOUS`, 16 `MODEL_LIMITATION` y 0 propuestas seguras. Los 106 candidatos sin ID y los 6 casos de datos fuente no se reanalizaron sin nueva evidencia.
+
+Evidencia y propuestas reproducibles, sin documentos completos, en `_recovery-work/jurisprudencia-j6/` (ignorado por Git). La DB se consultó en transacción read-only: cero intentos de mutación y sentinelas idénticos antes/después. Search quedó en 17.078 documentos, 18.799.500 tokens, 0 stale y 0/100 diferencias de proyección; `verifiedAt` no cambió. Ningún cambio de metadata, vínculo o schema se escribió.
+
+## Sprint J6.1 — revisión asistida lista para UAT (2026-10-14)
+
+El paquete `_recovery-work/jurisprudencia-j61/` (local/ignorado) presenta 187 grupos `HUMAN_STRUCTURAL_READY`: 8 P0, 174 P1 y 5 P2. La muestra determinista de 20 selecciona 4 P0, 12 P1 (incluye PDFs con varios expedientes/evidencia más débil) y 4 P2. Cada vista expone fuente, propuesta preservada, roles/expedientes y extractos del PDF con enlace local; la metadata Corpus se muestra sólo si el grafo J5 enlazó ese SHA: 6 casos; 181 indican con claridad “sin candidato exacto en snapshot”. No se copian PDFs.
+
+Las 127 colisiones de metadata quedan excluidas de la primera ronda; 107 carecen de procedencia suficiente. El HTML funciona offline, exporta CSV/JSON y reanuda importando un checkpoint. El CLI valida identidad de grupo, enum, reviewer, timestamp, notas obligatorias, duplicados y hash/snapshot; `summary` produce ledger normalizado y resumen humano sin aplicar decisiones.
+
+Tests del validador: 14/14 PASS; suite J6.1 + contrato de identidad: 30/30 PASS; JS generado comprobado con `node --check`; revisión de los sentinelas J6 read-only: igualdad before/after, Search 17.078 documentos/18.799.500 tokens, stale 0, mismatch 0/100, `verifiedAt` estable. **Human UAT: NOT STARTED.** No se consultó ni escribió DB durante J6.1; se reutilizó la evidencia read-only de J6. Estado: `READY FOR HUMAN UAT`.
+
+## Sprint J7 — auditoría read-only de calidad y procedencia (2026-10-14)
+
+Se incorporó `scripts/dev/jurisprudencia-corpus-quality-audit.cjs`, sus pruebas y fixture sintético, invocable tras el guard de DEV. La ejecución inspeccionó los 6.070 registros Civil, provenance, storage y páginas bajo snapshot `REPEATABLE READ READ ONLY`; no corrige filas, archivos, Search ni deduplica. Resultado: provenance completa 6.070; integridad de archivos 6.070/6.070; Search 6.070 presentes, 0 stale/missing; SHA duplicado 0; 12 grupos de texto normalizado idéntico con SHA distinto y 4 documentos con múltiples claves jurídicas. P1/P2 son propuestas analíticas no aplicadas. Artefactos exhaustivos y reporte offline local en `_recovery-work/jurisprudencia-j7/`; no se versionan datos del Corpus. Cero writes y determinismo PASS. **J6.1 sigue READY FOR HUMAN UAT; J7 no creó decisiones humanas.**
+
+## Sprint J7.1 — recuperación de calidad sin escrituras (2026-10-14)
+
+El contraste read-only de J7.1 confirmó que los 1.254 registros sin Sala son exactamente `CSJN_TFN_HISTORICAL`; cuatro Sala pueden proponerse con evidencia del documento, pero no se aplicaron. De los 1.092 casos/año marcados inválidos, 1.089 son formatos legacy interpretables sin año que el normalizador actual no reconoce; esto no proporciona el año faltante ni prueba error de fuente. Se mantienen aparte un multi-causa, un campo desalineado y un valor malformado sin resolución. `flid` sigue disponible en provenance estable, pero no hay requisito de un `portalId` universal demostrado. Ninguna URL externa se consultó ni se adquirieron documentos. Artefactos y reporte ignorados en `_recovery-work/jurisprudencia-j71/`; sentinelas PostgreSQL/storage/Search no cambiaron. La recomendación técnica es J7.1.1 (parser/tests sintéticos), no backfill de metadata.
+
+
+### J7.1.2 — límite de metadata histórica Sala (2026-10-14)
+
+Auditoría local de los 1.254 fallos CSJN_TFN_HISTORICAL: 53 rutas de metadata raw, cero campos estructurados con Sala, 1.254 source records con externalId prefijado y referencia flid/expediente, y 1.254 filenames sin marca Sala. En las 4.453 páginas de texto ya almacenadas se clasificaron 365 Sala probables para revisión, 39 ambiguas, 849 sin referencia propia recuperable y 1 sin texto suficiente. El encabezado no pasó precisión perfecta contra 4.816 documentos conocidos; por eso no hay propuestas auto-safe. No se consultaron fuentes externas, no se hizo OCR, no se derivaron Salas del flid, expediente, filename ni composición judicial, y no se aplicó metadata. Futuras ingestas sólo deberían guardar una Sala extraída del encabezado como candidata hasta validar un clasificador sin falsos positivos. Evidencia privada en _recovery-work/jurisprudencia-j712/.
+
+### J7.1.3 — preparación de revisión de faltantes históricos (2026-10-14)
+
+El review pack se reconstruye localmente a partir de provenance y texto de página ya almacenados del snapshot J7.1.2; no consulta fuentes ni descarga documentos. Incluye 365 propuestas probables y separa 39 ambiguas; excluye 849 sin Sala propia detectable y diagnostica aparte un documento sin texto suficiente. Los extractos, SHA y casos son evidencia privada ignorada en `_recovery-work/jurisprudencia-j713/`; no versionarlos ni copiar rutas de storage.
+
+La herramienta sólo prepara decisiones humanas y exports con detección de versión obsoleta. Una confirmación permitiría filtro exacto por Sala en los 365 casos; sólo 26 completarían la clave legal y 339 seguirían parciales. Hacer primero la muestra determinista de 25; no extender la revisión por defecto ni tratar la propuesta como metadata confirmada.
+
+## Cierre J8 — calidad del corpus actualmente adquirido (2026-10-14)
+
+J8 certificó la integridad técnica de los 6.070 documentos ya adquiridos: cero archivos perdidos/corruptos, cero desconocidos y Search completo. No adquirió jurisprudencia ni midió el universo total disponible. La revisión de Sala histórica continúa pendiente. Toda nueva adquisición cambia el universo certificado y requiere una nueva auditoría; este cierre no autoriza scraping ni equivale a cobertura completa. Ver `BJC-CERTIFICACION-CORPUS-CIVIL.md`.
+
+## J9 — canal manual de Jurisprudencia
+
+J9 incorpora PDFs manuales mediante el pipeline Corpus y los mantiene internos hasta una publicación explícita. No se ejecutó scraper ni adquisición nueva. Los 6.070 documentos certificados existentes están `INTERNAL`, sin asociación a Sentencia; la certificación J8 no es autorización de publicación. No cambiar ACL ni visibilidad sin decisión de publicación explícita. Operación y límites: `BJC-OPERACION-JURISPRUDENCIA.md`.

@@ -106,6 +106,8 @@ export type ConsultaPublicaResultado = {
   demandado?: string | null;
   tema?: string | null;
   textoSumario: string;
+  extractoFallo?: string | null;
+  esFalloCorpus?: boolean;
   highlights: BusquedaHighlight[];
   tienePdf: boolean;
   pdfDisponible?: boolean;

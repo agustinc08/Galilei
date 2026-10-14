@@ -85,6 +85,8 @@ type SearchSuggestion = {
 type ResultadoBusqueda = {
   sentencia: {
     id: number;
+    legacyCorpus?: boolean;
+    extractoFallo?: string | null;
     slugPublico?: string | null;
     caratula?: string | null;
     numeroSentencia: string | null;
@@ -199,6 +201,8 @@ type PublicSearchResult = {
   demandado: string | null;
   tema: string | null;
   textoSumario: string;
+  extractoFallo?: string | null;
+  esFalloCorpus?: boolean;
   highlights: HighlightItem[];
   tienePdf: boolean;
   pdfDisponible: boolean;
@@ -241,6 +245,16 @@ type CachedList = {
 };
 
 const SEARCH_CANDIDATE_MAX_OVERFETCH = 250;
+
+function buildDocumentExcerpt(text: string | null | undefined, query?: string) {
+  const value = String(text ?? '').replace(/\s+/gu, ' ').trim();
+  if (!value) return null;
+  const needle = String(query ?? '').trim().toLocaleLowerCase('es');
+  const index = needle ? value.toLocaleLowerCase('es').indexOf(needle) : -1;
+  const start = index < 0 ? 0 : Math.max(0, index - 100);
+  const end = Math.min(value.length, start + 280);
+  return `${start > 0 ? '…' : ''}${value.slice(start, end)}${end < value.length ? '…' : ''}`;
+}
 
 @Injectable()
 export class BusquedaService {
@@ -1099,7 +1113,9 @@ export class BusquedaService {
             id: result.sentencia.id,
             numeroSumario: null,
             tema: null,
-            texto: result.resumenBreve ?? '',
+            texto: result.sentencia.legacyCorpus
+              ? result.highlights.find((item) => item.campo === 'extracto del fallo')?.texto ?? ''
+              : result.resumenBreve ?? '',
             resumenBusqueda: null,
             publicado: true,
             activo: true,
@@ -1125,6 +1141,8 @@ export class BusquedaService {
         demandado: result.sentencia.demandado,
         tema: sumario.tema,
         textoSumario: sumario.texto,
+        extractoFallo: result.sentencia.extractoFallo,
+        esFalloCorpus: Boolean(result.sentencia.legacyCorpus),
         highlights: result.highlights,
         tienePdf: result.sentencia.pdfDisponible,
         pdfDisponible: result.sentencia.pdfDisponible,
@@ -1926,6 +1944,9 @@ export class BusquedaService {
       ? sentencia.demandadoPublico
       : sentencia.demandado;
     const safePublicSentenceText = [
+      mode === 'public' && sentencia.publicado && sentencia.activo
+        ? sentencia.textoBusqueda
+        : null,
       sentencia.numeroSentencia,
       sentencia.expediente,
       sentencia.caratula,
@@ -2033,6 +2054,9 @@ export class BusquedaService {
         addIfMatch(sentencia.sala, phrase, SCORE_WEIGHTS.termSecundario, 'sala') ||
         addIfMatch(sentencia.tipoFallo, phrase, SCORE_WEIGHTS.termSecundario, 'tipoFallo') ||
         addIfMatch(sentencia.tribunalOrigen, phrase, SCORE_WEIGHTS.termSecundario, 'tribunalOrigen') ||
+        (mode === 'public' && sentencia.publicado && sentencia.activo
+          ? addIfMatch(sentencia.textoBusqueda, phrase, SCORE_WEIGHTS.exactSumario, 'fallo')
+          : false) ||
         addIfMatch(referenceText, phrase, SCORE_WEIGHTS.termSecundario, 'referencias');
 
       if (matched) exactPhraseMatches += 1;
@@ -2077,6 +2101,9 @@ export class BusquedaService {
           addIfMatch(sentencia.sala, term, SCORE_WEIGHTS.termSecundario, 'sala') ||
           addIfMatch(sentencia.tipoFallo, term, SCORE_WEIGHTS.termSecundario, 'tipoFallo') ||
           addIfMatch(sentencia.tribunalOrigen, term, SCORE_WEIGHTS.termSecundario, 'tribunalOrigen') ||
+          (mode === 'public' && sentencia.publicado && sentencia.activo
+            ? addIfMatch(sentencia.textoBusqueda, term, SCORE_WEIGHTS.termSumario, 'fallo')
+            : false) ||
           addIfMatch(referenceText, term, SCORE_WEIGHTS.termSecundario, 'referencias');
 
         return termMatched;
@@ -2157,6 +2184,7 @@ export class BusquedaService {
     return {
       sentencia: {
         id: sentencia.id,
+        legacyCorpus: Boolean(mode === 'public' && sentencia.publicado && sumarios.length === 0 && sentencia.textoBusqueda),
         slugPublico: sentencia.slugPublico,
         caratula: caratulaPublica,
         numeroSentencia: sentencia.numeroSentencia,
@@ -2176,6 +2204,9 @@ export class BusquedaService {
         pdfDisponible: pdfReal.disponible,
         archivoPdfId: pdfReal.archivoPdfId,
         resumenPublicado: sentencia.resumenPublicado,
+        extractoFallo: mode === 'public' && sentencia.publicado && sentencia.activo && sumarios.length === 0
+          ? buildDocumentExcerpt(sentencia.textoBusqueda, highlightsTerms[0])
+          : null,
       },
       cantidadSumarios: sentencia._count.sumarios,
       cantidadPdfs: pdfReal.cantidad,

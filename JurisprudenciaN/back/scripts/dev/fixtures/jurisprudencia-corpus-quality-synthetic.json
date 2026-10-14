@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "galilei-j7-synthetic-v1",
+  "documents": [
+    { "id": "synthetic-missing-provenance", "scenario": "missing provenance" },
+    { "id": "synthetic-same-sha-a", "scenario": "same SHA shared by two documents" },
+    { "id": "synthetic-same-sha-b", "scenario": "same SHA shared by two documents" },
+    { "id": "synthetic-same-text-a", "scenario": "different SHA same normalized text" },
+    { "id": "synthetic-same-text-b", "scenario": "different SHA same normalized text" },
+    { "id": "synthetic-near-text-a", "scenario": "near-text candidate with same legal key" },
+    { "id": "synthetic-near-text-b", "scenario": "near-text candidate with same legal key" },
+    { "id": "synthetic-missing-page", "scenario": "missing page number" },
+    { "id": "synthetic-empty-page", "scenario": "all empty page text" },
+    { "id": "synthetic-court-instance-conflict", "scenario": "court and instance conflict" },
+    { "id": "synthetic-search-missing", "scenario": "Search projection missing" },
+    { "id": "synthetic-multiple-files", "scenario": "one decision multiple files" },
+    { "id": "synthetic-source-alias", "scenario": "potential source alias" }
+  ]
+}

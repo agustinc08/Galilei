@@ -1,0 +1,20 @@
+{
+  "version": "civil-case-normalizer-v2-synthetic",
+  "cases": [
+    { "id": "canonical-slash", "input": { "rawCase": "12345/2020" }, "expected": { "status": "VALID_CANONICAL", "case": "12345", "year": "2020", "format": "PLAIN_NUMBER_SLASH_4_DIGIT_YEAR" } },
+    { "id": "grouped-legacy", "input": { "rawCase": "68.530" }, "expected": { "status": "VALID_LEGACY", "case": "68530", "year": null, "format": "GROUPED_NUMBER_WITHOUT_YEAR" } },
+    { "id": "leading-zero-preserved", "input": { "rawCase": "001234/2020" }, "expected": { "status": "VALID_CANONICAL", "case": "001234", "year": "2020", "format": "PLAIN_NUMBER_SLASH_4_DIGIT_YEAR" } },
+    { "id": "two-digit-year-unexpanded", "input": { "rawCase": "12345/08" }, "expected": { "status": "VALID_LEGACY", "case": "12345", "year": "08", "format": "PLAIN_NUMBER_SLASH_2_DIGIT_YEAR" } },
+    { "id": "unicode-spaces-and-wrapper", "input": { "rawCase": "  Expte. N° 68.530  ", "rawYear": "2008" }, "expected": { "status": "VALID_LEGACY", "case": "68530", "year": "2008", "format": "GROUPED_NUMBER_SEPARATE_YEAR_4_DIGIT_YEAR_WRAPPED" } },
+    { "id": "dash-legacy", "input": { "rawCase": "12345-2020" }, "expected": { "status": "VALID_LEGACY", "case": "12345", "year": "2020", "format": "PLAIN_NUMBER_DASH_4_DIGIT_YEAR" } },
+    { "id": "grouped-year-corroborated", "input": { "rawCase": "88154/2.007", "rawYear": "2007" }, "expected": { "status": "VALID_LEGACY", "case": "88154", "year": "2007", "format": "PLAIN_NUMBER_SLASH_GROUPED_4_DIGIT_YEAR" } },
+    { "id": "trailing-period", "input": { "rawCase": "8854/2000.", "rawYear": "2000" }, "expected": { "status": "VALID_LEGACY", "case": "8854", "year": "2000", "format": "PLAIN_NUMBER_SLASH_4_DIGIT_YEAR_TRAILING_PERIOD" } },
+    { "id": "multi-case", "input": { "rawCase": "123/2020; 456/2021" }, "expected": { "status": "VALID_MULTI_CASE", "case": null, "year": null, "format": "MULTI_CASE_LIST", "cases": 2 } },
+    { "id": "partial-year-only", "input": { "rawCase": "", "rawYear": "2020" }, "expected": { "status": "PARTIAL", "case": null, "year": null, "format": "YEAR_WITHOUT_CASE" } },
+    { "id": "field-conflict", "input": { "rawCase": "123/2020", "rawYear": "2021" }, "expected": { "status": "AMBIGUOUS", "case": null, "year": null, "format": "CONFLICTING_CASE_AND_YEAR_FIELDS" } },
+    { "id": "uncorroborated-grouped-year", "input": { "rawCase": "88154/2.007" }, "expected": { "status": "AMBIGUOUS", "case": null, "year": null, "format": "GROUPED_FOUR_DIGIT_YEAR_WITHOUT_CORROBORATION" } },
+    { "id": "malformed-grouping", "input": { "rawCase": "12.34/2020" }, "expected": { "status": "MALFORMED", "case": null, "year": null, "format": "UNRECOGNIZED_CASE_SHAPE" } },
+    { "id": "unsupported-prefix", "input": { "rawCase": "CAF 123/2020" }, "expected": { "status": "UNSUPPORTED", "case": null, "year": null, "format": "UNRECOGNIZED_PREFIX" } },
+    { "id": "free-text-no-case", "input": { "rawCase": "autos sobre daños en accidente" }, "expected": { "status": "UNSUPPORTED", "case": null, "year": null, "format": "UNRECOGNIZED_PREFIX" } }
+  ]
+}

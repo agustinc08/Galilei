@@ -15,11 +15,11 @@ export function normalizeQueryText(value: string) {
   return normalizeSpanishText(value).replace(/\s+/gu, ' ').trim();
 }
 
-export function normalizeSearchText(...parts: Array<string | null | undefined>) {
+export function normalizeSearchText(
+  ...parts: Array<string | null | undefined>
+) {
   return normalizeSpanishText(
-    parts
-      .filter((part): part is string => Boolean(part?.trim()))
-      .join(' '),
+    parts.filter((part): part is string => Boolean(part?.trim())).join(' '),
   )
     .replace(/[^\p{L}\p{N}\s/.-]+/gu, ' ')
     .replace(/\s+/gu, ' ')
@@ -74,6 +74,7 @@ export function buildSentenciaSearchData(input: {
   demandado?: string | null;
   objeto?: string | null;
   magistrados?: string | null;
+  juez?: string | null;
   resumenIa?: string | null;
   resena?: string | null;
   citaPersonalizada?: string | null;
@@ -91,6 +92,7 @@ export function buildSentenciaSearchData(input: {
     input.actor,
     input.demandado,
     input.objeto,
+    input.juez,
     input.magistrados,
     input.resumenIa,
     input.resena,

@@ -1,6 +1,6 @@
-import type { ArchivoPdf } from './archivo';
-import type { CatalogoItem } from './catalogos';
-import type { Sumario } from './sumario';
+import type { ArchivoPdf } from "./archivo";
+import type { CatalogoItem } from "./catalogos";
+import type { Sumario } from "./sumario";
 
 export type CitaSentencia = {
   citaBreve: string;
@@ -153,7 +153,9 @@ export type Sentencia = {
   anonimizado?: boolean;
   objeto?: string | null;
   magistrados?: string | null;
+  juez?: string | null;
   publicado: boolean;
+  publishedAt?: string | null;
   activo: boolean;
   observacionesInternas?: string | null;
   resumenIa?: string | null;
@@ -197,18 +199,19 @@ export type SentenciaCompleta = Sentencia & {
 export type SentenciaFormValues = {
   numeroSentencia: string;
   tipoFallo: string;
-  tipoFalloId: number | '';
+  tipoFalloId: number | "";
   sala: string;
-  salaId: number | '';
+  salaId: number | "";
   fecha: string;
   expediente: string;
   tribunalOrigen: string;
-  tribunalOrigenId: number | '';
+  tribunalOrigenId: number | "";
   caratula: string;
   actor: string;
   demandado: string;
   objeto: string;
   magistrados: string;
+  juez: string;
   observacionesInternas: string;
   estadoCarga: string;
   publicado: boolean;
@@ -224,6 +227,7 @@ export type SentenciaFilters = {
   demandado?: string;
   publicado?: string;
   activo?: string;
+  excluirRevision?: string;
   fechaDesde?: string;
   fechaHasta?: string;
   page?: number;
