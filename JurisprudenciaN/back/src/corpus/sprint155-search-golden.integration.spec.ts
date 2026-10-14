@@ -209,14 +209,20 @@ describe('Sprint 15.5 Search golden PostgreSQL certification', () => {
 
       for (const testCase of cases) {
         const startedAt = performance.now();
-        const result = await source.search(parseSearchQuery(testCase.query), {
-          visibility: 'INTERNAL',
-          dialect: 'modern',
-          publicationPolicy: 'published-active-only',
-          page: 1,
-          pageSize: 100,
-          sourceSystems: ['CORPUS'],
-        });
+        let result;
+        try {
+          result = await source.search(parseSearchQuery(testCase.query), {
+            visibility: 'INTERNAL',
+            dialect: 'modern',
+            publicationPolicy: 'published-active-only',
+            page: 1,
+            pageSize: 100,
+            sourceSystems: ['CORPUS'],
+          });
+        } catch (error) {
+          console.error(`SPRINT155_GOLDEN_QUERY_FAILURE=${JSON.stringify({ id: testCase.id, query: testCase.query })}`);
+          throw error;
+        }
         const elapsedMs = Number((performance.now() - startedAt).toFixed(2));
         queryTimings.push(elapsedMs);
         const actualIds = result.results.map((row) => row.sourceId).sort();
