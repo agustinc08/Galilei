@@ -379,19 +379,26 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     }
     const documentScopeValue: unknown = context.documentScope;
     const documentScope = typeof documentScopeValue === 'object' && documentScopeValue !== null
-      ? documentScopeValue as { kind?: unknown; workspaceId?: unknown; folderId?: unknown; sourceId?: unknown; sourceFolder?: unknown }
+      ? documentScopeValue as { kind?: unknown; workspaceId?: unknown; userId?: unknown; folderId?: unknown; sourceId?: unknown; sourceFolder?: unknown }
       : undefined;
     const isWorkspaceScope = documentScope?.kind === 'WORKSPACE';
+    const isPersonalScope = documentScope?.kind === 'PERSONAL';
     const workspaceId = isWorkspaceScope && typeof documentScope.workspaceId === 'string'
       ? documentScope.workspaceId
       : null;
+    const userId = (isWorkspaceScope || isPersonalScope) && Number.isSafeInteger(documentScope?.userId) && Number(documentScope?.userId) > 0
+      ? Number(documentScope?.userId)
+      : null;
     const folderId = isWorkspaceScope ? documentScope.folderId : undefined;
-    const workspaceFolderId = typeof folderId === 'string' || folderId === null ? folderId : undefined;
-    const hasWorkspaceFolderScope = Boolean(isWorkspaceScope && documentScope && Object.prototype.hasOwnProperty.call(documentScope, 'folderId') && (typeof workspaceFolderId === 'string' || workspaceFolderId === null));
-    const workspaceScope = workspaceId !== null;
+    const scopedFolderId = isPersonalScope ? documentScope.folderId : folderId;
+    const workspaceFolderId = typeof scopedFolderId === 'string' || scopedFolderId === null ? scopedFolderId : undefined;
+    const hasWorkspaceFolderScope = Boolean((isWorkspaceScope || isPersonalScope) && documentScope && Object.prototype.hasOwnProperty.call(documentScope, 'folderId') && (typeof workspaceFolderId === 'string' || workspaceFolderId === null));
     const values: SqlValue[] = [allowedVisibility(context.visibility)];
     if (workspaceId) values.push(workspaceId);
-    if (typeof workspaceFolderId === 'string') values.push(workspaceFolderId);
+    const workspaceFolderIdIndex = typeof workspaceFolderId === 'string' ? values.push(workspaceFolderId) : null;
+    const userIdIndex = userId !== null ? values.push(userId) : null;
+    const workspaceScope = workspaceId !== null;
+    const personalScope = isPersonalScope && userId !== null;
     const sourceId = isWorkspaceScope && typeof documentScope?.sourceId === 'string'
       ? documentScope.sourceId
       : null;
@@ -407,9 +414,87 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       : sourceIdIndex
         ? ` AND EXISTS (SELECT 1 FROM "SourceFile" sourceFile JOIN "DocumentSource" source ON source."id" = sourceFile."sourceId" WHERE sourceFile."documentId" = d."id" AND sourceFile."sourceId" = $${sourceIdIndex} AND source."workspaceId" = $2${sourceFolderIndex ? ` AND (sourceFile."normalizedPath" = $${sourceFolderIndex} OR (left(sourceFile."normalizedPath", char_length($${sourceFolderIndex})) = $${sourceFolderIndex} AND substring(sourceFile."normalizedPath" from char_length($${sourceFolderIndex}) + 1 for 1) = E'\\\\'))` : ''})`
         : '';
-    const scopePredicate = workspaceId
-      ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ' AND workspaceDocument."folderId" = $3') : ''})${sourcePredicate}`
-      : `d."documentScope" = 'GENERAL'`;
+    const workspaceMembershipAcl = userIdIndex
+      ? `EXISTS (
+          SELECT 1 FROM "WorkspaceMembership" membership
+          JOIN "DocumentWorkspace" activeWorkspace ON activeWorkspace."id" = membership."workspaceId"
+          WHERE membership."workspaceId" = $2
+            AND membership."userId" = $${userIdIndex}
+            AND membership."active" = TRUE AND activeWorkspace."active" = TRUE
+        )`
+      : 'FALSE';
+    const workspaceFolderAcl = userIdIndex
+      ? `
+        AND (
+          workspaceDocument."folderId" IS NULL
+          OR workspaceDocument."folderId" IN (
+            WITH RECURSIVE folder_chain AS (
+              SELECT folder."id" AS "targetId", folder."id" AS "ancestorId",
+                     folder."parentId", folder."workspaceId", folder."ownerUserId",
+                     folder."visibilityScope", folder."createdById"
+                FROM "WorkspaceFolder" folder
+               WHERE folder."workspaceId" = $2 AND folder."ownerUserId" IS NULL
+              UNION ALL
+              SELECT chain."targetId", parent."id", parent."parentId",
+                     parent."workspaceId", parent."ownerUserId",
+                     parent."visibilityScope", parent."createdById"
+                FROM folder_chain chain
+                JOIN "WorkspaceFolder" parent ON parent."id" = chain."parentId"
+               WHERE parent."workspaceId" = chain."workspaceId"
+                 AND parent."ownerUserId" IS NULL
+            )
+            SELECT chain."targetId"
+              FROM folder_chain chain
+             GROUP BY chain."targetId"
+            HAVING bool_and(
+              CASE chain."visibilityScope"::text
+                WHEN 'PERSONAL' THEN chain."ownerUserId" = $${userIdIndex}
+                WHEN 'RESTRICTED' THEN EXISTS (
+                  SELECT 1 FROM "WorkspaceMembership" grant_membership
+                   WHERE grant_membership."workspaceId" = chain."workspaceId"
+                     AND grant_membership."userId" = $${userIdIndex}
+                     AND grant_membership."active" = TRUE
+                     AND (
+                       grant_membership."role" = 'ADMIN'
+                       OR chain."createdById" = grant_membership."userId"
+                       OR EXISTS (
+                         SELECT 1 FROM "WorkspaceFolderGrant" grant_row
+                          WHERE grant_row."folderId" = chain."ancestorId"
+                            AND grant_row."membershipId" = grant_membership."id"
+                       )
+                     )
+                )
+                ELSE TRUE
+              END
+            )
+          )
+        )`
+      : ' AND FALSE';
+    const personalFolderAcl = userIdIndex
+      ? `
+        AND NOT EXISTS (
+          WITH RECURSIVE folder_chain AS (
+            SELECT folder."id" AS "ancestorId", folder."parentId", folder."workspaceId",
+                   folder."ownerUserId", folder."visibilityScope"
+              FROM "WorkspaceFolder" folder WHERE folder."id" = workspaceDocument."folderId"
+            UNION ALL
+            SELECT parent."id", parent."parentId", parent."workspaceId",
+                   parent."ownerUserId", parent."visibilityScope"
+              FROM folder_chain chain JOIN "WorkspaceFolder" parent ON parent."id" = chain."parentId"
+             WHERE parent."workspaceId" IS NULL AND parent."ownerUserId" = $${userIdIndex}
+          )
+          SELECT 1 FROM folder_chain chain
+           WHERE chain."ownerUserId" <> $${userIdIndex}
+              OR chain."visibilityScope" = 'RESTRICTED'
+        )`
+      : ' AND FALSE';
+    const scopePredicate = workspaceId && userIdIndex
+      ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND ${workspaceMembershipAcl} AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2 AND workspaceDocument."ownerUserId" IS NULL${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${workspaceFolderAcl})${sourcePredicate}`
+      : isPersonalScope && userIdIndex
+        ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" IS NULL AND workspaceDocument."ownerUserId" = $${userIdIndex}${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${personalFolderAcl})`
+        : isWorkspaceScope || isPersonalScope
+          ? `FALSE`
+          : `d."documentScope" = 'GENERAL'`;
     const dateRange = validateSearchDateRange(
       context.filters?.dateFrom,
       context.filters?.dateTo,
@@ -846,6 +931,8 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         document: {
           href: workspaceScope
             ? `/api/workspaces/${workspaceId}/documents/${row.id}/file`
+            : personalScope
+              ? `/api/personal/documents/${row.id}/file`
             : row.visibility === 'PUBLIC'
             ? `/api/public/corpus/documents/${row.id}/file`
             : `/api/corpus/documents/${row.id}/file`,

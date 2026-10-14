@@ -29,12 +29,19 @@ type Folder = {
   id: string;
   parentId: string | null;
   name: string;
+  visibilityScope: "INHERIT" | "PERSONAL" | "DEPENDENCY_SHARED" | "RESTRICTED";
+  effectiveVisibilityScope: "PERSONAL" | "DEPENDENCY_SHARED" | "RESTRICTED";
+  visibilityLabel: string;
+  authorizedCount?: number;
+  canManageAccess: boolean;
   _count: { documents: number; children: number };
 };
 type WorkspaceDocument = {
   documentId: string;
   createdAt: string;
-  folder: { id: string; name: string } | null;
+  canMakePersonal: boolean;
+  folder: { id: string; name: string; visibilityLabel?: string } | null;
+  visibilityLabel?: string;
   uploadedBy: { nombre: string; apellido: string | null };
   document: {
     title: string;
@@ -54,6 +61,11 @@ type MemberCandidate = {
   nombre: string;
   apellido: string | null;
   email: string;
+};
+type FolderAccessPerson = {
+  userId: number;
+  nombre: string;
+  apellido: string | null;
 };
 type ActivityItem = {
   id: number;
@@ -135,6 +147,9 @@ type PendingConfirmation = {
   label: string;
   active: boolean;
 };
+type PendingMoveConfirmation =
+  | { kind: "FOLDER_MOVE"; documentId: string; destinationId: string; consequence: string }
+  | { kind: "MAKE_PERSONAL"; documentId: string; consequence: string };
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const ROLE_LABEL: Record<WorkspaceRole, string> = {
@@ -252,6 +267,13 @@ export default function PrivateSpacesPage() {
   const [dragActive, setDragActive] = useState(false);
   const [uploadRows, setUploadRows] = useState<UploadRow[]>([]);
   const [newFolder, setNewFolder] = useState("");
+  const [newFolderScope, setNewFolderScope] = useState<"INHERIT" | "DEPENDENCY_SHARED" | "RESTRICTED">("DEPENDENCY_SHARED");
+  const [restrictedMemberQuery, setRestrictedMemberQuery] = useState("");
+  const [restrictedCandidates, setRestrictedCandidates] = useState<MemberCandidate[]>([]);
+  const [selectedRestrictedUsers, setSelectedRestrictedUsers] = useState<number[]>([]);
+  const [manageAccessFolderId, setManageAccessFolderId] = useState("");
+  const [managedAccessUsers, setManagedAccessUsers] = useState<number[]>([]);
+  const [managedAccessPeople, setManagedAccessPeople] = useState<FolderAccessPerson[]>([]);
   const [renamingFolderId, setRenamingFolderId] = useState("");
   const [renamedFolder, setRenamedFolder] = useState("");
   const [depCode, setDepCode] = useState("");
@@ -277,6 +299,8 @@ export default function PrivateSpacesPage() {
   >({});
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null);
+  const [pendingMoveConfirmation, setPendingMoveConfirmation] =
+    useState<PendingMoveConfirmation | null>(null);
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
   const selectedWorkspace = workspaces.find(
     (workspace) => workspace.id === workspaceId,
@@ -284,6 +308,12 @@ export default function PrivateSpacesPage() {
   const canEdit =
     selectedWorkspace?.role === "ADMIN" || selectedWorkspace?.role === "EDITOR";
   const currentFolder = folders.find((folder) => folder.id === folderId);
+  const effectiveNewFolderScope =
+    currentFolder?.effectiveVisibilityScope === "RESTRICTED" &&
+    newFolderScope === "DEPENDENCY_SHARED"
+      ? "INHERIT"
+      : newFolderScope;
+  const folderForAccessModal = folders.find((folder) => folder.id === manageAccessFolderId);
   const childFolders = useMemo(
     () => folders.filter((folder) => folder.parentId === (folderId || null)),
     [folders, folderId],
@@ -298,6 +328,21 @@ export default function PrivateSpacesPage() {
       ),
     [folders],
   );
+  const accessCandidates = useMemo(() => {
+    const byId = new Map<number, MemberCandidate>();
+    for (const person of managedAccessPeople) {
+      byId.set(person.userId, {
+        id: person.userId,
+        nombre: person.nombre,
+        apellido: person.apellido,
+        email: "",
+      });
+    }
+    for (const person of restrictedCandidates) byId.set(person.id, person);
+    return [...byId.values()].sort((left, right) =>
+      `${left.apellido ?? ""} ${left.nombre}`.localeCompare(`${right.apellido ?? ""} ${right.nombre}`, "es"),
+    );
+  }, [managedAccessPeople, restrictedCandidates]);
 
   const refresh = useCallback(
     async (nextId: string, nextFolderId = folderId) => {
@@ -578,12 +623,94 @@ export default function PrivateSpacesPage() {
       await api.post(`/workspaces/${workspaceId}/folders`, {
         name: newFolder,
         parentId: folderId || null,
+        visibilityScope: effectiveNewFolderScope,
+        ...(effectiveNewFolderScope === "RESTRICTED" ? { userIds: selectedRestrictedUsers } : {}),
       });
       setNewFolder("");
+      setNewFolderScope(currentFolder?.effectiveVisibilityScope === "RESTRICTED" ? "INHERIT" : "DEPENDENCY_SHARED");
+      setSelectedRestrictedUsers([]);
+      setRestrictedCandidates([]);
+      setRestrictedMemberQuery("");
       await refresh(workspaceId, folderId);
       setNotice("Carpeta creada.");
     } catch (cause) {
       setError(friendlyError(cause, "No se pudo crear la carpeta."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function findRestrictedCandidates(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (restrictedMemberQuery.trim().length < 3 || !workspaceId) return;
+    setBusy(true);
+    setError("");
+    try {
+      setRestrictedCandidates(await api.get<MemberCandidate[]>(`/workspaces/${workspaceId}/member-candidates`, { query: { q: restrictedMemberQuery.trim() } }));
+    } catch (cause) {
+      setError(friendlyError(cause, "No se pudieron buscar integrantes de esta dependencia."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleRestrictedUser(userId: number, selected: number[], update: (next: number[]) => void) {
+    update(selected.includes(userId) ? selected.filter((id) => id !== userId) : [...selected, userId]);
+  }
+
+  async function openFolderAccess(folder: Folder) {
+    if (!workspaceId) return;
+    setBusy(true);
+    setError("");
+    try {
+      const people = await api.get<FolderAccessPerson[]>(`/workspaces/${workspaceId}/folders/${folder.id}/access`);
+      setManageAccessFolderId(folder.id);
+      setManagedAccessUsers(people.map((person) => person.userId));
+      setManagedAccessPeople(people);
+      setRestrictedCandidates([]);
+      setRestrictedMemberQuery("");
+    } catch (cause) {
+      setError(friendlyError(cause, "No se pudo abrir la lista de personas autorizadas."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveFolderAccess() {
+    if (!workspaceId || !manageAccessFolderId) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.patch(`/workspaces/${workspaceId}/folders/${manageAccessFolderId}/access`, {
+        visibilityScope: "RESTRICTED",
+        userIds: managedAccessUsers,
+      });
+      setNotice("La lista de personas autorizadas quedó actualizada.");
+      setManageAccessFolderId("");
+      setManagedAccessPeople([]);
+      await refresh(workspaceId, folderId);
+    } catch (cause) {
+      setError(friendlyError(cause, "No se pudo actualizar el acceso."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function shareFolderWithDependency(folder: Folder) {
+    if (!workspaceId || !window.confirm(`Al compartir “${folder.name}”, todos los integrantes autorizados de ${selectedWorkspace?.name ?? "la dependencia"} podrán verla. ¿Querés continuar?`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.patch(`/workspaces/${workspaceId}/folders/${folder.id}/access`, {
+        visibilityScope: "DEPENDENCY_SHARED",
+        confirmAccessChange: true,
+      });
+      setManageAccessFolderId("");
+      setManagedAccessPeople([]);
+      await refresh(workspaceId, folderId);
+      setNotice("La carpeta ahora está compartida con la dependencia.");
+    } catch (cause) {
+      setError(friendlyError(cause, "No se pudo cambiar el acceso de la carpeta."));
     } finally {
       setBusy(false);
     }
@@ -763,7 +890,7 @@ export default function PrivateSpacesPage() {
     try {
       setMemberCandidates(
         await api.get<MemberCandidate[]>(
-          `/workspaces/${workspaceId}/member-candidates`,
+          `/workspaces/${workspaceId}/membership-candidates`,
           { query: { q: memberQuery.trim() } },
         ),
       );
@@ -807,14 +934,32 @@ export default function PrivateSpacesPage() {
 
   async function moveDocument(documentId: string) {
     if (!workspaceId) return;
+    const document = documents.find((item) => item.documentId === documentId);
+    const destinationId = documentMoveTargets[documentId] ?? "";
+    const destination = folders.find((folder) => folder.id === destinationId);
+    const currentScope = document?.visibilityLabel ?? document?.folder?.visibilityLabel ?? "Compartido";
+    const nextScope = destination?.visibilityLabel ?? "Compartido";
+    const changesRestrictedAudience = destinationId !== (document?.folder?.id ?? "") &&
+      (currentScope === "Restringido" || nextScope === "Restringido");
+    const changesAccess = currentScope !== nextScope || changesRestrictedAudience;
+    if (changesAccess) {
+      const consequence = nextScope === "Compartido"
+        ? `Al mover este documento, todos los integrantes autorizados de ${selectedWorkspace?.name ?? "la dependencia"} podrán verlo.`
+        : `Después de moverlo, sólo podrán verlo las personas autorizadas para la carpeta “${destination?.name ?? "Restringida"}” y quienes administran la dependencia.`;
+      setPendingMoveConfirmation({ kind: "FOLDER_MOVE", documentId, destinationId, consequence });
+      return;
+    }
+    await executeDocumentMove(documentId, destinationId, false);
+  }
+
+  async function executeDocumentMove(documentId: string, destinationId: string, confirmVisibilityChange: boolean) {
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      const folder = documentMoveTargets[documentId] ?? "";
       await api.patch(
         `/workspaces/${workspaceId}/documents/${documentId}/folder`,
-        { folderId: folder || null },
+        { folderId: destinationId || null, ...(confirmVisibilityChange ? { confirmVisibilityChange: true } : {}) },
       );
       await refresh(workspaceId, folderId);
       setNotice("Documento movido.");
@@ -822,7 +967,45 @@ export default function PrivateSpacesPage() {
       setError(friendlyError(cause, "No se pudo mover el documento."));
     } finally {
       setBusy(false);
+      if (confirmVisibilityChange) setPendingMoveConfirmation(null);
     }
+  }
+
+  async function confirmDocumentMove() {
+    if (!pendingMoveConfirmation) return;
+    if (pendingMoveConfirmation.kind === "FOLDER_MOVE") {
+      await executeDocumentMove(
+        pendingMoveConfirmation.documentId,
+        pendingMoveConfirmation.destinationId,
+        true,
+      );
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await api.patch(`/workspaces/${workspaceId}/documents/${pendingMoveConfirmation.documentId}/personal`, {
+        confirmAccessChange: true,
+      });
+      await refresh(workspaceId, folderId);
+      setNotice("El documento quedó en Mis documentos. Sólo vos podés verlo.");
+      setPendingMoveConfirmation(null);
+    } catch (cause) {
+      setError(friendlyError(cause, "No se pudo mover el documento a Mis documentos."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function makeDocumentPersonal(documentId: string) {
+    const document = documents.find((item) => item.documentId === documentId);
+    if (!document?.canMakePersonal) return;
+    setPendingMoveConfirmation({
+      kind: "MAKE_PERSONAL",
+      documentId,
+      consequence: "Después de moverlo, sólo vos podrás verlo.",
+    });
   }
 
   const currentFolderAncestors = useMemo(() => {
@@ -1113,7 +1296,9 @@ export default function PrivateSpacesPage() {
                   <strong>Destino:</strong> {selectedWorkspace?.name}
                   {folderId ? ` › ${folderPath(folderId, folders)}` : " › Documentos compartidos"}
                   <br />
-                  <strong>Acceso:</strong> compartido con las personas autorizadas de {selectedWorkspace?.name ?? "la dependencia"}.
+                  <strong>Acceso:</strong> {currentFolder?.effectiveVisibilityScope === "RESTRICTED"
+                    ? `Restringido. Personas seleccionadas: ${currentFolder.authorizedCount ?? 0}; quien creó la carpeta y quienes administran también pueden verla`
+                    : `Compartido con las personas autorizadas de ${selectedWorkspace?.name ?? "la dependencia"}`}.
                 </p>
               </div>
               <div
@@ -1207,6 +1392,50 @@ export default function PrivateSpacesPage() {
                       }
                     />
                   </label>
+                  <label>
+                    Quién puede verla
+                    <select
+                      aria-label="Quién puede ver la carpeta nueva"
+                      value={effectiveNewFolderScope}
+                      onChange={(event) => setNewFolderScope(event.target.value as "INHERIT" | "DEPENDENCY_SHARED" | "RESTRICTED")}
+                    >
+                      {currentFolder?.effectiveVisibilityScope === "RESTRICTED" ? <option value="INHERIT">Mismo acceso que la carpeta superior</option> : null}
+                      {currentFolder?.effectiveVisibilityScope !== "RESTRICTED" ? <option value="DEPENDENCY_SHARED">Compartida con {selectedWorkspace?.name ?? "la dependencia"}</option> : null}
+                      <option value="RESTRICTED">Sólo personas elegidas</option>
+                    </select>
+                  </label>
+                  {currentFolder?.effectiveVisibilityScope === "RESTRICTED" ? <p className={styles.muted}>Para ampliar el acceso, cambiá primero el acceso de la carpeta superior.</p> : null}
+                  {newFolderScope === "RESTRICTED" ? (
+                    <div className={styles.memberForm}>
+                      <label htmlFor="restricted-folder-search">Buscar personas de esta dependencia</label>
+                      <div className={styles.inlineForm}>
+                        <input
+                          id="restricted-folder-search"
+                          value={restrictedMemberQuery}
+                          onChange={(event) => setRestrictedMemberQuery(event.target.value)}
+                          placeholder="Nombre o correo"
+                        />
+                        <button type="button" disabled={busy || restrictedMemberQuery.trim().length < 3} onClick={() => void findRestrictedCandidates()}>
+                          Buscar personas
+                        </button>
+                      </div>
+                      {restrictedCandidates.length ? (
+                        <div role="group" aria-label="Personas autorizadas">
+                          {restrictedCandidates.map((candidate) => (
+                            <label key={candidate.id} className={styles.candidate}>
+                              <input
+                                type="checkbox"
+                                checked={selectedRestrictedUsers.includes(candidate.id)}
+                                onChange={() => toggleRestrictedUser(candidate.id, selectedRestrictedUsers, setSelectedRestrictedUsers)}
+                              />
+                              <span>{candidate.nombre} {candidate.apellido ?? ""}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : <p className={styles.muted}>Los resultados se limitan a integrantes activos de esta dependencia.</p>}
+                      <p className={styles.muted}>Personas seleccionadas: {selectedRestrictedUsers.length}. Quien crea la carpeta y quienes administran la dependencia conservan acceso.</p>
+                    </div>
+                  ) : null}
                   <button disabled={busy || !newFolder.trim()}>
                     {currentFolder ? "Crear subcarpeta" : "Crear carpeta"}
                   </button>
@@ -1257,10 +1486,14 @@ export default function PrivateSpacesPage() {
                         >
                           <strong>📁 {folder.name}</strong>
                           <small>
-                            {folder._count.documents} documentos ·{" "}
-                            {folder._count.children} subcarpetas
+                            {folder.visibilityLabel}{folder.effectiveVisibilityScope === "RESTRICTED" && folder.authorizedCount !== undefined ? ` · ${folder.authorizedCount} personas seleccionadas` : ""} · {folder._count.documents} documentos · {folder._count.children} subcarpetas
                           </small>
                         </button>
+                        {folder.effectiveVisibilityScope === "RESTRICTED" && folder.canManageAccess ? (
+                          <button aria-label={`Administrar quién puede ver ${folder.name}`} onClick={() => void openFolderAccess(folder)}>
+                            Personas autorizadas
+                          </button>
+                        ) : null}
                         {canEdit && (
                           <button
                             aria-label={`Renombrar ${folder.name}`}
@@ -1317,6 +1550,7 @@ export default function PrivateSpacesPage() {
                       </h3>
                       <div className={styles.resultMeta}>
                         <span>{statusLabel(item.document.status)}</span>
+                        <span>{item.visibilityLabel ?? item.folder?.visibilityLabel ?? "Compartido"}</span>
                         <span>
                           {item.document.extraction?.pageCount ?? 0} páginas
                         </span>
@@ -1382,6 +1616,15 @@ export default function PrivateSpacesPage() {
                         >
                           Mover
                         </button>
+                        {item.canMakePersonal && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => makeDocumentPersonal(item.documentId)}
+                          >
+                            Hacer personal
+                          </button>
+                        )}
                       </div>
                     )}
                   </article>
@@ -1796,6 +2039,62 @@ export default function PrivateSpacesPage() {
         </Card>
       )}
 
+      {manageAccessFolderId && folderForAccessModal ? (
+          <div className={styles.modalBackdrop} role="presentation">
+            <section
+              className={`${styles.modal} ${styles.accessModal}`}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="folder-access-title"
+              aria-describedby="folder-access-description"
+            >
+              <h2 id="folder-access-title">Personas autorizadas</h2>
+              <p id="folder-access-description">
+                {folderForAccessModal.name}. Sólo integrantes activos de {selectedWorkspace?.name ?? "esta dependencia"} pueden recibir acceso. Quien creó la carpeta y quienes administran la dependencia conservan acceso.
+              </p>
+              <form className={styles.memberSearch} onSubmit={(event) => void findRestrictedCandidates(event)}>
+                <label htmlFor="folder-access-search">Buscar integrantes</label>
+                <div className={styles.inlineForm}>
+                  <input
+                    id="folder-access-search"
+                    value={restrictedMemberQuery}
+                    onChange={(event) => setRestrictedMemberQuery(event.target.value)}
+                    placeholder="Nombre o correo"
+                    autoComplete="off"
+                  />
+                  <button type="submit" disabled={busy || restrictedMemberQuery.trim().length < 3}>Buscar</button>
+                </div>
+              </form>
+              <fieldset className={styles.accessPeople}>
+                <legend>Quién puede ver esta carpeta</legend>
+                {accessCandidates.map((person) => (
+                  <label key={person.id} className={styles.candidate}>
+                    <input
+                      type="checkbox"
+                      checked={managedAccessUsers.includes(person.id)}
+                      onChange={() => toggleRestrictedUser(person.id, managedAccessUsers, setManagedAccessUsers)}
+                    />
+                    <span>{person.nombre} {person.apellido ?? ""}{person.email ? <small>{person.email}</small> : null}</span>
+                  </label>
+                ))}
+                {!accessCandidates.length ? <p className={styles.muted}>Buscá integrantes activos para agregarlos o quitarlos.</p> : null}
+              </fieldset>
+              <p className={styles.muted}>Personas seleccionadas: {managedAccessUsers.length}</p>
+              <div className={`${styles.modalActions} ${styles.accessActions}`}>
+                {selectedWorkspace?.role === "ADMIN" ? (
+                  <button type="button" className={styles.dangerButton} disabled={busy} onClick={() => void shareFolderWithDependency(folderForAccessModal)}>
+                    Compartir con toda la dependencia
+                  </button>
+                ) : null}
+                <button disabled={busy} onClick={() => { setManageAccessFolderId(""); setManagedAccessPeople([]); }}>Cancelar</button>
+                <button className={styles.primaryButton} disabled={busy} onClick={() => void saveFolderAccess()}>
+                  Guardar acceso
+                </button>
+              </div>
+            </section>
+          </div>
+      ) : null}
+
       {pendingConfirmation && (
         <div className={styles.modalBackdrop} role="presentation">
           <section
@@ -1846,6 +2145,29 @@ export default function PrivateSpacesPage() {
                 }}
               >
                 {pendingConfirmation.active ? "Reactivar" : "Desactivar"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {pendingMoveConfirmation && (
+        <div className={styles.modalBackdrop} role="presentation">
+          <section
+            className={styles.modal}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="move-access-title"
+            aria-describedby="move-access-description"
+          >
+            <h2 id="move-access-title">Confirmar cambio de acceso</h2>
+            <p id="move-access-description">{pendingMoveConfirmation.consequence}</p>
+            <p>Este movimiento cambia quién puede encontrar, ver y descargar el documento.</p>
+            <div className={styles.modalActions}>
+              <button type="button" disabled={busy} onClick={() => setPendingMoveConfirmation(null)}>
+                Cancelar
+              </button>
+              <button type="button" className={styles.primaryButton} disabled={busy} onClick={() => void confirmDocumentMove()}>
+                {pendingMoveConfirmation.kind === "MAKE_PERSONAL" ? "Mover a Mis documentos" : "Mover documento"}
               </button>
             </div>
           </section>

@@ -45,6 +45,7 @@ type OcrJobClaim = { id: string };
 @Injectable()
 export class CorpusOcrWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CorpusOcrWorkerService.name);
+  private readonly queueName = process.env.BJC_OCR_QUEUE_NAME?.trim() || 'default';
   private timer: NodeJS.Timeout | undefined;
   private recoveryTimer: NodeJS.Timeout | undefined;
   private working = false;
@@ -98,6 +99,7 @@ export class CorpusOcrWorkerService implements OnModuleInit, OnModuleDestroy {
     const stale = { lt: now };
     const requeued = await this.prisma.corpusOcrJob.updateMany({
       where: {
+        queueName: this.queueName,
         status: 'RUNNING',
         leaseExpiresAt: stale,
         attemptCount: { lt: 2 },
@@ -113,6 +115,7 @@ export class CorpusOcrWorkerService implements OnModuleInit, OnModuleDestroy {
     });
     const exhaustedJobs = await this.prisma.corpusOcrJob.findMany({
       where: {
+        queueName: this.queueName,
         status: 'RUNNING',
         leaseExpiresAt: stale,
         attemptCount: { gte: 2 },
@@ -132,6 +135,7 @@ export class CorpusOcrWorkerService implements OnModuleInit, OnModuleDestroy {
         const result = await tx.corpusOcrJob.updateMany({
           where: {
             id: staleJob.id,
+            queueName: this.queueName,
             status: 'RUNNING',
             leaseExpiresAt: stale,
             attemptCount: { gte: 2 },
@@ -227,7 +231,8 @@ export class CorpusOcrWorkerService implements OnModuleInit, OnModuleDestroy {
       WITH next_job AS (
         SELECT "id"
         FROM "CorpusOcrJob"
-        WHERE "status" = 'PENDING' AND "attemptCount" < "maxAttempts"
+        WHERE "status" = 'PENDING' AND "queueName" = ${this.queueName}
+          AND "attemptCount" < "maxAttempts"
         ${idFilter}
         ORDER BY "createdAt" ASC
         FOR UPDATE SKIP LOCKED

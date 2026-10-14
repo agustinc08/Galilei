@@ -39,14 +39,16 @@ export async function enqueueLocalOcrJob(
     select: { id: true, status: true },
   });
   if (afterLock) return afterLock;
+  const queueName = process.env.BJC_OCR_QUEUE_NAME?.trim() || 'default';
   const pendingLimit = readPendingLimit();
   const activeCount = await tx.corpusOcrJob.count({
-    where: { status: { in: ['PENDING', 'RUNNING'] } },
+    where: { queueName, status: { in: ['PENDING', 'RUNNING'] } },
   });
   if (activeCount >= pendingLimit) return null;
 
   return tx.corpusOcrJob.create({
     data: {
+      queueName,
       documentId: input.documentId,
       fileId: input.fileId,
       fileSha256: input.fileSha256,

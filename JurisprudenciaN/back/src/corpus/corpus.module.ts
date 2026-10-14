@@ -9,6 +9,7 @@ import { CorpusCurationService } from './corpus-curation.service';
 import { BusquedaModule } from '../busqueda/busqueda.module';
 import { WorkspaceDocumentController } from './workspace-document.controller';
 import { WorkspaceDocumentService } from './workspace-document.service';
+import { PersonalDocumentController } from './personal-document.controller';
 import { DocumentSourceController } from './document-source.controller';
 import { DocumentSourceService } from './document-source.service';
 import { DocumentSourceScanner } from './document-source-scanner';
@@ -22,6 +23,7 @@ import { CorpusOcrWorkerService } from './corpus-ocr-worker.service';
     PublicCorpusDocumentController,
     CorpusCurationController,
     WorkspaceDocumentController,
+    PersonalDocumentController,
     DocumentSourceController,
   ],
   providers: [

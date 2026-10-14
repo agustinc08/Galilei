@@ -39,10 +39,12 @@ export type SearchContext = {
     | {
         kind: 'WORKSPACE';
         workspaceId: string;
+        userId: number;
         folderId?: string | null;
         sourceId?: string;
         sourceFolder?: string;
-      };
+      }
+    | { kind: 'PERSONAL'; userId: number; folderId?: string | null };
 };
 
 export type SearchResult = {

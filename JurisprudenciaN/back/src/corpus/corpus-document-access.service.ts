@@ -12,6 +12,7 @@ import {
 } from './document-storage.adapter';
 import type { SearchVisibility } from '../busqueda/adapters/search-source.adapter';
 import { findDocumentMatches } from './corpus-document-matches';
+import { canReadWorkspaceDocument } from './workspace-document-acl';
 
 @Injectable()
 export class CorpusDocumentAccessService {
@@ -20,16 +21,26 @@ export class CorpusDocumentAccessService {
     this.storage = new LocalDocumentStorageAdapter();
   }
 
+  canReadWorkspaceDocument(documentId: string, workspaceId: string, userId: number) {
+    return canReadWorkspaceDocument(this.prisma, documentId, {
+      kind: 'WORKSPACE',
+      workspaceId,
+      userId,
+    });
+  }
+
   async metadata(
     documentId: string,
     visibility: SearchVisibility,
     pageNumber?: number,
     workspaceId?: string,
+    userId?: number,
   ) {
     const document = await this.visibleDocument(
       documentId,
       visibility,
       workspaceId,
+      userId,
     );
     const latestFile = document.files[0];
     const latestExtraction = document.latestExtraction;
@@ -82,6 +93,8 @@ export class CorpusDocumentAccessService {
             pageCount: latestFile.pageCount,
             href: workspaceId
               ? `/api/workspaces/${workspaceId}/documents/${document.id}/file`
+              : userId
+                ? `/api/personal/documents/${document.id}/file`
               : document.visibility === 'PUBLIC'
                 ? `/api/public/corpus/documents/${document.id}/file`
                 : `/api/corpus/documents/${document.id}/file`,
@@ -105,11 +118,13 @@ export class CorpusDocumentAccessService {
     documentId: string,
     visibility: SearchVisibility,
     workspaceId?: string,
+    userId?: number,
   ) {
     const document = await this.visibleDocument(
       documentId,
       visibility,
       workspaceId,
+      userId,
     );
     const file = document.files[0];
     if (!file) throw new NotFoundException('Archivo no encontrado.');
@@ -147,11 +162,13 @@ export class CorpusDocumentAccessService {
     visibility: SearchVisibility,
     query: string,
     workspaceId?: string,
+    userId?: number,
   ) {
     const document = await this.visibleDocument(
       documentId,
       visibility,
       workspaceId,
+      userId,
     );
     const extraction = document.latestExtractionId
       ? await this.prisma.corpusExtraction.findUnique({
@@ -440,6 +457,7 @@ export class CorpusDocumentAccessService {
     documentId: string,
     visibility: SearchVisibility,
     workspaceId?: string,
+    userId?: number,
   ) {
     const allowed =
       visibility === 'ADMIN'
@@ -448,18 +466,40 @@ export class CorpusDocumentAccessService {
           ? ['PUBLIC', 'INTERNAL']
           : visibility === 'PUBLIC'
             ? ['PUBLIC']
-            : visibility === 'RESTRICTED' && workspaceId
+            : visibility === 'RESTRICTED' && (workspaceId || userId)
               ? ['RESTRICTED']
               : [];
     if (!allowed.length)
       throw new NotFoundException('Documento no encontrado.');
+    if (workspaceId) {
+      if (
+        !Number.isSafeInteger(userId) ||
+        !(await canReadWorkspaceDocument(this.prisma, documentId, {
+          kind: 'WORKSPACE',
+          workspaceId,
+          userId: userId as number,
+        }))
+      )
+        throw new NotFoundException('Documento no encontrado.');
+    } else if (userId) {
+      if (
+        !Number.isSafeInteger(userId) ||
+        !(await canReadWorkspaceDocument(this.prisma, documentId, {
+          kind: 'PERSONAL',
+          userId,
+        }))
+      )
+        throw new NotFoundException('Documento no encontrado.');
+    }
     const document = await this.prisma.corpusDocument.findFirst({
       where: {
         id: documentId,
-        documentScope: workspaceId ? 'PRIVATE_WORKSPACE' : 'GENERAL',
+        documentScope: workspaceId || userId ? 'PRIVATE_WORKSPACE' : 'GENERAL',
         ...(workspaceId
           ? { workspaceDocuments: { some: { workspaceId } } }
-          : {}),
+          : userId
+            ? { workspaceDocuments: { some: { workspaceId: null, ownerUserId: userId } } }
+            : {}),
         visibility: { in: allowed },
         status: { in: ['INDEXED', 'OCR_REQUIRED'] },
       },

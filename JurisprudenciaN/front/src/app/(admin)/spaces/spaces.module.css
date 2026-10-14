@@ -62,6 +62,7 @@
 .inlineForm input { min-width: min(220px, 75vw); }
 .toolbar button, .inlineForm button, .searchForm button, .fileLine button,
 .resultCard button, .folderRow button, .memberRow button, .adminLine button,
+.documentActions button,
 .memberSearch button, .modalActions button, .pagination button, .uploadLabel {
   min-height: 40px;
   padding: 8px 13px;
@@ -75,7 +76,7 @@
 
 .toolbar button:hover, .inlineForm button:hover, .searchForm button:hover,
 .fileLine button:hover, .resultCard button:hover, .folderRow button:hover,
-.memberRow button:hover, .adminLine button:hover, .memberSearch button:hover,
+.memberRow button:hover, .adminLine button:hover, .documentActions button:hover, .memberSearch button:hover,
 .pagination button:hover, .uploadLabel:hover { background: #eef6fa; }
 
 .primaryButton, .searchForm button {
@@ -86,7 +87,7 @@
 .dangerButton { color: #9b2c2c !important; border-color: #e3b5b5 !important; }
 .toolbar button:disabled, .inlineForm button:disabled, .searchForm button:disabled,
 .fileLine button:disabled, .resultCard button:disabled, .folderRow button:disabled,
-.memberRow button:disabled, .adminLine button:disabled, .memberSearch button:disabled,
+.memberRow button:disabled, .adminLine button:disabled, .documentActions button:disabled, .memberSearch button:disabled,
 .pagination button:disabled { opacity: .55; cursor: not-allowed; }
 
 .searchCard { border-top: 4px solid #16728f; }
@@ -152,6 +153,14 @@
 .modalBackdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(16, 24, 40, .48); }
 .modal { display: grid; gap: 15px; width: min(100%, 460px); padding: 22px; border-radius: 12px; background: #fff; box-shadow: 0 18px 60px rgba(0,0,0,.22); }
 .modalActions { display: flex; justify-content: flex-end; gap: 8px; }
+.accessModal { width: min(100%, 620px); max-height: min(88vh, 820px); overflow: auto; }
+.accessPeople { display: grid; gap: 7px; max-height: min(38vh, 340px); overflow: auto; margin: 0; padding: 12px; border: 1px solid #dbe4ee; border-radius: 8px; }
+.accessPeople legend { padding: 0 5px; color: #34495a; font-weight: 700; }
+.accessPeople .candidate { justify-content: flex-start; cursor: pointer; }
+.accessPeople .candidate span { display: grid; gap: 3px; }
+.accessPeople .candidate small { color: #667085; font-size: 12px; }
+.accessActions { flex-wrap: wrap; }
+.accessActions button:first-child { margin-right: auto; }
 
 @media (max-width: 760px) {
   .card { padding: 16px; }
@@ -162,4 +171,8 @@
   .memberRow, .adminLine { align-items: flex-start; flex-direction: column; }
   .sourceRow { align-items: flex-start; flex-direction: column; }
   .memberActions { justify-content: flex-start; }
+  .accessModal { padding: 16px; max-height: 92vh; }
+  .accessActions { justify-content: stretch; }
+  .accessActions button { flex: 1 1 100%; }
+  .accessActions button:first-child { margin-right: 0; }
 }

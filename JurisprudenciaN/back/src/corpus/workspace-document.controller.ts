@@ -14,7 +14,11 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { WorkspaceDependencyType, WorkspaceRole } from '@prisma/client';
+import {
+  WorkspaceDependencyType,
+  WorkspaceRole,
+  WorkspaceVisibilityScope,
+} from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ROLES } from '../auth/constants';
@@ -87,9 +91,44 @@ export class WorkspaceDocumentController {
   createFolder(
     @Param('workspaceId') workspaceId: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { name: string; parentId?: string | null },
+    @Body()
+    body: {
+      name: string;
+      parentId?: string | null;
+      visibilityScope?: WorkspaceVisibilityScope;
+      userIds?: number[];
+    },
   ) {
     return this.workspaces.createFolder(workspaceId, user, body);
+  }
+
+  @Patch(':workspaceId/folders/:folderId/access')
+  setRestrictedFolderMembers(
+    @Param('workspaceId') workspaceId: string,
+    @Param('folderId') folderId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body()
+    body: {
+      userIds?: number[];
+      visibilityScope?: WorkspaceVisibilityScope;
+      confirmAccessChange?: boolean;
+    },
+  ) {
+    return this.workspaces.setRestrictedFolderMembers(
+      workspaceId,
+      folderId,
+      user,
+      body,
+    );
+  }
+
+  @Get(':workspaceId/folders/:folderId/access')
+  restrictedFolderMembers(
+    @Param('workspaceId') workspaceId: string,
+    @Param('folderId') folderId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.restrictedFolderMembers(workspaceId, folderId, user);
   }
 
   @Patch(':workspaceId/folders/:folderId')
@@ -120,9 +159,25 @@ export class WorkspaceDocumentController {
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { folderId?: string | null },
+    @Body() body: { folderId?: string | null; confirmVisibilityChange?: boolean },
   ) {
-    return this.workspaces.moveDocument(workspaceId, id, user, body.folderId);
+    return this.workspaces.moveDocument(
+      workspaceId,
+      id,
+      user,
+      body.folderId,
+      body.confirmVisibilityChange,
+    );
+  }
+
+  @Patch(':workspaceId/documents/:id/personal')
+  makeDocumentPersonal(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { folderId?: string | null; confirmAccessChange: boolean },
+  ) {
+    return this.workspaces.makeDocumentPersonal(workspaceId, id, user, body);
   }
 
   @Post(':workspaceId/documents/upload')
@@ -197,6 +252,15 @@ export class WorkspaceDocumentController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.workspaces.memberCandidates(workspaceId, user, q ?? '');
+  }
+
+  @Get(':workspaceId/membership-candidates')
+  membershipCandidates(
+    @Param('workspaceId') workspaceId: string,
+    @Query('q') q: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.membershipCandidates(workspaceId, user, q ?? '');
   }
 
   @Get(':workspaceId/search/names')

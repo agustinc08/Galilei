@@ -6,7 +6,12 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { Prisma, WorkspaceRole, WorkspaceDependencyType } from '@prisma/client';
+import {
+  Prisma,
+  WorkspaceRole,
+  WorkspaceDependencyType,
+  WorkspaceVisibilityScope,
+} from '@prisma/client';
 import path from 'node:path';
 import { BusquedaService } from '../busqueda/busqueda.service';
 import {
@@ -29,6 +34,10 @@ import { CorpusDocumentAccessService } from './corpus-document-access.service';
 import { normalizeRelativePath } from './document-source-scanner';
 import { LocalPdfOcrProcessor } from './document-local-processors';
 import { enqueueLocalOcrJob } from './ocr-job-queue';
+import {
+  readableFolderIds,
+  workspaceVisibilityLabel,
+} from './workspace-document-acl';
 
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -207,24 +216,76 @@ export class WorkspaceDocumentService {
   }
 
   async folders(workspaceId: string, user: AuthenticatedUser) {
-    await this.requireMembership(workspaceId, user);
-    return this.prisma.workspaceFolder.findMany({
-      where: { workspaceId },
+    const membership = await this.requireMembership(workspaceId, user);
+    const readableIds = await readableFolderIds(this.prisma, {
+      kind: 'WORKSPACE',
+      workspaceId,
+      userId: user.id,
+    });
+    const [folders, links] = await Promise.all([
+      this.prisma.workspaceFolder.findMany({
+      where: { workspaceId, id: { in: readableIds } },
       orderBy: [{ parentId: 'asc' }, { name: 'asc' }],
       select: {
         id: true,
         parentId: true,
         name: true,
+        visibilityScope: true,
+        createdById: true,
         createdAt: true,
-        _count: { select: { documents: true, children: true } },
       },
-    });
+      }),
+      this.prisma.workspaceDocument.findMany({
+        where: {
+          workspaceId,
+          OR: [{ folderId: null }, { folderId: { in: readableIds } }],
+        },
+        select: { folderId: true },
+      }),
+    ]);
+    const documentsByFolder = new Map<string, number>();
+    for (const link of links) {
+      if (link.folderId)
+        documentsByFolder.set(link.folderId, (documentsByFolder.get(link.folderId) ?? 0) + 1);
+    }
+    const visibleFolderIds = new Set(folders.map((folder) => folder.id));
+    const childrenByFolder = new Map<string, number>();
+    for (const folder of folders) {
+      if (folder.parentId && visibleFolderIds.has(folder.parentId))
+        childrenByFolder.set(folder.parentId, (childrenByFolder.get(folder.parentId) ?? 0) + 1);
+    }
+    return Promise.all(folders.map(async (folder) => {
+      const effectiveScope = await this.effectiveFolderScope(folder.id);
+      const authorizedCount = effectiveScope === WorkspaceVisibilityScope.RESTRICTED
+        ? await this.effectiveRestrictedGrantCount(folder.id)
+        : undefined;
+      return {
+        id: folder.id,
+        parentId: folder.parentId,
+        name: folder.name,
+        createdAt: folder.createdAt,
+        visibilityScope: folder.visibilityScope,
+        effectiveVisibilityScope: effectiveScope,
+        visibilityLabel: workspaceVisibilityLabel(effectiveScope),
+        ...(authorizedCount !== undefined ? { authorizedCount } : {}),
+        canManageAccess: membership.role === WorkspaceRole.ADMIN || (membership.role === WorkspaceRole.EDITOR && folder.createdById === user.id),
+        _count: {
+          documents: documentsByFolder.get(folder.id) ?? 0,
+          children: childrenByFolder.get(folder.id) ?? 0,
+        },
+      };
+    }));
   }
 
   async createFolder(
     workspaceId: string,
     user: AuthenticatedUser,
-    input: { name: string; parentId?: string | null },
+    input: {
+      name: string;
+      parentId?: string | null;
+      visibilityScope?: WorkspaceVisibilityScope;
+      userIds?: number[];
+    },
   ) {
     const membership = await this.requireMembership(workspaceId, user);
     this.requireRole(membership.role, [
@@ -235,13 +296,39 @@ export class WorkspaceDocumentService {
     if (!name || name.length > 100 || /[\\/]/u.test(name))
       throw new BadRequestException('Nombre de carpeta inválido.');
     const parentId = input.parentId || null;
+    const readableIds = await readableFolderIds(this.prisma, {
+      kind: 'WORKSPACE',
+      workspaceId,
+      userId: user.id,
+    });
+    let parentScope: WorkspaceVisibilityScope | null = null;
+    if (parentId) {
+      if (!readableIds.includes(parentId))
+        throw new NotFoundException('Carpeta no encontrada.');
+      parentScope = await this.effectiveFolderScope(parentId);
+    }
+    const visibilityScope = input.visibilityScope ?? (parentId
+      ? WorkspaceVisibilityScope.INHERIT
+      : WorkspaceVisibilityScope.DEPENDENCY_SHARED);
+    const workspaceScopes: WorkspaceVisibilityScope[] = [
+        WorkspaceVisibilityScope.INHERIT,
+        WorkspaceVisibilityScope.DEPENDENCY_SHARED,
+        WorkspaceVisibilityScope.RESTRICTED,
+    ];
     if (
-      parentId &&
-      !(await this.prisma.workspaceFolder.findFirst({
-        where: { id: parentId, workspaceId },
-      }))
+      !workspaceScopes.includes(visibilityScope) ||
+      (!parentId && visibilityScope === WorkspaceVisibilityScope.INHERIT)
     )
-      throw new NotFoundException('Carpeta no encontrada.');
+      throw new BadRequestException('Elegí un alcance válido para la carpeta.');
+    if (visibilityScope === WorkspaceVisibilityScope.RESTRICTED)
+      this.requireRole(membership.role, [WorkspaceRole.ADMIN, WorkspaceRole.EDITOR]);
+    if (
+      parentScope === WorkspaceVisibilityScope.RESTRICTED &&
+      visibilityScope === WorkspaceVisibilityScope.DEPENDENCY_SHARED
+    )
+      throw new BadRequestException(
+        'Esta carpeta está dentro de una carpeta restringida. Para ampliar el acceso, cambiá primero el acceso de la carpeta superior.',
+      );
     if (
       await this.prisma.workspaceFolder.findFirst({
         where: { workspaceId, parentId, name },
@@ -250,14 +337,42 @@ export class WorkspaceDocumentService {
       throw new BadRequestException(
         'Ya existe una carpeta con ese nombre en esta ubicación.',
       );
-    const folder = await this.prisma.workspaceFolder.create({
-      data: { workspaceId, parentId, name, createdById: user.id },
+    const selectedMemberships = visibilityScope === WorkspaceVisibilityScope.RESTRICTED
+      ? await this.selectedMemberships(workspaceId, input.userIds ?? [])
+      : [];
+    const folder = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.workspaceFolder.create({
+        data: { workspaceId, parentId, name, visibilityScope, createdById: user.id },
+      });
+      if (selectedMemberships.length)
+        await tx.workspaceFolderGrant.createMany({
+          data: selectedMemberships.map((membershipId) => ({ folderId: created.id, membershipId })),
+        });
+      await tx.accionLog.create({
+        data: {
+          usuarioId: user.id,
+          entidad: 'WorkspaceFolder',
+          entidadId: null,
+          accion: visibilityScope === WorkspaceVisibilityScope.RESTRICTED ? 'RESTRICTED_FOLDER_CREATE' : 'FOLDER_CREATE',
+          descripcion: 'Creación de carpeta documental.',
+          datosDespues: {
+            workspaceId,
+            folderId: created.id,
+            parentId,
+            visibilityScope,
+            authorizedMembershipIds: selectedMemberships,
+          },
+        },
+      });
+      return created;
     });
-    await this.audit(user.id, workspaceId, 'FOLDER_CREATE', {
-      folderId: folder.id,
-      parentId,
-    });
-    return { id: folder.id, parentId: folder.parentId, name: folder.name };
+    return {
+      id: folder.id,
+      parentId: folder.parentId,
+      name: folder.name,
+      visibilityScope: folder.visibilityScope,
+      visibilityLabel: workspaceVisibilityLabel(folder.visibilityScope),
+    };
   }
 
   async renameFolder(
@@ -279,6 +394,15 @@ export class WorkspaceDocumentService {
       select: { id: true, name: true, parentId: true },
     });
     if (!current) throw new NotFoundException('Carpeta no encontrada.');
+    if (membership.role !== WorkspaceRole.ADMIN) {
+      const readableIds = await readableFolderIds(this.prisma, {
+        kind: 'WORKSPACE',
+        workspaceId,
+        userId: user.id,
+      });
+      if (!readableIds.includes(folderId))
+        throw new NotFoundException('Carpeta no encontrada.');
+    }
     const duplicate = await this.prisma.workspaceFolder.findFirst({
       where: {
         workspaceId,
@@ -310,6 +434,7 @@ export class WorkspaceDocumentService {
     documentId: string,
     user: AuthenticatedUser,
     folderId?: string | null,
+    confirmVisibilityChange = false,
   ) {
     const membership = await this.requireMembership(workspaceId, user);
     this.requireRole(membership.role, [
@@ -317,25 +442,71 @@ export class WorkspaceDocumentService {
       WorkspaceRole.EDITOR,
     ]);
     const link = await this.prisma.workspaceDocument.findFirst({
-      where: { workspaceId, documentId },
-      select: { id: true, folderId: true },
+      where: { workspaceId, documentId, ownerUserId: null },
+      select: {
+        id: true,
+        folderId: true,
+        document: { select: { sourceFiles: { select: { id: true }, take: 1 } } },
+      },
     });
     if (!link) throw new NotFoundException('Documento no encontrado.');
     if (
-      folderId &&
-      !(await this.prisma.workspaceFolder.findFirst({
-        where: { id: folderId, workspaceId },
-      }))
+      membership.role !== WorkspaceRole.ADMIN &&
+      !(await this.documents.canReadWorkspaceDocument(documentId, workspaceId, user.id))
     )
-      throw new NotFoundException('Carpeta no encontrada.');
-    await this.prisma.workspaceDocument.update({
-      where: { id: link.id },
-      data: { folderId: folderId || null },
+      throw new NotFoundException('Documento no encontrado.');
+    const readableIds = await readableFolderIds(this.prisma, {
+      kind: 'WORKSPACE',
+      workspaceId,
+      userId: user.id,
     });
-    await this.audit(user.id, workspaceId, 'DOCUMENT_MOVE', {
-      documentId,
-      fromFolderId: link.folderId,
-      toFolderId: folderId || null,
+    if (folderId && !readableIds.includes(folderId))
+      throw new NotFoundException('Carpeta no encontrada.');
+    if (link.document.sourceFiles.length && folderId) {
+      const targetScope = await this.effectiveFolderScope(folderId);
+      if (targetScope !== WorkspaceVisibilityScope.DEPENDENCY_SHARED)
+        throw new ForbiddenException('Los documentos sincronizados de una carpeta de red se mantienen compartidos con la dependencia.');
+    }
+    const fromScope = link.folderId
+      ? await this.effectiveFolderScope(link.folderId)
+      : WorkspaceVisibilityScope.DEPENDENCY_SHARED;
+    const toScope = folderId
+      ? await this.effectiveFolderScope(folderId)
+      : WorkspaceVisibilityScope.DEPENDENCY_SHARED;
+    const changesRestrictedAudience =
+      link.folderId !== (folderId || null) &&
+      (fromScope === WorkspaceVisibilityScope.RESTRICTED ||
+        toScope === WorkspaceVisibilityScope.RESTRICTED);
+    if ((fromScope !== toScope || changesRestrictedAudience) && !confirmVisibilityChange)
+      throw new BadRequestException(
+        toScope === WorkspaceVisibilityScope.DEPENDENCY_SHARED
+          ? 'Este cambio ampliará el acceso a todos los integrantes autorizados de la dependencia. Confirmá el cambio para continuar.'
+          : toScope === WorkspaceVisibilityScope.RESTRICTED
+            ? 'Este cambio limitará o cambiará el acceso a las personas autorizadas en la carpeta de destino. Confirmá el cambio para continuar.'
+            : 'Este cambio modifica quién puede ver el documento.',
+      );
+    if (
+      toScope === WorkspaceVisibilityScope.DEPENDENCY_SHARED &&
+      fromScope !== WorkspaceVisibilityScope.DEPENDENCY_SHARED &&
+      membership.role !== WorkspaceRole.ADMIN
+    )
+      throw new ForbiddenException('Sólo una persona responsable puede ampliar el acceso a toda la dependencia.');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workspaceDocument.update({
+        where: { id: link.id },
+        data: { folderId: folderId || null },
+      });
+      await tx.accionLog.create({
+        data: {
+          usuarioId: user.id,
+          entidad: 'WorkspaceDocument',
+          entidadId: null,
+          accion: 'DOCUMENT_MOVE',
+          descripcion: 'Documento movido entre carpetas.',
+          datosAntes: { workspaceId, folderId: link.folderId, visibilityScope: fromScope },
+          datosDespues: { workspaceId, folderId: folderId || null, visibilityScope: toScope },
+        },
+      });
     });
     return { documentId, folderId: folderId || null };
   }
@@ -366,12 +537,13 @@ export class WorkspaceDocumentService {
     q: string,
   ) {
     const membership = await this.requireMembership(workspaceId, user);
-    this.requireRole(membership.role, [WorkspaceRole.ADMIN]);
+    this.requireRole(membership.role, [WorkspaceRole.ADMIN, WorkspaceRole.EDITOR]);
     const term = q.trim();
     if (term.length < 3) return [];
     return this.prisma.usuario.findMany({
       where: {
         activo: true,
+        workspaceMemberships: { some: { workspaceId, active: true } },
         OR: [
           { nombre: { contains: term, mode: 'insensitive' } },
           { apellido: { contains: term, mode: 'insensitive' } },
@@ -384,9 +556,225 @@ export class WorkspaceDocumentService {
     });
   }
 
-  async activity(workspaceId: string, user: AuthenticatedUser) {
+  async membershipCandidates(
+    workspaceId: string,
+    user: AuthenticatedUser,
+    q: string,
+  ) {
     const membership = await this.requireMembership(workspaceId, user);
     this.requireRole(membership.role, [WorkspaceRole.ADMIN]);
+    const term = q.trim();
+    if (term.length < 3) return [];
+    return this.prisma.usuario.findMany({
+      where: {
+        activo: true,
+        workspaceMemberships: { none: { workspaceId, active: true } },
+        OR: [
+          { nombre: { contains: term, mode: 'insensitive' } },
+          { apellido: { contains: term, mode: 'insensitive' } },
+          { email: { contains: term, mode: 'insensitive' } },
+        ],
+      },
+      orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
+      take: 20,
+      select: { id: true, nombre: true, apellido: true, email: true },
+    });
+  }
+
+  async setRestrictedFolderMembers(
+    workspaceId: string,
+    folderId: string,
+    user: AuthenticatedUser,
+    input: {
+      userIds?: number[];
+      visibilityScope?: WorkspaceVisibilityScope;
+      confirmAccessChange?: boolean;
+    },
+  ) {
+    const membership = await this.requireMembership(workspaceId, user);
+    const folder = await this.prisma.workspaceFolder.findFirst({
+      where: {
+        id: folderId,
+        workspaceId,
+        visibilityScope: { in: [WorkspaceVisibilityScope.RESTRICTED, WorkspaceVisibilityScope.DEPENDENCY_SHARED, WorkspaceVisibilityScope.INHERIT] },
+      },
+      select: { id: true, parentId: true, name: true, createdById: true, visibilityScope: true },
+    });
+    if (!folder) throw new NotFoundException('Carpeta no encontrada.');
+    if (
+      membership.role !== WorkspaceRole.ADMIN &&
+      !(membership.role === WorkspaceRole.EDITOR && folder.createdById === user.id)
+    )
+      throw new NotFoundException('Carpeta no encontrada.');
+    const nextScope = input.visibilityScope ?? folder.visibilityScope;
+    if (
+      nextScope !== WorkspaceVisibilityScope.RESTRICTED &&
+      nextScope !== WorkspaceVisibilityScope.DEPENDENCY_SHARED
+    )
+      throw new BadRequestException('Una carpeta de la dependencia puede ser compartida o restringida.');
+    if (nextScope !== folder.visibilityScope && input.confirmAccessChange !== true)
+      throw new BadRequestException(
+        nextScope === WorkspaceVisibilityScope.DEPENDENCY_SHARED
+          ? 'Al cambiar a compartida, todos los integrantes autorizados de la dependencia podrán verla. Confirmá para continuar.'
+          : 'Al restringir esta carpeta, sólo las personas seleccionadas y responsables de la dependencia podrán verla. Confirmá para continuar.',
+      );
+    if (
+      nextScope === WorkspaceVisibilityScope.DEPENDENCY_SHARED &&
+      folder.parentId &&
+      (await this.effectiveFolderScope(folder.parentId)) === WorkspaceVisibilityScope.RESTRICTED
+    )
+      throw new BadRequestException(
+        'Esta carpeta está dentro de una carpeta restringida. Para ampliar el acceso, cambiá primero el acceso de la carpeta superior.',
+      );
+    const existing = await this.prisma.workspaceFolderGrant.findMany({
+      where: { folderId },
+      select: { membershipId: true },
+    });
+    const selectedMemberships = nextScope !== WorkspaceVisibilityScope.RESTRICTED
+      ? []
+      : input.userIds !== undefined
+        ? await this.selectedMemberships(workspaceId, input.userIds)
+        : folder.visibilityScope === WorkspaceVisibilityScope.RESTRICTED
+          ? existing.map((row) => row.membershipId)
+          : [];
+    if (nextScope === WorkspaceVisibilityScope.DEPENDENCY_SHARED && membership.role !== WorkspaceRole.ADMIN)
+      throw new ForbiddenException('Sólo una persona responsable puede compartir una carpeta con toda la dependencia.');
+    const existingIds = existing.map((row) => row.membershipId);
+    const added = selectedMemberships.filter((id) => !existingIds.includes(id));
+    const removed = existingIds.filter((id) => !selectedMemberships.includes(id));
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workspaceFolderGrant.deleteMany({ where: { folderId } });
+      await tx.workspaceFolder.update({ where: { id: folderId }, data: { visibilityScope: nextScope } });
+      if (selectedMemberships.length)
+        await tx.workspaceFolderGrant.createMany({
+          data: selectedMemberships.map((membershipId) => ({ folderId, membershipId })),
+        });
+      await tx.accionLog.create({
+        data: {
+          usuarioId: user.id,
+          entidad: 'WorkspaceFolder',
+          entidadId: null,
+          accion: nextScope === WorkspaceVisibilityScope.RESTRICTED ? 'RESTRICTED_FOLDER_ACCESS_CHANGED' : 'FOLDER_VISIBILITY_CHANGED',
+          descripcion: 'Actualización de personas autorizadas para una carpeta.',
+          datosAntes: { workspaceId, folderId, membershipIds: existingIds },
+          datosDespues: { workspaceId, folderId, visibilityScope: nextScope, membershipIds: selectedMemberships },
+        },
+      });
+    });
+    return { folderId, visibilityScope: nextScope, visibilityLabel: workspaceVisibilityLabel(nextScope), authorizedCount: selectedMemberships.length, added, removed };
+  }
+
+  private async selectedMemberships(workspaceId: string, userIds: number[]) {
+    if (
+      !Array.isArray(userIds) ||
+      userIds.length > 100 ||
+      userIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
+    )
+      throw new BadRequestException('Seleccioná hasta 100 integrantes de la dependencia.');
+    const distinctIds = [...new Set(userIds)];
+    const memberships = await this.prisma.workspaceMembership.findMany({
+      where: {
+        workspaceId,
+        userId: { in: distinctIds },
+        active: true,
+        workspace: { active: true },
+        user: { activo: true },
+      },
+      select: { id: true, userId: true },
+    });
+    if (memberships.length !== distinctIds.length)
+      throw new BadRequestException('Elegí sólo personas activas de esta dependencia.');
+    return memberships.map((membership) => membership.id);
+  }
+
+  private async effectiveFolderScope(folderId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ scope: WorkspaceVisibilityScope }>>(Prisma.sql`
+      WITH RECURSIVE folder_chain AS (
+        SELECT folder."id", folder."parentId", folder."workspaceId", folder."ownerUserId",
+               folder."visibilityScope", 0 AS depth
+          FROM "WorkspaceFolder" folder WHERE folder."id" = ${folderId}
+        UNION ALL
+        SELECT parent."id", parent."parentId", parent."workspaceId", parent."ownerUserId",
+               parent."visibilityScope", chain.depth + 1
+          FROM folder_chain chain
+          JOIN "WorkspaceFolder" parent ON parent."id" = chain."parentId"
+         WHERE parent."workspaceId" IS NOT DISTINCT FROM chain."workspaceId"
+           AND parent."ownerUserId" IS NOT DISTINCT FROM chain."ownerUserId"
+      )
+      SELECT chain."visibilityScope" AS scope
+        FROM folder_chain chain
+       WHERE chain."visibilityScope" <> 'INHERIT'
+       ORDER BY chain.depth ASC
+       LIMIT 1
+    `);
+    return rows[0]?.scope ?? WorkspaceVisibilityScope.DEPENDENCY_SHARED;
+  }
+
+  private async effectiveRestrictedGrantCount(folderId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+      WITH RECURSIVE folder_chain AS (
+        SELECT folder."id", folder."parentId", folder."workspaceId", folder."ownerUserId",
+               folder."visibilityScope", 0 AS depth
+          FROM "WorkspaceFolder" folder WHERE folder."id" = ${folderId}
+        UNION ALL
+        SELECT parent."id", parent."parentId", parent."workspaceId", parent."ownerUserId",
+               parent."visibilityScope", chain.depth + 1
+          FROM folder_chain chain
+          JOIN "WorkspaceFolder" parent ON parent."id" = chain."parentId"
+         WHERE parent."workspaceId" IS NOT DISTINCT FROM chain."workspaceId"
+           AND parent."ownerUserId" IS NOT DISTINCT FROM chain."ownerUserId"
+      ), restricted_anchor AS (
+        SELECT chain."id" FROM folder_chain chain
+         WHERE chain."visibilityScope" = 'RESTRICTED'
+         ORDER BY chain.depth ASC LIMIT 1
+      )
+      SELECT count(*)::bigint AS count
+        FROM "WorkspaceFolderGrant" grant_row
+        JOIN "WorkspaceMembership" membership ON membership."id" = grant_row."membershipId"
+       WHERE grant_row."folderId" = (SELECT "id" FROM restricted_anchor)
+         AND membership."active" = TRUE
+    `);
+    return Number(rows[0]?.count ?? 0n);
+  }
+
+  async restrictedFolderMembers(
+    workspaceId: string,
+    folderId: string,
+    user: AuthenticatedUser,
+  ) {
+    const membership = await this.requireMembership(workspaceId, user);
+    const folder = await this.prisma.workspaceFolder.findFirst({
+      where: { id: folderId, workspaceId, visibilityScope: WorkspaceVisibilityScope.RESTRICTED },
+      select: { id: true, createdById: true },
+    });
+    if (!folder) throw new NotFoundException('Carpeta no encontrada.');
+    if (
+      membership.role !== WorkspaceRole.ADMIN &&
+      !(membership.role === WorkspaceRole.EDITOR && folder.createdById === user.id)
+    )
+      throw new NotFoundException('Carpeta no encontrada.');
+    const rows = await this.prisma.workspaceFolderGrant.findMany({
+      where: { folderId, membership: { active: true } },
+      orderBy: [{ membership: { user: { apellido: 'asc' } } }, { membership: { user: { nombre: 'asc' } } }],
+      select: {
+        membership: {
+          select: {
+            userId: true,
+            user: { select: { nombre: true, apellido: true } },
+          },
+        },
+      },
+    });
+    return rows.map(({ membership: grant }) => ({
+      userId: grant.userId,
+      nombre: grant.user.nombre,
+      apellido: grant.user.apellido,
+    }));
+  }
+
+  async activity(workspaceId: string, user: AuthenticatedUser) {
+    const membership = await this.requireMembership(workspaceId, user);
+    this.requireRole(membership.role, [WorkspaceRole.ADMIN, WorkspaceRole.EDITOR]);
     return this.prisma.$queryRaw<
       Array<{
         id: number;
@@ -408,21 +796,119 @@ export class WorkspaceDocumentService {
     `;
   }
 
-  async documentsInWorkspace(
-    workspaceId: string,
+  async personalFolders(user: AuthenticatedUser) {
+    const readableIds = await readableFolderIds(this.prisma, {
+      kind: 'PERSONAL',
+      userId: user.id,
+    });
+    const [folders, links] = await Promise.all([
+      this.prisma.workspaceFolder.findMany({
+        where: { workspaceId: null, ownerUserId: user.id, id: { in: readableIds } },
+        orderBy: [{ parentId: 'asc' }, { name: 'asc' }],
+        select: { id: true, parentId: true, name: true, visibilityScope: true, createdAt: true },
+      }),
+      this.prisma.workspaceDocument.findMany({
+        where: { workspaceId: null, ownerUserId: user.id, folderId: { in: readableIds } },
+        select: { folderId: true },
+      }),
+    ]);
+    const documentsByFolder = new Map<string, number>();
+    for (const link of links) {
+      if (link.folderId)
+        documentsByFolder.set(link.folderId, (documentsByFolder.get(link.folderId) ?? 0) + 1);
+    }
+    const childrenByFolder = new Map<string, number>();
+    const visibleIds = new Set(folders.map((folder) => folder.id));
+    for (const folder of folders) {
+      if (folder.parentId && visibleIds.has(folder.parentId))
+        childrenByFolder.set(folder.parentId, (childrenByFolder.get(folder.parentId) ?? 0) + 1);
+    }
+    return folders.map((folder) => ({
+      ...folder,
+      visibilityLabel: workspaceVisibilityLabel(folder.visibilityScope),
+      _count: {
+        documents: documentsByFolder.get(folder.id) ?? 0,
+        children: childrenByFolder.get(folder.id) ?? 0,
+      },
+    }));
+  }
+
+  async createPersonalFolder(
     user: AuthenticatedUser,
-    folderId?: string | null,
+    input: { name: string; parentId?: string | null },
   ) {
-    await this.requireMembership(workspaceId, user);
+    const name = input.name.trim();
+    if (!name || name.length > 100 || /[\\/]/u.test(name))
+      throw new BadRequestException('Nombre de carpeta inválido.');
+    const parentId = input.parentId || null;
+    const readableIds = await readableFolderIds(this.prisma, { kind: 'PERSONAL', userId: user.id });
+    if (parentId && !readableIds.includes(parentId))
+      throw new NotFoundException('Carpeta no encontrada.');
     if (
-      folderId &&
-      !(await this.prisma.workspaceFolder.findFirst({
-        where: { id: folderId, workspaceId },
-      }))
+      await this.prisma.workspaceFolder.findFirst({
+        where: { workspaceId: null, ownerUserId: user.id, parentId, name },
+        select: { id: true },
+      })
     )
+      throw new BadRequestException('Ya existe una carpeta con ese nombre en esta ubicación.');
+    const folder = await this.prisma.workspaceFolder.create({
+      data: {
+        workspaceId: null,
+        ownerUserId: user.id,
+        parentId,
+        name,
+        visibilityScope: parentId ? WorkspaceVisibilityScope.INHERIT : WorkspaceVisibilityScope.PERSONAL,
+        createdById: user.id,
+      },
+    });
+    await this.prisma.accionLog.create({
+      data: {
+        usuarioId: user.id,
+        entidad: 'WorkspaceFolder',
+        entidadId: null,
+        accion: 'PERSONAL_FOLDER_CREATE',
+        descripcion: 'Creación de carpeta personal.',
+        datosDespues: { folderId: folder.id, parentId },
+      },
+    });
+    return { id: folder.id, parentId, name: folder.name, visibilityLabel: 'Privado' };
+  }
+
+  async renamePersonalFolder(folderId: string, user: AuthenticatedUser, input: { name: string }) {
+    const name = input.name.trim();
+    if (!name || name.length > 100 || /[\\/]/u.test(name))
+      throw new BadRequestException('Nombre de carpeta inválido.');
+    const folder = await this.prisma.workspaceFolder.findFirst({
+      where: { id: folderId, workspaceId: null, ownerUserId: user.id },
+      select: { id: true, parentId: true, name: true },
+    });
+    if (!folder) throw new NotFoundException('Carpeta no encontrada.');
+    if (await this.prisma.workspaceFolder.findFirst({
+      where: { id: { not: folderId }, workspaceId: null, ownerUserId: user.id, parentId: folder.parentId, name },
+      select: { id: true },
+    }))
+      throw new BadRequestException('Ya existe una carpeta con ese nombre en esta ubicación.');
+    const updated = await this.prisma.workspaceFolder.update({ where: { id: folderId }, data: { name }, select: { id: true, parentId: true, name: true } });
+    await this.prisma.accionLog.create({
+      data: {
+        usuarioId: user.id,
+        entidad: 'WorkspaceFolder',
+        entidadId: null,
+        accion: 'PERSONAL_FOLDER_RENAME',
+        descripcion: 'Renombrado de carpeta personal.',
+        datosAntes: { folderId, name: folder.name },
+        datosDespues: { folderId, name },
+      },
+    });
+    return { ...updated, visibilityLabel: 'Privado' };
+  }
+
+  async personalDocuments(user: AuthenticatedUser, folderId: string | null = null) {
+    const readableIds = await readableFolderIds(this.prisma, { kind: 'PERSONAL', userId: user.id });
+    if (folderId && !readableIds.includes(folderId))
       throw new NotFoundException('Carpeta no encontrada.');
     const links = await this.prisma.workspaceDocument.findMany({
-      where: { workspaceId, ...(folderId !== undefined ? { folderId } : {}) },
+      where: { workspaceId: null, ownerUserId: user.id, folderId },
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: {
@@ -434,6 +920,208 @@ export class WorkspaceDocumentService {
             status: true,
             documentType: true,
             createdAt: true,
+            files: { orderBy: { version: 'desc' }, take: 1, select: { originalFilename: true, mimeType: true, sizeBytes: true } },
+            latestExtraction: { select: { status: true, pages: { select: { pageNumber: true } } } },
+          },
+        },
+        folder: { select: { id: true, name: true } },
+      },
+    });
+    return links.map(({ document, folder, ...link }) => ({
+      ...link,
+      document: {
+        ...document,
+        file: document.files[0]
+          ? {
+              filename: document.files[0].originalFilename,
+              mimeType: document.files[0].mimeType,
+              sizeBytes: Number(document.files[0].sizeBytes),
+            }
+          : null,
+        files: undefined,
+        extraction: document.latestExtraction
+          ? { status: document.latestExtraction.status, pageCount: document.latestExtraction.pages.length }
+          : null,
+        latestExtraction: undefined,
+      },
+      folder: folder ? { ...folder, visibilityLabel: 'Privado' } : null,
+      visibilityLabel: 'Privado',
+    }));
+  }
+
+  async uploadPersonal(
+    user: AuthenticatedUser,
+    files: Array<{ originalname: string; mimetype: string; buffer: Buffer; size: number }>,
+    folderId?: string,
+  ) {
+    if (!files?.length || files.length > MAX_FILES)
+      throw new BadRequestException(`Subí entre 1 y ${MAX_FILES} archivos por operación (PDF, TXT, RTF, DOC, DOCX u ODT).`);
+    const readableIds = await readableFolderIds(this.prisma, { kind: 'PERSONAL', userId: user.id });
+    if (folderId && !readableIds.includes(folderId))
+      throw new NotFoundException('Carpeta no encontrada.');
+    const results: Array<{ documentId: string; status: string; title?: string; pageCount?: number; duplicate: boolean; message?: string }> = [];
+    for (const file of files) {
+      try {
+        results.push(await this.ingestOne(null, user.id, file, folderId));
+      } catch (error) {
+        results.push({
+          documentId: '',
+          status: 'ERROR',
+          duplicate: false,
+          message: error instanceof BadRequestException ? error.message : 'No pudimos procesar este archivo. Podés volver a intentarlo.',
+        });
+      }
+    }
+    return { destination: 'Mis documentos', access: 'Sólo vos', results };
+  }
+
+  async searchPersonal(
+    user: AuthenticatedUser,
+    q: string,
+    page = 1,
+    pageSize = 20,
+    folderId?: string | null,
+  ) {
+    if (!q?.trim()) throw new BadRequestException('Ingresá una búsqueda.');
+    const readableIds = await readableFolderIds(this.prisma, { kind: 'PERSONAL', userId: user.id });
+    if (folderId && !readableIds.includes(folderId))
+      throw new NotFoundException('Carpeta no encontrada.');
+    const result = await this.search.federatedSearch(q, 'AND', {
+      visibility: 'ADMIN',
+      dialect: 'modern',
+      publicationPolicy: 'legacy-active-only',
+      sourceSystems: ['CORPUS'],
+      page,
+      pageSize,
+      documentScope: { kind: 'PERSONAL', userId: user.id, ...(folderId !== undefined ? { folderId } : {}) },
+    });
+    if (!result?.results.length) return result;
+    const associations = await this.prisma.workspaceDocument.findMany({
+      where: { workspaceId: null, ownerUserId: user.id, documentId: { in: result.results.map((item) => item.sourceId) } },
+      select: { documentId: true, folder: { select: { id: true, name: true } } },
+    });
+    const byId = new Map(associations.map((row) => [row.documentId, row.folder]));
+    return {
+      ...result,
+      results: result.results.map((row) => {
+        const folder = byId.get(row.sourceId);
+        return {
+          ...row,
+          metadata: {
+            ...row.metadata,
+            folderId: folder?.id ?? null,
+            folderName: folder?.name ?? 'Mis documentos',
+            visibilityLabel: 'Privado',
+          },
+        };
+      }),
+    };
+  }
+
+  personalMetadata(id: string, user: AuthenticatedUser, page?: number) {
+    return this.documents.metadata(id, 'RESTRICTED', page, undefined, user.id);
+  }
+
+  personalMatches(id: string, user: AuthenticatedUser, q: string) {
+    return this.documents.matches(id, 'RESTRICTED', q, undefined, user.id);
+  }
+
+  personalFile(id: string, user: AuthenticatedUser) {
+    return this.documents.file(id, 'RESTRICTED', undefined, user.id);
+  }
+
+  async sharePersonalDocument(
+    documentId: string,
+    user: AuthenticatedUser,
+    input: { workspaceId: string; folderId?: string | null; confirmAccessChange: boolean },
+  ) {
+    if (input.confirmAccessChange !== true)
+      throw new BadRequestException('Al mover este documento, las personas autorizadas de la dependencia podrán verlo. Confirmá el cambio para continuar.');
+    const membership = await this.requireMembership(input.workspaceId, user);
+    this.requireRole(membership.role, [WorkspaceRole.ADMIN, WorkspaceRole.EDITOR]);
+    const document = await this.prisma.workspaceDocument.findFirst({
+      where: { documentId, workspaceId: null, ownerUserId: user.id },
+      select: { id: true, folderId: true, document: { select: { sourceFiles: { select: { id: true }, take: 1 } } } },
+    });
+    if (!document) throw new NotFoundException('Documento no encontrado.');
+    if (document.document.sourceFiles.length)
+      throw new ForbiddenException('Un documento sincronizado de una carpeta de red no se puede cambiar a personal ni compartir desde acá.');
+    const targetFolderId = input.folderId || null;
+    if (targetFolderId) {
+      const readableIds = await readableFolderIds(this.prisma, { kind: 'WORKSPACE', workspaceId: input.workspaceId, userId: user.id });
+      if (!readableIds.includes(targetFolderId)) throw new NotFoundException('Carpeta no encontrada.');
+      if (await this.effectiveFolderScope(targetFolderId) === WorkspaceVisibilityScope.PERSONAL)
+        throw new BadRequestException('El destino personal pertenece a otra persona.');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workspaceDocument.update({ where: { id: document.id }, data: { workspaceId: input.workspaceId, ownerUserId: null, folderId: targetFolderId } });
+      await tx.accionLog.create({ data: { usuarioId: user.id, entidad: 'WorkspaceDocument', entidadId: null, accion: 'VISIBILITY_CHANGED', descripcion: 'Documento personal compartido explícitamente con una dependencia.', datosAntes: { scope: 'PERSONAL' }, datosDespues: { scope: targetFolderId ? 'FOLDER_SCOPE' : 'DEPENDENCY_SHARED', workspaceId: input.workspaceId, folderId: targetFolderId } } });
+    });
+    return { documentId, visibility: targetFolderId ? await this.effectiveFolderScope(targetFolderId) : WorkspaceVisibilityScope.DEPENDENCY_SHARED };
+  }
+
+  async makeDocumentPersonal(
+    workspaceId: string,
+    documentId: string,
+    user: AuthenticatedUser,
+    input: { folderId?: string | null; confirmAccessChange: boolean },
+  ) {
+    if (input.confirmAccessChange !== true)
+      throw new BadRequestException('Después de moverlo, sólo vos podrás verlo. Confirmá el cambio para continuar.');
+    const membership = await this.requireMembership(workspaceId, user);
+    this.requireRole(membership.role, [WorkspaceRole.ADMIN, WorkspaceRole.EDITOR]);
+    const link = await this.prisma.workspaceDocument.findFirst({
+      where: { workspaceId, documentId, ownerUserId: null },
+      select: { id: true, uploadedById: true, document: { select: { sourceFiles: { select: { id: true }, take: 1 } } } },
+    });
+    if (!link) throw new NotFoundException('Documento no encontrado.');
+    if (link.document.sourceFiles.length)
+      throw new ForbiddenException('Los documentos sincronizados de una carpeta de red permanecen compartidos con la dependencia.');
+    if (membership.role !== WorkspaceRole.ADMIN && link.uploadedById !== user.id)
+      throw new ForbiddenException('Sólo quien cargó el documento o una persona responsable puede hacerlo personal.');
+    const folderId = input.folderId || null;
+    if (folderId && !(await readableFolderIds(this.prisma, { kind: 'PERSONAL', userId: user.id })).includes(folderId))
+      throw new NotFoundException('Carpeta no encontrada.');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workspaceDocument.update({ where: { id: link.id }, data: { workspaceId: null, ownerUserId: user.id, folderId } });
+      await tx.accionLog.create({ data: { usuarioId: user.id, entidad: 'WorkspaceDocument', entidadId: null, accion: 'VISIBILITY_CHANGED', descripcion: 'Documento de la dependencia pasó a ser personal.', datosAntes: { scope: 'DEPENDENCY_SHARED', workspaceId }, datosDespues: { scope: 'PERSONAL', ownerUserId: user.id, folderId } } });
+    });
+    return { documentId, visibility: WorkspaceVisibilityScope.PERSONAL };
+  }
+
+  async documentsInWorkspace(
+    workspaceId: string,
+    user: AuthenticatedUser,
+    folderId?: string | null,
+  ) {
+    const membership = await this.requireMembership(workspaceId, user);
+    const readableIds = await readableFolderIds(this.prisma, {
+      kind: 'WORKSPACE',
+      workspaceId,
+      userId: user.id,
+    });
+    if (folderId && !readableIds.includes(folderId))
+      throw new NotFoundException('Carpeta no encontrada.');
+    const links = await this.prisma.workspaceDocument.findMany({
+      where: {
+        workspaceId,
+        ownerUserId: null,
+        ...(folderId !== undefined
+          ? { folderId }
+          : { OR: [{ folderId: null }, { folderId: { in: readableIds } }] }),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        uploadedBy: { select: { nombre: true, apellido: true } },
+        document: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            documentType: true,
+            createdAt: true,
+            sourceFiles: { take: 1, select: { id: true } },
             files: {
               orderBy: { version: 'desc' },
               take: 1,
@@ -449,10 +1137,10 @@ export class WorkspaceDocumentService {
             },
           },
         },
-        folder: { select: { id: true, name: true } },
+        folder: { select: { id: true, name: true, visibilityScope: true } },
       },
     });
-    return links.map(({ document, folder, ...link }) => ({
+    return Promise.all(links.map(async ({ document, folder, ...link }) => ({
       ...link,
       document: {
         ...document,
@@ -472,9 +1160,21 @@ export class WorkspaceDocumentService {
             }
           : null,
         latestExtraction: undefined,
+        sourceFiles: undefined,
       },
-      folder,
-    }));
+      canMakePersonal: document.sourceFiles.length === 0 &&
+        (membership.role === WorkspaceRole.ADMIN || link.uploadedById === user.id),
+      folder: folder
+        ? {
+            id: folder.id,
+            name: folder.name,
+            visibilityLabel: workspaceVisibilityLabel(await this.effectiveFolderScope(folder.id)),
+          }
+        : null,
+      visibilityLabel: folder
+        ? workspaceVisibilityLabel(await this.effectiveFolderScope(folder.id))
+        : 'Compartido',
+    })));
   }
 
   async upload(
@@ -497,12 +1197,12 @@ export class WorkspaceDocumentService {
       throw new BadRequestException(
         `Subí entre 1 y ${MAX_FILES} archivos por operación (PDF, TXT, RTF, DOC, DOCX u ODT).`,
       );
-    if (
-      folderId &&
-      !(await this.prisma.workspaceFolder.findFirst({
-        where: { id: folderId, workspaceId },
-      }))
-    )
+    const readableIds = await readableFolderIds(this.prisma, {
+      kind: 'WORKSPACE',
+      workspaceId,
+      userId: user.id,
+    });
+    if (folderId && !readableIds.includes(folderId))
       throw new NotFoundException('Carpeta no encontrada.');
     const results: Array<{
       documentId: string;
@@ -569,10 +1269,13 @@ export class WorkspaceDocumentService {
     if (!q?.trim()) throw new BadRequestException('Ingresá una búsqueda.');
     if (
       folderId &&
-      !(await this.prisma.workspaceFolder.findFirst({
-        where: { id: folderId, workspaceId },
-        select: { id: true },
-      }))
+      !(
+        await readableFolderIds(this.prisma, {
+          kind: 'WORKSPACE',
+          workspaceId,
+          userId: user.id,
+        })
+      ).includes(folderId)
     )
       throw new NotFoundException('Carpeta no encontrada.');
     if (sourceFolder && (!sourceId || sourceId === '__manual_upload__'))
@@ -617,6 +1320,7 @@ export class WorkspaceDocumentService {
       documentScope: {
         kind: 'WORKSPACE',
         workspaceId,
+        userId: user.id,
         ...(folderId !== undefined ? { folderId } : {}),
         ...(sourceId ? { sourceId } : {}),
         ...(normalizedSourceFolder
@@ -707,6 +1411,11 @@ export class WorkspaceDocumentService {
 
   async searchSources(workspaceId: string, user: AuthenticatedUser) {
     await this.requireMembership(workspaceId, user);
+    const readableIds = await readableFolderIds(this.prisma, {
+      kind: 'WORKSPACE',
+      workspaceId,
+      userId: user.id,
+    });
     const [sources, manualUploadCount] = await Promise.all([
       this.prisma.documentSource.findMany({
         where: { workspaceId },
@@ -723,6 +1432,15 @@ export class WorkspaceDocumentService {
       this.prisma.workspaceDocument.count({
         where: {
           workspaceId,
+          ownerUserId: null,
+          OR: [
+            { folderId: null },
+            {
+              folderId: {
+                in: readableIds,
+              },
+            },
+          ],
           document: {
             documentScope: 'PRIVATE_WORKSPACE',
             sourceFiles: {
@@ -821,13 +1539,12 @@ export class WorkspaceDocumentService {
     const term = q.trim();
     if (term.length < 2)
       throw new BadRequestException('Ingresá al menos dos caracteres.');
-    if (
-      folderId &&
-      !(await this.prisma.workspaceFolder.findFirst({
-        where: { id: folderId, workspaceId },
-        select: { id: true },
-      }))
-    )
+    const readableIds = await readableFolderIds(this.prisma, {
+      kind: 'WORKSPACE',
+      workspaceId,
+      userId: user.id,
+    });
+    if (folderId && !readableIds.includes(folderId))
       throw new NotFoundException('Carpeta no encontrada.');
     if (sourceFolder && (!sourceId || sourceId === '__manual_upload__'))
       throw new BadRequestException(
@@ -857,6 +1574,10 @@ export class WorkspaceDocumentService {
     const namePattern = `%${escaped}%`;
     const predicates: Prisma.Sql[] = [
       Prisma.sql`workspaceDocument."workspaceId" = ${workspaceId}`,
+      Prisma.sql`workspaceDocument."ownerUserId" IS NULL`,
+      readableIds.length
+        ? Prisma.sql`(workspaceDocument."folderId" IS NULL OR workspaceDocument."folderId" IN (${Prisma.join(readableIds)}))`
+        : Prisma.sql`workspaceDocument."folderId" IS NULL`,
       Prisma.sql`document."documentScope" = 'PRIVATE_WORKSPACE'`,
       Prisma.sql`(document."title" ILIKE ${namePattern} ESCAPE E'\\\\' OR latestFile."originalFilename" ILIKE ${namePattern} ESCAPE E'\\\\')`,
     ];
@@ -982,7 +1703,7 @@ export class WorkspaceDocumentService {
     page?: number,
   ) {
     await this.requireMembership(workspaceId, user);
-    return this.documents.metadata(id, 'RESTRICTED', page, workspaceId);
+    return this.documents.metadata(id, 'RESTRICTED', page, workspaceId, user.id);
   }
   async matches(
     workspaceId: string,
@@ -991,11 +1712,11 @@ export class WorkspaceDocumentService {
     q: string,
   ) {
     await this.requireMembership(workspaceId, user);
-    return this.documents.matches(id, 'RESTRICTED', q, workspaceId);
+    return this.documents.matches(id, 'RESTRICTED', q, workspaceId, user.id);
   }
   async file(workspaceId: string, id: string, user: AuthenticatedUser) {
     await this.requireMembership(workspaceId, user);
-    return this.documents.file(id, 'RESTRICTED', workspaceId);
+    return this.documents.file(id, 'RESTRICTED', workspaceId, user.id);
   }
 
   async manageMember(
@@ -1035,15 +1756,20 @@ export class WorkspaceDocumentService {
           'El espacio debe conservar al menos un administrador activo.',
         );
     }
-    const result = await this.prisma.workspaceMembership.upsert({
-      where: { workspaceId_userId: { workspaceId, userId: input.userId } },
-      create: {
-        workspaceId,
-        userId: input.userId,
-        role: input.role,
-        active: input.active ?? true,
-      },
-      update: { role: input.role, active: input.active ?? true },
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.workspaceMembership.upsert({
+        where: { workspaceId_userId: { workspaceId, userId: input.userId } },
+        create: {
+          workspaceId,
+          userId: input.userId,
+          role: input.role,
+          active: input.active ?? true,
+        },
+        update: { role: input.role, active: input.active ?? true },
+      });
+      if (updated.active === false)
+        await tx.workspaceFolderGrant.deleteMany({ where: { membershipId: updated.id } });
+      return updated;
     });
     await this.audit(user.id, workspaceId, 'MEMBER_UPSERT', {
       memberUserId: input.userId,
@@ -1054,7 +1780,7 @@ export class WorkspaceDocumentService {
   }
 
   private async ingestOne(
-    workspaceId: string,
+    workspaceId: string | null,
     userId: number,
     file: {
       originalname: string;
@@ -1110,7 +1836,9 @@ export class WorkspaceDocumentService {
       );
     const existing = await this.prisma.workspaceDocument.findFirst({
       where: {
-        workspaceId,
+        ...(workspaceId
+          ? { workspaceId, ownerUserId: null }
+          : { workspaceId: null, ownerUserId: userId }),
         ...(replaceDocumentId
           ? { documentId: { not: replaceDocumentId } }
           : {}),
@@ -1255,7 +1983,9 @@ export class WorkspaceDocumentService {
       });
       const idempotencyKey = replaceDocumentId
         ? `workspace-source:${workspaceId}:${doc.id}:${stored.sha256}`
-        : `workspace:${workspaceId}:${stored.sha256}`;
+        : workspaceId
+          ? `workspace:${workspaceId}:${folderId ?? 'ROOT'}:${stored.sha256}`
+          : `personal:${userId}:${folderId ?? 'ROOT'}:${stored.sha256}`;
       await tx.corpusIngestionRecord.upsert({
         where: { idempotencyKey },
         update: {
@@ -1287,6 +2017,7 @@ export class WorkspaceDocumentService {
         await tx.workspaceDocument.create({
           data: {
             workspaceId,
+            ownerUserId: workspaceId ? null : userId,
             documentId: doc.id,
             folderId: folderId ?? null,
             uploadedById: userId,
@@ -1296,10 +2027,16 @@ export class WorkspaceDocumentService {
         data: {
           usuarioId: userId,
           entidad: 'WorkspaceDocument',
-          accion: replaceDocumentId ? 'SOURCE_REPROCESS' : 'UPLOAD',
+          accion: replaceDocumentId
+            ? 'SOURCE_REPROCESS'
+            : workspaceId
+              ? 'UPLOAD'
+              : 'PERSONAL_UPLOAD',
           descripcion: replaceDocumentId
             ? 'Versión de fuente documental actualizada.'
-            : 'Documento incorporado al espacio privado.',
+            : workspaceId
+              ? 'Documento incorporado al espacio de la dependencia.'
+              : 'Documento personal incorporado.',
           datosDespues: {
             workspaceId,
             documentId: doc.id,

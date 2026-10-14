@@ -34,6 +34,8 @@ model Usuario {
   documentSourcesCreated     DocumentSource[]      @relation("DocumentSourceCreator")
   workspaceFoldersCreated    WorkspaceFolder[]     @relation("WorkspaceFolderCreator")
   workspaceDocumentsUploaded WorkspaceDocument[]   @relation("WorkspaceDocumentUploader")
+  personalWorkspaceDocuments WorkspaceDocument[]   @relation("WorkspaceDocumentOwner")
+  personalWorkspaceFolders   WorkspaceFolder[]     @relation("WorkspaceFolderOwner")
   resenasActualizadas        Sentencia[]           @relation("ResenaUpdatedBy")
   resenasPublicadas          Sentencia[]           @relation("ResenaPublishedBy")
   citasCreadas               CitaFallo[]           @relation("CitaCreatedBy")
@@ -628,6 +630,13 @@ enum WorkspaceRole {
   VIEWER
 }
 
+enum WorkspaceVisibilityScope {
+  INHERIT
+  PERSONAL
+  DEPENDENCY_SHARED
+  RESTRICTED
+}
+
 model DocumentDependency {
   id        String                  @id @default(cuid())
   code      String                  @unique
@@ -657,15 +666,16 @@ model DocumentWorkspace {
 }
 
 model WorkspaceMembership {
-  id          String            @id @default(cuid())
-  workspaceId String
-  userId      Int
-  role        WorkspaceRole
-  active      Boolean           @default(true)
-  workspace   DocumentWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        Usuario           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id           String                 @id @default(cuid())
+  workspaceId  String
+  userId       Int
+  role         WorkspaceRole
+  active       Boolean                @default(true)
+  workspace    DocumentWorkspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user         Usuario                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderGrants WorkspaceFolderGrant[]
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
 
   @@unique([workspaceId, userId])
   @@index([userId, active])
@@ -673,38 +683,58 @@ model WorkspaceMembership {
 }
 
 model WorkspaceFolder {
-  id          String              @id @default(cuid())
-  workspaceId String
-  parentId    String?
-  name        String
-  createdById Int
-  workspace   DocumentWorkspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  parent      WorkspaceFolder?    @relation("WorkspaceFolderTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children    WorkspaceFolder[]   @relation("WorkspaceFolderTree")
-  createdBy   Usuario             @relation("WorkspaceFolderCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  documents   WorkspaceDocument[]
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id              String                   @id @default(cuid())
+  workspaceId     String?
+  ownerUserId     Int?
+  parentId        String?
+  name            String
+  visibilityScope WorkspaceVisibilityScope @default(DEPENDENCY_SHARED)
+  createdById     Int
+  workspace       DocumentWorkspace?       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownerUser       Usuario?                 @relation("WorkspaceFolderOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  parent          WorkspaceFolder?         @relation("WorkspaceFolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children        WorkspaceFolder[]        @relation("WorkspaceFolderTree")
+  createdBy       Usuario                  @relation("WorkspaceFolderCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  documents       WorkspaceDocument[]
+  grants          WorkspaceFolderGrant[]
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
 
   @@index([workspaceId, parentId, name])
+  @@index([ownerUserId, parentId, name])
 }
 
 model WorkspaceDocument {
-  id           String            @id @default(cuid())
-  workspaceId  String
+  id           String             @id @default(cuid())
+  workspaceId  String?
+  ownerUserId  Int?
   documentId   String
   folderId     String?
   uploadedById Int
-  workspace    DocumentWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  document     CorpusDocument    @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  folder       WorkspaceFolder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  uploadedBy   Usuario           @relation("WorkspaceDocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-  createdAt    DateTime          @default(now())
+  workspace    DocumentWorkspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownerUser    Usuario?           @relation("WorkspaceDocumentOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  document     CorpusDocument     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  folder       WorkspaceFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  uploadedBy   Usuario            @relation("WorkspaceDocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  createdAt    DateTime           @default(now())
 
   @@unique([workspaceId, documentId])
   @@index([workspaceId, createdAt])
   @@index([workspaceId, folderId, createdAt])
+  @@index([ownerUserId, createdAt])
   @@index([documentId])
+}
+
+model WorkspaceFolderGrant {
+  id           String              @id @default(cuid())
+  folderId     String
+  membershipId String
+  folder       WorkspaceFolder     @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  membership   WorkspaceMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  createdAt    DateTime            @default(now())
+
+  @@unique([folderId, membershipId])
+  @@index([membershipId, folderId])
 }
 
 model CorpusDocumentRepositoryRoot {
@@ -947,6 +977,7 @@ model CorpusDocumentPage {
 
 model CorpusOcrJob {
   id               String             @id @default(cuid())
+  queueName        String             @default("default")
   documentId       String
   fileId           String
   fileSha256       String
@@ -972,6 +1003,7 @@ model CorpusOcrJob {
 
   @@unique([fileId, fingerprint])
   @@index([status, createdAt])
+  @@index([queueName, status, createdAt])
   @@index([documentId, createdAt])
   @@index([fileId, fileSha256])
 }
