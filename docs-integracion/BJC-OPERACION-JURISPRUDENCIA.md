@@ -67,3 +67,16 @@ Performance loopback (10 muestras tras warmup): broad 6.014 resultados p50/p95 7
 ## Adenda J9.1 — UX lector/operador (2026-10-14)
 
 La capa de presentación facilita la consulta y el ciclo existente; no cambia contratos de publicación, API, roles, Search o ACL. Las rutas E2E lector/operador y cleanup sintético de J9.0.1 siguen como evidencia del workflow. En el corte DEV, sumarios visibles=0 y activos no publicados=21.119; no equiparar esta lista histórica con los 56 pendientes del manifiesto J8/J9.0.1. Viewer visual queda pendiente de comprobación con PDF cargado. UAT no ejecutada. Detalles: `BJC-UX-JURISPRUDENCIA.md` y evidencia local ignorada `_recovery-work/jurisprudencia-j91/`.
+
+
+## Sprint J9.1.1 — cierre dirigido UX (2026-10-14)
+
+- Sumarios reales reader-visible en los 6.014 publicados: 0. Los 25.138 sumarios legacy están vinculados a filas legacy sin cruce demostrado hacia los nuevos fallos del Corpus. El flujo `Ver sumario` y el filtro `numeroSumario` siguen soportando datos cuando existen; E2E sintético mostró dos sumarios (900001/900002) y sus temas.
+- La cola de operador contiene exactamente 56 documentos, derivados del estado persistido (36 colisiones legales) más fuente/archivo `text/plain` (20); no se hardcodearon IDs ni el número en frontend. Los demás activos no publicados se listan aparte: 21.083 tras excluir las 36 sentencias con marca de revisión. El lector recibe 403. Ningún caso de revisión se publicó.
+- El contador publicado antes/después es 6.014. El total activo no publicado sin la cola es 21.083; los 20 documentos `text/plain` no tenían fila `Sentencia` y por eso no forman parte de las 21.119 sentencias activas no publicadas.
+- Viewer E2E comprobó firma, parser, dimensiones y capturas visuales de PDF real/sintético. La causa de la captura vacía previa fue el momento temprano de captura; Viewer core/wrapper y Search permanecen sin cambios.
+- Print usa localStorage + `/consulta/imprimir` + `window.print()` y stylesheet `@media print`; el smoke de la vista pasó. El diálogo del SO/navegador no se automatiza.
+- Fixture de borde: carátula 433 chars, sumario 4.397 chars, 12 magistrados, 12 temas, overflow 0 a 1366/1920.
+
+E2E J9.1.1: 3/3 PASS; workflow PostgreSQL: 1 integración + 4 unitarias PASS; frontend build/typecheck/lint dirigido y backend build/lint dirigido PASS. `prisma validate/generate` PASS; 24 migraciones al día. `tsc --noEmit` backend aún señala tres errores previos en `sentencias.workflow.spec.ts` (tipos de callbacks jest); no se originan en J9.1.1. UAT y producción siguen fuera de este cierre. Evidencia local ignorada: `_recovery-work/jurisprudencia-j911/`.
+

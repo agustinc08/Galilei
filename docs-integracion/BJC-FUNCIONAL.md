@@ -77,3 +77,9 @@ Playwright y las pruebas PostgreSQL sintéticas pasaron para Admin global/worksp
 ### J9.1 — familiaridad y UX de Jurisprudencia (2026-10-14)
 
 La interfaz lector prioriza búsqueda; conserva filtros legacy visibles y secundarios, Enter, chips activos, limpieza explícita, tarjetas densas y paginación simple. Detalle y wrapper Viewer identifican el fallo y ofrecen volver. Gestión agrupa borradores/no publicados, publicados y archivados, con alta PDF como acción principal. Responsive pasó matrices hasta 2560 px y smoke en 375/768/1366. Gap DEV: cero sumarios visibles a lectores; el listado no publicados incluye 21.119 filas históricas activas, frente al subconjunto J9 de 56 en revisión. Viewer core, Search, Corpus y schema no cambiaron. UAT humana no ejecutada. Contrato: `BJC-UX-JURISPRUDENCIA.md`.
+
+
+### J9.1.1 — cierre dirigido (2026-10-14)
+
+La operación distingue la cola derivada de 56 documentos de los 21.083 activos no publicados ajenos a la revisión; no hay publicación automática. En el workflow publicado los 6.014 fallos siguen sin sumarios reader-visible; 25.138 sumarios legacy no se asocian sin cruce jurídico. Un fixture sintético verifica número, temas, varios sumarios y contenido extenso (carátula 433 caracteres, sumario 4.397). PDF real/sintético se renderizó en Edge y el print seleccionado invocó `window.print()`. Test de overflow 1366/1920 dio 0. Viewer core y Search quedan intactos. J9.1.1 `CLOSED` sólo en DEV; UAT institucional pendiente.
+

@@ -206,6 +206,7 @@ const actions = {
   'sprint-j713-historical-sala-review-pack': 'node scripts/dev/sprint-j713-historical-sala-review-pack.cjs',
   'sprint-j8-civil-certification': 'node scripts/dev/sprint-j8-civil-certification.cjs',
   'sprint-j9-readonly-audit': 'node scripts/dev/sprint-j9-readonly-audit.cjs',
+  'sprint-j911-readonly-audit': 'node scripts/dev/sprint-j911-readonly-audit.cjs',
   'sprint-j901-eligibility': 'node scripts/dev/sprint-j901-publication-eligibility.cjs',
   'sprint-j901-find-synthetic': 'node scripts/dev/sprint-j901-find-synthetic.cjs',
   'sprint-j901-api-benchmark': 'node scripts/dev/sprint-j901-api-benchmark.cjs',

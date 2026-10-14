@@ -467,3 +467,11 @@ Performance pública, 10 solicitudes por familia: broad 72.93/83.91 ms p50/p95; 
 ## Sprint J9.1 — estado de UX (2026-10-14)
 
 Implementada una pasada de UX de lector/operador, con búsqueda directa, filtros legacy, chips, tarjetas densas, detalle y wrappers de navegación, gestión agrupada y alta más clara. Frontend build/typecheck/lint dirigido y E2E de lector/operador/responsive pasan. Prisma validate/generate y migrate status pasan (24 migraciones al día); PostgreSQL J9 sintético 1/1 PASS. Backend suite bajo guard: 98 PASS/17 omitidos en 21 de 28 suites. Lint global falla por cuatro reglas de React preexistentes en Corpus/Digesto/Revisión. Persisten dos gaps: sumarios reader-visible=0 y activos no publicados=21.119; no equiparar esto con 56 casos de revisión J9. Captura Viewer no confirma render PDF. UAT humana no ejecutada. Evidencia local ignorada: `_recovery-work/jurisprudencia-j91/`; contrato: `BJC-UX-JURISPRUDENCIA.md`.
+
+
+## Actualización J9.1.1 — 2026-10-14
+
+Jurisprudencia queda `CLOSED` en DEV para los gaps dirigidos de sumarios, cola de revisión, render de PDF, print y contenido largo. De los 6.014 fallos publicados, 0 tienen sumarios; 25.138 sumarios legacy no poseen un enlace jurídico demostrado a ese conjunto. La cola derivada muestra 56 documentos (36 identidad legal + 20 formato); 21.083 históricos/no relacionados están separados. El lector no accede a la cola.
+
+Edge renderizó el PDF real de 3 páginas y el fixture de 1 página en 1366×768 y 1920×1080. La impresión browser invoca `window.print()` con stylesheet verificada; no se automatizó diálogo del sistema. No cambió Search/Viewer core, Corpus, archivos ni schema; conteos de publicación permanecen 6.014/56. No hubo UAT institucional, preproducción ni producción. Evidencia local ignorada: `_recovery-work/jurisprudencia-j911/`.
+

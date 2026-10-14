@@ -42,3 +42,15 @@ La interfaz común habla de Jurisprudencia, fallos, expediente, Sala, sumario y 
 **Operador:** “Cargue un nuevo fallo. Guárdelo como borrador. Encuéntrelo. Publíquelo. Archívelo.” Usar un PDF de prueba autorizado y acordar previamente su limpieza.
 
 Registrar si cada tarea se completó sin ayuda, desvíos, preguntas, tiempo y errores. UAT institucional sigue pendiente.
+
+
+## Cierre dirigido J9.1.1 — 2026-10-14
+
+La auditoría DEV confirma 6.014/6.014 fallos publicados con cero sumarios vinculados o visibles. Los 25.138 sumarios existentes pertenecen a sentencias legacy y no hay un cruce jurídico probado hacia el workflow del Corpus; no se copian ni se inventan sumarios. La UI conserva “No hay sumarios publicados para este fallo”; soporte de Nº Sumario y varios sumarios queda demostrado con fixture sintético.
+
+Gestión separa “Requieren revisión (56)” de “Otros no publicados / históricos”. La cola se deriva de 36 marcas persistidas de colisión legal más 20 archivos `text/plain` de la fuente civil; se verifican cero solapamientos. Los históricos quedan fuera de la cola: 21.083 en la lista separada. El lector recibe 403 al consultar la cola. Los 56 siguen sin publicar y el total publicado permanece 6.014.
+
+El Viewer renderizó visiblemente un PDF real publicado de 3 páginas y un PDF sintético de 1 página en Edge; las capturas se inspeccionaron en 1366×768 y 1920×1080. La captura vacía anterior se tomó antes de que el iframe terminara de cargar; no se detectó ni corrigió un bug del wrapper/visor. La impresión usa una vista de resultados seleccionados y `window.print()`; se verificaron contenido y estilos de impresión, sin automatizar el diálogo nativo.
+
+El fixture visual de prueba cubrió carátula de 433 caracteres, sumario de 4.397 caracteres, 12 magistrados y 12 temas; overflow horizontal=0 en 1366/1920. E2E J9.1.1 y cleanup pasaron. UAT institucional sigue pendiente; este cierre aplica sólo a DEV.
+

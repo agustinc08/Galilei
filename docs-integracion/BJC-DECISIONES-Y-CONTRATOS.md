@@ -226,3 +226,11 @@ Las filas nuevas comienzan como borrador. La publicación sólo ocurre mediante 
 ## Contrato UX J9.1
 
 La UI mantiene separación lector/operador y conserva los controles de consulta legados sin cambiar Search semantics, workflow, Viewer core, ACL, datos, Prisma ni migraciones. La etiqueta “Borradores y no publicados” cubre el query histórico de operación y no equivale al conjunto de 56 casos en revisión de J9.0.1. Los sumarios se exponen sólo si son reader-visible; el snapshot auditado tiene cero. Evidencia, alcance responsive y UAT pendiente en `BJC-UX-JURISPRUDENCIA.md`.
+
+
+## Contrato operativo J9.1.1 — cola de revisión de publicación (2026-10-14)
+
+Se incorpora `GET /api/sentencias/revision/cola-publicacion`, autenticado para ADMIN, OPERADOR y JURISPRUDENCIA. Devuelve metadatos mínimos y motivo legible de documentos no publicados, derivados de (a) marca persistida `REQUIRES_REVIEW_LEGAL_KEY_COLLISION` o (b) archivo `text/plain` de la fuente civil `CIVIL_CUANTIFICACION_DANOS`. El endpoint excluye cualquier sentencia activa publicada, no expone paths ni texto documental y no realiza escrituras. El total se obtiene de la consulta; no es una constante frontend.
+
+La lista `GET /api/sentencias?publicado=false&activo=true&excluirRevision=true` permite mostrar los demás activos no publicados aparte de la cola. No altera el comportamiento histórico de `/sentencias` cuando el parámetro se omite. No se cambió schema ni se creó migración.
+

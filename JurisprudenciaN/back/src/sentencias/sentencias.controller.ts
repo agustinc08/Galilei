@@ -50,6 +50,16 @@ export class SentenciasController {
     return this.sentenciasService.getDestacadas();
   }
 
+  @Get('revision/cola-publicacion')
+  @Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.JURISPRUDENCIA)
+  @ApiOperation({
+    summary:
+      'Lista documentos civiles que requieren revisión antes de publicar',
+  })
+  getPublicationReviewQueue() {
+    return this.sentenciasService.getPublicationReviewQueue();
+  }
+
   @Get()
   @ApiOperation({ summary: 'Lista sentencias con filtros y paginación' })
   findAll(@Query() query: QuerySentenciasDto) {

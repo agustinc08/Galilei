@@ -324,3 +324,9 @@ J8 concluyó `CERTIFIED_WITH_KNOWN_GAPS` para los 6.070 documentos Civil actualm
 J9 está `CLOSED` en DEV tras validar elegibilidad/ACL, workflow público de 6.014 fallos, ciclo PDF navegador, paginación, Viewer, roles, regresión de espacios privados, responsive e idempotencia. 56 registros quedan fuera de publicación y conservados para revisión de identidad legal/modelo; no ejecutar un backfill más amplio hasta resolverlos con evidencia. La consulta media `responsabilidad civil` tiene p50 8.353 ms y p95 10.507 ms con 10 muestras; el próximo alcance técnico es el sprint final de Search, preservando ranking y paridad. Después puede seguir J9.1 de UX/zero-training. Preproducción institucional sigue bloqueada por falta de destino autorizado y UAT; no asumir que el cierre J9 habilita producción. Ver `BJC-OPERACION-JURISPRUDENCIA.md`.
 
 J9.1 implementa la mejora de UX de Jurisprudencia con build, typecheck, lint dirigido y E2E/responsive de interfaz PASS. El cierre es `PARTIAL`: el DEV no tiene sumarios visibles a lectores, la pestaña no publicados muestra universo legado amplio, la captura no verificó un PDF renderizado y UAT humana no se ejecutó. No se alteraron Search, Viewer core, Corpus, datos ni schema. Contrato/evidencia: `BJC-UX-JURISPRUDENCIA.md` y `_recovery-work/jurisprudencia-j91/`.
+
+
+## Después de Sprint J9.1.1 — 2026-10-14
+
+J9.1 pasa de `PARTIAL` a `CLOSED` en DEV: sumarios reales=0 y soporte sintético PASS; cola operator de 56 derivada y separada; 21.083 históricos fuera de esa cola; PDF real y sintético visibles; print browser PASS; contenido largo/responsive PASS. Conteos siguen 6.014 publicados, 56 casos no publicados. No iniciar scraper, IA/resúmenes, Search optimization, adquisición o RAG desde este cierre. Esperar el cierre UX de `feature/copernic`; luego preparar integración coordinada, sin merge en este sprint. UAT institucional/preproducción/producción siguen pendientes.
+

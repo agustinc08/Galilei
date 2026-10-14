@@ -34,6 +34,18 @@ type CitaData = {
   citaCopiable: string;
 };
 
+type PublicationReviewQueueItem = {
+  documentId: string;
+  title: string;
+  caseNumber: string | null;
+  chamber: string | null;
+  decisionDate: Date | null;
+  published: boolean;
+  reason:
+    | 'Identidad jurídica ambigua'
+    | 'Representación documental requiere revisión';
+};
+
 type FalloRelacionadoResumen = {
   id: number;
   numeroSentencia: string | null;
@@ -143,6 +155,61 @@ export class SentenciasService {
     private readonly logsService: LogsService,
   ) {}
 
+  async getPublicationReviewQueue() {
+    const items = await this.prisma.$queryRaw<
+      PublicationReviewQueueItem[]
+    >(Prisma.sql`
+      WITH review_candidates AS (
+        SELECT DISTINCT c.id AS "documentId", c.title,
+          c."caseNumber" AS "caseNumber", c.chamber,
+          c."decisionDate" AS "decisionDate",
+          'Identidad jurídica ambigua'::text AS reason
+        FROM "CorpusDocument" c
+        INNER JOIN "CorpusDocumentLink" l
+          ON l."documentId" = c.id
+         AND l."targetDomain" = 'JURISPRUDENCIA'
+         AND l."targetType" = 'SENTENCIA'
+        WHERE l.metadata->>'publicationStatus' = 'REQUIRES_REVIEW_LEGAL_KEY_COLLISION'
+          AND NOT EXISTS (
+            SELECT 1 FROM "Sentencia" s
+            WHERE s."legacyId" = 'CORPUS:' || c.id
+              AND s.publicado = TRUE AND s.activo = TRUE
+          )
+
+        UNION
+
+        SELECT DISTINCT c.id AS "documentId", c.title,
+          c."caseNumber" AS "caseNumber", c.chamber,
+          c."decisionDate" AS "decisionDate",
+          'Representación documental requiere revisión'::text AS reason
+        FROM "CorpusDocument" c
+        INNER JOIN "CorpusIngestionRecord" i ON i."documentId" = c.id
+        INNER JOIN "CorpusSourceSystem" source ON source.id = i."sourceSystemId"
+        INNER JOIN "CorpusDocumentFile" f ON f.id = i."fileId"
+        WHERE source.code = 'CIVIL_CUANTIFICACION_DANOS'
+          AND f."mimeType" = 'text/plain'
+          AND NOT EXISTS (
+            SELECT 1 FROM "Sentencia" s
+            WHERE s."legacyId" = 'CORPUS:' || c.id
+              AND s.publicado = TRUE AND s.activo = TRUE
+          )
+      )
+      SELECT "documentId", title, "caseNumber", chamber, "decisionDate", reason,
+        FALSE AS published
+      FROM review_candidates
+      ORDER BY "decisionDate" DESC NULLS LAST, title, "documentId"
+    `);
+
+    return {
+      data: items,
+      meta: {
+        total: items.length,
+        definition:
+          'Estado persistido de colisión jurídica o archivo text/plain de la fuente civil cuantificada.',
+      },
+    };
+  }
+
   private async resolveCatalogFields(input: {
     salaId?: number | null;
     tipoFalloId?: number | null;
@@ -183,7 +250,16 @@ export class SentenciasService {
   async findAll(query: QuerySentenciasDto) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
-    const where = this.buildWhere(query);
+    let where = this.buildWhere(query);
+    if (query.excluirRevision) {
+      const reviewQueue = await this.getPublicationReviewQueue();
+      where = {
+        ...where,
+        legacyId: {
+          notIn: reviewQueue.data.map((item) => `CORPUS:${item.documentId}`),
+        },
+      };
+    }
 
     const [data, total] = await this.prisma.$transaction([
       this.prisma.sentencia.findMany({
@@ -1154,9 +1230,10 @@ export class SentenciasService {
       return updated;
     });
 
-    const sentencia = publicado && !sentenciaActualizada.slugPublico
-      ? (await this.generarSlug(id, sentenciaActualizada)).data
-      : sentenciaActualizada;
+    const sentencia =
+      publicado && !sentenciaActualizada.slugPublico
+        ? (await this.generarSlug(id, sentenciaActualizada)).data
+        : sentenciaActualizada;
 
     if (usuarioId) {
       await this.logsService.registrarAccion({
@@ -1346,9 +1423,11 @@ export class SentenciasService {
   }
 
   async generarSlug(id: number, publishedSnapshot?: Sentencia) {
-    const sentencia = publishedSnapshot ?? await this.prisma.sentencia.findUnique({
-      where: { id },
-    });
+    const sentencia =
+      publishedSnapshot ??
+      (await this.prisma.sentencia.findUnique({
+        where: { id },
+      }));
 
     if (!sentencia) {
       throw new NotFoundException('Sentencia no encontrada');
