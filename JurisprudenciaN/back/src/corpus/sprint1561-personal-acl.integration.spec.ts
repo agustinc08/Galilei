@@ -177,6 +177,34 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         buffer: payload,
         size: payload.byteLength,
       };
+
+      // A workspace has one logical association per document. Put the shared
+      // association in a second dependency so the same content can also stay
+      // restricted in the first without conflating the two ACL decisions.
+      const sharedWorkspace = await documents.createWorkspace(admin, {
+        code: `S1561SH${suffix}`,
+        name: 'Sprint 15.6.1 synthetic shared dependency',
+        type: WorkspaceDependencyType.JUZGADO,
+      });
+      workspaceIds.push(sharedWorkspace.id);
+      const sharedDependency = await prisma.documentDependency.findUniqueOrThrow({
+        where: { code: sharedWorkspace.code },
+        select: { id: true },
+      });
+      dependencyIds.push(sharedDependency.id);
+      await documents.manageMember(sharedWorkspace.id, admin, {
+        userId: grantee.id,
+        role: WorkspaceRole.EDITOR,
+      });
+      await documents.manageMember(sharedWorkspace.id, admin, {
+        userId: otherMember.id,
+        role: WorkspaceRole.VIEWER,
+      });
+      const sharedFolder = await documents.createFolder(sharedWorkspace.id, admin, {
+        name: `Compartida ${suffix}`,
+        visibilityScope: WorkspaceVisibilityScope.DEPENDENCY_SHARED,
+      });
+
       const workspaceUpload = await documents.upload(workspace.id, admin, [upload], inherited.id);
       const workspaceDocumentId = workspaceUpload.results[0]?.documentId;
       expect(workspaceUpload.results[0]).toMatchObject({ status: 'INDEXED', duplicate: false });
@@ -184,18 +212,28 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       const repeatedWorkspaceUpload = await documents.upload(workspace.id, admin, [upload], inherited.id);
       expect(repeatedWorkspaceUpload.results[0]).toMatchObject({ documentId: workspaceDocumentId, duplicate: true });
 
+      const sharedUpload = await documents.upload(sharedWorkspace.id, admin, [upload], sharedFolder.id);
+      const sharedDocumentId = sharedUpload.results[0]?.documentId;
+      expect(sharedUpload.results[0]).toMatchObject({ status: 'INDEXED', duplicate: false });
+      documentIds.push(sharedDocumentId);
+      expect(sharedDocumentId).not.toBe(workspaceDocumentId);
+
       const personalFolder = await documents.createPersonalFolder(grantee, { name: `Sólo yo ${suffix}` });
       const personalUpload = await documents.uploadPersonal(grantee, [upload], personalFolder.id);
       const personalDocumentId = personalUpload.results[0]?.documentId;
       expect(personalUpload.results[0]).toMatchObject({ status: 'INDEXED', duplicate: false });
       documentIds.push(personalDocumentId);
       expect(personalDocumentId).not.toBe(workspaceDocumentId);
+      expect(personalDocumentId).not.toBe(sharedDocumentId);
       const repeatedPersonalUpload = await documents.uploadPersonal(grantee, [upload], personalFolder.id);
       expect(repeatedPersonalUpload.results[0]).toMatchObject({ documentId: personalDocumentId, duplicate: true });
-      const [workspaceFile, personalFile] = await Promise.all([
+      const [workspaceFile, sharedFile, personalFile] = await Promise.all([
         prisma.corpusDocumentFile.findFirstOrThrow({ where: { documentId: workspaceDocumentId }, select: { sha256: true, storageKey: true } }),
+        prisma.corpusDocumentFile.findFirstOrThrow({ where: { documentId: sharedDocumentId }, select: { sha256: true, storageKey: true } }),
         prisma.corpusDocumentFile.findFirstOrThrow({ where: { documentId: personalDocumentId }, select: { sha256: true, storageKey: true } }),
       ]);
+      expect(sharedFile.sha256).toBe(workspaceFile.sha256);
+      expect(sharedFile.storageKey).toBe(workspaceFile.storageKey);
       expect(personalFile.sha256).toBe(workspaceFile.sha256);
       expect(personalFile.storageKey).toBe(workspaceFile.storageKey);
 
@@ -230,20 +268,31 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       ).toBe(false);
 
       const token = `SPRINT1561PERSONALACL${suffix}`;
-      const [allowedWorkspaceSearch, deniedWorkspaceSearch, ownerPersonalSearch, otherPersonalSearch] = await Promise.all([
+      const [allowedWorkspaceSearch, deniedWorkspaceSearch, sharedWorkspaceSearch, sharedWorkspaceSearchAsOther, ownerPersonalSearch, otherPersonalSearch] = await Promise.all([
         documents.searchWorkspace(workspace.id, grantee, token),
         documents.searchWorkspace(workspace.id, otherMember, token),
+        documents.searchWorkspace(sharedWorkspace.id, grantee, token),
+        documents.searchWorkspace(sharedWorkspace.id, otherMember, token),
         documents.searchPersonal(grantee, token),
         documents.searchPersonal(otherMember, token),
       ]);
       expect(allowedWorkspaceSearch?.results.map((item) => item.sourceId)).toContain(workspaceDocumentId);
       expect(deniedWorkspaceSearch?.results.map((item) => item.sourceId)).not.toContain(workspaceDocumentId);
+      expect(sharedWorkspaceSearch?.results.map((item) => item.sourceId)).toContain(sharedDocumentId);
+      expect(sharedWorkspaceSearchAsOther?.results.map((item) => item.sourceId)).toContain(sharedDocumentId);
       expect(ownerPersonalSearch?.results.map((item) => item.sourceId)).toContain(personalDocumentId);
+      expect(ownerPersonalSearch?.results.map((item) => item.sourceId)).not.toEqual(
+        expect.arrayContaining([workspaceDocumentId, sharedDocumentId]),
+      );
       expect(otherPersonalSearch?.results.map((item) => item.sourceId)).not.toContain(personalDocumentId);
       expect((await documents.documentsInWorkspace(workspace.id, grantee)).map((item) => item.documentId)).toContain(workspaceDocumentId);
       expect((await documents.documentsInWorkspace(workspace.id, otherMember)).map((item) => item.documentId)).not.toContain(workspaceDocumentId);
+      expect((await documents.documentsInWorkspace(sharedWorkspace.id, grantee)).map((item) => item.documentId)).toContain(sharedDocumentId);
+      expect((await documents.documentsInWorkspace(sharedWorkspace.id, otherMember)).map((item) => item.documentId)).toContain(sharedDocumentId);
       expect((await documents.searchNames(workspace.id, grantee, suffix)).results.map((item) => item.documentId)).toContain(workspaceDocumentId);
       expect((await documents.searchNames(workspace.id, otherMember, suffix)).results.map((item) => item.documentId)).not.toContain(workspaceDocumentId);
+      expect((await documents.searchNames(sharedWorkspace.id, grantee, suffix)).results.map((item) => item.documentId)).toContain(sharedDocumentId);
+      expect((await documents.searchNames(sharedWorkspace.id, otherMember, suffix)).results.map((item) => item.documentId)).toContain(sharedDocumentId);
       expect((await documents.personalDocuments(grantee, personalFolder.id)).map((item) => item.document.id)).toContain(personalDocumentId);
       expect((await documents.personalDocuments(otherMember, personalFolder.id).catch(() => [])).map((item) => item.document.id)).not.toContain(personalDocumentId);
       expect((await documents.personalDocuments(admin)).map((item) => item.document.id)).not.toContain(personalDocumentId);
@@ -258,7 +307,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         documentScope: { kind: 'GENERAL' },
       });
       expect(general.results.map((item) => item.sourceId)).not.toEqual(
-        expect.arrayContaining([workspaceDocumentId, personalDocumentId]),
+        expect.arrayContaining([workspaceDocumentId, sharedDocumentId, personalDocumentId]),
       );
       await expect(access.metadata(workspaceDocumentId, 'RESTRICTED', undefined, workspace.id, otherMember.id)).rejects.toMatchObject({ status: 404 });
       await expect(access.matches(workspaceDocumentId, 'RESTRICTED', token, workspace.id, otherMember.id)).rejects.toMatchObject({ status: 404 });
@@ -270,10 +319,17 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
 
       const authorizedMetadata = await documents.metadata(workspace.id, workspaceDocumentId, grantee);
       expect(authorizedMetadata.file?.href).toBe(`/api/workspaces/${workspace.id}/documents/${workspaceDocumentId}/file`);
+      const sharedMetadata = await documents.metadata(sharedWorkspace.id, sharedDocumentId, otherMember);
+      expect(sharedMetadata.file?.href).toBe(`/api/workspaces/${sharedWorkspace.id}/documents/${sharedDocumentId}/file`);
       const personalMetadata = await documents.personalMetadata(personalDocumentId, grantee);
       expect(personalMetadata.file?.href).toBe(`/api/personal/documents/${personalDocumentId}/file`);
       expect((await documents.personalFile(personalDocumentId, grantee)).content).toEqual(payload);
       expect((await documents.file(workspace.id, workspaceDocumentId, grantee)).content).toEqual(payload);
+      expect((await documents.file(sharedWorkspace.id, sharedDocumentId, otherMember)).content).toEqual(payload);
+      await expect(access.metadata(sharedDocumentId, 'RESTRICTED', undefined, sharedWorkspace.id, otherMember.id)).resolves.toMatchObject({ id: sharedDocumentId });
+      await expect(access.metadata(sharedDocumentId, 'RESTRICTED', undefined, sharedWorkspace.id, grantee.id)).resolves.toMatchObject({ id: sharedDocumentId });
+      await expect(access.matches(sharedDocumentId, 'RESTRICTED', token, sharedWorkspace.id, otherMember.id)).resolves.toBeDefined();
+      await expect(access.file(sharedDocumentId, 'RESTRICTED', sharedWorkspace.id, otherMember.id)).resolves.toMatchObject({ sha256: sharedFile.sha256 });
 
       await documents.setRestrictedFolderMembers(workspace.id, restricted.id, admin, {
         visibilityScope: WorkspaceVisibilityScope.RESTRICTED,
