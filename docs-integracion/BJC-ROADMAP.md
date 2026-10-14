@@ -275,3 +275,9 @@ El importador y el identity linker v2 quedan read-only/dry-run. Los 451 casos es
 ## Después de Sprint J3 — 2026-10-14
 
 J3 quedó CLOSED en readiness: solicitud institucional preparada sin enviar y pipeline local de intake/reconcile/gaps probado con fixtures sintéticos. El siguiente paso técnico independiente recomendado es diseñar la representación de identidad legal/archivos y el orden de revisión de los 451 grupos ya adquiridos, en read-only/dry-run; no fusionar por coincidencia de metadata o por SHA distinto. Si llega el export autorizado antes, priorizar J3.1 para medir sólo `coverage within supplied authorized census`, validar alcance y producir gaps sin descarga masiva.
+
+## Sprint J4 — prioridad después de clasificación (2026-10-14)
+
+J4 cerró el diseño/tooling read-only para 451 grupos: 428 requieren decisión humana, 7 corregir/aclarar datos de fuente, 16 dependen de soporte explícito del modelo y no hubo propuestas `AUTO_SAFE`. No iniciar J4.1 con escrituras. Próximo orden recomendado: (1) revisión humana P0 de las 2 identidades legales y 15 pares de archivo, conservando cada SHA y usando el paquete local; (2) aclarar los 7 metadata conflicts; (3) revisar los 106 candidatos cuando se obtengan candidate IDs/evidencia Corpus; (4) diseñar LegalDecision/DecisionRepresentation sólo tras coordinar el schema entre ramas. El HTML/CSV local y validador no aplican decisiones a DB.
+
+Search PHRASE conserva su gate técnico independiente y este Sprint no modifica runtime, datos ni métricas de búsqueda. J4 artefactos reproducibles/performance están en `_recovery-work/jurisprudencia-j4/`; propuesta de schema sigue UNDECIDED. No hacer adquisiciones nuevas por este orden de revisión.
