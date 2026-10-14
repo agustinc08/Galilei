@@ -548,8 +548,13 @@ export default function SentenciaDetailPage() {
   return (
     <div className={styles.section}>
       <PageHeader
-        title={`Sentencia #${sentencia.id}`}
-        description={`${sentencia.numeroSentencia ?? 'Sin número'} · ${formatDate(sentencia.fecha)}`}
+        title={sentencia.caratula || sentencia.numeroSentencia || `Fallo ${sentencia.id}`}
+        description={[
+          sentencia.expediente ? `Expte. ${sentencia.expediente}` : null,
+          sentencia.numeroSentencia ? `Sentencia ${sentencia.numeroSentencia}` : null,
+          sentencia.sala ? (sentencia.sala.toLowerCase().startsWith('sala') ? sentencia.sala : `Sala ${sentencia.sala}`) : 'Sin Sala informada',
+          sentencia.fecha ? formatDate(sentencia.fecha) : null,
+        ].filter(Boolean).join(' · ')}
         actions={
           <div className={styles.inlineActions}>
             {sentencia.activo ? (
@@ -560,6 +565,8 @@ export default function SentenciaDetailPage() {
                 <Button variant="secondary" onClick={() => void archiveSentence()}>Archivar</Button>
               </>
             ) : <span>Fallo archivado</span>}
+            {sentencia.publicado && sentencia.slugPublico ? <Link href={`/fallos/${sentencia.slugPublico}`}><Button variant="secondary">Ver publicación</Button></Link> : null}
+            <Link href="/sentencias"><Button variant="ghost">Volver a gestión</Button></Link>
             {isAdmin ? (
               <Button variant="secondary" onClick={() => void toggleDestacada()}>
                 {sentencia.destacada ? 'Quitar destacada' : 'Marcar destacada'}
@@ -839,10 +846,10 @@ export default function SentenciaDetailPage() {
               ) : null}
             </div>
             <div className={styles.badgeRow}>
-              <span className={styles.badge}>{sentencia.publicado ? 'Publicada' : 'No publicada'}</span>
-              <span className={styles.badge}>{sentencia.destacada ? 'Destacada' : 'Normal'}</span>
-              <span className={styles.badge}>{sentencia.resumenPublicado ? 'Resumen visible' : 'Resumen interno'}</span>
-              <span className={styles.badge}>{resenaPublicada ? 'Reseña visible' : 'Reseña interna'}</span>
+              <span className={`${styles.badge} ${sentencia.publicado ? styles.badgeSuccess : styles.badgeWarning}`}>{!sentencia.activo ? 'Archivado' : sentencia.publicado ? 'Publicado' : 'Borrador'}</span>
+              {sentencia.destacada ? <span className={styles.badge}>Destacado</span> : null}
+              {sentencia.resumenPublicado ? <span className={styles.badge}>Resumen visible</span> : null}
+              {resenaPublicada ? <span className={styles.badge}>Reseña visible</span> : null}
             </div>
           </SectionCard>
         </div>

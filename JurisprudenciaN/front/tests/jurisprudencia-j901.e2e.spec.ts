@@ -56,17 +56,17 @@ test('J9.0.1 operator valid PDF lifecycle is visible to readers then archived', 
   await page.getByRole('button', { name: 'Subir PDF y continuar' }).click();
   await expect(page.getByRole('button', { name: 'Completar datos del fallo' })).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: 'Completar datos del fallo' }).click();
-  await expect(page.getByRole('heading', { name: /Sentencia #/u })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Fallo|Sentencia #/u })).toBeVisible();
   sentenceId = Number(new URL(page.url()).pathname.split('/').filter(Boolean).at(-1));
   await page.screenshot({ path: resolve(artifactRoot, 'operator-new-valid-upload.png'), fullPage: true });
 
-  await page.getByLabel('N° de sentencia').fill('12345/2026');
+  await page.getByLabel('Nº de sentencia').fill('12345/2026');
   await page.getByLabel('Tipo de fallo').fill('Sentencia civil');
   await page.getByLabel('Sala').fill('Sala H');
   await page.getByLabel('Fecha').fill('2026-10-14');
   await page.getByLabel('Expediente').fill('CIV 12345/2026');
   await page.getByLabel('Tribunal de origen').fill('Cámara Nacional de Apelaciones en lo Civil');
-  await page.getByLabel('Caratula').fill(`Demandante de prueba c/ Demandado de prueba s/ danos ${marker}`);
+  await page.getByLabel('Carátula').fill(`Demandante de prueba c/ Demandado de prueba s/ danos ${marker}`);
   await page.getByLabel('Actor').fill('Demandante de prueba');
   await page.getByLabel('Demandado').fill('Demandado de prueba');
   await page.getByLabel('Objeto').fill(`Responsabilidad civil y dano moral ${marker}`);
@@ -77,8 +77,13 @@ test('J9.0.1 operator valid PDF lifecycle is visible to readers then archived', 
   await page.getByRole('button', { name: 'Guardar cambios' }).click();
   expect((await metadataSave).status()).toBe(200);
   await page.reload();
-  await expect(page.getByLabel('Caratula')).toHaveValue(new RegExp(marker));
+  await expect(page.getByLabel('Carátula')).toHaveValue(new RegExp(marker));
   await page.screenshot({ path: resolve(artifactRoot, 'operator-draft.png'), fullPage: true });
+
+  await page.goto(`/sentencias?publicado=false&activo=true&expediente=${encodeURIComponent('CIV 12345/2026')}`);
+  await expect(page.getByRole('heading', { name: new RegExp(marker) })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('link', { name: 'Editar fallo', exact: true }).first().click();
+  await expect(page.getByLabel('Carátula')).toHaveValue(new RegExp(marker));
 
   const draftSearch = await request.get(`${apiBase}/public/busqueda?q=${marker}`);
   expect((await draftSearch.json()).meta.total).toBe(0);
@@ -91,7 +96,7 @@ test('J9.0.1 operator valid PDF lifecycle is visible to readers then archived', 
   expect(readerDirect.status()).toBe(403);
   evidence.statuses = { upload: 'PASS', metadata: 'PASS', draftSearchVisible: 0, draftDirect: draftDirect.status() };
 
-  await expect(page.getByLabel('Caratula')).toHaveValue(new RegExp(marker));
+  await expect(page.getByLabel('Carátula')).toHaveValue(new RegExp(marker));
   await expect(page.getByLabel('Expediente')).toHaveValue('CIV 12345/2026');
   await page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Publicar fallo' }).click();
@@ -109,7 +114,7 @@ test('J9.0.1 operator valid PDF lifecycle is visible to readers then archived', 
   await page.evaluate(() => localStorage.clear());
   await signIn(page, credentials.accounts.reader);
   await page.goto(`/consulta?q=${marker}`);
-  await expect(page.getByText('1 resultados', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('1 resultado', { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText('Extracto del fallo', { exact: true })).toBeVisible({ timeout: 30_000 });
   await page.screenshot({ path: resolve(artifactRoot, 'reader-published-result.png'), fullPage: true });
   const viewerStartedAt = Date.now();
@@ -124,7 +129,10 @@ test('J9.0.1 operator valid PDF lifecycle is visible to readers then archived', 
 
   await page.evaluate(() => localStorage.clear());
   await signIn(page, credentials.accounts.operator);
-  await page.goto(`/sentencias/${sentenceId}`);
+  await page.goto(`/sentencias?publicado=true&activo=true&expediente=${encodeURIComponent('CIV 12345/2026')}`);
+  await expect(page.getByRole('heading', { name: new RegExp(marker) })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('link', { name: 'Editar fallo', exact: true }).first().click();
+  await page.waitForURL(new RegExp(`/sentencias/${sentenceId}$`, 'u'));
   await page.getByLabel('Objeto').fill(`Objeto editado ${marker}`);
   const editSave = page.waitForResponse((response) =>
     response.url().includes(`/api/sentencias/${sentenceId}`) && response.request().method() === 'PATCH',

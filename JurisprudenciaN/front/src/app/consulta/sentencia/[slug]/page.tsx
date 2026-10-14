@@ -1,6 +1,8 @@
 'use client';
 
 import { useParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import styles from '@/components/sentencias/sentencias.module.css';
 import { CopyButton } from '@/components/ui/CopyButton';
@@ -12,11 +14,15 @@ import { ShareLinkButton } from '@/components/ui/ShareLinkButton';
 import { CopyReferenceButton } from '@/components/sentencias/CopyReferenceButton';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { formatTipoFallo } from '@/lib/jurisprudencia-labels';
 import type { ApiResponse } from '@/types/common';
 import type { PublicSentencia } from '@/types/sentencia';
 
 export default function ConsultaSentenciaPublicaPage() {
   const params = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
+  const requestedReturn = searchParams.get('returnTo') ?? '';
+  const backHref = requestedReturn.startsWith('/consulta') ? requestedReturn : '/consulta';
   const [data, setData] = useState<PublicSentencia | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,33 +67,32 @@ export default function ConsultaSentenciaPublicaPage() {
   const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: 24, display: 'grid', gap: 24 }}>
+    <main style={{ maxWidth: 1040, minWidth: 0, margin: '0 auto', padding: 24, display: 'grid', gap: 18 }}>
       <section className={styles.section}>
-        <h1 style={{ fontSize: 30 }}>{data.cita.citaBreve}</h1>
+        <div className={styles.sectionHeader}>
+          <div>
+            <p style={{ margin: 0, color: '#536b82', fontWeight: 700 }}>Jurisprudencia · Sumario</p>
+            <h1 style={{ margin: '6px 0', fontSize: 30, overflowWrap: 'anywhere' }}>{data.caratula || data.cita.citaBreve}</h1>
+          </div>
+          <Link href={backHref}>
+            <Button variant="secondary">Volver a resultados</Button>
+          </Link>
+        </div>
         <div className={styles.badgeRow}>
-          {data.sala ? <span className={styles.badge}>{data.sala}</span> : null}
-          <span className={styles.badge}>{formatDate(data.fecha)}</span>
-          {data.archivosPdf.length > 0 ? <span className={styles.badge}>Con PDF</span> : null}
+          <span className={styles.badge}>{data.sala ? (data.sala.toLowerCase().startsWith('sala') ? data.sala : `Sala ${data.sala}`) : 'Sin Sala informada'}</span>
+          {data.fecha ? <span className={styles.badge}>{formatDate(data.fecha)}</span> : null}
+          {data.tipoFallo ? <span className={styles.badge}>{formatTipoFallo(data.tipoFallo)}</span> : null}
+          {data.archivosPdf.length > 0 ? <span className={styles.badge}>PDF disponible</span> : null}
         </div>
         <div className={styles.inlineActions}>
           <CopyButton value={data.cita.citaCopiable} label="Copiar cita" />
           <ShareLinkButton url={currentUrl} label="Copiar enlace" sentenciaId={data.id} />
-          <Button
-            variant="secondary"
-            onClick={() =>
-              window.open(`/consulta/sentencia/${params.slug}/documento`, '_blank', 'noopener')
-            }
-          >
-            Ver documento
-          </Button>
+          {data.archivosPdf.length > 0 ? <Link href={`/fallos/${params.slug}?returnTo=${encodeURIComponent(backHref)}`}><Button>Abrir fallo</Button></Link> : null}
           <PrintButton
             onPrint={() =>
               window.open(`/consulta/sentencia/${params.slug}/ficha`, '_blank', 'noopener')
             }
           />
-          <Button variant="secondary" onClick={() => window.print()}>
-            Imprimir página
-          </Button>
         </div>
       </section>
 
@@ -123,23 +128,29 @@ export default function ConsultaSentenciaPublicaPage() {
       ) : null}
 
       <section className={styles.section}>
-        <strong>Datos basicos</strong>
-        <p>Expediente: {data.expediente ?? '-'}</p>
-        <p>N° de sentencia: {data.numeroSentencia ?? '-'}</p>
-        <p>Tipo de fallo: {data.tipoFallo ?? '-'}</p>
-        <p>Caratula: {[data.actor, data.demandado].filter(Boolean).join(' c/ ') || '-'}</p>
+          <strong>Datos del fallo</strong>
+          {data.expediente ? <p>Expediente: {data.expediente}</p> : null}
+          {data.numeroSentencia ? <p>Nº de sentencia: {data.numeroSentencia}</p> : null}
+          {data.tipoFallo ? <p>Tipo: {formatTipoFallo(data.tipoFallo)}</p> : null}
+          {data.magistrados ? <p>Magistrados: {data.magistrados}</p> : null}
+          {data.tribunalOrigen ? <p>Tribunal de origen: {data.tribunalOrigen}</p> : null}
+          {data.sumarios.map((sumario) => sumario.tema).filter((tema): tema is string => Boolean(tema)).length ? (
+            <p>Temas: {data.sumarios.map((sumario) => sumario.tema).filter((tema): tema is string => Boolean(tema)).join(', ')}</p>
+          ) : null}
       </section>
 
       <section className={styles.section}>
         <strong>Sumarios</strong>
-        <div className={styles.listGrid}>
-          {data.sumarios.map((sumario) => (
-            <article key={sumario.id} className={styles.listItem}>
-              <strong>{sumario.tema ?? `Sumario ${sumario.id}`}</strong>
-              <p>{sumario.texto}</p>
-            </article>
-          ))}
-        </div>
+        {data.sumarios.length ? (
+          <div className={styles.listGrid}>
+            {data.sumarios.map((sumario) => (
+              <article key={sumario.id} className={styles.listItem}>
+                <strong>{sumario.tema ?? `Sumario ${sumario.id}`}</strong>
+                <p>{sumario.texto}</p>
+              </article>
+            ))}
+          </div>
+        ) : <p>No hay sumarios publicados para este fallo.</p>}
       </section>
 
       {data.referenciasNormativas?.length ? (

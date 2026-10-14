@@ -17,6 +17,65 @@
   gap: 16px;
 }
 
+.manageSection { width: 100%; min-width: 0; max-width: 100%; }
+.manageSection > * { min-width: 0; max-width: 100%; }
+.workflowNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0;
+}
+.workflowNav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid #d0dce8;
+  border-radius: 999px;
+  background: #fff;
+  color: #344054;
+  font-weight: 600;
+  text-decoration: none;
+}
+.workflowNav a:hover,
+.workflowNav a[aria-current="page"] { border-color: #1f5d99; background: #eaf3fb; color: #174b7b; }
+.workflowNav a:focus-visible { outline: 3px solid #fdb022; outline-offset: 2px; }
+.recordList { display: grid; gap: 10px; min-width: 0; }
+.recordCard {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #fff;
+}
+.recordHeading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; min-width: 0; }
+.recordHeading > div:first-child { min-width: 0; }
+.recordHeading h2 { margin: 0; color: #173b5e; font-size: 17px; line-height: 1.4; overflow-wrap: anywhere; }
+.recordHeading p,
+.recordMeta { margin: 4px 0 0; color: #536579; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.recordActions { display: flex; flex-wrap: wrap; gap: 8px; }
+.recordActions a { text-decoration: none; }
+.fileDrop {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 28px 20px;
+  border: 2px dashed #91abc4;
+  border-radius: 12px;
+  background: #f8fbff;
+  color: #344054;
+  text-align: center;
+  cursor: pointer;
+}
+.fileDrop:focus-visible { outline: 3px solid #fdb022; outline-offset: 3px; }
+.fileDrop strong { color: #173b5e; font-size: 18px; overflow-wrap: anywhere; }
+.fileDrop p { max-width: 680px; margin: 0; color: #667085; line-height: 1.5; }
+.operatorBlockTitle { margin: 0; color: #173b5e; font-size: 17px; }
+.formGroup { display: grid; gap: 12px; padding-top: 4px; }
+
 .sectionHeader {
   display: flex;
   align-items: center;
@@ -266,4 +325,10 @@
   .stickyAside {
     position: static;
   }
+}
+
+@media (max-width: 700px) {
+  .recordHeading { display: grid; }
+  .workflowNav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workflowNav a { justify-content: center; text-align: center; }
 }

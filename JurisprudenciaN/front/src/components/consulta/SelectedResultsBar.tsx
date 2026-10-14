@@ -10,15 +10,17 @@ type Props = {
 };
 
 export function SelectedResultsBar({ selectedCount, onPrint, onClear }: Props) {
+  if (selectedCount === 0) return null;
+
   return (
     <div className={styles.selectedBar}>
-      <strong>Seleccionados: {selectedCount}</strong>
+      <strong>{selectedCount} {selectedCount === 1 ? 'fallo seleccionado' : 'fallos seleccionados'} para imprimir</strong>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <Button variant="secondary" onClick={onPrint}>
-          Imprimir seleccionados
+        <Button onClick={onPrint}>
+          Imprimir
         </Button>
         <Button variant="ghost" onClick={onClear} disabled={selectedCount === 0}>
-          Limpiar seleccion
+          Quitar selección
         </Button>
       </div>
     </div>

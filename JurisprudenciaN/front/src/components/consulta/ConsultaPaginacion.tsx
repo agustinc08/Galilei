@@ -2,7 +2,6 @@
 
 import styles from './consulta.module.css';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 
 type Props = {
@@ -35,7 +34,7 @@ export function ConsultaPaginacion({
   return (
     <div className={styles.paginator}>
       <span>
-        {total} resultados | página {safePage} de {safePageCount} | {pageSize} por página
+        {total.toLocaleString('es-AR')} resultados · página {safePage} de {safePageCount}
       </span>
       <div className={styles.pageButtons}>
         <Select
@@ -49,38 +48,16 @@ export function ConsultaPaginacion({
             { label: '100', value: '100' },
           ]}
         />
-        <Button variant="secondary" onClick={() => goToPage(1)} disabled={safePage <= 1}>
-          Primera
-        </Button>
         <Button variant="secondary" onClick={() => goToPage(safePage - 1)} disabled={safePage <= 1}>
           Anterior
         </Button>
-        <Input
-          label="Página"
-          type="number"
-          min={1}
-          max={safePageCount}
-          value={String(safePage)}
-          onChange={(event) => {
-            const nextPage = Number(event.target.value);
-            if (Number.isInteger(nextPage)) {
-              goToPage(nextPage);
-            }
-          }}
-        />
+        <span className={styles.currentPage} aria-current="page">{safePage}</span>
         <Button
           variant="secondary"
           onClick={() => goToPage(safePage + 1)}
           disabled={safePage >= safePageCount}
         >
           Siguiente
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => goToPage(safePageCount)}
-          disabled={safePage >= safePageCount}
-        >
-          Última
         </Button>
       </div>
     </div>

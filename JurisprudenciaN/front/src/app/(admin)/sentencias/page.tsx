@@ -8,16 +8,14 @@ import { SentenciasFilters } from '@/components/sentencias/SentenciasFilters';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { ExportMenu } from '@/components/ui/ExportMenu';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatusMessage } from '@/components/ui/StatusMessage';
-import { Table } from '@/components/ui/Table';
-import { useAuth } from '@/hooks/use-auth';
 import { api } from '@/lib/api';
 import { limpiarFiltrosBusqueda } from '@/lib/busqueda';
-import { downloadBlob, formatDate } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
+import { formatTipoFallo } from '@/lib/jurisprudencia-labels';
 import type { PaginatedResponse } from '@/types/common';
 import type { Sentencia, SentenciaFilters as Filters } from '@/types/sentencia';
 
@@ -37,12 +35,10 @@ const defaultFilters: Filters = {
 };
 
 function SentenciasContent({ initialFilters }: { initialFilters: Filters }) {
-  const { user } = useAuth();
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [result, setResult] = useState<PaginatedResponse<Sentencia> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   const load = async (nextFilters = filters) => {
     setIsLoading(true);
@@ -52,8 +48,8 @@ function SentenciasContent({ initialFilters }: { initialFilters: Filters }) {
         query: limpiarFiltrosBusqueda(nextFilters),
       });
       setResult(response);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar las sentencias.');
+    } catch {
+      setError('No pudimos cargar los fallos. Intentá nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -71,9 +67,9 @@ function SentenciasContent({ initialFilters }: { initialFilters: Filters }) {
           setResult(response);
           setFilters(initialFilters);
         }
-      } catch (loadError) {
+      } catch {
         if (active) {
-          setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar las sentencias.');
+          setError('No pudimos cargar los fallos. Intentá nuevamente.');
         }
       } finally {
         if (active) {
@@ -89,56 +85,39 @@ function SentenciasContent({ initialFilters }: { initialFilters: Filters }) {
     };
   }, [initialFilters]);
 
-  const togglePublished = async (sentencia: Sentencia) => {
-    await api.patch(`/sentencias/${sentencia.id}/${sentencia.publicado ? 'despublicar' : 'publicar'}`);
-    setFeedback(sentencia.publicado ? 'Sentencia despublicada.' : 'Sentencia publicada.');
-    await load();
+  const stateLabels: Record<string, string> = {
+    BORRADOR: 'Borrador',
+    PUBLICADA: 'Publicado',
+    ARCHIVADA: 'Archivado',
+    PENDIENTE_REVISION: 'Requiere revisión',
+    REQUIERE_REVISION: 'Requiere revisión',
   };
-
-  const removeSentencia = async (sentencia: Sentencia) => {
-    if (!window.confirm(`Desactivar sentencia ${sentencia.id}?`)) return;
-    await api.delete(`/sentencias/${sentencia.id}`);
-    setFeedback(`Se desactivo la sentencia #${sentencia.id}.`);
-    await load();
+  const statusHref = (values: Partial<Filters>) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(values)) {
+      if (value !== undefined && value !== '') params.set(key, String(value));
+    }
+    return `/sentencias${params.size ? `?${params.toString()}` : ''}`;
   };
-
-  const saveSearch = async () => {
-    const nombre = window.prompt('Nombre para guardar esta busqueda');
-    if (!nombre) return;
-
-    await api.post('/busquedas-guardadas', {
-      nombre,
-      queryJson: filters,
-    });
-    setFeedback('Busqueda guardada correctamente.');
-  };
-
-  const exportResults = async (format: string) => {
-    const blob = await api.download('/busqueda/avanzada/exportar', {
-      query: limpiarFiltrosBusqueda({ ...filters, formato: format }),
-    });
-    downloadBlob(blob, `sentencias.${format}`);
-  };
-
-  const isAdmin = user?.rol.nombre === 'ADMIN';
 
   return (
-    <div className={styles.section}>
+    <div className={`${styles.section} ${styles.manageSection}`}>
       <PageHeader
-        title="Sentencias"
-        description="Listado principal, filtros, exportacion y acceso a herramientas de consulta."
+        title="Gestión de fallos"
+        description="Buscá un fallo para revisar sus datos, publicación o archivo."
         actions={
           <div className={styles.inlineActions}>
-            <Link href="/sentencias"><Button variant="secondary">Listado</Button></Link>
-            <Link href="/sentencias/carga-rapida"><Button variant="secondary">Carga rápida</Button></Link>
-            <Link href="/sentencias/nueva-completa"><Button>Nueva completa</Button></Link>
-            <Button variant="secondary" onClick={() => void saveSearch()}>Guardar búsqueda</Button>
-            <ExportMenu onExport={exportResults} />
+            <Link href="/sentencias/nueva"><Button>+ Nuevo fallo</Button></Link>
           </div>
         }
       />
 
-      {feedback ? <StatusMessage variant="success" title="Operacion realizada" message={feedback} /> : null}
+      <nav className={styles.workflowNav} aria-label="Estado de los fallos">
+        <Link href={statusHref({})} aria-current={!filters.publicado && filters.activo !== 'false' ? 'page' : undefined}>Todos</Link>
+        <Link href={statusHref({ publicado: 'false', activo: 'true' })} aria-current={filters.publicado === 'false' && filters.activo !== 'false' ? 'page' : undefined}>Borradores y no publicados</Link>
+        <Link href={statusHref({ publicado: 'true', activo: 'true' })} aria-current={filters.publicado === 'true' ? 'page' : undefined}>Publicados</Link>
+        <Link href={statusHref({ activo: 'false' })} aria-current={filters.activo === 'false' ? 'page' : undefined}>Archivados</Link>
+      </nav>
 
       <Card>
         <SentenciasFilters
@@ -157,71 +136,41 @@ function SentenciasContent({ initialFilters }: { initialFilters: Filters }) {
       {isLoading ? (
         <LoadingSpinner label="Cargando sentencias..." />
       ) : !result || result.data.length === 0 ? (
-        <EmptyState title="No hay sentencias para mostrar" description="Prueba ajustando filtros o creando una sentencia nueva." />
+        <EmptyState title="No encontramos fallos con esos criterios" description="Modificá los filtros o cargá un fallo nuevo." actionLabel="+ Nuevo fallo" actionHref="/sentencias/nueva" />
       ) : (
         <Card>
-          <Table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Número</th>
-                <th>Sala</th>
-                <th>Tipo</th>
-                <th>Fecha</th>
-                <th>Expediente</th>
-                <th>Actor</th>
-                <th>Demandado</th>
-                <th>Publicada</th>
-                <th>Activa</th>
-                <th>Destacada</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
+          <div className={styles.recordList}>
               {result.data.map((sentencia) => (
-                <tr key={sentencia.id}>
-                  <td>{sentencia.id}</td>
-                  <td>{sentencia.numeroSentencia ?? '-'}</td>
-                  <td>{sentencia.sala ?? '-'}</td>
-                  <td>{sentencia.tipoFallo ?? '-'}</td>
-                  <td>{formatDate(sentencia.fecha)}</td>
-                  <td>{sentencia.expediente ?? '-'}</td>
-                  <td>{sentencia.actor ?? '-'}</td>
-                  <td>{sentencia.demandado ?? '-'}</td>
-                  <td>
-                    <span className={`${styles.badge} ${sentencia.publicado ? styles.badgeSuccess : styles.badgeWarning}`}>
-                      {sentencia.publicado ? 'Publicada' : 'Borrador'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`${styles.badge} ${sentencia.activo ? styles.badgeSuccess : styles.badgeDanger}`}>
-                      {sentencia.activo ? 'Activa' : 'Inactiva'}
-                    </span>
-                  </td>
-                  <td>
+                <article className={styles.recordCard} key={sentencia.id}>
+                  <div className={styles.recordHeading}>
+                    <div>
+                      <h2>{sentencia.caratula || sentencia.expediente || sentencia.numeroSentencia || `Fallo ${sentencia.id}`}</h2>
+                      <p>{[
+                        sentencia.sala ? (sentencia.sala.toLowerCase().startsWith('sala') ? sentencia.sala : `Sala ${sentencia.sala}`) : 'Sin Sala informada',
+                        sentencia.fecha ? formatDate(sentencia.fecha) : null,
+                        formatTipoFallo(sentencia.tipoFallo),
+                        sentencia.expediente ? `Expte. ${sentencia.expediente}` : null,
+                        sentencia.numeroSentencia ? `Sentencia ${sentencia.numeroSentencia}` : null,
+                      ].filter(Boolean).join(' · ')}</p>
+                      {(sentencia.actor || sentencia.demandado) ? <p>{[sentencia.actor, sentencia.demandado].filter(Boolean).join(' c/ ')}</p> : null}
+                    </div>
                     <div className={styles.badgeRow}>
-                      {sentencia.destacada ? <span className={styles.badge}>Destacada</span> : null}
-                      {sentencia.anonimizado ? <span className={styles.badge}>Anonimizada</span> : null}
+                      <span className={`${styles.badge} ${sentencia.publicado ? styles.badgeSuccess : styles.badgeWarning}`}>
+                        {stateLabels[sentencia.estadoCarga ?? ''] ?? (sentencia.publicado ? 'Publicado' : 'No publicado')}
+                      </span>
+                      {!sentencia.activo ? <span className={`${styles.badge} ${styles.badgeDanger}`}>Archivado</span> : null}
+                      {sentencia.destacada ? <span className={styles.badge}>Destacado</span> : null}
+                      {sentencia.anonimizado ? <span className={styles.badge}>Datos personales protegidos</span> : null}
                     </div>
-                  </td>
-                  <td>
-                    <div className={styles.inlineActions}>
-                      <Link href={`/sentencias/${sentencia.id}`}><Button variant="secondary">Ver detalle</Button></Link>
-                      <Link href={`/sentencias/${sentencia.id}/documento`}><Button variant="secondary">Ver documento</Button></Link>
-                      <Button variant="secondary" onClick={() => void togglePublished(sentencia)}>
-                        {sentencia.publicado ? 'Despublicar' : 'Publicar'}
-                      </Button>
-                      {isAdmin ? (
-                        <Button variant="danger" onClick={() => void removeSentencia(sentencia)}>
-                          Desactivar
-                        </Button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
+                  </div>
+                  {sentencia.magistrados ? <p className={styles.recordMeta}><strong>Magistrados:</strong> {sentencia.magistrados}</p> : null}
+                  <div className={styles.recordActions}>
+                    <Link href={`/sentencias/${sentencia.id}`}><Button variant="secondary">Editar fallo</Button></Link>
+                    {sentencia.tienePdf || sentencia._count?.archivosPdf ? <Link href={`/sentencias/${sentencia.id}/documento`}><Button variant="ghost">Ver documento</Button></Link> : null}
+                  </div>
+                </article>
               ))}
-            </tbody>
-          </Table>
+          </div>
           <Pagination
             page={result.meta.page}
             pageCount={result.meta.pageCount}

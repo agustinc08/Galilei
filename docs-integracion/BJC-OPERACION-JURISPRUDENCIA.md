@@ -63,3 +63,7 @@ La ruta Playwright cubrió búsqueda real, filtros/paginación, rechazo de PDF i
 Performance loopback (10 muestras tras warmup): broad 6.014 resultados p50/p95 72.93/83.91 ms; Sala H 366 resultados 382.49/395.19 ms; expediente exacto 339.09/364.13 ms; carátula 305.99/337.04 ms; año 2022 289.15/335.29 ms. Consulta media `responsabilidad civil` p50 8.353 ms/p95 10.507 ms (`totalExact=false`), marcada para el sprint final de Search. No se forzó un cambio de motor sin prueba de paridad.
 
 **Dictamen:** J9 queda `CLOSED` en DEV: el lector tiene un corpus institucional sustancial, reconciliado y sin exposición privada, y el flujo PDF completo se probó desde navegador. Los 56 casos de revisión y el costo de la búsqueda media permanecen explícitos. Esto no habilita producción, preproducción ni red compartida. Evidencia local/ignorada: `_recovery-work/jurisprudencia-j901/`.
+
+## Adenda J9.1 — UX lector/operador (2026-10-14)
+
+La capa de presentación facilita la consulta y el ciclo existente; no cambia contratos de publicación, API, roles, Search o ACL. Las rutas E2E lector/operador y cleanup sintético de J9.0.1 siguen como evidencia del workflow. En el corte DEV, sumarios visibles=0 y activos no publicados=21.119; no equiparar esta lista histórica con los 56 pendientes del manifiesto J8/J9.0.1. Viewer visual queda pendiente de comprobación con PDF cargado. UAT no ejecutada. Detalles: `BJC-UX-JURISPRUDENCIA.md` y evidencia local ignorada `_recovery-work/jurisprudencia-j91/`.

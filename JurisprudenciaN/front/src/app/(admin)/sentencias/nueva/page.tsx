@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusMessage } from '@/components/ui/StatusMessage';
+import styles from '@/components/sentencias/sentencias.module.css';
 import { api, ApiError } from '@/lib/api';
 
 type UploadResult = { data: { sentenciaId: number; status: string; pageCount: number | null; textAvailable: boolean } };
@@ -46,20 +47,27 @@ export default function NuevaSentenciaPage() {
 
   return (
     <div>
-      <PageHeader title="Nuevo fallo" description="Sube el PDF. Después podrás completar y revisar sus datos antes de publicarlo." />
+      <PageHeader
+        title="Nuevo fallo"
+        description="Primero incorporá el PDF. Después completá los datos y guardalo como borrador."
+        actions={<Link href="/sentencias"><Button variant="secondary">Volver a gestión</Button></Link>}
+      />
       <Card>
+        <h2 style={{ marginTop: 0, color: '#173b5e', fontSize: 18 }}>Archivo del fallo</h2>
         <div
+          className={styles.fileDrop}
           role="button"
           tabIndex={0}
+          aria-label="Elegir o arrastrar un archivo PDF"
           onClick={() => input.current?.click()}
           onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') input.current?.click(); }}
           onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={(event) => { event.preventDefault(); setDragging(false); setFile(event.dataTransfer.files[0] ?? null); }}
-          style={{ border: `2px dashed ${dragging ? '#4677c8' : '#aab5c4'}`, borderRadius: 12, padding: 36, textAlign: 'center', cursor: 'pointer' }}
+          style={{ borderColor: dragging ? '#4677c8' : undefined, background: dragging ? '#eef6ff' : undefined }}
         >
-          <strong>{file ? file.name : 'Selecciona o arrastra un PDF aquí'}</strong>
-          <p>PDF de hasta 100 MB. El archivo se conservará en el archivo documental y se revisará antes de publicar.</p>
+          <strong>{file ? file.name : 'Arrastrá el PDF acá o elegí un archivo'}</strong>
+          <p>PDF de hasta 100 MB. El fallo quedará como borrador para completar y revisar antes de publicarlo.</p>
           <input ref={input} type="file" accept="application/pdf,.pdf" hidden onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
         </div>
         <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>

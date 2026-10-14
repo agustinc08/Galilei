@@ -22,14 +22,14 @@ test('J9 lector entra a Jurisprudencia, filtra sin controles de operador y manti
   await expect(page).toHaveURL(/\/consulta$/u);
   await expect(page.getByRole('heading', { name: 'Jurisprudencia', exact: true })).toBeVisible();
   await expect(page.getByLabel('TemaTodos los temas')).toBeVisible();
-  await expect(page.getByLabel('SalaTodas las salas')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Sala' })).toBeVisible();
   await expect(page.getByLabel('Fecha desde')).toBeVisible();
   await expect(page.getByLabel('Fecha hasta')).toBeVisible();
-  await expect(page.getByLabel('Tipo de falloTodos los tipos')).toBeVisible();
+  await expect(page.getByLabel('Tipo de fallo')).toBeVisible();
   await expect(page.getByLabel('Expediente')).toBeVisible();
   await expect(page.getByRole('button', { name: '+ Nuevo fallo' })).toHaveCount(0);
   await expect(page.getByText('Últimos fallos publicados')).toBeVisible();
-  await expect(page.getByText('6014 resultados', { exact: true })).toBeVisible();
+  await expect(page.getByText('6.014 resultados', { exact: true })).toBeVisible();
   await expect(page.getByText('Fallo civil').first()).toBeVisible();
 
   const first = await request.get(`${apiBase}/public/busqueda?page=1&pageSize=300`);
@@ -69,7 +69,7 @@ test('J9 lector entra a Jurisprudencia, filtra sin controles de operador y manti
   await page.getByLabel('Expediente').fill('EXP-J9-SINTETICO');
   await page.getByRole('button', { name: 'Buscar', exact: true }).click();
   await expect(page).toHaveURL(/expediente=EXP-J9-SINTETICO/u);
-  await expect(page.getByText('No encontramos resultados con esos filtros.')).toBeVisible();
+  await expect(page.getByText('No encontramos fallos con estos criterios.')).toBeVisible();
 
   const login = await request.post(`${apiBase}/auth/login`, { data: credentials.accounts.reader });
   expect(login.ok()).toBeTruthy();

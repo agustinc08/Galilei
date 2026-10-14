@@ -62,7 +62,15 @@ export function BusquedaJurisprudenciaForm({
   tribunalesOrigen = [],
 }: Props) {
   const [values, setValues] = useState<BusquedaJurisprudenciaValores>(valoresIniciales);
-  const [showAdvanced, setShowAdvanced] = useState(modo === 'admin');
+  const advancedFilterKeys: Array<keyof BusquedaJurisprudenciaValores> = [
+    'fraseExacta', 'excluir', 'tribunalOrigen', 'magistrados', 'caratula', 'actor',
+    'demandado', 'objeto', 'numeroSentencia', 'numeroSumario', 'anio', 'pdf',
+  ];
+  const hasAdvancedFilters = advancedFilterKeys.some((key) => {
+    const value = valoresIniciales[key];
+    return key === 'pdf' ? Boolean(value && value !== 'todos') : Boolean(value);
+  });
+  const [showAdvanced, setShowAdvanced] = useState(modo === 'admin' || hasAdvancedFilters);
   const [showHelp, setShowHelp] = useState(false);
   const publicMode = modo === 'publico';
 
@@ -85,36 +93,47 @@ export function BusquedaJurisprudenciaForm({
 
   return (
     <Card>
-      <div className={consultaStyles.filtersCard}>
+      <form
+        className={consultaStyles.filtersCard}
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
         <div className={consultaStyles.primarySearchRow}>
           <SearchAutocomplete
-            label="Buscar en jurisprudencia y documentos"
+            label="Buscar jurisprudencia"
             value={values.q ?? ''}
             onChange={(nextValue) => setField('q', nextValue)}
             onSelect={(nextValue) => onBuscar({ ...values, q: nextValue, page: 1 })}
             endpoint={`${suggestionBase}/sugerencias`}
             skipAuth={autocompleteSkipAuth}
-            placeholder={'Buscar en jurisprudencia y documentos...'}
+            placeholder="Tema, palabras del fallo, carátula o expediente"
           />
           <div className={sentenciaStyles.inlineActions}>
-            <Button variant="secondary" onClick={() => setShowHelp(true)}>
-              Ayuda
-            </Button>
             {publicMode ? (
-              <Button variant="secondary" onClick={() => setShowAdvanced((current) => !current)}>
+              <Button
+                variant="secondary"
+                aria-expanded={showAdvanced}
+                onClick={() => setShowAdvanced((current) => !current)}
+              >
                 {showAdvanced ? 'Menos filtros' : 'Más filtros'}
               </Button>
             ) : null}
-            <Button onClick={submit}>Buscar</Button>
+            <Button type="submit">Buscar</Button>
           </div>
         </div>
 
         <div className={consultaStyles.filtersGrid}>
           <Select label="Tema" value={values.tema ?? ''} onChange={(event) => setField('tema', event.target.value)} options={[{ label: 'Todos los temas', value: '' }, ...temas.map((item) => ({ label: item, value: item }))]} />
-          <Select label="Sala" value={values.sala ?? ''} onChange={(event) => setField('sala', event.target.value)} options={[{ label: 'Todas las salas', value: '' }, ...salas.map((item) => ({ label: item, value: item }))]} />
+          {salas.length ? (
+            <Select label="Sala" value={values.sala ?? ''} onChange={(event) => setField('sala', event.target.value)} options={[{ label: 'Todas las salas', value: '' }, ...salas.map((item) => ({ label: item, value: item }))]} />
+          ) : <Input label="Sala" value={values.sala ? (values.sala.toLowerCase().startsWith('sala') ? values.sala : `Sala ${values.sala}`) : ''} placeholder="Ej.: Sala H" onChange={(event) => setField('sala', event.target.value)} />}
           <Input label="Fecha desde" type="date" value={values.fechaDesde ?? ''} onChange={(event) => setField('fechaDesde', event.target.value)} />
           <Input label="Fecha hasta" type="date" value={values.fechaHasta ?? ''} onChange={(event) => setField('fechaHasta', event.target.value)} />
-          <Select label="Tipo de fallo" value={values.tipoFallo ?? ''} onChange={(event) => setField('tipoFallo', event.target.value)} options={[{ label: 'Todos los tipos', value: '' }, ...tiposFallo.map((item) => ({ label: item, value: item }))]} />
+          {tiposFallo.length ? (
+            <Select label="Tipo de fallo" value={values.tipoFallo ?? ''} onChange={(event) => setField('tipoFallo', event.target.value)} options={[{ label: 'Todos los tipos', value: '' }, ...tiposFallo.map((item) => ({ label: item, value: item }))]} />
+          ) : <Input label="Tipo de fallo" value={values.tipoFallo ?? ''} placeholder="Ej.: Sentencia" onChange={(event) => setField('tipoFallo', event.target.value)} />}
           <Input label="Expediente" value={values.expediente ?? ''} onChange={(event) => setField('expediente', event.target.value)} />
         </div>
 
@@ -122,9 +141,11 @@ export function BusquedaJurisprudenciaForm({
           <div className={consultaStyles.filtersGrid}>
             <Input label="Frase exacta" value={values.fraseExacta ?? ''} onChange={(event) => setField('fraseExacta', event.target.value)} />
             <Input label="Excluir" value={values.excluir ?? ''} onChange={(event) => setField('excluir', event.target.value)} />
-            <Select label="Operador" value={values.operador ?? 'AND'} onChange={(event) => setField('operador', event.target.value)} options={[{ label: 'AND', value: 'AND' }, { label: 'OR', value: 'OR' }]} />
+            <Select label="Coincidencia" value={values.operador ?? 'AND'} onChange={(event) => setField('operador', event.target.value)} options={[{ label: 'Incluir todos los términos', value: 'AND' }, { label: 'Incluir cualquiera', value: 'OR' }]} />
             <Select label="Buscar en" value={values.buscarEn ?? 'todo'} onChange={(event) => setField('buscarEn', event.target.value)} options={buscarEnOptions} />
-            <Select label="Tribunal origen" value={values.tribunalOrigen ?? ''} onChange={(event) => setField('tribunalOrigen', event.target.value)} options={[{ label: 'Todos', value: '' }, ...tribunalesOrigen.map((item) => ({ label: item, value: item }))]} />
+            {tribunalesOrigen.length ? (
+              <Select label="Tribunal de origen" value={values.tribunalOrigen ?? ''} onChange={(event) => setField('tribunalOrigen', event.target.value)} options={[{ label: 'Todos', value: '' }, ...tribunalesOrigen.map((item) => ({ label: item, value: item }))]} />
+            ) : <Input label="Tribunal de origen" value={values.tribunalOrigen ?? ''} onChange={(event) => setField('tribunalOrigen', event.target.value)} />}
             <Input label="Magistrados" value={values.magistrados ?? ''} onChange={(event) => setField('magistrados', event.target.value)} />
             <Input label="Carátula" value={values.caratula ?? ''} onChange={(event) => setField('caratula', event.target.value)} />
             <Input label="Actor" value={values.actor ?? ''} onChange={(event) => setField('actor', event.target.value)} />
@@ -149,12 +170,13 @@ export function BusquedaJurisprudenciaForm({
         ) : null}
 
         <div className={sentenciaStyles.inlineActions}>
-          {onImprimir ? <Button variant="secondary" onClick={onImprimir}>Imprimir</Button> : null}
+          {publicMode ? <Button variant="secondary" onClick={() => setShowHelp(true)}>Consejos de búsqueda</Button> : null}
+          {!publicMode && onImprimir ? <Button variant="secondary" onClick={onImprimir}>Imprimir</Button> : null}
           {mostrarGuardarBusqueda && onGuardarBusqueda ? <Button variant="secondary" onClick={onGuardarBusqueda}>Guardar búsqueda</Button> : null}
           {mostrarExportar && onExportar ? <ExportMenu onExport={onExportar} /> : null}
-          {onLimpiar ? <Button variant="secondary" onClick={onLimpiar}>Limpiar</Button> : null}
+          {onLimpiar ? <Button variant="secondary" onClick={onLimpiar}>Limpiar filtros</Button> : null}
         </div>
-      </div>
+      </form>
       <SearchHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
     </Card>
   );

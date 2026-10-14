@@ -222,3 +222,7 @@ Cada documento del manifiesto J8 tiene estados explícitos para archivo, provena
 ## Contrato de publicación Jurisprudencia — J9 / J9.0.1
 
 Las filas nuevas comienzan como borrador. La publicación sólo ocurre mediante acción explícita/auditada; en workflow nuevo propaga `PUBLIC` únicamente a vínculos Corpus `GENERAL` de esa sentencia; retirar/archivar revierte esa visibilidad. El backfill J9.0.1 es un camino legacy limitado: crea o enlaza sólo filas workflow aprobadas desde fuentes institucionales certificadas, mantiene Corpus `INTERNAL`, no toca ACL privadas, contenido, provenance, páginas ni Search projection y no asigna fecha/autor ficticios. Reconciliación: 6.014 publicadas y 56 en revisión; `PRIVATE_CONFLICT=0`, `WORKSPACE_CONFLICT=0`, `UNKNOWN=0`; dry-run idempotente `wouldCreate=0`. Los casos de colisión no se fusionan y permanecen borradores/inactivos. J9 queda cerrado en DEV con esos límites, sin autorización para preproducción/producción. Ver `BJC-OPERACION-JURISPRUDENCIA.md`.
+
+## Contrato UX J9.1
+
+La UI mantiene separación lector/operador y conserva los controles de consulta legados sin cambiar Search semantics, workflow, Viewer core, ACL, datos, Prisma ni migraciones. La etiqueta “Borradores y no publicados” cubre el query histórico de operación y no equivale al conjunto de 56 casos en revisión de J9.0.1. Los sumarios se exponen sólo si son reader-visible; el snapshot auditado tiene cero. Evidencia, alcance responsive y UAT pendiente en `BJC-UX-JURISPRUDENCIA.md`.
