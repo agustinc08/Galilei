@@ -155,6 +155,9 @@ export class WorkspaceDocumentController {
     @Query('folderId') folderId: string | undefined,
     @Query('sourceId') sourceId: string | undefined,
     @Query('sourceFolder') sourceFolder: string | undefined,
+    @Query('type') type: string | undefined,
+    @Query('dateFrom') dateFrom: string | undefined,
+    @Query('dateTo') dateTo: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.workspaces.searchWorkspace(
@@ -166,6 +169,7 @@ export class WorkspaceDocumentController {
       folderId === 'ROOT' ? null : folderId,
       sourceId,
       sourceFolder,
+      { type, dateFrom, dateTo },
     );
   }
 
@@ -202,6 +206,9 @@ export class WorkspaceDocumentController {
     @Query('folderId') folderId: string | undefined,
     @Query('sourceId') sourceId: string | undefined,
     @Query('sourceFolder') sourceFolder: string | undefined,
+    @Query('type') type: string | undefined,
+    @Query('dateFrom') dateFrom: string | undefined,
+    @Query('dateTo') dateTo: string | undefined,
     @Query('page') page: string | undefined,
     @Query('pageSize') pageSize: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
@@ -215,6 +222,7 @@ export class WorkspaceDocumentController {
       Math.min(100, positiveInt(pageSize, 20)),
       sourceId,
       sourceFolder,
+      { type, dateFrom, dateTo },
     );
   }
 

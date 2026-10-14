@@ -203,6 +203,30 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       const b = await service.upload(workspaceB.id, adminB, [upload]);
       const idA = a.results[0].documentId;
       const idB = b.results[0].documentId;
+      documentIds.push(idA, idB);
+      const textUpload = await service.upload(
+        workspaceA.id,
+        adminA,
+        [
+          {
+            originalname: 'sprint15-note.txt',
+            mimetype: 'text/plain',
+            buffer: Buffer.from('JORGE PORCEL texto privado sintético'),
+            size: Buffer.byteLength('JORGE PORCEL texto privado sintético'),
+          },
+        ],
+        folder.id,
+      );
+      const idText = textUpload.results[0].documentId;
+      documentIds.push(idText);
+      await prisma.corpusDocument.updateMany({
+        where: { id: { in: [idA, idText] } },
+        data: { decisionDate: new Date('2025-06-10T00:00:00.000Z') },
+      });
+      await prisma.corpusDocument.update({
+        where: { id: idB },
+        data: { decisionDate: new Date('2026-06-10T00:00:00.000Z') },
+      });
       expect(repeatedA.results[0]).toMatchObject({
         documentId: idA,
         duplicate: true,
@@ -212,7 +236,6 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           where: { workspaceId: workspaceA.id, documentId: idA },
         }),
       ).toBe(1);
-      documentIds.push(idA, idB);
       expect(idA).not.toBe(idB);
       const [fileA, fileB] = await Promise.all([
         prisma.corpusDocumentFile.findFirstOrThrow({
@@ -249,6 +272,75 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         documentId: idA,
         filename: 'sprint15-fixture.pdf',
       });
+      const pdfDateFiltered = await service.searchWorkspace(
+        workspaceA.id,
+        viewer,
+        'JORGE',
+        1,
+        20,
+        folder.id,
+        undefined,
+        undefined,
+        { type: 'PDF', dateFrom: '2025-01-01', dateTo: '2025-12-31' },
+      );
+      expect(pdfDateFiltered?.results.map((row) => row.sourceId)).toEqual([
+        idA,
+      ]);
+      const textTypeFiltered = await service.searchWorkspace(
+        workspaceA.id,
+        viewer,
+        'JORGE',
+        1,
+        20,
+        folder.id,
+        undefined,
+        undefined,
+        { type: 'TXT' },
+      );
+      expect(textTypeFiltered?.results.map((row) => row.sourceId)).toEqual([
+        idText,
+      ]);
+      const combinedNameFilter = await service.searchNames(
+        workspaceA.id,
+        viewer,
+        'sprint15-fixture',
+        folder.id,
+        1,
+        20,
+        undefined,
+        undefined,
+        { type: 'PDF', dateFrom: '2025-01-01', dateTo: '2025-12-31' },
+      );
+      expect(combinedNameFilter.results.map((row) => row.documentId)).toEqual([
+        idA,
+      ]);
+      const textNameFilter = await service.searchNames(
+        workspaceA.id,
+        viewer,
+        'sprint15-note',
+        folder.id,
+        1,
+        20,
+        undefined,
+        undefined,
+        { type: 'TXT' },
+      );
+      expect(textNameFilter.results.map((row) => row.documentId)).toEqual([
+        idText,
+      ]);
+      await expect(
+        service.searchWorkspace(
+          workspaceA.id,
+          viewer,
+          'JORGE',
+          1,
+          20,
+          folder.id,
+          undefined,
+          undefined,
+          { dateFrom: '2026-01-01', dateTo: '2025-01-01' },
+        ),
+      ).rejects.toMatchObject({ status: 400 });
       const folderSearch = await service.searchWorkspace(
         workspaceA.id,
         adminA,
@@ -259,6 +351,109 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       );
       expect(folderSearch?.results.map((result) => result.sourceId)).toContain(
         idA,
+      );
+      const filterBenchmarkCases: Array<{
+        name: string;
+        folderId?: string;
+        sourceId?: string;
+        filters?: { type?: string; dateFrom?: string; dateTo?: string };
+        expectedIds: string[];
+      }> = [
+        {
+          name: 'source',
+          sourceId: '__manual_upload__',
+          expectedIds: [idA, idText],
+        },
+        {
+          name: 'folder',
+          folderId: folder.id,
+          expectedIds: [idA, idText],
+        },
+        {
+          name: 'type',
+          filters: { type: 'PDF' },
+          expectedIds: [idA],
+        },
+        {
+          name: 'date',
+          filters: { dateFrom: '2025-01-01', dateTo: '2025-12-31' },
+          expectedIds: [idA, idText],
+        },
+        {
+          name: 'combined',
+          folderId: folder.id,
+          sourceId: '__manual_upload__',
+          filters: {
+            type: 'PDF',
+            dateFrom: '2025-01-01',
+            dateTo: '2025-12-31',
+          },
+          expectedIds: [idA],
+        },
+      ];
+      const percentile = (values: number[], fraction: number) =>
+        [...values].sort((left, right) => left - right)[
+          Math.max(0, Math.ceil(values.length * fraction) - 1)
+        ];
+      const filterBenchmarkRows: Array<Record<string, unknown>> = [];
+      for (const filterCase of filterBenchmarkCases) {
+        const samples: number[] = [];
+        for (let index = 0; index <= 10; index += 1) {
+          const startedAt = performance.now();
+          const result = await service.searchWorkspace(
+            workspaceA.id,
+            viewer,
+            'JORGE',
+            1,
+            20,
+            filterCase.folderId,
+            filterCase.sourceId,
+            undefined,
+            filterCase.filters,
+          );
+          const elapsedMs = performance.now() - startedAt;
+          expect(
+            (result?.results.map((row) => row.sourceId) ?? []).sort(),
+          ).toEqual([...filterCase.expectedIds].sort());
+          expect(result?.totalExact).toBe(true);
+          if (index > 0) samples.push(elapsedMs);
+        }
+        filterBenchmarkRows.push({
+          filter: filterCase.name,
+          warmupRequests: 1,
+          measuredRequests: samples.length,
+          p50Ms: Number(percentile(samples, 0.5).toFixed(2)),
+          p95Ms: Number(percentile(samples, 0.95).toFixed(2)),
+          expectedResults: filterCase.expectedIds.length,
+        });
+      }
+      const filterBenchmarkRoot = path.resolve(
+        process.cwd(),
+        '../../_recovery-work/sprint1531',
+      );
+      await mkdir(filterBenchmarkRoot, { recursive: true });
+      await writeFile(
+        path.join(filterBenchmarkRoot, 'filter-benchmark.json'),
+        `${JSON.stringify(
+          {
+            environment: {
+              endpoint: '127.0.0.1:55432',
+              database: 'buscador_juridico_civil_dev',
+              role: 'bjc_dev',
+            },
+            corpus: 'synthetic private workspace fixtures',
+            queryTextPersisted: false,
+            warmupRequests: 1,
+            measuredRequests: 10,
+            filters: filterBenchmarkRows,
+          },
+          null,
+          2,
+        )}\n`,
+        'utf8',
+      );
+      console.log(
+        `SPRINT1531_FILTER_BENCHMARK=${JSON.stringify(filterBenchmarkRows)}`,
       );
       const rootSearch = await service.searchWorkspace(
         workspaceA.id,
@@ -543,15 +738,29 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         await prisma.$executeRawUnsafe('ANALYZE "CorpusDocument"');
         await prisma.$executeRawUnsafe('ANALYZE "WorkspaceDocument"');
 
-        const measure = async (query: string, expectedTotal: number, series: number, phrase = false) => {
-          const samples: Array<{ totalMs: number; adapterMs: number; countMs: number; pageSqlMs: number }> = [];
+        const measure = async (
+          query: string,
+          expectedTotal: number,
+          series: number,
+          phrase = false,
+        ) => {
+          const samples: Array<{
+            totalMs: number;
+            adapterMs: number;
+            countMs: number;
+            pageSqlMs: number;
+          }> = [];
           const runs: Array<Record<string, unknown>> = [];
           let reportedTotal = 0;
           let reportedTotalExact = false;
           for (let seriesIndex = 0; seriesIndex < series; seriesIndex += 1) {
             for (let index = 0; index < 11; index += 1) {
               const startedAt = performance.now();
-              const result = await service.searchWorkspace(workspace.id, adminA, phrase ? `"${query} phrase target"` : query);
+              const result = await service.searchWorkspace(
+                workspace.id,
+                adminA,
+                phrase ? `"${query} phrase target"` : query,
+              );
               const totalMs = performance.now() - startedAt;
               const profile = source.getLastSearchProfile();
               const adapterMs = profile?.stageTimings?.totalAdapterMs;
@@ -561,12 +770,22 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
                 sample: index,
                 warmup: index === 0,
                 totalMs: Number(totalMs.toFixed(2)),
-                adapterMs: typeof adapterMs === 'number' ? Number(adapterMs.toFixed(2)) : null,
+                adapterMs:
+                  typeof adapterMs === 'number'
+                    ? Number(adapterMs.toFixed(2))
+                    : null,
                 countMs: Number(countMs.toFixed(2)),
                 pageSqlMs: Number((profile?.pageQueryMs ?? 0).toFixed(2)),
               };
               runs.push(sample);
-              if (index > 0) samples.push({ totalMs, adapterMs: typeof adapterMs === 'number' ? adapterMs : totalMs, countMs, pageSqlMs: profile?.pageQueryMs ?? 0 });
+              if (index > 0)
+                samples.push({
+                  totalMs,
+                  adapterMs:
+                    typeof adapterMs === 'number' ? adapterMs : totalMs,
+                  countMs,
+                  pageSqlMs: profile?.pageQueryMs ?? 0,
+                });
               reportedTotal = result?.total ?? 0;
               reportedTotalExact = result?.totalExact ?? false;
               if (phrase) {
@@ -576,7 +795,8 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
               } else {
                 expect(result?.total).toBe(expectedTotal);
                 expect(result?.totalExact).toBe(true);
-                if (expectedTotal > 0) expect(result?.results.length).toBeGreaterThan(0);
+                if (expectedTotal > 0)
+                  expect(result?.results.length).toBeGreaterThan(0);
                 else expect(result?.results).toHaveLength(0);
               }
             }
@@ -596,11 +816,25 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
             totalExact: reportedTotalExact,
             adapterP50Ms: percentile(adapter, 0.5),
             adapterP95Ms: percentile(adapter, 0.95),
-            countP50Ms: percentile(samples.map((sample) => sample.countMs), 0.5),
-            countP95Ms: percentile(samples.map((sample) => sample.countMs), 0.95),
-            pageSqlP50Ms: percentile(samples.map((sample) => sample.pageSqlMs), 0.5),
-            pageSqlP95Ms: percentile(samples.map((sample) => sample.pageSqlMs), 0.95),
-            maxP50Ratio: Number((Math.max(...total) / percentile(total, 0.5)).toFixed(2)),
+            countP50Ms: percentile(
+              samples.map((sample) => sample.countMs),
+              0.5,
+            ),
+            countP95Ms: percentile(
+              samples.map((sample) => sample.countMs),
+              0.95,
+            ),
+            pageSqlP50Ms: percentile(
+              samples.map((sample) => sample.pageSqlMs),
+              0.5,
+            ),
+            pageSqlP95Ms: percentile(
+              samples.map((sample) => sample.pageSqlMs),
+              0.95,
+            ),
+            maxP50Ratio: Number(
+              (Math.max(...total) / percentile(total, 0.5)).toFixed(2),
+            ),
             membershipAndResponseP50Ms: percentile(
               samples.map((sample) =>
                 Math.max(0, sample.totalMs - sample.adapterMs),
@@ -669,7 +903,11 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         const series = size >= 1000 ? 3 : 1;
         console.log(`SPRINT1511_DATASET_READY=${size}`);
         const term = await measure('sprint151needle', size, series);
-        const medium = await measure('mediumneedle', Math.ceil(size / 2), series);
+        const medium = await measure(
+          'mediumneedle',
+          Math.ceil(size / 2),
+          series,
+        );
         const rare = await measure('rareneedle', Math.ceil(size / 100), series);
         const zero = await measure('nonefound', 0, series);
         const phrase = null;
@@ -704,18 +942,30 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
               nodes.push(
                 Object.fromEntries(
                   [
-                    'Node Type', 'Join Type', 'Relation Name', 'Index Name',
-                    'Plan Rows', 'Actual Rows', 'Actual Loops',
-                    'Rows Removed by Join Filter', 'Rows Removed by Filter',
-                    'Shared Hit Blocks', 'Shared Read Blocks', 'Temp Read Blocks',
-                    'Temp Written Blocks', 'Actual Total Time', 'Index Cond',
+                    'Node Type',
+                    'Join Type',
+                    'Relation Name',
+                    'Index Name',
+                    'Plan Rows',
+                    'Actual Rows',
+                    'Actual Loops',
+                    'Rows Removed by Join Filter',
+                    'Rows Removed by Filter',
+                    'Shared Hit Blocks',
+                    'Shared Read Blocks',
+                    'Temp Read Blocks',
+                    'Temp Written Blocks',
+                    'Actual Total Time',
+                    'Index Cond',
                     'Join Filter',
                   ]
                     .filter((key) => node[key] !== undefined)
                     .map((key) => [key, node[key]]),
                 ),
               );
-              for (const child of (node.Plans as Array<Record<string, unknown>> | undefined) ?? [])
+              for (const child of (node.Plans as
+                | Array<Record<string, unknown>>
+                | undefined) ?? [])
                 visit(child);
             };
             for (const item of plan) {
@@ -736,7 +986,10 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
                 `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, FORMAT JSON) ${variant.sql}`,
                 workspace.id,
               );
-              plans.push({ name: variant.name, nodes: summarizePlan(result[0]?.['QUERY PLAN'] ?? []) });
+              plans.push({
+                name: variant.name,
+                nodes: summarizePlan(result[0]?.['QUERY PLAN'] ?? []),
+              });
             }
             return plans;
           };
@@ -746,7 +999,9 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           const afterAnalyze = await capturePlans();
           const shapeRow = { documents: size, beforeAnalyze, afterAnalyze };
           queryShapeRows.push(shapeRow);
-          console.log(`SPRINT1511_ACL_QUERY_SHAPES=${JSON.stringify(shapeRow)}`);
+          console.log(
+            `SPRINT1511_ACL_QUERY_SHAPES=${JSON.stringify(shapeRow)}`,
+          );
         }
         benchmarkRows.push({
           documents: size,
@@ -758,42 +1013,87 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           aclSqlCountComparison: countComparison,
         });
       }
-      const outputRoot = path.resolve(process.cwd(), '../../_recovery-work/sprint1511');
+      const outputRoot = path.resolve(
+        process.cwd(),
+        '../../_recovery-work/sprint1511',
+      );
       await mkdir(outputRoot, { recursive: true });
       const largestWorkspaceId = workspaceIds[workspaceIds.length - 1];
-      const largestDocumentIds = documentIds.filter((id) => id.includes('_5000_'));
-      const benchmarkFolder = await service.createFolder(largestWorkspaceId, adminA, {
-        name: `Synthetic half corpus ${suffix}`,
-      });
+      const largestDocumentIds = documentIds.filter((id) =>
+        id.includes('_5000_'),
+      );
+      const benchmarkFolder = await service.createFolder(
+        largestWorkspaceId,
+        adminA,
+        {
+          name: `Synthetic half corpus ${suffix}`,
+        },
+      );
       await prisma.workspaceDocument.updateMany({
-        where: { workspaceId: largestWorkspaceId, documentId: { in: largestDocumentIds.slice(0, 2500) } },
+        where: {
+          workspaceId: largestWorkspaceId,
+          documentId: { in: largestDocumentIds.slice(0, 2500) },
+        },
         data: { folderId: benchmarkFolder.id },
       });
       const folderAndPagination = {
-        allFolders: await service.searchWorkspace(largestWorkspaceId, adminA, 'sprint151needle', 1, 20),
-        oneFolder: await service.searchWorkspace(largestWorkspaceId, adminA, 'sprint151needle', 1, 20, benchmarkFolder.id),
-        pages: await Promise.all([1, 125, 250].map((page) =>
-          service.searchWorkspace(largestWorkspaceId, adminA, 'sprint151needle', page, 20),
-        )),
+        allFolders: await service.searchWorkspace(
+          largestWorkspaceId,
+          adminA,
+          'sprint151needle',
+          1,
+          20,
+        ),
+        oneFolder: await service.searchWorkspace(
+          largestWorkspaceId,
+          adminA,
+          'sprint151needle',
+          1,
+          20,
+          benchmarkFolder.id,
+        ),
+        pages: await Promise.all(
+          [1, 125, 250].map((page) =>
+            service.searchWorkspace(
+              largestWorkspaceId,
+              adminA,
+              'sprint151needle',
+              page,
+              20,
+            ),
+          ),
+        ),
       };
       expect(folderAndPagination.allFolders?.total).toBe(5000);
       expect(folderAndPagination.allFolders?.totalExact).toBe(true);
       expect(folderAndPagination.oneFolder?.total).toBe(2500);
       expect(folderAndPagination.oneFolder?.totalExact).toBe(true);
-      const pageIds = folderAndPagination.pages.flatMap((page) => page?.results.map((row) => row.id) ?? []);
-      expect(folderAndPagination.pages.every((page) => page?.total === 5000 && page.totalExact)).toBe(true);
+      const pageIds = folderAndPagination.pages.flatMap(
+        (page) => page?.results.map((row) => row.id) ?? [],
+      );
+      expect(
+        folderAndPagination.pages.every(
+          (page) => page?.total === 5000 && page.totalExact,
+        ),
+      ).toBe(true);
       expect(new Set(pageIds).size).toBe(pageIds.length);
-      expect(folderAndPagination.pages.every((page) => page?.results.length === 20)).toBe(true);
+      expect(
+        folderAndPagination.pages.every((page) => page?.results.length === 20),
+      ).toBe(true);
       const concurrencyRows: Array<Record<string, unknown>> = [];
       for (const concurrency of [1, 5, 10]) {
         const startedAt = performance.now();
-        const results = await Promise.all(Array.from({ length: concurrency }, () =>
-          service.searchWorkspace(largestWorkspaceId, adminA, 'rareneedle'),
-        ));
+        const results = await Promise.all(
+          Array.from({ length: concurrency }, () =>
+            service.searchWorkspace(largestWorkspaceId, adminA, 'rareneedle'),
+          ),
+        );
         concurrencyRows.push({
           concurrency,
           elapsedMs: Number((performance.now() - startedAt).toFixed(2)),
-          errors: results.filter((result) => result?.total !== 50 || result.totalExact !== true).length,
+          errors: results.filter(
+            (result) => result?.total !== 50 || result.totalExact !== true,
+          ).length,
           timeouts: 0,
           requestCount: results.length,
         });
@@ -802,26 +1102,72 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       await prisma.$executeRawUnsafe('ANALYZE "CorpusDocument"');
       const explainDirectory = path.join(outputRoot, 'explain-after');
       await mkdir(explainDirectory, { recursive: true });
-      const captureExplain = async (name: string, sql: string, ...params: unknown[]) => {
-        const result = await prisma.$queryRawUnsafe<Array<{ 'QUERY PLAN': unknown }>>(
+      const captureExplain = async (
+        name: string,
+        sql: string,
+        ...params: unknown[]
+      ) => {
+        const result = await prisma.$queryRawUnsafe<
+          Array<{ 'QUERY PLAN': unknown }>
+        >(
           `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, FORMAT JSON) ${sql}`,
           ...params,
         );
         const plan = result[0]?.['QUERY PLAN'];
-        await writeFile(path.join(explainDirectory, `${name}.json`), `${JSON.stringify(plan, null, 2)}\n`, 'utf8');
+        await writeFile(
+          path.join(explainDirectory, `${name}.json`),
+          `${JSON.stringify(plan, null, 2)}\n`,
+          'utf8',
+        );
         return { name, plan };
       };
       const commonPattern = '%sprint151needle%';
       const commonWhere = `d."documentScope" = 'PRIVATE_WORKSPACE' AND d."visibility" = 'RESTRICTED' AND d."status" = 'INDEXED' AND d."searchText" ILIKE $1 AND EXISTS (SELECT 1 FROM "WorkspaceDocument" wd WHERE wd."documentId" = d."id" AND wd."workspaceId" = $2)`;
       const tokenCandidateCte = `SELECT DISTINCT token."documentId" AS "id" FROM "CorpusSearchToken" token JOIN "CorpusDocument" d ON d."id" = token."documentId" WHERE d."visibility" = ANY(ARRAY['RESTRICTED']::text[]) AND d."status" = 'INDEXED' AND d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" wd WHERE wd."documentId" = d."id" AND wd."workspaceId" = $1) AND token."token" ILIKE $2 ESCAPE E'\\\\'`;
       const explainPlans: Array<Record<string, unknown>> = [
-        await captureExplain('5000-common-count', `SELECT count(*) FROM "CorpusDocument" d WHERE ${commonWhere}`, commonPattern, largestWorkspaceId),
-        await captureExplain('5000-common-token-candidates', tokenCandidateCte, largestWorkspaceId, commonPattern),
-        await captureExplain('5000-common-token-page', `WITH "corpusSearchCandidates" AS MATERIALIZED (${tokenCandidateCte}) SELECT d."id", d."decisionDate", d."updatedAt" FROM "corpusSearchCandidates" c JOIN "CorpusDocument" d ON d."id" = c."id" ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 0`, largestWorkspaceId, commonPattern),
-        await captureExplain('5000-common-page-first', `SELECT d."id", d."decisionDate", d."updatedAt" FROM "CorpusDocument" d WHERE ${commonWhere} ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 0`, commonPattern, largestWorkspaceId),
-        await captureExplain('5000-common-page-last', `SELECT d."id", d."decisionDate", d."updatedAt" FROM "CorpusDocument" d WHERE ${commonWhere} ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 4000`, commonPattern, largestWorkspaceId),
-        await captureExplain('5000-folder-page', `SELECT d."id", d."decisionDate", d."updatedAt" FROM "CorpusDocument" d WHERE ${commonWhere} AND EXISTS (SELECT 1 FROM "WorkspaceDocument" wdf WHERE wdf."documentId" = d."id" AND wdf."workspaceId" = $2 AND wdf."folderId" = $3) ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 0`, commonPattern, largestWorkspaceId, benchmarkFolder.id),
-        await captureExplain('5000-zero-count', `SELECT count(*) FROM "CorpusDocument" d WHERE d."documentScope" = 'PRIVATE_WORKSPACE' AND d."visibility" = 'RESTRICTED' AND d."status" = 'INDEXED' AND d."searchText" ILIKE $1 AND EXISTS (SELECT 1 FROM "WorkspaceDocument" wd WHERE wd."documentId" = d."id" AND wd."workspaceId" = $2)`, '%nonefound%', largestWorkspaceId),
+        await captureExplain(
+          '5000-common-count',
+          `SELECT count(*) FROM "CorpusDocument" d WHERE ${commonWhere}`,
+          commonPattern,
+          largestWorkspaceId,
+        ),
+        await captureExplain(
+          '5000-common-token-candidates',
+          tokenCandidateCte,
+          largestWorkspaceId,
+          commonPattern,
+        ),
+        await captureExplain(
+          '5000-common-token-page',
+          `WITH "corpusSearchCandidates" AS MATERIALIZED (${tokenCandidateCte}) SELECT d."id", d."decisionDate", d."updatedAt" FROM "corpusSearchCandidates" c JOIN "CorpusDocument" d ON d."id" = c."id" ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 0`,
+          largestWorkspaceId,
+          commonPattern,
+        ),
+        await captureExplain(
+          '5000-common-page-first',
+          `SELECT d."id", d."decisionDate", d."updatedAt" FROM "CorpusDocument" d WHERE ${commonWhere} ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 0`,
+          commonPattern,
+          largestWorkspaceId,
+        ),
+        await captureExplain(
+          '5000-common-page-last',
+          `SELECT d."id", d."decisionDate", d."updatedAt" FROM "CorpusDocument" d WHERE ${commonWhere} ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 4000`,
+          commonPattern,
+          largestWorkspaceId,
+        ),
+        await captureExplain(
+          '5000-folder-page',
+          `SELECT d."id", d."decisionDate", d."updatedAt" FROM "CorpusDocument" d WHERE ${commonWhere} AND EXISTS (SELECT 1 FROM "WorkspaceDocument" wdf WHERE wdf."documentId" = d."id" AND wdf."workspaceId" = $2 AND wdf."folderId" = $3) ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id" LIMIT 21 OFFSET 0`,
+          commonPattern,
+          largestWorkspaceId,
+          benchmarkFolder.id,
+        ),
+        await captureExplain(
+          '5000-zero-count',
+          `SELECT count(*) FROM "CorpusDocument" d WHERE d."documentScope" = 'PRIVATE_WORKSPACE' AND d."visibility" = 'RESTRICTED' AND d."status" = 'INDEXED' AND d."searchText" ILIKE $1 AND EXISTS (SELECT 1 FROM "WorkspaceDocument" wd WHERE wd."documentId" = d."id" AND wd."workspaceId" = $2)`,
+          '%nonefound%',
+          largestWorkspaceId,
+        ),
       ];
       const [relationStats, runtimeSettings] = await Promise.all([
         prisma.$queryRaw<Array<Record<string, unknown>>>`
@@ -832,7 +1178,9 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
            WHERE pg_stat_user_tables.relname IN ('CorpusDocument', 'WorkspaceDocument')
            ORDER BY pg_stat_user_tables.relname
         `,
-        prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT name, setting, unit, source FROM pg_settings WHERE name = ANY(ARRAY['jit', 'work_mem', 'plan_cache_mode', 'max_parallel_workers_per_gather', 'autovacuum']) ORDER BY name`,
+        prisma.$queryRaw<
+          Array<Record<string, unknown>>
+        >`SELECT name, setting, unit, source FROM pg_settings WHERE name = ANY(ARRAY['jit', 'work_mem', 'plan_cache_mode', 'max_parallel_workers_per_gather', 'autovacuum']) ORDER BY name`,
       ]);
       const planVariance = {
         explainPlans,
@@ -840,28 +1188,74 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         runtimeSettings,
         note: 'Single observed plan after targeted ANALYZE; repeated EXPLAIN plan stability is not inferred from latency alone.',
       };
-      await writeFile(path.join(outputRoot, 'plan-variance.json'), `${JSON.stringify(planVariance, (_key, value) => typeof value === 'bigint' ? value.toString() : value, 2)}\n`, 'utf8');
-      await writeFile(path.join(outputRoot, 'explain-after.json'), `${JSON.stringify(explainPlans, null, 2)}\n`, 'utf8');
       await writeFile(
-        path.join(outputRoot, 'folders-pagination.json'),
-        `${JSON.stringify({
-          allFolders: { total: folderAndPagination.allFolders?.total, pageRows: folderAndPagination.allFolders?.results.length },
-          oneFolder: { total: folderAndPagination.oneFolder?.total, pageRows: folderAndPagination.oneFolder?.results.length },
-          pages: folderAndPagination.pages.map((result, index) => ({ page: [1, 125, 250][index], total: result?.total, rows: result?.results.map((row) => row.id) })),
-          uniquePageIds: new Set(pageIds).size,
-          missingRows: folderAndPagination.pages.reduce((sum, result) => sum + (20 - (result?.results.length ?? 0)), 0),
-        }, null, 2)}\n`,
+        path.join(outputRoot, 'plan-variance.json'),
+        `${JSON.stringify(
+          planVariance,
+          (_key: string, value: unknown): unknown =>
+            typeof value === 'bigint' ? value.toString() : value,
+          2,
+        )}\n`,
         'utf8',
       );
-      await writeFile(path.join(outputRoot, 'concurrency.json'), `${JSON.stringify(concurrencyRows, null, 2)}\n`, 'utf8');
       await writeFile(
-        path.join(outputRoot, process.env.BJC_SPRINT1511_PHASE === 'after' ? 'term-benchmark-after.json' : 'term-benchmark-before.json'),
+        path.join(outputRoot, 'explain-after.json'),
+        `${JSON.stringify(explainPlans, null, 2)}\n`,
+        'utf8',
+      );
+      await writeFile(
+        path.join(outputRoot, 'folders-pagination.json'),
+        `${JSON.stringify(
+          {
+            allFolders: {
+              total: folderAndPagination.allFolders?.total,
+              pageRows: folderAndPagination.allFolders?.results.length,
+            },
+            oneFolder: {
+              total: folderAndPagination.oneFolder?.total,
+              pageRows: folderAndPagination.oneFolder?.results.length,
+            },
+            pages: folderAndPagination.pages.map((result, index) => ({
+              page: [1, 125, 250][index],
+              total: result?.total,
+              rows: result?.results.map((row) => row.id),
+            })),
+            uniquePageIds: new Set(pageIds).size,
+            missingRows: folderAndPagination.pages.reduce(
+              (sum, result) => sum + (20 - (result?.results.length ?? 0)),
+              0,
+            ),
+          },
+          null,
+          2,
+        )}\n`,
+        'utf8',
+      );
+      await writeFile(
+        path.join(outputRoot, 'concurrency.json'),
+        `${JSON.stringify(concurrencyRows, null, 2)}\n`,
+        'utf8',
+      );
+      await writeFile(
+        path.join(
+          outputRoot,
+          process.env.BJC_SPRINT1511_PHASE === 'after'
+            ? 'term-benchmark-after.json'
+            : 'term-benchmark-before.json',
+        ),
         `${JSON.stringify(benchmarkRows, null, 2)}\n`,
         'utf8',
       );
       await writeFile(
         path.join(outputRoot, 'acl-count-benchmark.json'),
-        `${JSON.stringify(benchmarkRows.map(({ documents, aclSqlCountComparison }) => ({ documents, aclSqlCountComparison })), null, 2)}\n`,
+        `${JSON.stringify(
+          benchmarkRows.map(({ documents, aclSqlCountComparison }) => ({
+            documents,
+            aclSqlCountComparison,
+          })),
+          null,
+          2,
+        )}\n`,
         'utf8',
       );
       await writeFile(
@@ -883,20 +1277,28 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       );
       await writeFile(
         path.join(outputRoot, 'datasets.json'),
-        `${JSON.stringify(benchmarkRows.map(({ documents, term, medium, rare, zero }) => ({
-          documents,
-          distribution: {
-            common: term && (term as { expectedTotal?: number }).expectedTotal,
-            medium: medium && (medium as { expectedTotal?: number }).expectedTotal,
-            rare: rare && (rare as { expectedTotal?: number }).expectedTotal,
-            zero: zero && (zero as { expectedTotal?: number }).expectedTotal,
-          },
-          synthetic: true,
-          pdfBlobs: 0,
-        })), null, 2)}\n`,
+        `${JSON.stringify(
+          benchmarkRows.map(({ documents, term, medium, rare, zero }) => ({
+            documents,
+            distribution: {
+              common:
+                term && (term as { expectedTotal?: number }).expectedTotal,
+              medium:
+                medium && (medium as { expectedTotal?: number }).expectedTotal,
+              rare: rare && (rare as { expectedTotal?: number }).expectedTotal,
+              zero: zero && (zero as { expectedTotal?: number }).expectedTotal,
+            },
+            synthetic: true,
+            pdfBlobs: 0,
+          })),
+          null,
+          2,
+        )}\n`,
         'utf8',
       );
-      console.log(`SPRINT1511_PRIVATE_SEARCH_BENCHMARK=${JSON.stringify(benchmarkRows.map(({documents, term, medium, rare, zero, phrase, aclSqlCountComparison}) => ({documents, term, medium, rare, zero, phrase, aclSqlCountComparison})))}`);
+      console.log(
+        `SPRINT1511_PRIVATE_SEARCH_BENCHMARK=${JSON.stringify(benchmarkRows.map(({ documents, term, medium, rare, zero, phrase, aclSqlCountComparison }) => ({ documents, term, medium, rare, zero, phrase, aclSqlCountComparison })))}`,
+      );
     },
   );
 });

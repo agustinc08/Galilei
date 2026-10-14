@@ -25,7 +25,27 @@ type DocumentInfo = {
   file?: { filename: string; pageCount?: number | null; mimeType: string } | null;
   extraction?: { status: string; extractor: string; extractorVersion: string; extractedAt: string; pageCount: number } | null;
 };
-type DocumentMatches = { total: number; truncated: boolean; matches: Array<{ page: number; offset: number; term: string; context: string; ordinal: number; total: number }> };
+type DocumentMatches = {
+  total: number;
+  returned: number;
+  exactTotalKnown: boolean;
+  truncated: boolean;
+  matches: Array<{
+    page: number;
+    start: number;
+    end: number;
+    offset: number;
+    text: string;
+    term: string;
+    kind: 'TERM' | 'PHRASE';
+    context: string;
+    contextBefore: string;
+    contextAfter: string;
+    ordinal: number;
+    pageOccurrenceOrdinal: number;
+    total: number;
+  }>;
+};
 type CurationData = {
   editorialStatus: string;
   metadata: Record<string, unknown> | null;
@@ -176,7 +196,7 @@ export default function CorpusDocumentPage() {
           <Card>
             <h2>Coincidencias</h2>
             {matches ? <>
-              <p>{matches.truncated ? `${matches.total}+ coincidencias (límite de navegación)` : `${matches.total} coincidencias`}</p>
+              <p>{matches.truncated ? `Mostrando las primeras ${matches.returned} coincidencias; total exacto desconocido` : `${matches.total} coincidencias`}</p>
               <div className={styles.matchNav}>
                 <button type="button" disabled={!matches.total} onClick={() => navigateMatch(-1)}>← Anterior</button>
                 <span>{matches.total ? `${activeMatch + 1} de ${matches.total}` : '0 de 0'}</span>

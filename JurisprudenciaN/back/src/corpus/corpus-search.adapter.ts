@@ -15,6 +15,11 @@ import type {
 } from '../busqueda/utils/search-ast';
 import { visitSearchLiterals } from '../busqueda/utils/search-ast';
 import { normalizeSearchText } from '../busqueda/utils/search-normalizer';
+import {
+  mimeTypesForCorpusTypes,
+  validateCorpusTypes,
+  validateSearchDateRange,
+} from '../busqueda/utils/search-filters';
 
 type SqlValue = string | string[] | number | boolean | Date | null;
 type SearchRow = {
@@ -405,13 +410,43 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const scopePredicate = workspaceId
       ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ' AND workspaceDocument."folderId" = $3') : ''})${sourcePredicate}`
       : `d."documentScope" = 'GENERAL'`;
+    const dateRange = validateSearchDateRange(
+      context.filters?.dateFrom,
+      context.filters?.dateTo,
+    );
+    const types = validateCorpusTypes(context.filters?.types);
+    const filterPredicates: string[] = [];
+    if (dateRange.dateFrom) {
+      values.push(dateRange.dateFrom);
+      filterPredicates.push(`d."decisionDate" >= $${values.length}::date`);
+    }
+    if (dateRange.dateTo) {
+      values.push(dateRange.dateTo);
+      filterPredicates.push(`d."decisionDate" < ($${values.length}::date + INTERVAL '1 day')`);
+    }
+    if (types) {
+      values.push(mimeTypesForCorpusTypes(types));
+      filterPredicates.push(`EXISTS (
+        SELECT 1 FROM "CorpusDocumentFile" currentFile
+         WHERE currentFile."documentId" = d."id"
+           AND currentFile."version" = (
+             SELECT max(latestFile."version") FROM "CorpusDocumentFile" latestFile
+              WHERE latestFile."documentId" = d."id"
+           )
+           AND lower(btrim(split_part(currentFile."mimeType", ';', 1))) = ANY($${values.length}::text[])
+      )`);
+    }
+    const filterPredicate = filterPredicates.join(' AND ');
+    const candidateScopePredicate = filterPredicate
+      ? `(${scopePredicate}) AND (${filterPredicate})`
+      : scopePredicate;
     const shortTermWindow = useTokenProjection && query.root?.type === 'term' && !query.root.field &&
       query.root.matchMode === 'contains' && [...normalizeSearchText(query.root.value)].length < 3;
     const deferredSinglePhrase = useTokenProjection && query.root?.type === 'phrase';
     const candidateValuesStart = values.length + 1;
     const candidateBuildStartedAt = performance.now();
     const candidateCte = this.candidateStrategy === 'set-algebra-v2' && !shortTermWindow
-      ? buildBooleanCandidateCte(query, values, useTokenProjection, deferredSinglePhrase, scopePredicate)
+      ? buildBooleanCandidateCte(query, values, useTokenProjection, deferredSinglePhrase, candidateScopePredicate)
       : null;
     const candidateValuesEnd = candidateCte ? values.length : values.length - 1;
     const candidateBuildMs = performance.now() - candidateBuildStartedAt;
@@ -423,6 +458,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       `d."visibility" = ANY($1::text[])`,
       `d."status" = 'INDEXED'`,
       scopePredicate,
+      ...(filterPredicate ? [filterPredicate] : []),
     ];
     if (shortTermWindow && query.root?.type === 'term') {
       values.push(pattern(query.root));
@@ -441,7 +477,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       predicates.push(`d."decisionDate" < $${values.length}::date`);
     }
     const structured: Array<
-      [keyof NonNullable<SearchContext['filters']>, string]
+      [Exclude<keyof NonNullable<SearchContext['filters']>, 'dateFrom' | 'dateTo' | 'types'>, string]
     > = [
       ['expediente', 'd."caseNumber"'],
       ['numeroSentencia', 'd."caseNumber"'],

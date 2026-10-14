@@ -117,7 +117,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.getByRole('navigation', { name: 'Ruta de carpetas' })).toContainText('Actuaciones 2026');
 
   // Per-file status and continuation across one, five and twenty PDFs.
-  const fileInput = page.getByLabel('Seleccionar archivos PDF');
+  const fileInput = page.getByLabel('Seleccionar archivos PDF o TXT');
   await fileInput.setInputFiles([{ name: 'sprint151-e2e-one.pdf', mimeType: 'application/pdf', buffer: pdf }]);
   await expect(page.getByRole('status').filter({ hasText: '1 archivo(s) procesado(s).' })).toBeVisible({ timeout: 60_000 });
 
@@ -195,6 +195,15 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect.poll(() => manualSourceRequests.includes('__manual_upload__')).toBe(true);
   await expect(firstClassicResult).toBeVisible({ timeout: 60_000 });
   await expect(classicResults.locator('article').first()).toContainText('Fuente: Carga manual');
+  const pdfFilterResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith(`/api/workspaces/${workspaceAId}/search`)
+      && url.searchParams.get('type') === 'PDF'
+      && url.searchParams.get('sourceId') === '__manual_upload__';
+  });
+  await page.getByLabel('Filtrar por tipo').selectOption('PDF');
+  const filteredSearchResponse = await pdfFilterResponse;
+  expect(filteredSearchResponse.status()).toBe(200);
   const previewStartedAt = Date.now();
   await firstClassicResult.click();
   await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
@@ -241,9 +250,44 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.getByRole('link', { name: '← Volver al espacio' })).toBeVisible();
   await page.getByRole('link', { name: '← Volver al espacio' }).click();
   await expect(page).toHaveURL(/sourceId=__manual_upload__/u);
+  await expect(page).toHaveURL(/type=PDF/u);
   await expect(page).toHaveURL(new RegExp(`selected=[^&]+`, 'u'));
   await expect(page.getByLabel('Buscar documentos privados')).toHaveValue('JORGE');
   await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
+
+  // PHRASE is represented and highlighted as the exact adjacent text span.
+  await classicSearch.fill('"JORGE PORCEL"');
+  const phraseResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith(`/api/workspaces/${workspaceAId}/search`)
+      && url.searchParams.get('q') === '"JORGE PORCEL"'
+      && url.searchParams.get('type') === 'PDF';
+  });
+  await page.getByRole('search').getByRole('button', { name: 'Buscar', exact: true }).click();
+  expect((await phraseResponse).status()).toBe(200);
+  await expect(firstClassicResult).toBeVisible({ timeout: 60_000 });
+  await firstClassicResult.click();
+  await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
+  const phraseMarks = page.locator('.bjc-pdf-match-current');
+  await expect(phraseMarks.first()).toBeVisible({ timeout: 30_000 });
+  const phraseHighlight = (await phraseMarks.allTextContents()).join('').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('es');
+  expect(phraseHighlight).toBe('jorge porcel');
+
+  // The date and type constraints are sent to the API and survive URL state; this fixture's unknown date must not pass a date range.
+  await page.getByLabel('Filtrar por fecha').selectOption('custom');
+  await page.getByLabel('Fecha desde').fill('2025-01-01');
+  const combinedFilterResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith(`/api/workspaces/${workspaceAId}/search`)
+      && url.searchParams.get('type') === 'PDF'
+      && url.searchParams.get('dateFrom') === '2025-01-01'
+      && url.searchParams.get('dateTo') === '2025-12-31'
+      && url.searchParams.get('sourceId') === '__manual_upload__';
+  });
+  await page.getByLabel('Fecha hasta').fill('2025-12-31');
+  const combinedResponse = await combinedFilterResponse;
+  expect(combinedResponse.status()).toBe(200);
+  await expect(page.getByRole('heading', { name: 'No hay resultados con estos filtros.' })).toBeVisible({ timeout: 30_000 });
 
   // The admin sees and changes only workspace assignments; the shared search remains available.
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceAId)}`);
@@ -261,7 +305,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await addMember(page, credentials.accounts.reader.email, 'Consulta');
   const viewerRoleB = page.getByLabel(`Permiso de ${credentials.accounts.reader.email}`);
   await expect(viewerRoleB).toHaveValue('VIEWER');
-  const fileInputB = page.getByLabel('Seleccionar archivos PDF');
+  const fileInputB = page.getByLabel('Seleccionar archivos PDF o TXT');
   await fileInputB.setInputFiles([{ name: 'sprint151-e2e-one.pdf', mimeType: 'application/pdf', buffer: pdf }]);
   await expect(page.getByRole('status').filter({ hasText: '1 archivo(s) procesado(s).' })).toBeVisible({ timeout: 60_000 });
   await expect(workspaceSelect).toHaveValue(workspaceBId);
@@ -273,7 +317,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.getByRole('heading', { name: nameA })).toBeVisible();
   await expect(page.getByText('Tu espacio asignado se abrió automáticamente.')).toBeVisible();
   await expect(page.getByText('Tu rol: Editor')).toBeVisible();
-  await expect(page.getByLabel('Seleccionar archivos PDF')).toBeVisible();
+  await expect(page.getByLabel('Seleccionar archivos PDF o TXT')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Miembros y permisos' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
 
@@ -282,7 +326,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await page.goto('/spaces/manage');
   await expect(page.getByRole('heading', { name: nameB })).toBeVisible();
   await expect(page.getByText('Tu rol: Consulta')).toBeVisible();
-  await expect(page.getByLabel('Seleccionar archivos PDF')).toHaveCount(0);
+  await expect(page.getByLabel('Seleccionar archivos PDF o TXT')).toHaveCount(0);
   await expect(page.getByLabel('Nueva carpeta')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Miembros y permisos' })).toHaveCount(0);
   await page.getByLabel('Buscar documentos privados').fill('JORGE');

@@ -131,6 +131,11 @@
 .searchButton:disabled { opacity: .6; cursor: wait; }
 .clearQueryButton { flex: 0 0 auto; margin-left: -2.25rem; width: 1.65rem; height: 1.65rem; border: 0; border-radius: 50%; color: #65798c; background: transparent; cursor: pointer; font-size: 1.1rem; }
 .clearQueryButton + .searchButton { margin-left: .1rem; }
+.filterControls { display: flex; align-items: end; gap: .45rem; flex-wrap: wrap; margin-top: .5rem; }
+.filterControls label { display: grid; gap: .15rem; color: #6a7e90; font-size: .62rem; font-weight: 700; }
+.filterControls select,.filterControls input { min-width: 7.2rem; min-height: 1.9rem; padding: .28rem .4rem; border: 1px solid #c7d3dd; border-radius: 5px; color: #29475d; background: #fff; font: inherit; font-size: .69rem; }
+.filterControls label:nth-child(n + 3) input { min-width: 8.1rem; }
+.filterValidation { margin: .35rem 0 0; color: #9b3932; font-size: .68rem; }
 .searchTools { justify-content: space-between; gap: .5rem; flex-wrap: wrap; margin-top: .4rem; color: #748395; font-size: .67rem; }
 .syntaxHelp { position: relative; color: #315f7d; }
 .syntaxHelp summary { cursor: pointer; font-weight: 700; }
@@ -207,6 +212,9 @@
 .pdfPreview :global(.react-pdf__Page__canvas) { max-width: 100%; height: auto !important; }
 .pdfPreview :global(.bjc-pdf-match) { background: #ffe082; color: #263646; }
 .pdfPreview :global(.bjc-pdf-match-current) { background: #f4a261; color: #172a3a; outline: 2px solid #bd642c; border-radius: 2px; }
+.textPreview { flex: 1 1 auto; min-height: 15rem; margin: 0; padding: .9rem; overflow: auto; color: #2b3e50; background: #fff; white-space: pre-wrap; overflow-wrap: anywhere; font: .75rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.textPreview :global(.bjc-text-match) { background: #ffe082; color: #263646; }
+.textPreview :global(.bjc-text-match-current) { background: #f4a261; color: #172a3a; outline: 2px solid #bd642c; border-radius: 2px; }
 .previewMessage { padding: .8rem; color: #627588; font-size: .73rem; }
 .matchNavigator { justify-content: space-between; gap: .35rem; flex-wrap: wrap; padding: .5rem .65rem; border-top: 1px solid #dfe6ec; color: #415c72; background: #fff; font-size: .68rem; }
 .matchNavigator > div { gap: .25rem; }

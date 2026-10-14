@@ -59,6 +59,7 @@ type CorpusSearchResult = {
   title: string | null;
   date: string | null;
   snippet: string | null;
+  document: { mimeType: string | null } | null;
   metadata: Record<string, string | number | boolean | null>;
 };
 type SearchPage = {
@@ -79,6 +80,7 @@ type NameSearchPage = {
     documentId: string;
     title: string;
     filename: string;
+    mimeType: string | null;
     status: string;
     uploadedAt: string;
     folder: { id: string; name: string } | null;
@@ -87,6 +89,7 @@ type NameSearchPage = {
 type SearchHit = {
   documentId: string;
   filename: string;
+  fileType: "PDF" | "TXT" | "DOC";
   title: string;
   page: number;
   folderId: string | null;
@@ -109,11 +112,22 @@ type DocumentInfo = {
     mimeType: string;
   } | null;
   extraction: { status: string; pageCount: number } | null;
+  selectedPage?: { pageNumber: number; text: string };
 };
 type DocumentMatches = {
   total: number;
+  returned: number;
+  exactTotalKnown: boolean;
   truncated: boolean;
-  matches: Array<PdfMatch & { context: string; total: number }>;
+  matches: Array<PdfMatch & {
+    context: string;
+    contextBefore: string;
+    contextAfter: string;
+    text: string;
+    kind: "TERM" | "PHRASE";
+    pageOccurrenceOrdinal: number;
+    total: number;
+  }>;
 };
 type PreviewState = {
   document: DocumentInfo;
@@ -121,8 +135,73 @@ type PreviewState = {
   matches: DocumentMatches;
 };
 
+function renderTextPreview(
+  text: string,
+  matches: DocumentMatches["matches"],
+  activeOrdinal: number,
+) {
+  const ranges = matches
+    .filter((match) => match.page === 1 && match.end > match.start)
+    .sort((left, right) => left.start - right.start || left.end - right.end);
+  const segments: ReactNode[] = [];
+  let cursor = 0;
+  for (const match of ranges) {
+    const start = Math.max(cursor, match.start);
+    const end = Math.min(text.length, match.end);
+    if (end <= start) continue;
+    if (start > cursor) segments.push(text.slice(cursor, start));
+    segments.push(
+      <mark className={match.ordinal === activeOrdinal ? "bjc-text-match-current" : "bjc-text-match"} key={`${match.ordinal}-${start}-${end}`}>
+        {text.slice(start, end)}
+      </mark>,
+    );
+    cursor = end;
+  }
+  if (cursor < text.length) segments.push(text.slice(cursor));
+  return segments;
+}
+
 const MANUAL_SOURCE_ID = "__manual_upload__";
-const EMPTY_MATCHES: DocumentMatches = { total: 0, truncated: false, matches: [] };
+const EMPTY_MATCHES: DocumentMatches = {
+  total: 0,
+  returned: 0,
+  exactTotalKnown: true,
+  truncated: false,
+  matches: [],
+};
+
+type DatePreset = "any" | "7d" | "30d" | "1y" | "custom";
+
+function dateInputValue(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function presetDateRange(preset: Exclude<DatePreset, "any" | "custom">) {
+  const end = new Date();
+  const start = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  if (preset === "7d") start.setDate(start.getDate() - 6);
+  else if (preset === "30d") start.setDate(start.getDate() - 29);
+  else start.setFullYear(start.getFullYear() - 1);
+  return { dateFrom: dateInputValue(start), dateTo: dateInputValue(end) };
+}
+
+function validDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const test = new Date(Date.UTC(year, month - 1, day));
+  return test.getUTCFullYear() === year && test.getUTCMonth() === month - 1 && test.getUTCDate() === day;
+}
+
+function validateDateFilter(from: string, to: string) {
+  if ((from && !validDateInput(from)) || (to && !validDateInput(to))) {
+    return "Ingresá fechas válidas con formato calendario.";
+  }
+  if (from && to && from > to) return "La fecha desde no puede ser posterior a la fecha hasta.";
+  return "";
+}
 
 function safeError(cause: unknown) {
   if (cause instanceof ApiError && (cause.status === 403 || cause.status === 404))
@@ -162,7 +241,7 @@ function sourceStatusLabel(status: string) {
 
 function documentStatusLabel(status: string | null) {
   if (status === "OCR_REQUIRED") return "Requiere OCR";
-  if (status === "INDEXED") return "PDF indexado";
+  if (status === "INDEXED") return "Contenido indexado";
   if (status === "ERROR" || status === "INVALID_PDF") return "Error de lectura";
   return "Documento privado";
 }
@@ -205,6 +284,7 @@ function buildHitList(
     hits.set(documentId, {
       documentId,
       filename: String(metadata.filename || result.title || "Documento PDF"),
+      fileType: result.document?.mimeType === "text/plain" ? "TXT" : result.document?.mimeType === "application/pdf" ? "PDF" : "DOC",
       title: result.title || String(metadata.filename || "Documento PDF"),
       page: Math.max(1, Number(metadata.pageNumber || 1)),
       folderId: typeof metadata.folderId === "string" ? metadata.folderId : null,
@@ -223,6 +303,7 @@ function buildHitList(
     hits.set(result.documentId, {
       documentId: result.documentId,
       filename: result.filename,
+      fileType: result.mimeType === "text/plain" ? "TXT" : result.mimeType === "application/pdf" ? "PDF" : "DOC",
       title: result.title,
       page: 1,
       folderId: result.folder?.id ?? null,
@@ -257,6 +338,13 @@ export function CopernicWorkspaceSearch() {
   const activeFolderId = params.get("folderId") ?? "";
   const activeSourceId = params.get("sourceId") ?? "";
   const activeSourceFolder = params.get("sourceFolder") ?? "";
+  const activeType = params.get("type") ?? "";
+  const activeDateFrom = params.get("dateFrom") ?? "";
+  const activeDateTo = params.get("dateTo") ?? "";
+  const activeDatePreset = (params.get("datePreset") as DatePreset | null)
+    ?? (activeDateFrom || activeDateTo ? "custom" : "any");
+  const dateFilterError = validateDateFilter(activeDateFrom, activeDateTo);
+  const hasDateFilter = Boolean(activeDateFrom || activeDateTo);
   const pageNumber = Math.max(1, Number(params.get("page") || 1));
   const selectedId = params.get("selected") ?? "";
   const initialMatchOrdinal = Math.max(1, Number(params.get("match") || 1));
@@ -435,6 +523,13 @@ export function CopernicWorkspaceSearch() {
       setSearching(false);
       return;
     }
+    if (dateFilterError) {
+      setSearchPage(null);
+      setNamePage(null);
+      setSearching(false);
+      setSearchError(dateFilterError);
+      return;
+    }
     const controller = new AbortController();
     searchController.current = controller;
     setSearching(true);
@@ -445,6 +540,9 @@ export function CopernicWorkspaceSearch() {
       folderId: folderScope,
       sourceId: activeSourceId || undefined,
       sourceFolder: activeSourceFolder || undefined,
+      type: activeType || undefined,
+      dateFrom: activeDateFrom || undefined,
+      dateTo: activeDateTo || undefined,
     };
     void Promise.all([
       api.get<SearchPage>(`/workspaces/${workspaceId}/search`, {
@@ -498,6 +596,10 @@ export function CopernicWorkspaceSearch() {
     activeFolderId,
     activeSourceId,
     activeSourceFolder,
+    activeType,
+    activeDateFrom,
+    activeDateTo,
+    dateFilterError,
     navigate,
   ]);
 
@@ -530,7 +632,7 @@ export function CopernicWorkspaceSearch() {
     void Promise.all([
       api.get<DocumentInfo>(
         `/workspaces/${workspaceId}/documents/${selectedDocumentId}`,
-        { signal: controller.signal },
+        { query: { pageNumber: selectedPage }, signal: controller.signal },
       ),
       api.download(
         `/workspaces/${workspaceId}/documents/${selectedDocumentId}/file`,
@@ -541,17 +643,14 @@ export function CopernicWorkspaceSearch() {
       .then(([document, blob, matches]) => {
         if (controller.signal.aborted) return;
         fileUrl = URL.createObjectURL(blob);
-        const preferredMatchIndex = Math.max(
-          0,
-          matches.matches.findIndex((match) => match.page === selectedPage),
+        const requestedMatchIndex = matches.matches.findIndex(
+          (match) => match.ordinal === initialMatchOrdinalRef.current,
         );
+        const preferredMatchIndex = requestedMatchIndex >= 0 ? requestedMatchIndex : 0;
+        const preferredMatch = matches.matches[preferredMatchIndex];
         setPreview({ document, fileUrl, matches });
-        setSelectedMatchIndex(
-          initialMatchOrdinalRef.current <= matches.matches.length
-            ? initialMatchOrdinalRef.current - 1
-            : preferredMatchIndex,
-        );
-        setPreviewPage(selectedPage);
+        setSelectedMatchIndex(preferredMatchIndex);
+        setPreviewPage(preferredMatch?.page ?? selectedPage);
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) setPreviewError(safeError(cause));
@@ -567,6 +666,7 @@ export function CopernicWorkspaceSearch() {
 
   const setSelection = useCallback(
     (documentId: string | null, matchOrdinal?: number) => {
+      initialMatchOrdinalRef.current = matchOrdinal ?? 1;
       navigate(
         {
           selected: documentId,
@@ -637,10 +737,46 @@ export function CopernicWorkspaceSearch() {
       folderId: null,
       sourceId: null,
       sourceFolder: null,
+      type: null,
+      datePreset: null,
+      dateFrom: null,
+      dateTo: null,
       page: 1,
       selected: null,
       match: null,
     });
+
+  const selectType = (type: string) =>
+    navigate({ type: type || null, page: 1, selected: null, match: null }, true);
+
+  const selectDatePreset = (preset: DatePreset) => {
+    if (preset === "any") {
+      navigate({ datePreset: null, dateFrom: null, dateTo: null, page: 1, selected: null, match: null }, true);
+      return;
+    }
+    if (preset === "custom") {
+      navigate({ datePreset: preset, page: 1, selected: null, match: null }, true);
+      return;
+    }
+    navigate({ datePreset: preset, ...presetDateRange(preset), page: 1, selected: null, match: null }, true);
+  };
+
+  const setCustomDate = (key: "dateFrom" | "dateTo", value: string) =>
+    navigate({ datePreset: "custom", [key]: value || null, page: 1, selected: null, match: null }, true);
+
+  const dateFilterLabel = activeDatePreset === "7d"
+    ? "Últimos 7 días"
+    : activeDatePreset === "30d"
+      ? "Últimos 30 días"
+      : activeDatePreset === "1y"
+        ? "Último año"
+        : activeDateFrom && activeDateTo
+          ? `${activeDateFrom} – ${activeDateTo}`
+          : activeDateFrom
+            ? `Desde ${activeDateFrom}`
+            : activeDateTo
+              ? `Hasta ${activeDateTo}`
+              : "Fecha personalizada";
 
   const openFullViewer = (hit: SearchHit) => {
     const query = new URLSearchParams({
@@ -655,6 +791,10 @@ export function CopernicWorkspaceSearch() {
       match: String(selectedMatchIndex + 1),
       ...(activeSourceId ? { sourceId: activeSourceId } : {}),
       ...(activeSourceFolder ? { sourceFolder: activeSourceFolder } : {}),
+        ...(activeType ? { type: activeType } : {}),
+        ...(activeDatePreset !== "any" ? { datePreset: activeDatePreset } : {}),
+        ...(activeDateFrom ? { dateFrom: activeDateFrom } : {}),
+        ...(activeDateTo ? { dateTo: activeDateTo } : {}),
     });
     router.push(
       `/spaces/${workspaceId}/documents/${hit.documentId}?${query.toString()}`,
@@ -667,11 +807,14 @@ export function CopernicWorkspaceSearch() {
       const length = preview.matches.matches.length;
       const nextIndex = (selectedMatchIndex + direction + length) % length;
       const nextMatch = preview.matches.matches[nextIndex];
+      const wrapped = direction > 0
+        ? selectedMatchIndex === length - 1
+        : selectedMatchIndex === 0;
       setSelectedMatchIndex(nextIndex);
       setPreviewPage(nextMatch.page);
       navigate({ match: nextMatch.ordinal }, true);
       setResultsAnnouncement(
-        `Coincidencia ${nextIndex + 1} de ${preview.matches.total}${preview.matches.truncated ? " o más" : ""}, página ${nextMatch.page}.`,
+        `${wrapped ? direction > 0 ? "Fin de la muestra; volvemos al inicio. " : "Inicio de la muestra; volvemos al final. " : ""}Coincidencia ${nextMatch.ordinal} de ${preview.matches.total}${preview.matches.truncated ? " o más" : ""}, página ${nextMatch.page}.`,
       );
     },
     [navigate, preview, selectedHit, selectedMatchIndex],
@@ -738,6 +881,10 @@ export function CopernicWorkspaceSearch() {
         match: String(selectedMatchIndex + 1),
         ...(activeSourceId ? { sourceId: activeSourceId } : {}),
         ...(activeSourceFolder ? { sourceFolder: activeSourceFolder } : {}),
+        ...(activeType ? { type: activeType } : {}),
+        ...(activeDatePreset !== "any" ? { datePreset: activeDatePreset } : {}),
+        ...(activeDateFrom ? { dateFrom: activeDateFrom } : {}),
+        ...(activeDateTo ? { dateTo: activeDateTo } : {}),
       }).toString()}`
     : "#";
 
@@ -987,6 +1134,39 @@ export function CopernicWorkspaceSearch() {
                   {searching ? "Buscando…" : "Buscar"}
                 </button>
               </form>
+              <div className={styles.filterControls} aria-label="Filtros de búsqueda">
+                <label>
+                  <span>Tipo</span>
+                  <select aria-label="Filtrar por tipo" value={activeType} onChange={(event) => selectType(event.target.value)}>
+                    <option value="">Todos</option>
+                    <option value="PDF">PDF</option>
+                    <option value="TXT">TXT</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Fecha</span>
+                  <select aria-label="Filtrar por fecha" value={activeDatePreset} onChange={(event) => selectDatePreset(event.target.value as DatePreset)}>
+                    <option value="any">Cualquier fecha</option>
+                    <option value="7d">Últimos 7 días</option>
+                    <option value="30d">Últimos 30 días</option>
+                    <option value="1y">Último año</option>
+                    <option value="custom">Personalizada</option>
+                  </select>
+                </label>
+                {activeDatePreset === "custom" && (
+                  <>
+                    <label>
+                      <span>Desde</span>
+                      <input aria-label="Fecha desde" type="date" value={activeDateFrom} onChange={(event) => setCustomDate("dateFrom", event.target.value)} />
+                    </label>
+                    <label>
+                      <span>Hasta</span>
+                      <input aria-label="Fecha hasta" type="date" value={activeDateTo} onChange={(event) => setCustomDate("dateTo", event.target.value)} />
+                    </label>
+                  </>
+                )}
+              </div>
+              {dateFilterError && <p className={styles.filterValidation} role="alert">{dateFilterError}</p>}
               <div className={styles.searchTools}>
                 <details className={styles.syntaxHelp}>
                   <summary>Ayuda de búsqueda</summary>
@@ -1002,7 +1182,7 @@ export function CopernicWorkspaceSearch() {
                 <span className={styles.searchMode}>Contenido y nombre de archivo</span>
                 <span className={styles.searchShortcut}>Ctrl+F para buscar · F3 para coincidencia</span>
               </div>
-              {(activeFolderId || activeSourceId) && (
+              {(activeFolderId || activeSourceId || activeType || hasDateFilter) && (
                 <div className={styles.filterChips} aria-label="Filtros activos">
                   {activeFolderId && (
                     <button type="button" onClick={() => selectFolder(null)}>
@@ -1012,6 +1192,16 @@ export function CopernicWorkspaceSearch() {
                   {activeSourceId && (
                     <button type="button" onClick={() => selectSource(null)}>
                       Fuente: {activeSource?.name ?? (activeSourceId === MANUAL_SOURCE_ID ? "Carga manual" : "Fuente")} {activeSourceFolder ? `· ${activeSourceFolder.replaceAll("\\", " / ")}` : ""} <span aria-hidden="true">×</span>
+                    </button>
+                  )}
+                  {activeType && (
+                    <button type="button" onClick={() => selectType("")}>
+                      Tipo: {activeType} <span aria-hidden="true">×</span>
+                    </button>
+                  )}
+                  {hasDateFilter && (
+                    <button type="button" onClick={() => selectDatePreset("any")}>
+                      Fecha: {dateFilterLabel} <span aria-hidden="true">×</span>
                     </button>
                   )}
                   <button type="button" className={styles.clearFilters} onClick={clearFilters}>Limpiar filtros</button>
@@ -1047,8 +1237,8 @@ export function CopernicWorkspaceSearch() {
               )}
               {committedQuery && !searching && !searchError && searchPage && hits.length === 0 && (
                 <div className={styles.emptyResults}>
-                  <h2>No encontramos documentos en este espacio.</h2>
-                  <p>Revisá los términos o quitá alguno de los filtros de {activeScope}.</p>
+                  <h2>{activeType || hasDateFilter || activeFolderId || activeSourceId ? "No hay resultados con estos filtros." : "No encontramos documentos en este espacio."}</h2>
+                  <p>Revisá los términos o quitá filtros de {activeScope}.</p>
                 </div>
               )}
               {searching && hits.length === 0 && (
@@ -1080,7 +1270,7 @@ export function CopernicWorkspaceSearch() {
                           onDoubleClick={() => openFullViewer(hit)}
                         >
                           <span className={styles.resultTopline}>
-                            <span className={styles.fileGlyph} aria-hidden="true">PDF</span>
+                            <span className={styles.fileGlyph} aria-hidden="true">{hit.fileType}</span>
                             <strong title={hit.filename}>{hit.filename}</strong>
                             <span className={styles.resultPage}>pág. {hit.page}</span>
                           </span>
@@ -1231,6 +1421,14 @@ export function CopernicWorkspaceSearch() {
                             onLoadSuccess={setPreviewPageCount}
                           />
                         </div>
+                      ) : preview.document.file?.mimeType === "text/plain" ? (
+                        <pre className={styles.textPreview} aria-label="Vista previa del texto extraído">
+                          {renderTextPreview(
+                            preview.document.selectedPage?.text ?? "",
+                            preview.matches.matches,
+                            preview.matches.matches[selectedMatchIndex]?.ordinal ?? 0,
+                          )}
+                        </pre>
                       ) : (
                         <div className={styles.previewMessage}>
                           <p>La vista previa visual no está disponible para este formato.</p>

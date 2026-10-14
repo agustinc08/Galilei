@@ -9,6 +9,11 @@ import {
 import { Prisma, WorkspaceRole, WorkspaceDependencyType } from '@prisma/client';
 import path from 'node:path';
 import { BusquedaService } from '../busqueda/busqueda.service';
+import {
+  mimeTypesForCorpusTypes,
+  validateCorpusTypes,
+  validateSearchDateRange,
+} from '../busqueda/utils/search-filters';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -481,7 +486,7 @@ export class WorkspaceDocumentService {
     ]);
     if (!files?.length || files.length > MAX_FILES)
       throw new BadRequestException(
-        `Subí entre 1 y ${MAX_FILES} PDFs por operación.`,
+        `Subí entre 1 y ${MAX_FILES} archivos PDF o TXT por operación.`,
       );
     if (
       folderId &&
@@ -511,7 +516,7 @@ export class WorkspaceDocumentService {
           message:
             error instanceof BadRequestException
               ? error.message
-              : 'No pudimos procesar este PDF. Podés volver a intentarlo.',
+              : 'No pudimos procesar este archivo. Podés volver a intentarlo.',
         });
       }
     }
@@ -547,6 +552,7 @@ export class WorkspaceDocumentService {
     folderId?: string | null,
     sourceId?: string,
     sourceFolder?: string,
+    filters?: { type?: unknown; dateFrom?: unknown; dateTo?: unknown },
   ): Promise<
     import('../busqueda/adapters/search-source.adapter').SearchResultPage | null
   > {
@@ -579,6 +585,11 @@ export class WorkspaceDocumentService {
         throw new BadRequestException('La carpeta de fuente no es válida.');
       }
     }
+    const dateRange = validateSearchDateRange(
+      filters?.dateFrom,
+      filters?.dateTo,
+    );
+    const types = validateCorpusTypes(filters?.type);
     const result = await this.search.federatedSearch(q, 'AND', {
       visibility: 'ADMIN',
       dialect: 'modern',
@@ -586,6 +597,14 @@ export class WorkspaceDocumentService {
       sourceSystems: ['CORPUS'],
       page,
       pageSize,
+      ...(dateRange.dateFrom || dateRange.dateTo || types
+        ? {
+            filters: {
+              ...dateRange,
+              ...(types ? { types } : {}),
+            },
+          }
+        : {}),
       documentScope: {
         kind: 'WORKSPACE',
         workspaceId,
@@ -642,17 +661,20 @@ export class WorkspaceDocumentService {
             folderName: link?.folder?.name ?? 'Todos los documentos',
             uploadedAt: link?.createdAt.toISOString() ?? null,
             status: link?.document.status ?? null,
-            sourceName: [
-              ...new Set(
-                (sourceFilesByDocument.get(item.sourceId) ?? [])
-                  .filter((row) => !sourceId || row.sourceId === sourceId)
-                  .map((row) => row.source.name),
-              ),
-            ].join(', ') || 'Carga manual',
+            sourceName:
+              [
+                ...new Set(
+                  (sourceFilesByDocument.get(item.sourceId) ?? [])
+                    .filter((row) => !sourceId || row.sourceId === sourceId)
+                    .map((row) => row.source.name),
+                ),
+              ].join(', ') || 'Carga manual',
             sourceStatus: (() => {
-              const rows = (sourceFilesByDocument.get(item.sourceId) ?? [])
-                .filter((row) => !sourceId || row.sourceId === sourceId);
-              return rows.length > 0 && rows.every((row) => row.status === 'MISSING')
+              const rows = (
+                sourceFilesByDocument.get(item.sourceId) ?? []
+              ).filter((row) => !sourceId || row.sourceId === sourceId);
+              return rows.length > 0 &&
+                rows.every((row) => row.status === 'MISSING')
                 ? 'MISSING'
                 : rows.length > 0
                   ? 'PRESENT'
@@ -735,7 +757,12 @@ export class WorkspaceDocumentService {
     });
     const directories = new Map<
       string,
-      { path: string; parentPath: string | null; name: string; fileCount: number }
+      {
+        path: string;
+        parentPath: string | null;
+        name: string;
+        fileCount: number;
+      }
     >();
     for (const file of files) {
       const segments = file.relativePath.split(/[\\/]/u);
@@ -779,6 +806,7 @@ export class WorkspaceDocumentService {
     pageSize = 20,
     sourceId?: string,
     sourceFolder?: string,
+    filters?: { type?: unknown; dateFrom?: unknown; dateTo?: unknown },
   ) {
     await this.requireMembership(workspaceId, user);
     const term = q.trim();
@@ -811,112 +839,129 @@ export class WorkspaceDocumentService {
         throw new BadRequestException('La carpeta de fuente no es válida.');
       }
     }
-    const sourceFolderDocumentIds = normalizedSourceFolder
-      ? (
-          await this.prisma.$queryRaw<Array<{ documentId: string }>>(
-            Prisma.sql`
-              SELECT DISTINCT "documentId"
-                FROM "SourceFile"
-               WHERE "sourceId" = ${sourceId!}
-                 AND "documentId" IS NOT NULL
-                 AND (
-                   "normalizedPath" = ${normalizedSourceFolder}
-                   OR (
-                     left("normalizedPath", char_length(${normalizedSourceFolder})) = ${normalizedSourceFolder}
-                     AND substring("normalizedPath" from char_length(${normalizedSourceFolder}) + 1 for 1) = E'\\\\'
-                   )
-                 )
-            `,
-          )
-        ).map((row) => row.documentId)
-      : undefined;
-    const sourceDocumentFilter: Prisma.CorpusDocumentWhereInput =
-      sourceId === '__manual_upload__'
-        ? {
-            sourceFiles: {
-              none: { source: { workspaceId } },
-            },
+    const dateRange = validateSearchDateRange(
+      filters?.dateFrom,
+      filters?.dateTo,
+    );
+    const types = validateCorpusTypes(filters?.type);
+    const escaped = term.replace(/[\\%_]/gu, (value) => `\\${value}`);
+    const namePattern = `%${escaped}%`;
+    const predicates: Prisma.Sql[] = [
+      Prisma.sql`workspaceDocument."workspaceId" = ${workspaceId}`,
+      Prisma.sql`document."documentScope" = 'PRIVATE_WORKSPACE'`,
+      Prisma.sql`(document."title" ILIKE ${namePattern} ESCAPE E'\\\\' OR latestFile."originalFilename" ILIKE ${namePattern} ESCAPE E'\\\\')`,
+    ];
+    if (folderId !== undefined) {
+      predicates.push(
+        folderId === null
+          ? Prisma.sql`workspaceDocument."folderId" IS NULL`
+          : Prisma.sql`workspaceDocument."folderId" = ${folderId}`,
+      );
+    }
+    if (sourceId === '__manual_upload__') {
+      predicates.push(Prisma.sql`NOT EXISTS (
+        SELECT 1 FROM "SourceFile" sourceFile
+        JOIN "DocumentSource" source ON source."id" = sourceFile."sourceId"
+        WHERE sourceFile."documentId" = document."id"
+          AND source."workspaceId" = ${workspaceId}
+      )`);
+    } else if (sourceId) {
+      predicates.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM "SourceFile" sourceFile
+        JOIN "DocumentSource" source ON source."id" = sourceFile."sourceId"
+        WHERE sourceFile."documentId" = document."id"
+          AND sourceFile."sourceId" = ${sourceId}
+          AND source."workspaceId" = ${workspaceId}
+          ${
+            normalizedSourceFolder
+              ? Prisma.sql`AND (
+                sourceFile."normalizedPath" = ${normalizedSourceFolder}
+                OR (
+                  left(sourceFile."normalizedPath", char_length(${normalizedSourceFolder})) = ${normalizedSourceFolder}
+                  AND substring(sourceFile."normalizedPath" from char_length(${normalizedSourceFolder}) + 1 for 1) = E'\\\\'
+                )
+              )`
+              : Prisma.empty
           }
-        : sourceId && !normalizedSourceFolder
-          ? {
-              sourceFiles: {
-                some: {
-                  sourceId,
-                  source: { workspaceId },
-                  ...(normalizedSourceFolder
-                    ? {
-                        OR: [
-                          { normalizedPath: normalizedSourceFolder },
-                          {
-                            normalizedPath: {
-                              startsWith: `${normalizedSourceFolder}\\`,
-                            },
-                          },
-                        ],
-                      }
-                    : {}),
-                },
-              },
-            }
-          : {};
-    const where: Prisma.WorkspaceDocumentWhereInput = {
-      workspaceId,
-      ...(sourceFolderDocumentIds
-        ? { documentId: { in: sourceFolderDocumentIds } }
-        : {}),
-      ...(folderId !== undefined ? { folderId } : {}),
-      document: {
-        documentScope: 'PRIVATE_WORKSPACE',
-        ...sourceDocumentFilter,
-        OR: [
-          { title: { contains: term, mode: 'insensitive' } },
-          {
-            files: {
-              some: {
-                originalFilename: { contains: term, mode: 'insensitive' },
-              },
-            },
-          },
-        ],
-      },
-    };
-    const [total, links] = await this.prisma.$transaction([
-      this.prisma.workspaceDocument.count({ where }),
-      this.prisma.workspaceDocument.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: (Math.max(1, page) - 1) * pageSize,
-        take: pageSize,
-        include: {
-          folder: { select: { id: true, name: true } },
-          document: {
-            select: {
-              id: true,
-              title: true,
-              status: true,
-              files: {
-                orderBy: { version: 'desc' },
-                take: 1,
-                select: { originalFilename: true },
-              },
-            },
-          },
-        },
-      }),
+      )`);
+    }
+    if (types) {
+      predicates.push(
+        Prisma.sql`lower(btrim(split_part(latestFile."mimeType", ';', 1))) IN (${Prisma.join(mimeTypesForCorpusTypes(types))})`,
+      );
+    }
+    if (dateRange.dateFrom) {
+      predicates.push(
+        Prisma.sql`document."decisionDate" >= ${dateRange.dateFrom}::date`,
+      );
+    }
+    if (dateRange.dateTo) {
+      predicates.push(
+        Prisma.sql`document."decisionDate" < (${dateRange.dateTo}::date + INTERVAL '1 day')`,
+      );
+    }
+    const where = Prisma.join(predicates, ' AND ');
+    const from = Prisma.sql`
+      FROM "WorkspaceDocument" workspaceDocument
+      JOIN "CorpusDocument" document ON document."id" = workspaceDocument."documentId"
+      LEFT JOIN "WorkspaceFolder" folder ON folder."id" = workspaceDocument."folderId"
+      LEFT JOIN LATERAL (
+        SELECT file."originalFilename", file."mimeType"
+          FROM "CorpusDocumentFile" file
+         WHERE file."documentId" = document."id"
+         ORDER BY file."version" DESC
+         LIMIT 1
+      ) latestFile ON TRUE
+      WHERE ${where}
+    `;
+    const safePage = Math.max(1, Math.trunc(page));
+    const safePageSize = Math.min(100, Math.max(1, Math.trunc(pageSize)));
+    const [countRows, links] = await this.prisma.$transaction([
+      this.prisma.$queryRaw<Array<{ total: bigint }>>(
+        Prisma.sql`SELECT count(*)::bigint AS "total" ${from}`,
+      ),
+      this.prisma.$queryRaw<
+        Array<{
+          documentId: string;
+          title: string;
+          status: string;
+          filename: string | null;
+          mimeType: string | null;
+          uploadedAt: Date;
+          folderId: string | null;
+          folderName: string | null;
+        }>
+      >(Prisma.sql`
+        SELECT workspaceDocument."documentId" AS "documentId",
+               document."title" AS "title",
+               document."status" AS "status",
+               latestFile."originalFilename" AS "filename",
+               latestFile."mimeType" AS "mimeType",
+               workspaceDocument."createdAt" AS "uploadedAt",
+               folder."id" AS "folderId",
+               folder."name" AS "folderName"
+          ${from}
+         ORDER BY workspaceDocument."createdAt" DESC
+         LIMIT ${safePageSize} OFFSET ${(safePage - 1) * safePageSize}
+      `),
     ]);
+    const total = Number(countRows[0]?.total ?? 0n);
     return {
       total,
       totalExact: true,
-      page,
-      pageSize,
+      page: safePage,
+      pageSize: safePageSize,
       results: links.map((link) => ({
         documentId: link.documentId,
-        title: link.document.title,
-        filename:
-          link.document.files[0]?.originalFilename ?? link.document.title,
-        status: link.document.status,
-        uploadedAt: link.createdAt,
-        folder: link.folder,
+        title: link.title,
+        filename: link.filename ?? link.title,
+        mimeType: link.mimeType,
+        status: link.status,
+        uploadedAt: link.uploadedAt,
+        folder:
+          link.folderId && link.folderName
+            ? { id: link.folderId, name: link.folderName }
+            : null,
       })),
     };
   }
@@ -1015,20 +1060,22 @@ export class WorkspaceDocumentService {
       .basename(file.originalname)
       .replace(/[\r\n]/gu, '_')
       .slice(0, 255);
-    if (
-      !name.toLowerCase().endsWith('.pdf') ||
-      file.mimetype !== 'application/pdf' ||
-      file.size > MAX_FILE_BYTES ||
-      file.buffer.subarray(0, 5).toString('ascii') !== '%PDF-'
-    )
+    const isPdf =
+      name.toLowerCase().endsWith('.pdf') &&
+      file.mimetype === 'application/pdf' &&
+      file.buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+    const isTxt =
+      name.toLowerCase().endsWith('.txt') &&
+      file.mimetype.split(';', 1)[0].trim().toLowerCase() === 'text/plain';
+    if ((!isPdf && !isTxt) || file.size > MAX_FILE_BYTES)
       throw new BadRequestException(
-        `El archivo ${name || '(sin nombre)'} debe ser PDF válido de hasta 20 MB.`,
+        `El archivo ${name || '(sin nombre)'} debe ser PDF o TXT válido de hasta 20 MB.`,
       );
     let extraction: ExtractionResult;
     try {
       extraction = await extractor.extract(
         name,
-        'application/pdf',
+        isPdf ? 'application/pdf' : 'text/plain',
         file.buffer,
       );
     } catch (error) {
@@ -1085,7 +1132,7 @@ export class WorkspaceDocumentService {
     const document = await this.prisma.$transaction(async (tx) => {
       const documentData = {
         documentType: 'PRIVATE_DOCUMENT',
-        title: name.replace(/\.pdf$/iu, ''),
+        title: name.replace(/\.(?:pdf|txt)$/iu, ''),
         jurisdiction: 'CIVIL',
         visibility: 'RESTRICTED',
         documentScope: 'PRIVATE_WORKSPACE' as const,
@@ -1124,7 +1171,7 @@ export class WorkspaceDocumentService {
               sha256: stored.sha256,
               sizeBytes: BigInt(stored.sizeBytes),
               originalFilename: name,
-              mimeType: 'application/pdf',
+              mimeType: isPdf ? 'application/pdf' : 'text/plain',
               pageCount: extraction.pages.length,
               version: (currentVersion._max.version ?? 0) + 1,
             },

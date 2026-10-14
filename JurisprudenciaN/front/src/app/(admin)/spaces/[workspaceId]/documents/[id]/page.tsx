@@ -9,6 +9,7 @@ import { downloadBlob } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import type { PdfMatch } from "@/app/(admin)/corpus/[id]/CorpusPdfViewer";
+import styles from "../../../copernic-search.module.css";
 
 const CorpusPdfViewer = dynamic(
   () =>
@@ -28,12 +29,50 @@ type DocumentInfo = {
     mimeType: string;
   } | null;
   extraction: { status: string; pageCount: number } | null;
+  selectedPage?: { pageNumber: number; text: string };
 };
 type Matches = {
   total: number;
+  returned: number;
+  exactTotalKnown: boolean;
   truncated: boolean;
-  matches: Array<PdfMatch & { context: string; total: number }>;
+  matches: Array<PdfMatch & {
+    context: string;
+    contextBefore: string;
+    contextAfter: string;
+    text: string;
+    kind: "TERM" | "PHRASE";
+    pageOccurrenceOrdinal: number;
+    total: number;
+  }>;
 };
+
+function renderTextMatch(
+  text: string,
+  matches: Matches["matches"],
+  page: number,
+  activeOrdinal?: number,
+) {
+  const ordered = matches
+    .filter((match) => match.page === page)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const output: React.ReactNode[] = [];
+  let cursor = 0;
+  for (const match of ordered) {
+    const start = Math.max(cursor, match.start);
+    const end = Math.min(text.length, match.end);
+    if (end <= start) continue;
+    if (start > cursor) output.push(text.slice(cursor, start));
+    output.push(
+      <mark className={match.ordinal === activeOrdinal ? "bjc-text-match-current" : "bjc-text-match"} key={`${match.ordinal}-${start}-${end}`}>
+        {text.slice(start, end)}
+      </mark>,
+    );
+    cursor = end;
+  }
+  if (cursor < text.length) output.push(text.slice(cursor));
+  return output;
+}
 
 function viewerError(cause: unknown, fallback: string) {
   if (cause instanceof ApiError) {
@@ -57,6 +96,10 @@ export default function WorkspaceDocumentViewer() {
     "folderId",
     "sourceId",
     "sourceFolder",
+    "type",
+    "datePreset",
+    "dateFrom",
+    "dateTo",
     "q",
     "searchFolderMode",
     "selected",
@@ -78,22 +121,36 @@ export default function WorkspaceDocumentViewer() {
   const [pageCount, setPageCount] = useState(0);
   const [active, setActive] = useState(0);
   const [error, setError] = useState("");
+  const effectivePageCount =
+    pageCount || document?.extraction?.pageCount || document?.file?.pageCount || 0;
+
+  useEffect(() => {
+    let alive = true;
+    void api.get<DocumentInfo>(
+      `/workspaces/${params.workspaceId}/documents/${params.id}`,
+      { query: { pageNumber: page } },
+    )
+      .then((info) => {
+        if (alive) setDocument(info);
+      })
+      .catch((cause: unknown) => {
+        if (alive)
+          setError(viewerError(cause, "No se pudo abrir el documento privado."));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [params.workspaceId, params.id, page]);
 
   useEffect(() => {
     let alive = true;
     let objectUrl: string | null = null;
-    void Promise.all([
-      api.get<DocumentInfo>(
-        `/workspaces/${params.workspaceId}/documents/${params.id}`,
-      ),
-      api.download(
-        `/workspaces/${params.workspaceId}/documents/${params.id}/file`,
-      ),
-    ])
-      .then(([info, blob]) => {
+    void api.download(
+      `/workspaces/${params.workspaceId}/documents/${params.id}/file`,
+    )
+      .then((blob) => {
         if (!alive) return;
         objectUrl = URL.createObjectURL(blob);
-        setDocument(info);
         setPdf(objectUrl);
       })
       .catch((cause: unknown) => {
@@ -134,9 +191,9 @@ export default function WorkspaceDocumentViewer() {
       const blob = await api.download(
         `/workspaces/${params.workspaceId}/documents/${params.id}/file?download=true`,
       );
-      downloadBlob(blob, document?.file?.filename ?? "documento.pdf");
+      downloadBlob(blob, document?.file?.filename ?? "documento");
     } catch (cause) {
-      setError(viewerError(cause, "No se pudo descargar el PDF privado."));
+      setError(viewerError(cause, "No se pudo descargar el documento privado."));
     }
   }
   useEffect(() => {
@@ -187,14 +244,14 @@ export default function WorkspaceDocumentViewer() {
             aria-label="Buscar en el documento"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar y resaltar en el PDF"
+            placeholder="Buscar y resaltar en el documento"
           />
           <button>Buscar</button>
         </form>
         {matches && (
           <p>
             {matches.total} coincidencias
-            {matches.truncated ? " (muestra truncada)" : ""}{" "}
+            {matches.truncated ? ` (mostrando ${matches.returned} primeras; total exacto desconocido)` : ""}{" "}
             {current && `· página ${current.page}`}
           </p>
         )}
@@ -240,18 +297,28 @@ export default function WorkspaceDocumentViewer() {
             Página anterior
           </button>
           <span>
-            Página {page} de{" "}
-            {pageCount || document?.extraction?.pageCount || "?"}
+            Página {page} de {effectivePageCount || "?"}
           </span>
           <button
-            disabled={!!pageCount && page >= pageCount}
+            disabled={!!effectivePageCount && page >= effectivePageCount}
             onClick={() => setPage((value) => value + 1)}
           >
             Página siguiente
           </button>
-          <button onClick={() => void downloadPdf()}>Descargar PDF</button>
+          <button onClick={() => void downloadPdf()}>
+            Descargar {document?.file?.mimeType === "text/plain" ? "TXT" : "PDF"}
+          </button>
         </div>
-        {pdf ? (
+        {document?.file?.mimeType === "text/plain" ? (
+          <pre className={styles.textPreview} aria-label="Vista previa del texto extraído">
+            {renderTextMatch(
+              document.selectedPage?.text ?? "",
+              matches?.matches ?? [],
+              page,
+              current?.ordinal,
+            )}
+          </pre>
+        ) : pdf ? (
           <CorpusPdfViewer
             file={pdf}
             page={page}

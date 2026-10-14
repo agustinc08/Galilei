@@ -614,25 +614,27 @@ export default function PrivateSpacesPage() {
   async function uploadFiles(files: FileList | File[]) {
     if (!files.length || !workspaceId) return;
     const selected = Array.from(files);
-    const rows: UploadRow[] = selected.map((file, index) => ({
-      id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
-      name: file.name,
-      size: file.size,
-      status:
-        !file.name.toLowerCase().endsWith(".pdf") ||
-        (file.type && file.type !== "application/pdf")
-          ? "Archivo no PDF"
+    const rows: UploadRow[] = selected.map((file, index) => {
+      const name = file.name.toLowerCase();
+      const isPdf = name.endsWith(".pdf") && file.type === "application/pdf";
+      const isTxt = name.endsWith(".txt") && file.type === "text/plain";
+      const supported = isPdf || isTxt;
+      return {
+        id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+        name: file.name,
+        size: file.size,
+        status: !supported
+          ? "Formato no admitido"
           : file.size > MAX_FILE_BYTES
             ? "Supera 20 MB"
             : "En espera",
-      message:
-        !file.name.toLowerCase().endsWith(".pdf") ||
-        (file.type && file.type !== "application/pdf")
-          ? "Elegí un archivo PDF."
+        message: !supported
+          ? "Elegí un archivo PDF o TXT válido."
           : file.size > MAX_FILE_BYTES
             ? "El límite por archivo es 20 MB."
             : undefined,
-    }));
+      };
+    });
     if (rows.length > 20) {
       rows.slice(20).forEach((row) => {
         row.status = "Fuera del límite";
@@ -1124,7 +1126,7 @@ export default function PrivateSpacesPage() {
                 <strong>
                   {dragActive
                     ? "Soltá los archivos para agregarlos a la tanda"
-                    : "Arrastrá los PDF hasta acá"}
+                    : "Arrastrá los PDF o TXT hasta acá"}
                 </strong>
                 <span className={styles.muted}>
                   Los archivos se procesan de a uno; un error no detiene los
@@ -1135,10 +1137,10 @@ export default function PrivateSpacesPage() {
                   <input
                     className={styles.uploadInput}
                     type="file"
-                    accept="application/pdf,.pdf"
+                    accept="application/pdf,.pdf,text/plain,.txt"
                     multiple
                     disabled={uploading}
-                    aria-label="Seleccionar archivos PDF"
+                    aria-label="Seleccionar archivos PDF o TXT"
                     onChange={(event) => {
                       if (event.currentTarget.files)
                         void uploadFiles(event.currentTarget.files);

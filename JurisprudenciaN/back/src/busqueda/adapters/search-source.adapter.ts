@@ -16,6 +16,11 @@ export type SearchContext = {
     sala?: string;
     fechaDesde?: string;
     fechaHastaExclusive?: string;
+    /** ISO calendar dates; both endpoints are inclusive and use CorpusDocument.decisionDate. */
+    dateFrom?: string;
+    dateTo?: string;
+    /** File type derived from the latest CorpusDocumentFile MIME type. */
+    types?: Array<'PDF' | 'TXT'>;
     expediente?: string;
     numeroSentencia?: string;
     caratula?: string;

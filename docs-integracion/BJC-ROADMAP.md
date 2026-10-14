@@ -260,3 +260,11 @@ Sprint 15.3 queda PARTIAL. Se validó Classic Search de tres paneles, preview pe
 Siguiente candidato recomendado: Sprint 15.4A — formatos/OCR con alcance acotado y módulos de extracción separados. Dejar NEAR para después: modificaría parser/AST/executor y coincide con zonas de Search compartidas por feature/jurisprudencia, con riesgo de integración mayor. Antes de 15.4A, acordar la representación de offsets/extracciones para que pueda soportar preview, página y calidad revisable; no inferir OCR correcto por indexación. No mergear ninguna rama al cerrar esta etapa.
 
 Archivos compartidos que requerirán resolución coordinada al integrar ramas: corpus-search.adapter.ts, workspace-document.service.ts, workspace-document.controller.ts, BJC-ESTADO-ACTUAL.md, BJC-ROADMAP.md; los módulos UI de Copernic son nuevos y tienen menor probabilidad de colisión.
+
+## Prioridad después de Sprint 15.3.1 — 2026-10-14
+
+Sprint 15.3.1 queda **PARTIAL**: los filtros privados y el contrato de spans pasan pruebas backend/browser; la limitación restante es probar el mapeo exacto entre texto extraído y text layer PDF.js en más documentos, manteniendo el comportamiento fail-closed cuando no se puede resolver. No afirmar highlight exacto para PDF arbitrario ni promover UAT humana por pruebas sintéticas.
+
+Siguiente paso técnico: recopilar fixtures PDF representativos autorizados/locales, comparar texto de extractor con PDF.js y añadir casos de mapeo (repeticiones, saltos de línea, ítems separados, acentos y ligaduras) sin introducir heurísticas. Luego elegir 15.4A (formatos/OCR) antes que NEAR si sigue siendo el cambio con menos choque con Search compartido por `feature/jurisprudencia`. No hacer merge de otras ramas ni desplegar.
+
+La medición general Search V2 mantuvo p95 de TERM común y PHRASE de dos palabras; el benchmark de PHRASE de tres palabras no se capturó comparablemente en before/after. Los filtros privados tienen p95 de 18–26 ms en el fixture sintético, que no es SLO. Evidencia: `_recovery-work/sprint1531/` (local ignorado).

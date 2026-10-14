@@ -164,3 +164,38 @@ Search general verify sigue PASS: 17.078 documentos, 18.799.500 tokens, stale 0,
 Classic Search presenta el valor de totalExact sin convertir una ventana parcial de PHRASE en un conteo exacto. El filtro privado por sourceId/sourceFolder se aplica dentro del scope autorizado por workspace y alcanza tanto contenido como nombre. Search-as-you-type no está activado; la UI ejecuta al enviar el formulario y cancela requests anteriores al cambiar query o alcance.
 
 El fixture browser midió un request TERM de 155 ms, primer resultado en 12 ms, primer render del PDF en 954 ms, cambio de página en 61 ms y F3 en 10 ms. Es evidencia de una ejecución local sintética, no benchmark del motor ni SLO. El parser, ranking, conteo de PHRASE y proyección no se modificaron en Sprint 15.3. La garantía de spans de frase y su resaltado exacto permanece pendiente.
+
+## Sprint 15.3.1 — filtros y contrato de spans (2026-10-14)
+
+**Estado técnico: PARTIAL.** Los filtros privados de fecha/tipo ahora llegan a SQL y se aplican antes de conteo/página. Source y folder permanecen query-level dentro del workspace autorizado. `/matches` devuelve spans en el texto original extraído por página; el viewer intenta mapearlos al text layer de PDF.js mediante texto normalizado, contexto y ordinal. Si la correspondencia no es determinista no dibuja un highlight aproximado. El fixture PDF sintético validó el span exacto; no se certificó la alineación entre extractores para todos los PDF reales, por lo que el cierre visual universal sigue pendiente.
+
+### Filtros
+
+- `dateFrom` y `dateTo` son cadenas calendario `AAAA-MM-DD`, validadas en backend; el rango es inclusivo. Workspace Search usa `CorpusDocument.decisionDate` (`TIMESTAMP(3)` sin zona horaria); SQL compara desde `dateFrom` inclusive hasta antes de `dateTo + 1 día`. No usa `createdAt` como fallback. `decisionDate IS NULL` queda fuera si hay un rango activo.
+- `type=PDF|TXT` compara el MIME de la última versión de `CorpusDocumentFile`, normalizado en SQL (`application/pdf` y `text/plain`). MIME faltante/no reconocido no satisface un filtro de tipo. El upload privado manual admite PDF y TXT; el scanner de fuentes conserva su alcance PDF.
+- `workspaceId`, membership activa, `PRIVATE_WORKSPACE`, vínculo `WorkspaceDocument`, source/sourceFolder, folder Galilei, tipo, fecha y query se combinan con AND. Source/folder/type/date se aplican antes de count y paginación en Search por contenido y nombre. Los conteos corresponden al subconjunto autorizado y filtrado.
+- No se agregó migración ni se modificó el scope GENERAL. Search general continúa requiriendo `documentScope=GENERAL`; no puede descubrir documentos privados.
+
+### Contrato `/matches`
+
+Cada resultado devuelve `page`, `start`, `end`, `offset` (alias legado de `start`), `text`, `term`, `kind` (`TERM|PHRASE`), ordinal global, `pageOccurrenceOrdinal`, `context`, `contextBefore` y `contextAfter`. `start` es inclusivo y `end` exclusivo, ambos en unidades UTF-16 del texto original extraído para esa página. Los acentos de vocales y mayúsculas no alteran los offsets; `ñ` permanece distinta de `n`.
+
+TERM conserva substring/prefix/suffix según el AST. PHRASE requiere palabras adyacentes tras la normalización ya usada por Search: runs de espacios/tabs/saltos de línea se comparan como un espacio, pero el span apunta al rango completo original (incluido el salto). La puntuación de la página no se elimina; “daño, moral” no es el span de la frase “daño moral”. Las pruebas también rechazan palabras separadas por texto ajeno y no generan spans para NOT ni para campos metadata.
+
+`returned` cuenta los spans visibles; `truncated` se activa sobre el límite 500; `exactTotalKnown=false` y `total` representa la muestra devuelta cuando se alcanza ese límite. La navegación sólo recorre los spans devueltos y comunica que existe truncation. No se implementó NEAR ni OCR.
+
+El viewer convierte los límites normalizados del span a texto PDF.js conservando offsets de origen. Contexto y ordinal desambiguan repeticiones; si no se resuelve un mapeo único, el resultado queda sin marca visual en vez de resaltar otra ocurrencia. Para TXT, metadata, texto por página y matches usan el mismo texto extraído.
+
+### Rendimiento y verificación
+
+Benchmark endpoint Search V2, una warmup + 10 medidas; la consulta no se persiste:
+
+| Familia | Before p50/p95 ms | After p50/p95 ms |
+|---|---:|---:|
+| TERM común | 325,18 / 390,95 | 330,16 / 350,40 |
+| Cero resultados | 11,80 / 12,11 | 29,86 / 31,10 |
+| PHRASE de 2 palabras | 919,20 / 1.235,86 | 928,37 / 961,17 |
+
+TERM común y PHRASE no muestran regresión material en p95; cero resultados sube ~19 ms en términos absolutos. Los benchmarks no incluyeron PHRASE de 3 palabras, por lo que su before/after queda N/A.
+
+Filtro privado en fixture sintético de 2 documentos: source 17,76/18,90 ms; folder 17,13/20,34 ms; type 18,84/24,59 ms; date 17,12/18,09 ms; combinado 20,87/22,62 ms (p50/p95, 1 warmup + 10 medidas). Search verify sigue PASS: 17.078 documentos, 18.799.500 tokens, stale 0, mismatch 0/100. Viewer general: 6/6. Los artefactos locales ignorados están en `_recovery-work/sprint1531/`.
