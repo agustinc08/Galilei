@@ -305,3 +305,8 @@ J7.1 cerró el dry-run con `READ_ONLY_PASS`, determinismo aprobado en dos ejecuc
 ## Continuidad después de Sprint J7.1.1 (2026-10-14)
 
 J7.1.1 reconoce 1.079/1.089 referencias con reglas determinísticas conservadoras; nueve quedan parciales y una malformada, sin escribir filas ni Search. Próxima recomendación: **J7.1.2 — LEGAL KEY COMPLETENESS / HISTORICAL SALA RECOVERY**, dado que la clave jurídica sigue parcial y hay 1.254 documentos históricos sin Sala. Mantener J6.1 `READY FOR HUMAN UAT` como línea independiente; no iniciar UAT ni J7.1.2 automáticamente. Una futura recalculación persistida del caso/año requeriría primero un dry-run independiente y evaluar la actualización del paquete J6.1 si alcanza sus expedientes.
+
+
+## Continuidad después de Sprint J7.1.2 (2026-10-14)
+
+J7.1.2 confirmó el universo histórico exacto (1.254/1.254) y cero metadata raw estructurada de Sala. El detector clasificó 365 como propuestas humanas, 39 ambiguas, 849 sin Sala propia y 1 con texto insuficiente. La precisión del encabezado no cumple cero falsos positivos (13 discrepancias en validación conocida), por lo que las cuatro propuestas auto-safe heredadas se degradaron/no reprodujeron y no hay backfill automático. Clave parcial: 1.241 sólo Sala, 2 sólo expediente/año y 13 múltiples. Próxima recomendación: J7.1.3 — HISTORICAL METADATA HUMAN REVIEW PACK para revisión por evidencia, sin aplicar valores; mantener J6.1 UAT separada y sin decisiones humanas. Si no se realizará revisión de esos 365 casos, puede retomarse J6.1 por separado.

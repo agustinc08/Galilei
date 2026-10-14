@@ -1,0 +1,17 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');
+const path=require('node:path');const {spawnSync}=require('node:child_process');
+const A=require('./jurisprudencia-historical-sala-recovery.cjs');
+const row=(pages,extra={})=>({id:'synthetic',court:'Cámara Nacional de Apelaciones en lo Civil',caseNumber:'123/20',decisionDate:'2020-01-01',metadataOriginal:null,ingestions:[],pages,...extra});
+const header=s=>'CÁMARA NACIONAL DE APELACIONES EN LO CIVIL\nSALA '+s+'\n'+('VISTOS Y CONSIDERANDO. Texto de prueba. '.repeat(20));
+test('validates only Sala A-M and ignores audience/first instance room names',()=>{assert.deepEqual(A.extractSala('Sala de audiencias y sala de primera instancia'),[]);assert.equal(A.extractSala('SALA “M”')[0].sala,'M');assert.equal(A.extractSala('Sala N').length,0);});
+test('own-document tribunal header is a human-confirmation proposal pending zero-false-positive validation',()=>{const x=A.classify(row([{pageNumber:1,text:header('“A”')} ]));assert.equal(x.status,'PROBABLE_HUMAN_CONFIRMATION');assert.equal(x.proposedSala,'A');});
+test('body citation alone cannot recover own Sala',()=>{const x=A.classify(row([{pageNumber:1,text:'En el caso, conforme lo resolvió la Sala H, corresponde.'}]));assert.equal(x.status,'NO_SELF_SALA_FOUND');});
+test('header A and body citation B preserve A as a human proposal',()=>{const x=A.classify(row([{pageNumber:1,text:header('A')},{pageNumber:2,text:'Conforme resolvió la Sala B en aquel precedente.'}]));assert.equal(x.proposedSala,'A');assert.equal(x.status,'PROBABLE_HUMAN_CONFIRMATION');});
+test('raw Sala A and self header Sala B conflict',()=>{const x=A.classify(row([{pageNumber:1,text:header('B')}],{metadataOriginal:{sala:'A'}}));assert.equal(x.status,'CONFLICTING_EVIDENCE');assert.equal(x.proposedSala,null);});
+test('conflicting self Sala values are ambiguous',()=>{const x=A.classify(row([{pageNumber:1,text:header('A')},{pageNumber:2,text:header('C')} ]));assert.equal(x.status,'AMBIGUOUS');});
+test('metadata structured Sala is explicit and deterministic',()=>{const input=row([],{metadataOriginal:{court:{sala:'Sala H'}}});assert.equal(A.classify(input).status,'AUTO_SAFE_DRY_RUN');assert.equal(A.deterministicHash(A.classify(input)),A.deterministicHash(A.classify(input)));});
+test('“esta Sala” without letter is not evidence',()=>{assert.equal(A.classify(row([{pageNumber:1,text:'Esta Sala considera que el recurso debe prosperar.'}])).status,'NO_SELF_SALA_FOUND');});
+test('long adversarial input runs linearly and --apply is not an accepted mode',()=>{const start=Date.now();A.classify(row([{pageNumber:1,text:'Sala de audiencias '.repeat(200000)}]));assert.ok(Date.now()-start<5000);});
+test('structured Sala is validated as the only current auto-safe evidence type',()=>{const v=A.validateKnown([row([{pageNumber:1,text:header('A')}],{chamber:'A',metadataOriginal:{sala:'A'}})]);assert.equal(v.wrong,0);assert.equal(v.correct,1);});
+test('read-only runner rejects --apply before requiring database credentials',()=>{const runner=path.join(__dirname,'sprint-j712-historical-sala-run.cjs');const result=spawnSync(process.execPath,[runner,'--apply'],{encoding:'utf8',env:{...process.env,DATABASE_URL:''}});assert.notEqual(result.status,0);assert.match(result.stderr,/READ_ONLY_TOOL_REJECTS_ALL_ARGUMENTS/u);});

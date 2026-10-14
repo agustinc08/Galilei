@@ -197,3 +197,12 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 2. El número canónico elimina separadores de agrupación observados, pero conserva ceros iniciales. Los años de dos dígitos permanecen de dos dígitos; nunca se infiere siglo. Un expediente legacy sin año puede ser reconocido como número, pero conserva `canonicalYear=null` y la clave legal sigue parcial.
 3. La barra sólo separa número/año en una forma completa; listas explícitas conservan cada caso y nunca eligen uno. Año contradictorio, año agrupado sin corroboración o lista incierta quedan ambiguos. El parser no recibe texto del fallo ni citas.
 4. J7.1.1 no persiste identidad ni reconstruye Search. Los tres cambios frente al normalizador anterior en filas ya válidas son ceros iniciales preservados y corroborados por referencia de origen; no hubo otros cambios de identidad sin justificar. Evidencia real detallada local/ignorada en `_recovery-work/jurisprudencia-j711/`.
+
+
+## Contrato J7.1.2 — propuesta conservadora de Sala histórica (2026-10-14)
+
+1. AUTO_SAFE_DRY_RUN exige un campo raw estructurado explícito y consistente. Encabezado, tribunal, firma, título, filename y source reference son señales diagnósticas; no se autoaplican si la validación conocida muestra desacuerdos.
+2. Cita de una Sala, expediente relacionado y composición judicial no equivalen a la Sala del fallo analizado. Varias Salas propias plausibles se clasifican AMBIGUOUS; una cita en cuerpo no habilita propuesta automática. OCR/texto ausente queda TEXT_INSUFFICIENT.
+3. J7.1.2 clasificó 1.254/1.254 filas históricas: 0 auto-safe, 365 probables, 39 ambiguas, 849 sin evidencia propia y 1 con texto insuficiente. No completó campos, no generó decisiones humanas ni modificó el pack J6.1.
+4. La validación en 4.816 documentos con Sala conocida produjo 4.479 aciertos/4.479 predicciones para la regla estructurada. La regla de encabezado tuvo 13 desacuerdos/4.722 y tribunal 11/4.576; se mantienen como revisión humana. Las cuatro propuestas auto-safe anteriores de J7.1 fueron degradadas o no reproducidas.
+5. El filtro Search usa CorpusDocument.chamber en vivo. Un eventual cambio individual de ese campo no requiere rebuild ni reindex de la proyección tokenizada; J7.1.2 no aplicó cambios. La validez jurídica del dato sigue requiriendo evidencia de fuente y revisión conforme al flujo vigente.
