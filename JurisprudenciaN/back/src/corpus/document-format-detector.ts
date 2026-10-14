@@ -65,6 +65,9 @@ export class DocumentFormatDetector {
         throw new EncryptedDocumentError();
       }
       if (extensionOriginal === '.doc') {
+        if (!hasValidLegacyWordOleHeader(content)) {
+          throw new UnsupportedDocumentError('INVALID_DOC_OLE');
+        }
         return this.result('DOC', extensionOriginal, 'OLE_SIGNATURE');
       }
       throw new UnsupportedDocumentError('OLE_CONTAINER_UNSUPPORTED');
@@ -155,6 +158,26 @@ export class DocumentFormatDetector {
       detectionMethod,
     };
   }
+}
+
+export function hasValidLegacyWordOleHeader(content: Buffer) {
+  if (content.length < 512 || !content.subarray(0, 8).equals(OLE_SIGNATURE))
+    return false;
+  const majorVersion = content.readUInt16LE(26);
+  const byteOrder = content.readUInt16LE(28);
+  const sectorShift = content.readUInt16LE(30);
+  const miniSectorShift = content.readUInt16LE(32);
+  const fatSectorCount = content.readUInt32LE(44);
+  if (
+    ![3, 4].includes(majorVersion) ||
+    byteOrder !== 0xfffe ||
+    ![9, 12].includes(sectorShift) ||
+    miniSectorShift !== 6 ||
+    fatSectorCount === 0
+  )
+    return false;
+  const sectorSize = 1 << sectorShift;
+  return content.length >= 512 + sectorSize;
 }
 
 function isZip(content: Buffer) {

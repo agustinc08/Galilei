@@ -470,6 +470,7 @@ model CorpusDocument {
   files               CorpusDocumentFile[]
   ingestions          CorpusIngestionRecord[]
   extractions         CorpusExtraction[]
+  ocrJobs             CorpusOcrJob[]
   links               CorpusDocumentLink[]
   locations           CorpusDocumentLocation[]
   associations        CorpusDocumentAssociation[]
@@ -865,6 +866,7 @@ model CorpusDocumentFile {
   version          Int                     @default(1)
   document         CorpusDocument          @relation(fields: [documentId], references: [id], onDelete: Cascade)
   extractions      CorpusExtraction[]
+  ocrJobs          CorpusOcrJob[]
   ingestions       CorpusIngestionRecord[]
   createdAt        DateTime                @default(now())
 
@@ -917,6 +919,7 @@ model CorpusExtraction {
   errorStage       String?
   errorAt          DateTime?
   retryable        Boolean              @default(false)
+  provenance       Json?
   extractedAt      DateTime             @default(now())
   document         CorpusDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
   file             CorpusDocumentFile   @relation(fields: [fileId], references: [id], onDelete: Cascade)
@@ -929,14 +932,48 @@ model CorpusExtraction {
 }
 
 model CorpusDocumentPage {
-  id           String           @id @default(cuid())
-  extractionId String
-  pageNumber   Int
-  text         String           @db.Text
-  extraction   CorpusExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  id               String           @id @default(cuid())
+  extractionId     String
+  pageNumber       Int
+  text             String           @db.Text
+  textKind         String           @default("NATIVE")
+  processingStatus String           @default("TEXT_NATIVE")
+  ocrConfidence    Float?
+  extraction       CorpusExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
 
   @@unique([extractionId, pageNumber])
   @@index([pageNumber])
+}
+
+model CorpusOcrJob {
+  id               String             @id @default(cuid())
+  documentId       String
+  fileId           String
+  fileSha256       String
+  fingerprint      String
+  processorVersion String
+  languages        String
+  dpi              Int
+  pageNumbers      Json
+  status           String             @default("PENDING")
+  attemptCount     Int                @default(0)
+  maxAttempts      Int                @default(2)
+  timeoutMs        Int                @default(90000)
+  startedAt        DateTime?
+  completedAt      DateTime?
+  leaseExpiresAt   DateTime?
+  errorCode        String?
+  errorDetail      String?            @db.Text
+  provenance       Json?
+  document         CorpusDocument     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  file             CorpusDocumentFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@unique([fileId, fingerprint])
+  @@index([status, createdAt])
+  @@index([documentId, createdAt])
+  @@index([fileId, fileSha256])
 }
 
 // Cross-domain reference only; ownership/curation remains in Jurisprudencia or Digesto.

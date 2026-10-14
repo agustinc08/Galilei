@@ -58,3 +58,8 @@ GET /api/workspaces/:workspaceId/search/sources devuelve alias, estado y cantida
 El scanner incluye `.pdf`, `.txt`, `.rtf`, `.doc`, `.docx` y `.odt` con límite de 20 MiB. La detección valida el contenido y establece MIME canónico; `.doc` legado se registra explícitamente como no soportado por falta de extractor seguro. PDF escaneado no recibe OCR en esta versión; `OCR_REQUIRED` preserva cualquier texto nativo disponible. Integración PostgreSQL DEV probó RTF/DOCX/ODT, hash/no-change scan, filtros Search, archivos originales y aislamiento ACL. No se alteraron paths UNC, ni se probó una share institucional. Límites/provenance: `BJC-PROCESAMIENTO-DOCUMENTAL.md`.
 
 Search general no cambió y mantiene documentScope=GENERAL. Detalle UX, resultados y límites en BJC-ESPACIOS-DOCUMENTALES.md, Sprint 15.3. No se probó una UNC institucional.
+## OCR incremental en sincronización — Sprint 15.4A.1 (2026-10-14)
+
+La sincronización de una fuente puede encolar OCR cuando el SHA del archivo no cambia y la extracción indica páginas candidatas, el job existente se reutiliza: no repite OCR ni reindexado. Un cambio de SHA invalida la extracción anterior y genera trabajo nuevo; un rename inequívoco conserva el contenido y no dispara OCR. Los jobs y provenance son locales y la fuente/original permanece read-only.
+
+El worker no escanea roots en segundo plano ni realiza fetch externo desde documentos. Su cola está limitada, procesa un trabajo a la vez por instancia y usa retries/leases persistentes. Las pruebas de fuente usan fixtures sintéticos/locales; no habilitan acceso a una UNC ni aceptación de una dependencia real.

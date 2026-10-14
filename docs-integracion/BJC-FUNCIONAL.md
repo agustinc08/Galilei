@@ -94,3 +94,8 @@ En la muestra base real, el Viewer ubicó 221/221 spans auditados sin falsos hig
 ## Sprint 15.4A — formatos y límites
 
 La carga privada ofrece PDF/TXT/RTF/DOC/DOCX/ODT; TXT, RTF, DOCX y ODT muestran preview textual y permiten descargar el original con ACL. El tipo se detecta con contenido/paquete y no sólo con MIME del navegador. DOC se detecta y rechaza con mensaje explícito. En PDF, texto nativo continúa disponible aunque algunas páginas se marquen `OCR_REQUIRED`; OCR local no está instalado y no se ejecuta. No se habilitaron formatos P1. Estado **PARTIAL**, pruebas y detalles en `BJC-PROCESAMIENTO-DOCUMENTAL.md`.
+## Procesamiento documental — Sprint 15.4A.1 (2026-10-14)
+
+Galilei acepta PDF nativo, PDF escaneado e híbrido, TXT, RTF, DOC, DOCX y ODT. Para PDF, conserva el texto nativo y envía sólo páginas con menos de 25 caracteres al worker OCR local. La interfaz informa “Reconociendo texto…”; al terminar, Search puede encontrar texto OCR y el Viewer abre el documento/página y presenta contexto. En páginas OCR no se muestra un highlight visual no certificado.
+
+DOC OLE válido se convierte a TXT con LibreOffice headless aislado; archivos inválidos, cifrados, con marcadores de macros u objetos embebidos, o que exceden timeout/límites se rechazan con estado diagnóstico. Ningún formato requiere cloud ni Word COM. ACL de workspaces y permisos de descarga continúan aplicándose antes de exponer texto o archivo. El cierre técnico es DEV local, no aceptación institucional.

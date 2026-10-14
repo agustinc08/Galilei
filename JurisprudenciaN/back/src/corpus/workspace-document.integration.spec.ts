@@ -9,6 +9,8 @@ import { WorkspaceDocumentService } from './workspace-document.service';
 import { CorpusDocumentAccessService } from './corpus-document-access.service';
 import { CorpusSearchSourceAdapter } from './corpus-search.adapter';
 import { LocalDocumentStorageAdapter } from './document-storage.adapter';
+import { LocalPdfOcrProcessor } from './document-local-processors';
+import { CorpusOcrWorkerService } from './corpus-ocr-worker.service';
 
 const enabled = process.env.SPRINT15_POSTGRES_TEST === '1';
 const testStorage = path.resolve(
@@ -219,10 +221,11 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       );
       const idText = textUpload.results[0].documentId;
       documentIds.push(idText);
-      const formatMarkers = {
+      const formatMarkers: Record<'doc' | 'rtf' | 'docx' | 'odt', string> = {
         rtf: `sprint154amanualrtf${suffix}`,
         docx: `sprint154amanualdocx${suffix}`,
         odt: `sprint154amanualodt${suffix}`,
+        doc: '12345/2026',
       };
       const rtfBuffer = Buffer.from(
         `{\\rtf1\\ansi ${formatMarkers.rtf} responsabilidad civil}`,
@@ -249,58 +252,89 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           `<office:document-content xmlns:office="urn:office" xmlns:text="urn:text"><office:body><office:text><text:p>${formatMarkers.odt} responsabilidad civil</text:p></office:text></office:body></office:document-content>`,
         ],
       ]);
+      const docAvailable = new LocalPdfOcrProcessor().capabilities.docAvailable;
+      const docBuffer = docAvailable
+        ? await readFile(
+            path.join(__dirname, 'fixtures', 'sprint154a1-golden.doc'),
+          )
+        : null;
+      const officeUploadsInput = [
+        ...(docBuffer
+          ? [
+              {
+                originalname: 'sprint154a1-fixture.doc',
+                mimetype: 'application/msword',
+                buffer: docBuffer,
+                size: docBuffer.byteLength,
+              },
+            ]
+          : []),
+        {
+          originalname: 'sprint154a-fixture.rtf',
+          mimetype: 'application/pdf',
+          buffer: rtfBuffer,
+          size: rtfBuffer.byteLength,
+        },
+        {
+          originalname: 'sprint154a-fixture.docx',
+          mimetype: 'text/plain',
+          buffer: docxBuffer,
+          size: docxBuffer.byteLength,
+        },
+        {
+          originalname: 'sprint154a-fixture.odt',
+          mimetype: 'application/octet-stream',
+          buffer: odtBuffer,
+          size: odtBuffer.byteLength,
+        },
+      ];
       const officeUploads = await service.upload(
         workspaceA.id,
         adminA,
-        [
-          {
-            originalname: 'sprint154a-fixture.rtf',
-            mimetype: 'application/pdf',
-            buffer: rtfBuffer,
-            size: rtfBuffer.byteLength,
-          },
-          {
-            originalname: 'sprint154a-fixture.docx',
-            mimetype: 'text/plain',
-            buffer: docxBuffer,
-            size: docxBuffer.byteLength,
-          },
-          {
-            originalname: 'sprint154a-fixture.odt',
-            mimetype: 'application/octet-stream',
-            buffer: odtBuffer,
-            size: odtBuffer.byteLength,
-          },
-        ],
+        officeUploadsInput,
         folder.id,
       );
-      const formatCases = [
+      type FormatCase = {
+        key: keyof typeof formatMarkers;
+        type: 'DOC' | 'RTF' | 'DOCX' | 'ODT';
+        mime: string;
+        filename: string;
+      };
+      const formatCases: FormatCase[] = [
+        ...(docBuffer
+          ? [
+              {
+                key: 'doc' as const,
+                type: 'DOC' as const,
+                mime: 'application/msword',
+                filename: 'sprint154a1-fixture.doc',
+              },
+            ]
+          : []),
         {
-          key: 'rtf',
-          type: 'RTF',
+          key: 'rtf' as const,
+          type: 'RTF' as const,
           mime: 'application/rtf',
           filename: 'sprint154a-fixture.rtf',
         },
         {
-          key: 'docx',
-          type: 'DOCX',
+          key: 'docx' as const,
+          type: 'DOCX' as const,
           mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           filename: 'sprint154a-fixture.docx',
         },
         {
-          key: 'odt',
-          type: 'ODT',
+          key: 'odt' as const,
+          type: 'ODT' as const,
           mime: 'application/vnd.oasis.opendocument.text',
           filename: 'sprint154a-fixture.odt',
         },
       ] as const;
-      expect(officeUploads.results.map((item) => item.status)).toEqual([
-        'INDEXED',
-        'INDEXED',
-        'INDEXED',
-      ]);
       const officeIds = officeUploads.results.map((item) => item.documentId);
       documentIds.push(...officeIds);
+      expect(officeUploads.results.map((item) => item.status)).toEqual(
+        formatCases.map(() => 'INDEXED'),
+      );
       for (let index = 0; index < formatCases.length; index += 1) {
         const format = formatCases[index];
         const documentId = officeIds[index];
@@ -313,7 +347,11 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
             formatDetected: format.type,
             mimeDetected: format.mime,
             detectionMethod:
-              format.type === 'RTF' ? 'RTF_SIGNATURE' : 'ZIP_PACKAGE_SIGNATURE',
+              format.type === 'RTF'
+                ? 'RTF_SIGNATURE'
+                : format.type === 'DOC'
+                  ? 'OLE_SIGNATURE'
+                  : 'ZIP_PACKAGE_SIGNATURE',
           },
         });
         const filtered = await service.searchWorkspace(
@@ -337,6 +375,15 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           formatMarkers[format.key],
         );
         expect(matches.matches.length).toBeGreaterThan(0);
+        const preview = await service.metadata(
+          workspaceA.id,
+          documentId,
+          viewer,
+          1,
+        );
+        expect(String(preview.selectedPage?.text ?? '')).toContain(
+          formatMarkers[format.key],
+        );
         const original = await service.file(workspaceA.id, documentId, viewer);
         expect(original).toMatchObject({
           mimeType: format.mime,
@@ -346,6 +393,128 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           service.file(workspaceB.id, documentId, adminB),
         ).rejects.toMatchObject({ status: 404 });
       }
+
+      const scannedPdf = await readFile(
+        path.join(__dirname, 'fixtures', 'sprint154a1-image-only.pdf'),
+      );
+      const beforeOcr = await service.searchWorkspace(
+        workspaceA.id,
+        adminA,
+        'OCRTESTTOKENXYZ',
+        1,
+        20,
+        folder.id,
+      );
+      if (!beforeOcr) throw new Error('EXPECTED_PRIVATE_SEARCH_RESULT');
+      expect(beforeOcr.total).toBe(0);
+      const scannedUpload = await service.upload(
+        workspaceA.id,
+        adminA,
+        [
+          {
+            originalname: 'a & whoami.pdf',
+            mimetype: 'application/pdf',
+            buffer: scannedPdf,
+            size: scannedPdf.byteLength,
+          },
+        ],
+        folder.id,
+      );
+      expect(scannedUpload.results[0].status).toBe('OCR_PROCESSING');
+      const scannedDocumentId = scannedUpload.results[0].documentId;
+      documentIds.push(scannedDocumentId);
+      const queuedJob = await prisma.corpusOcrJob.findFirstOrThrow({
+        where: { documentId: scannedDocumentId },
+        select: { id: true, pageNumbers: true, fingerprint: true },
+      });
+      expect(queuedJob.pageNumbers).toEqual([1]);
+      const worker = new CorpusOcrWorkerService(
+        prisma,
+        new LocalPdfOcrProcessor(),
+      );
+      await expect(worker.processNextForTest(queuedJob.id)).resolves.toBe(true);
+      const completedJob = await prisma.corpusOcrJob.findUniqueOrThrow({
+        where: { id: queuedJob.id },
+        select: { status: true, attemptCount: true, provenance: true },
+      });
+      expect(completedJob.status).toBe('COMPLETE');
+      expect(completedJob.attemptCount).toBe(1);
+      expect(completedJob.provenance).toMatchObject({
+        pageNumbers: [1],
+        languages: ['spa'],
+        dpi: 250,
+      });
+      const ocrDocument = await prisma.corpusDocument.findUniqueOrThrow({
+        where: { id: scannedDocumentId },
+        include: {
+          latestExtraction: { include: { pages: true } },
+        },
+      });
+      expect(ocrDocument.status).toBe('INDEXED');
+      expect(ocrDocument.latestExtraction?.pages[0]).toMatchObject({
+        pageNumber: 1,
+        textKind: 'OCR',
+        processingStatus: 'OCR_COMPLETE',
+      });
+      const ocrSearch = await service.searchWorkspace(
+        workspaceA.id,
+        adminA,
+        'OCRTESTTOKENXYZ',
+        1,
+        20,
+        folder.id,
+      );
+      if (!ocrSearch) throw new Error('EXPECTED_PRIVATE_SEARCH_RESULT');
+      expect(ocrSearch.results.map((row) => row.sourceId)).toContain(
+        scannedDocumentId,
+      );
+      const ocrMatches = await service.matches(
+        workspaceA.id,
+        scannedDocumentId,
+        viewer,
+        'OCRTESTTOKENXYZ',
+      );
+      expect(ocrMatches.matches[0]).toMatchObject({
+        page: 1,
+        textKind: 'OCR',
+      });
+      const ocrMetadata = await service.metadata(
+        workspaceA.id,
+        scannedDocumentId,
+        adminA,
+        1,
+      );
+      expect(ocrMetadata.selectedPage).toMatchObject({
+        pageNumber: 1,
+        textKind: 'OCR',
+        processingStatus: 'OCR_COMPLETE',
+      });
+      const ocrFile = await prisma.corpusDocumentFile.findFirstOrThrow({
+        where: { documentId: scannedDocumentId },
+        select: { sha256: true },
+      });
+      expect(
+        (await service.file(workspaceA.id, scannedDocumentId, viewer)).sha256,
+      ).toBe(ocrFile.sha256);
+      await expect(
+        service.file(workspaceB.id, scannedDocumentId, adminB),
+      ).rejects.toMatchObject({ status: 404 });
+      const privateOcrGeneralSearch = await source.search(
+        parseSearchQuery('OCRTESTTOKENXYZ'),
+        {
+          visibility: 'ADMIN',
+          dialect: 'modern',
+          publicationPolicy: 'legacy-active-only',
+          page: 1,
+          pageSize: 20,
+        },
+      );
+      expect(
+        privateOcrGeneralSearch.results.some(
+          (row) => row.sourceId === scannedDocumentId,
+        ),
+      ).toBe(false);
+
       await prisma.corpusDocument.updateMany({
         where: { id: { in: [idA, idText] } },
         data: { decisionDate: new Date('2025-06-10T00:00:00.000Z') },

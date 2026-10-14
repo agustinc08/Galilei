@@ -239,12 +239,34 @@ describe('BasicDocumentTextExtractor multiformat safety', () => {
     );
   });
 
-  it('identifies OLE legacy DOC but does not claim extraction without a safe parser', async () => {
+  it('rejects fake OLE headers and can delegate structurally valid DOC to a local parser', async () => {
     const doc = Buffer.from('d0cf11e0a1b11ae1', 'hex');
-    expect(detector.detect('legacy.doc', doc).format).toBe('DOC');
     await expect(
       extractor.extract('legacy.doc', '', doc),
-    ).rejects.toMatchObject({ code: 'LEGACY_DOC_UNSUPPORTED' });
+    ).rejects.toMatchObject({ code: 'INVALID_DOC_OLE' });
+
+    const validOleHeader = Buffer.alloc(1024);
+    Buffer.from('d0cf11e0a1b11ae1', 'hex').copy(validOleHeader);
+    validOleHeader.writeUInt16LE(3, 26);
+    validOleHeader.writeUInt16LE(0xfffe, 28);
+    validOleHeader.writeUInt16LE(9, 30);
+    validOleHeader.writeUInt16LE(6, 32);
+    validOleHeader.writeUInt32LE(1, 44);
+    expect(detector.detect('legacy.doc', validOleHeader).format).toBe('DOC');
+
+    const docParser = {
+      extract: jest.fn().mockResolvedValue({
+        text: 'Expediente CIV 12345/2026\nDaño moral',
+        truncated: false,
+        provenance: { extractor: 'local-fixture' },
+      }),
+    };
+    const withDocParser = new BasicDocumentTextExtractor(detector, docParser);
+    const result = await withDocParser.extract('valid.doc', '', validOleHeader);
+    expect(result.formatDetected).toBe('DOC');
+    expect(result.text).toContain('Daño moral');
+    expect(result.provenance).toEqual({ extractor: 'local-fixture' });
+    expect(docParser.extract).toHaveBeenCalledTimes(1);
   });
 
   it('classifies an encrypted modern Office container without trying to open it', () => {

@@ -12,6 +12,8 @@ import { WorkspaceDocumentService } from './workspace-document.service';
 import { DocumentSourceController } from './document-source.controller';
 import { DocumentSourceService } from './document-source.service';
 import { DocumentSourceScanner } from './document-source-scanner';
+import { LocalPdfOcrProcessor } from './document-local-processors';
+import { CorpusOcrWorkerService } from './corpus-ocr-worker.service';
 
 @Module({
   imports: [BusquedaModule],
@@ -28,6 +30,11 @@ import { DocumentSourceScanner } from './document-source-scanner';
     WorkspaceDocumentService,
     DocumentSourceService,
     DocumentSourceScanner,
+    CorpusOcrWorkerService,
+    {
+      provide: LocalPdfOcrProcessor,
+      useFactory: () => new LocalPdfOcrProcessor(),
+    },
   ],
   exports: [CorpusDocumentAccessService],
 })

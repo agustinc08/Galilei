@@ -180,4 +180,24 @@ describe('findDocumentMatches', () => {
     expect(fieldResult.matches).toEqual([]);
     expect(fieldResult.exactTotalKnown).toBe(true);
   });
+
+  it('labels OCR page matches while defaulting older rows to native text', () => {
+    const ocr = findDocumentMatches(
+      [
+        {
+          pageNumber: 2,
+          text: 'Responsabilidad civil en Córdoba',
+          textKind: 'OCR',
+        },
+      ],
+      'Responsabilidad',
+    );
+    const native = findDocumentMatches(
+      [{ pageNumber: 1, text: 'Responsabilidad civil nativa' }],
+      'Responsabilidad',
+    );
+
+    expect(ocr.matches[0]).toMatchObject({ page: 2, textKind: 'OCR' });
+    expect(native.matches[0]).toMatchObject({ page: 1, textKind: 'NATIVE' });
+  });
 });

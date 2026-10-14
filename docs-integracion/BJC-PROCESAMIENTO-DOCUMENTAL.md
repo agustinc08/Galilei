@@ -54,3 +54,28 @@ Artefactos locales no versionados: `_recovery-work/sprint154a/`. Search corpus c
 ## Exclusiones
 
 CSV/XLS/XLSX/PPT/PPTX (P1), EML/MSG, imágenes independientes, OCR de PDFs escaneados, extracción `.doc`, migración de schema, reindexación global, OCR cloud, deploy, UAT humana y Sprints 15.4B/NEAR quedan fuera de esta entrega.
+## Sprint 15.4A.1 — OCR local y DOC legado seguro (2026-10-14)
+
+### Prerrequisitos y configuración
+
+Runtime validado en Windows: Tesseract 5.4.0, modelo español `spa` (inglés `eng` opcional), Poppler 25.07.0 y LibreOffice 26.8.1.1. No se agregaron dependencias npm ni binarios/modelos al repositorio. Instalar herramientas desde distribución oficial/confiable; validar versiones y el modelo `spa` en cada host. En producción OCR permanece deshabilitado por defecto (`NODE_ENV=production`); `OCR_ENABLED=true` requiere decisión explícita. Si faltan herramientas/modelos, el backend arranca y reporta la capacidad como no disponible.
+
+Variables soportadas: `OCR_ENABLED`, `OCR_ENGINE_PATH`, `OCR_RENDERER_PATH`, `OCR_TESSDATA_DIR` o `TESSDATA_PREFIX`, `OCR_LANGUAGES` (default `spa`), `OCR_DPI` (250), `OCR_TIMEOUT_MS` (90 s), `OCR_MIN_FREE_DISK_BYTES` (512 MiB), `OCR_MAX_PAGES` (2.000), `OCR_TEMP_DIR` (default temp del sistema), `OCR_MAX_PENDING_JOBS` (20) y `DOC_EXTRACTOR_PATH`. El límite de concurrencia del worker es uno por proceso. No configurar roots de almacenamiento compartido sin identidad, ACL y aceptación operativa.
+
+### Clasificación, job y seguridad
+
+La página con texto nativo suficiente queda `TEXT_NATIVE`; las páginas de menos de 25 caracteres se consideran candidatas `OCR_REQUIRED`. Poppler rasteriza página por página; Tesseract devuelve texto y confidence resumida. Una página reconocida queda `OCR_COMPLETE`, una falla terminal `OCR_FAILED`; el documento muestra estados de procesamiento separados de la condición inicial OCR requerida. La confidence sirve como señal técnica, no como verdad jurídica.
+
+`CorpusOcrJob` guarda estado durable, intentos, lease, idioma, DPI, tiempo límite, SHA y fingerprint. La huella incluye archivo, páginas y versiones de motor/renderer, idioma y DPI. La reclamación es atómica; backpressure limita jobs pendientes, el worker es serial por proceso, hay heartbeat/recuperación de lease y hasta dos intentos totales. Timeout, espacio mínimo, página/tamaño máximos, stdout/stderr limitados, `spawn` con argumentos y directorios temporales únicos cubren los límites de recursos. El archivo original no se modifica. Al completar, sólo se reindexa el documento afectado.
+
+### PDF híbrido, Search y Viewer
+
+Se mantiene el texto nativo y sólo se OCRizan páginas candidatas; la extracción final conserva orden y tipo de texto por página. Search indexa ambas clases con ACL previa. Los matches OCR habilitan snippet, contexto, página y F3/Shift+F3, pero no un rectángulo visual: no hay bbox certificado. Errores de OCR no provocan rebuild global ni exponen el texto a Search general desde un workspace privado.
+
+### `.doc` OLE
+
+El detector valida firma OLE. El extractor convierte a TXT mediante LibreOffice headless con perfil temporal exclusivo, sin perfil de usuario, `macroSecurity=HIGH` y actualizaciones de vínculos remotos deshabilitadas. Usa invocación por argumentos, timeout, límite de entrada/salida y cleanup en `finally`. Archivos falsos se rechazan; marcadores de VBA/objetos embebidos se rechazan antes de convertir; los cifrados se clasifican como no soportados. No se usa Word, COM, macros ni resolución de enlaces externos.
+
+### Evidencia y límites
+
+El fixture sintético en español reconoció las expresiones críticas, acentos y `ñ`. La comparación 200/250/300 DPI favoreció 250 por equilibrio de calidad/costo; mediciones sobre fixtures sintéticos de 1/5/10 páginas no son una estimación universal de PDFs jurídicos reales. El benchmark de 10 conversiones DOC sintéticas terminó 10/10 (media 35,35 s; p50 30,48 s; p95 57,57 s), cerca del timeout de 60 s: la extracción no bloquea el pipeline OCR, pero el tiempo de DOC merece optimización antes de una carga masiva. Suite backend completa final: 128 PASS, 20 opt-in omitidos; integración PostgreSQL Workspace con DOC/OCR/formats 1/1 y Source 2/2; Playwright end-to-end 1/1 cubre OCR, DOC, RTF, cambio de espacio, ACL, descargas y F3/Shift+F3. Search tras cleanup: 17.078 documentos, 18.799.500 tokens, stale 0, mismatch 0/100 y rebuilt 0. Esto cierra el gate técnico local, no aceptación humana ni preproducción. Las herramientas/provenance y la evidencia completa de la máquina quedan en `_recovery-work/sprint154a1/` y no se versionan.

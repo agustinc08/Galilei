@@ -38,7 +38,13 @@ export class CorpusDocumentAccessService {
       pageNumber && latestExtraction
         ? await this.prisma.corpusDocumentPage.findFirst({
             where: { extractionId: latestExtraction.id, pageNumber },
-            select: { pageNumber: true, text: true },
+            select: {
+              pageNumber: true,
+              text: true,
+              textKind: true,
+              processingStatus: true,
+              ocrConfidence: true,
+            },
           })
         : null;
     return {
@@ -153,7 +159,7 @@ export class CorpusDocumentAccessService {
           select: {
             pages: {
               orderBy: { pageNumber: 'asc' },
-              select: { pageNumber: true, text: true },
+              select: { pageNumber: true, text: true, textKind: true },
             },
           },
         })
@@ -170,7 +176,12 @@ export class CorpusDocumentAccessService {
         .find((item) => typeof item === 'string');
       return typeof value === 'string' ? value : null;
     };
-    return findDocumentMatches(extraction?.pages ?? [], query, 500, {
+    const pages = (extraction?.pages ?? []).map((page) => ({
+      ...page,
+      textKind:
+        page.textKind === 'OCR' ? ('OCR' as const) : ('NATIVE' as const),
+    }));
+    return findDocumentMatches(pages, query, 500, {
       tema: document.subtitle,
       sala: document.chamber,
       tipoFallo: document.documentType,

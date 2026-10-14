@@ -15,6 +15,10 @@ import {
   extractRtf,
   MAX_EXTRACTED_TEXT_CHARS,
 } from './document-office-extractors';
+import {
+  LibreOfficeLegacyDocExtractor,
+  LocalDocumentProcessingError,
+} from './document-local-processors';
 
 export {
   DocumentExtractionError,
@@ -51,6 +55,7 @@ export type ExtractionResult = {
   detectionMethod: DocumentDetectionMethod;
   warnings: string[];
   ocrRequiredPages: number[];
+  provenance?: Record<string, unknown>;
 };
 
 export function extractionProvenance(extraction: ExtractionResult) {
@@ -64,6 +69,7 @@ export function extractionProvenance(extraction: ExtractionResult) {
     extractionStatus: extraction.status,
     warnings: extraction.warnings,
     ocrRequiredPages: extraction.ocrRequiredPages,
+    ...(extraction.provenance ? { localProcessor: extraction.provenance } : {}),
   };
 }
 
@@ -80,7 +86,10 @@ const TEXT_EXTRACTOR_VERSION = '1';
 const MIN_NATIVE_PAGE_CHARACTERS = 25;
 
 export class BasicDocumentTextExtractor implements DocumentTextExtractor {
-  constructor(private readonly detector = new DocumentFormatDetector()) {}
+  constructor(
+    private readonly detector = new DocumentFormatDetector(),
+    private readonly legacyDocExtractor = new LibreOfficeLegacyDocExtractor(),
+  ) {}
 
   async extract(
     filename: string,
@@ -119,6 +128,27 @@ export class BasicDocumentTextExtractor implements DocumentTextExtractor {
         extracted.text,
         extracted.truncated,
       );
+    }
+    if (detected.format === 'DOC') {
+      try {
+        const extracted = await this.legacyDocExtractor.extract(content);
+        const extractorVersion = extracted.provenance.extractorVersion;
+        return this.resultFromText(
+          detected,
+          'libreoffice-headless',
+          typeof extractorVersion === 'string'
+            ? extractorVersion
+            : 'runtime-detected',
+          extracted.text,
+          extracted.truncated,
+          extracted.provenance,
+        );
+      } catch (error) {
+        if (error instanceof LocalDocumentProcessingError) {
+          throw new UnsupportedDocumentError(error.code, error.code);
+        }
+        throw error;
+      }
     }
     throw new UnsupportedDocumentError(
       'LEGACY_DOC_UNSUPPORTED',
@@ -192,6 +222,7 @@ export class BasicDocumentTextExtractor implements DocumentTextExtractor {
     extractorVersion: string,
     rawText: string,
     wasTruncated = false,
+    provenance?: Record<string, unknown>,
   ): ExtractionResult {
     const limited = limitText(rawText);
     const text = normalizeText(limited.text);
@@ -209,6 +240,7 @@ export class BasicDocumentTextExtractor implements DocumentTextExtractor {
       detectionMethod: detected.detectionMethod,
       warnings: truncated ? ['EXTRACTED_TRUNCATED'] : [],
       ocrRequiredPages: [],
+      ...(provenance ? { provenance } : {}),
     };
   }
 }

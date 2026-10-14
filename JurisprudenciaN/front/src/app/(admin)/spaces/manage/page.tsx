@@ -174,7 +174,9 @@ function typeLabel(type: string) {
 function statusLabel(status?: string) {
   if (status === "INDEXED" || status === "TEXT_EXTRACTED")
     return "Listo para buscar";
-  if (status === "OCR_REQUIRED") return "Requiere OCR";
+  if (status === "OCR_PROCESSING") return "Reconociendo texto…";
+  if (status === "OCR_REQUIRED") return "Texto escaneado pendiente";
+  if (status === "OCR_FAILED") return "No pudimos reconocer el texto de este documento.";
   if (status === "ERROR" || status === "INVALID_PDF")
     return "Error de procesamiento";
   return "Procesando";
@@ -676,13 +678,17 @@ export default function PrivateSpacesPage() {
         } else {
           updateUploadRow(row.id, {
             status:
-              result.status === "OCR_REQUIRED"
-                ? "Requiere OCR"
-                : "Listo para buscar",
+              result.status === "OCR_PROCESSING"
+                ? "Reconociendo texto…"
+                : result.status === "OCR_REQUIRED"
+                  ? "Texto escaneado pendiente"
+                  : "Listo para buscar",
             message:
-              result.status === "OCR_REQUIRED"
-                ? "Se puede abrir; el texto nativo extraído sigue siendo buscable y las páginas escaneadas esperan OCR."
-                : "Documento incorporado.",
+              result.status === "OCR_PROCESSING"
+                ? "El documento ya se puede abrir. La búsqueda se actualizará al terminar el reconocimiento."
+                : result.status === "OCR_REQUIRED"
+                  ? "El texto escaneado quedó pendiente de procesamiento en esta instalación."
+                  : "Documento incorporado.",
           });
         }
       } catch (cause) {
@@ -1102,8 +1108,8 @@ export default function PrivateSpacesPage() {
                 <h2>Subir documentos</h2>
                 <p className={styles.muted}>
                   Hasta 20 archivos por tanda y 20 MiB por archivo. DOC legado
-                  se detecta, pero aún no se puede extraer; cada archivo
-                  informa su propio resultado.
+                  se procesa localmente sin abrir Word ni ejecutar macros; cada
+                  archivo informa su propio resultado.
                 </p>
               </div>
               <div
@@ -1324,10 +1330,19 @@ export default function PrivateSpacesPage() {
                           </span>
                         )}
                       </div>
+                      {item.document.status === "OCR_PROCESSING" && (
+                        <p className={styles.muted}>
+                          Reconociendo texto… El documento se habilitará en búsqueda al terminar.
+                        </p>
+                      )}
                       {item.document.status === "OCR_REQUIRED" && (
                         <p className={styles.muted}>
-                          Disponible para lectura; no aparece en búsqueda por
-                          contenido hasta contar con OCR.
+                          El texto escaneado quedó pendiente de procesamiento.
+                        </p>
+                      )}
+                      {item.document.status === "OCR_FAILED" && (
+                        <p className={styles.muted}>
+                          No pudimos reconocer el texto de este documento.
                         </p>
                       )}
                     </div>

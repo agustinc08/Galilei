@@ -14,6 +14,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 export type PdfMatch = {
   page: number;
+  textKind?: 'NATIVE' | 'OCR';
   offset: number;
   term: string;
   ordinal: number;
@@ -52,7 +53,7 @@ export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, 
     [sourceText, textPage],
   );
   const mappings = useMemo(
-    () => alignedTextPage ? mapPdfMatches(alignedTextPage, matches.filter((match) => match.page === page)) : [],
+    () => alignedTextPage ? mapPdfMatches(alignedTextPage, matches.filter((match) => match.page === page && match.textKind !== 'OCR')) : [],
     [alignedTextPage, matches, page],
   );
   const unresolvedActive = mappings.find((mapping) => mapping.ordinal === active?.ordinal &&

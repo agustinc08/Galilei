@@ -1,7 +1,11 @@
 import { defineConfig } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const backendPort = process.env.BJC_PLAYWRIGHT_BACKEND_PORT ?? '4001';
 const frontendPort = process.env.BJC_PLAYWRIGHT_FRONTEND_PORT ?? '4002';
+const e2eStoragePath = resolve(process.cwd(), '../../_dev-corpus-storage-test/sprint154a1-workspace-uat');
+mkdirSync(e2eStoragePath, { recursive: true });
 
 export default defineConfig({
   testDir: './tests',
@@ -28,10 +32,12 @@ export default defineConfig({
       env: {
         PORT: backendPort,
         FRONTEND_URLS: `http://127.0.0.1:${frontendPort}`,
+        BJC_CORPUS_STORAGE_PATH: e2eStoragePath,
+        OCR_ENABLED: 'true',
       },
     },
     {
-      command: `pnpm exec next start -H 127.0.0.1 -p ${frontendPort}`,
+      command: `.\\node_modules\\.bin\\next.cmd start -H 127.0.0.1 -p ${frontendPort}`,
       url: `http://127.0.0.1:${frontendPort}/login`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

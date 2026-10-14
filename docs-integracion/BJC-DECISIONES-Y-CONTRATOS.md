@@ -151,3 +151,11 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 3. `OCR_REQUIRED` es sólo detección de página de texto escaso. Sin motor/modelo local no se genera OCR ni se afirma indexación OCR; texto nativo disponible sigue buscando. Cloud OCR queda excluido.
 4. No se añadió schema, migración, paquete o binary y no se reindexó/reconstruyó Search global. ACL de workspace y Search general permanecen como límites obligatorios.
 5. Mantener 15.4A **PARTIAL** hasta provisionar y validar OCR local/worker y resolver `.doc`; no iniciar 15.4B automáticamente.
+## Decisiones Sprint 15.4A.1 — procesamiento local (2026-10-14)
+
+- OCR usa Tesseract local + Poppler, sin proveedor cloud. El default de calidad/costo se fija en 250 DPI y `spa`; `eng` es opcional. No se OCRiza una página con texto nativo suficiente.
+- Los jobs viven en PostgreSQL DEV para sobrevivir reinicios. Backpressure por cantidad de jobs pendientes, un worker por proceso, lease/heartbeat, recuperación de jobs stale e idempotencia por SHA de archivo/páginas/engine/renderer/idioma/DPI. Máximo dos intentos totales; Search sólo actualiza el documento afectado.
+- El OCR no tiene highlight visual certificado: Preview muestra contexto OCR y navegación de página; no inventa coordenadas.
+- `.doc` OLE usa LibreOffice headless como parser local de último recurso. Perfil temporal aislado, seguridad de macros alta, actualización de vínculos remotos deshabilitada, timeout, tamaño limitado y rechazo de marcadores de macros/objetos embebidos. Word COM y ejecución de macros quedan prohibidos.
+- La migración `20261014110000_sprint154a1_local_document_processing` agrega estado/provenance/job; no edita migraciones anteriores ni reconstruye Search global.
+- `OCR_ENABLED` se desactiva por defecto en `NODE_ENV=production`; la disponibilidad de herramientas y del modelo español se detecta al arrancar. La evidencia sintética no sustituye revisión jurídica de calidad sobre una muestra autorizada.

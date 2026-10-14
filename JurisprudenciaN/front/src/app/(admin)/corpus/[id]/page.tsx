@@ -24,7 +24,7 @@ type DocumentInfo = {
   source?: { code: string; sourceReference?: string | null; checksum?: string | null } | null;
   file?: { filename: string; pageCount?: number | null; mimeType: string } | null;
   extraction?: { status: string; extractor: string; extractorVersion: string; extractedAt: string; pageCount: number } | null;
-  selectedPage?: { pageNumber: number; text: string } | null;
+  selectedPage?: { pageNumber: number; text: string; textKind?: 'NATIVE' | 'OCR' } | null;
 };
 type DocumentMatches = {
   total: number;
@@ -33,6 +33,7 @@ type DocumentMatches = {
   truncated: boolean;
   matches: Array<{
     page: number;
+    textKind: 'NATIVE' | 'OCR';
     start: number;
     end: number;
     offset: number;
@@ -225,6 +226,9 @@ export default function CorpusDocumentPage() {
       </div>
       <div className={styles.layout}>
         <section className={styles.pdfPanel} aria-label="Visor PDF">
+          {matches?.matches[activeMatch]?.textKind === 'OCR' && (
+            <p role="status">Texto OCR reconocido para esta página. La navegación y el contexto están disponibles; no se dibujan resaltados visuales de OCR.</p>
+          )}
           {pdfUrl ? <CorpusPdfViewer file={pdfUrl} page={page} sourceText={sourcePageText} matches={matches?.matches ?? []} activeMatch={activeMatch} onLoadSuccess={setPageCount} /> : <Card><p>Cargando PDF…</p></Card>}
         </section>
         <aside className={styles.sidePanel}>

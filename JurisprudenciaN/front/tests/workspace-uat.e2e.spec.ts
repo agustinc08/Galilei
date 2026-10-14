@@ -1,18 +1,29 @@
-import { mkdirSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 const credentials = JSON.parse(
   readFileSync(resolve(process.cwd(), '../../_recovery-work/sprint10/acceptance/credentials.json'), 'utf8'),
 ) as { accounts: Record<string, { email: string; password: string }> };
+const apiBase = `http://127.0.0.1:${process.env.BJC_PLAYWRIGHT_BACKEND_PORT ?? '4001'}/api`;
 const pdf = readFileSync(resolve(process.cwd(), '../back/scripts/dev/fixtures/corpus/fallo-fixture.pdf'));
+const ocrPdf = readFileSync(resolve(process.cwd(), '../back/src/corpus/fixtures/sprint154a1-ten-pages.pdf'));
+const legacyDoc = readFileSync(resolve(process.cwd(), '../back/src/corpus/fixtures/sprint154a1-golden.doc'));
 const runId = `${Date.now()}`;
 const formatMarker = `sprint154aui${runId}`;
+const ocrMarker = 'OCRTESTTOKENXYZ';
 const rtf = Buffer.from(`{\\rtf1\\ansi ${formatMarker} responsabilidad civil y daño moral}`, 'ascii');
 const codeA = `S151UIE2E_A_${runId}`;
 const codeB = `S151UIE2E_B_${runId}`;
 const nameA = `Sala UAT privada A ${runId}`;
 const nameB = `Juzgado UAT privado B ${runId}`;
+const workspaceManifestPath = resolve(process.cwd(), '../../_recovery-work/sprint154a1/workspace-uat-created.json');
+const createdWorkspaces: Array<{ id: string; code: string }> = [];
+
+function saveWorkspaceManifest() {
+  mkdirSync(dirname(workspaceManifestPath), { recursive: true });
+  writeFileSync(workspaceManifestPath, JSON.stringify({ runId, workspaces: createdWorkspaces }, null, 2));
+}
 
 async function login(page: Page, account: { email: string; password: string }) {
   await page.goto('/login');
@@ -80,10 +91,14 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await page.goto('/spaces/manage');
   await expect(page.getByText('Administración global', { exact: true })).toBeVisible();
   const workspaceAId = await createSpace(page, codeA, nameA, 'SALA');
+  createdWorkspaces.push({ id: workspaceAId, code: codeA });
+  saveWorkspaceManifest();
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceAId)}`);
   await expect(page.getByRole('heading', { name: nameA })).toBeVisible();
 
   const workspaceBId = await createSpace(page, codeB, nameB, 'JUZGADO');
+  createdWorkspaces.push({ id: workspaceBId, code: codeB });
+  saveWorkspaceManifest();
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceBId)}`);
   const workspaceSelect = page.getByLabel('Espacio documental');
   await expect(workspaceSelect).toBeVisible();
@@ -121,7 +136,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   // Per-file status and continuation across one, five and twenty documents.
   const fileInput = page.getByLabel('Seleccionar documentos PDF, TXT, RTF, DOC, DOCX u ODT');
   await expect(page.getByRole('heading', { name: 'Subir documentos' })).toBeVisible();
-  await expect(page.getByText(/DOC legado se detecta, pero aún no se puede extraer/u)).toBeVisible();
+  await expect(page.getByText(/DOC legado se procesa localmente/u)).toBeVisible();
   await fileInput.setInputFiles([{ name: 'sprint151-e2e-one.pdf', mimeType: 'application/pdf', buffer: pdf }]);
   await expect(page.getByRole('status').filter({ hasText: '1 archivo(s) procesado(s).' })).toBeVisible({ timeout: 60_000 });
 
@@ -146,6 +161,44 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.getByRole('status').filter({ hasText: '1 archivo(s) procesado(s).' })).toBeVisible({ timeout: 60_000 });
   const uploadedRtf = page.locator('article').filter({ hasText: 'sprint154a-e2e-note.rtf' });
   await expect(uploadedRtf).toContainText('Listo para buscar');
+  await fileInput.setInputFiles([
+    { name: 'sprint154a1-e2e-legacy.doc', mimeType: 'application/msword', buffer: legacyDoc },
+  ]);
+  await expect(page.getByRole('status').filter({ hasText: '1 archivo(s) procesado(s).' })).toBeVisible({ timeout: 120_000 });
+  const uploadedDoc = page.locator('article').filter({ hasText: 'sprint154a1-e2e-legacy.doc' });
+  await expect(uploadedDoc).toContainText('Listo para buscar');
+  await fileInput.setInputFiles([
+    { name: 'sprint154a1-e2e-ocr-ten-pages.pdf', mimeType: 'application/pdf', buffer: ocrPdf },
+  ]);
+  await expect(page.getByRole('status').filter({ hasText: '1 archivo(s) procesado(s).' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('article').filter({ hasText: 'sprint154a1-e2e-ocr-ten-pages.pdf' })).toContainText('Reconociendo texto…');
+  const authToken = await page.evaluate(() => localStorage.getItem('jurisprudencia_token'));
+  if (!authToken) throw new Error('EXPECTED_AUTH_TOKEN');
+  const healthStartedAt = Date.now();
+  const healthDuringOcr = await page.request.get(`${apiBase}/health`);
+  expect(healthDuringOcr.ok()).toBe(true);
+  expect(Date.now() - healthStartedAt).toBeLessThan(5_000);
+  const searchStartedDuringOcrAt = Date.now();
+  const searchDuringOcr = await page.request.get(`${apiBase}/workspaces/${workspaceAId}/search`, {
+    headers: { Authorization: `Bearer ${authToken}` },
+    params: { q: ocrMarker, page: '1', pageSize: '20' },
+  });
+  expect(searchDuringOcr.ok()).toBe(true);
+  expect(Date.now() - searchStartedDuringOcrAt).toBeLessThan(5_000);
+  const searchBeforeOcrFinishes = await searchDuringOcr.json() as { total?: number };
+  expect(searchBeforeOcrFinishes.total ?? 0).toBe(0);
+  let ocrIndexed = false;
+  for (let attempt = 0; attempt < 90 && !ocrIndexed; attempt += 1) {
+    const response = await page.request.get(`${apiBase}/workspaces/${workspaceAId}/search`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+      params: { q: ocrMarker, page: '1', pageSize: '20' },
+    });
+    expect(response.ok()).toBe(true);
+    const body = await response.json() as { total?: number };
+    ocrIndexed = (body.total ?? 0) > 0;
+    if (!ocrIndexed) await page.waitForTimeout(1_000);
+  }
+  expect(ocrIndexed).toBe(true);
 
   await page.getByLabel('Buscar documentos privados').fill('JORGE');
   await page.getByLabel('Buscar documentos privados').locator('xpath=..').getByRole('button', { name: 'Buscar', exact: true }).click();
@@ -178,7 +231,33 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await page.goto(`/spaces?workspaceId=${encodeURIComponent(workspaceAId)}`);
   await expect(page.getByRole('main', { name: 'Búsqueda y resultados' }).getByText(nameA, { exact: false }).first()).toBeVisible();
   const classicSearch = page.getByLabel('Buscar documentos privados');
+  const classicSearchButton = classicSearch.locator('xpath=..').getByRole('button', { name: 'Buscar', exact: true });
   const performanceMs: Record<string, number> = {};
+  await classicSearch.fill(ocrMarker);
+  const ocrResult = page.locator('[aria-label="Resultados por contenido y nombre"]').getByRole('button', { name: /Vista previa de sprint154a1-e2e-ocr-ten-pages\.pdf/iu });
+  const ocrSearchResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith(`/api/workspaces/${workspaceAId}/search`) && url.searchParams.get('q') === ocrMarker;
+  }, { timeout: 60_000 });
+  const ocrSearchStartedAt = Date.now();
+  await classicSearchButton.click();
+  expect((await ocrSearchResponse).ok()).toBe(true);
+  await expect(ocrResult).toBeVisible({ timeout: 30_000 });
+  performanceMs.ocrReadyAndSearch = Date.now() - ocrSearchStartedAt;
+  await ocrResult.click();
+  await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/Texto reconocido por OCR\. La navegación y el contexto están disponibles; no se dibujan resaltados visuales de OCR\./u)).toBeVisible();
+  await expect(page.locator('.bjc-pdf-match-current, .bjc-pdf-match')).toHaveCount(0);
+  const ocrMatchIndicator = page.locator('span[aria-live="polite"]').filter({ hasText: /Coincidencia \d+ de \d+/u });
+  await expect(ocrMatchIndicator).toContainText('Coincidencia 1 de 10');
+  await page.getByText(/Texto reconocido por OCR\. La navegación/u).click();
+  await page.keyboard.press('F3');
+  await expect(ocrMatchIndicator).toContainText('Coincidencia 2 de 10');
+  await expect(page.getByText('Página 2 de 10')).toBeVisible();
+  await page.keyboard.press('Shift+F3');
+  await expect(ocrMatchIndicator).toContainText('Coincidencia 1 de 10');
+  await expect(page.getByText('Página 1 de 10')).toBeVisible();
+  await expect(page.locator('.bjc-pdf-match-current, .bjc-pdf-match')).toHaveCount(0);
   await classicSearch.fill('JORGE');
   const searchStartedAt = Date.now();
   const searchResponseWithTimeout = page.waitForResponse((response) => {
@@ -313,6 +392,37 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await page.getByRole('link', { name: '← Volver al espacio' }).click();
   await expect(page).toHaveURL(/type=RTF/u);
 
+  // Legacy OLE DOC is searchable, previewable and downloadable without Word automation.
+  const docQuery = '12345/2026';
+  await classicSearch.fill(docQuery);
+  const docSearchResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith(`/api/workspaces/${workspaceAId}/search`)
+      && url.searchParams.get('q') === docQuery
+      && url.searchParams.get('type') === 'DOC';
+  });
+  await page.getByLabel('Filtrar por tipo').selectOption('DOC');
+  await page.getByRole('search').getByRole('button', { name: 'Buscar', exact: true }).click();
+  expect((await docSearchResponse).status()).toBe(200);
+  const docResult = classicResults.getByRole('button', { name: /Vista previa de sprint154a1-e2e-legacy\.doc/iu });
+  await expect(docResult).toBeVisible({ timeout: 60_000 });
+  await docResult.click();
+  const docPreview = page.locator('pre[aria-label="Vista previa del texto extraído"]');
+  await expect(docPreview).toContainText(docQuery);
+  await expect(docPreview.locator('mark').first()).toContainText(docQuery);
+  const docMatchIndicator = page.getByText(/Coincidencia \d+ de \d+/u).last();
+  await page.keyboard.press('F3');
+  await expect(docMatchIndicator).toContainText(/Coincidencia \d+ de \d+/u);
+  await page.keyboard.press('Shift+F3');
+  await expect(docMatchIndicator).toContainText(/Coincidencia \d+ de \d+/u);
+  await page.getByRole('link', { name: 'Abrir completo', exact: true }).click();
+  await expect(page.locator('pre[aria-label="Texto extraído del documento"]')).toContainText(docQuery);
+  const docDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Descargar DOC' }).click();
+  expect((await docDownload).suggestedFilename()).toBe('sprint154a1-e2e-legacy.doc');
+  await page.getByRole('link', { name: '← Volver al espacio' }).click();
+  await expect(page).toHaveURL(/type=DOC/u);
+
   // The date and type constraints are sent to the API and survive URL state; this fixture's unknown date must not pass a date range.
   await classicSearch.fill('JORGE');
   const restorePdfFilterResponse = page.waitForResponse((response) => {
@@ -411,6 +521,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   expect(expectedNotFoundErrors.length).toBeLessThanOrEqual(deniedWorkspaceResponses.length);
   expect(browserErrors.filter((error) => !expectedNotFoundErrors.includes(error))).toEqual([]);
   console.log(`SPRINT153_PERFORMANCE_MS=${JSON.stringify(performanceMs)}`);
+  saveWorkspaceManifest();
 });
 
 test('usuario con dos espacios autorizados cambia de ámbito sin mezclar nombres', async ({ page }) => {

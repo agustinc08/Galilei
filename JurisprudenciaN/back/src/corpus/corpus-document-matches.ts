@@ -13,11 +13,16 @@ import {
   normalizeSpanishText,
 } from '../busqueda/utils/search-normalizer';
 
-export type DocumentPageText = { pageNumber: number; text: string };
+export type DocumentPageText = {
+  pageNumber: number;
+  text: string;
+  textKind?: 'NATIVE' | 'OCR';
+};
 
 type SearchMatchFieldValues = Partial<Record<SearchFieldName, string | null>>;
 type MatchCandidate = {
   page: number;
+  textKind: 'NATIVE' | 'OCR';
   start: number;
   end: number;
   text: string;
@@ -138,6 +143,7 @@ function occurrencesInPage(
       const contextAfter = page.text.slice(end, contextEnd);
       matches.push({
         page: page.pageNumber,
+        textKind: page.textKind === 'OCR' ? 'OCR' : 'NATIVE',
         start,
         end,
         text: page.text.slice(start, end),
@@ -243,6 +249,7 @@ export function findDocumentMatches(
     occurrenceOrdinals.set(occurrenceKey, pageOccurrenceOrdinal);
     return {
       page: match.page,
+      textKind: match.textKind,
       start: match.start,
       end: match.end,
       /** Legacy alias retained while existing viewer consumers migrate to start/end. */

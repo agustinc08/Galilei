@@ -164,6 +164,12 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts',
   'sprint15-full-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=300000',
+  'sprint154a1-e2e-cleanup':
+    'pnpm.cmd exec ts-node scripts/dev/sprint154a1-e2e-cleanup.ts',
+  'sprint154a1-residue-audit':
+    'pnpm.cmd exec ts-node scripts/dev/sprint154a1-residue-cleanup.ts',
+  'sprint154a1-residue-cleanup':
+    'pnpm.cmd exec ts-node scripts/dev/sprint154a1-residue-cleanup.ts --apply',
   'sprint151-ui-tests': 'node scripts/dev/sprint151-ui-run.cjs',
   'sprint148-explain':
     'pnpm.cmd exec ts-node scripts/dev/sprint123-search-explain.ts',

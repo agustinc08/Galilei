@@ -141,3 +141,13 @@ La URL histórica CIJ redirige al buscador CSJN Tribunales Federales y Nacionale
 ## Extracción de documentos — Sprint 15.4A
 
 `DocumentFormatDetector` valida firmas PDF/OLE/RTF/ZIP y la estructura DOCX/ODT. `SafeZip` aplica límites de tamaño, expansión, entradas, CRC, rutas y cifrado; `DocumentOfficeExtractors` extrae RTF/OOXML/ODF sin ejecutar aplicaciones ni buscar relaciones externas. `BasicDocumentTextExtractor` conserva extracción PDF/TXT y entrega provenance, advertencias y páginas candidatas a OCR. `CorpusIngestionService` y `WorkspaceDocumentService` persisten el MIME detectado y la provenance sin migración. `CorpusDocumentAccessService` sirve preview/archivo bajo ACL para MIME admitidos. DOC se detecta, pero falla cerrado sin extractor. No hay motor ni worker OCR instalado; ver matriz y límites en `BJC-PROCESAMIENTO-DOCUMENTAL.md`.
+## Pipeline documental local — Sprint 15.4A.1 (2026-10-14)
+
+- `document-format-detector.ts` y `document-text-extractor.ts` conservan la detección/extracción por formato y provenance por página.
+- `document-local-processors.ts` inspecciona capacidades locales, rasteriza páginas candidatas con Poppler y ejecuta Tesseract por argumentos; los archivos temporales se aíslan y eliminan.
+- `ocr-job-queue.ts` crea jobs idempotentes con límite de pendientes y lock transaccional. `corpus-ocr-worker.service.ts` reclama con `SKIP LOCKED`, mantiene lease, reintenta hasta dos veces y reindexa sólo el documento afectado.
+- `CorpusOcrJob`, `CorpusDocumentPage` y `CorpusExtraction` persisten estado, `textKind`, confianza y provenance. La migración aditiva es `20261014110000_sprint154a1_local_document_processing`.
+- La extracción `.doc` usa LibreOffice headless con perfil temporal aislado, salida TXT y límites de seguridad; no usa Word COM.
+- Search mantiene la ACL antes de recuperar contenido. Los matches OCR navegan al texto/página, pero el Viewer no crea cajas visuales sin geometría certificada.
+
+Configuración, límites y recuperación están documentados en `BJC-PROCESAMIENTO-DOCUMENTAL.md`. La implementación permanece local-only y no activa OCR en producción por defecto.

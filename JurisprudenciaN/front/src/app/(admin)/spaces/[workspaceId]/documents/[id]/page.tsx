@@ -29,7 +29,7 @@ type DocumentInfo = {
     mimeType: string;
   } | null;
   extraction: { status: string; pageCount: number } | null;
-  selectedPage?: { pageNumber: number; text: string };
+  selectedPage?: { pageNumber: number; text: string; textKind?: 'NATIVE' | 'OCR' };
 };
 type Matches = {
   total: number;
@@ -235,12 +235,19 @@ export default function WorkspaceDocumentViewer() {
           {error}
         </p>
       )}
+      {document?.status === "OCR_PROCESSING" && (
+        <Card>
+          <p>Reconociendo texto… La búsqueda y la navegación se actualizarán al terminar.</p>
+        </Card>
+      )}
       {document?.status === "OCR_REQUIRED" && (
         <Card>
-          <p>
-            El PDF tiene páginas que requieren OCR. El texto nativo disponible
-            se conserva y puede buscarse mientras se completa ese procesamiento.
-          </p>
+          <p>El texto escaneado quedó pendiente de procesamiento.</p>
+        </Card>
+      )}
+      {document?.status === "OCR_FAILED" && (
+        <Card>
+          <p>No pudimos reconocer el texto de este documento.</p>
         </Card>
       )}
       <Card>
@@ -329,6 +336,10 @@ export default function WorkspaceDocumentViewer() {
             )}
           </pre>
         ) : pdf ? (
+          <>
+          {document?.selectedPage?.textKind === 'OCR' && (
+            <p role="status">Texto reconocido por OCR. La navegación y el contexto están disponibles; no se dibujan resaltados visuales de OCR.</p>
+          )}
           <CorpusPdfViewer
             file={pdf}
             page={page}
@@ -336,6 +347,7 @@ export default function WorkspaceDocumentViewer() {
             activeMatch={active}
             onLoadSuccess={setPageCount}
           />
+          </>
         ) : (
           <p>Cargando documento…</p>
         )}

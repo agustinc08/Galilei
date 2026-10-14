@@ -1,6 +1,12 @@
 # Buscador Jurídico Civil — inicio rápido
 
-**Actualizado:** 2026-10-09, Sprint 14.3. Empezar por `BJC-ADQUISICION-JURISPRUDENCIA.md` para adquisición, `BJC-SEARCH.md` para Search y `BJC-ESTADO-ACTUAL.md` para el estado general.
+**Actualizado:** 2026-10-14, Sprint 15.4A.1. Empezar por `BJC-ADQUISICION-JURISPRUDENCIA.md` para adquisición, `BJC-SEARCH.md` para Search y `BJC-ESTADO-ACTUAL.md` para el estado general.
+
+## Estado vigente — Sprint 15.4A.1 (2026-10-14)
+
+El pipeline local para PDF escaneado/híbrido y DOC legado quedó implementado y pasó sus gates técnicos en DEV. OCR usa Tesseract con español y Poppler, por página y de forma asíncrona; DOC se extrae con LibreOffice headless aislado. No se usa cloud, Word COM ni ejecución de macros. La evidencia, configuración y límites están en `BJC-PROCESAMIENTO-DOCUMENTAL.md`; el cierre técnico no equivale a UAT humana ni a autorización para red compartida/producción.
+
+El siguiente alcance recomendado es la certificación final Search + Viewer. No iniciar NEAR, Semantic Search ni RAG como parte de esta continuidad.
 
 ## Qué estamos construyendo
 

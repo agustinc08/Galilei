@@ -190,10 +190,19 @@ export class CorpusIngestionService {
           extractorVersion: extracted.extractorVersion,
           status: extracted.status,
           text: extracted.text,
+          ...(extracted.provenance
+            ? { provenance: extracted.provenance as Prisma.InputJsonValue }
+            : {}),
           pages: {
             create: extracted.pages.map((page) => ({
               pageNumber: page.pageNumber,
               text: page.text,
+              textKind: 'NATIVE',
+              processingStatus:
+                extracted.formatDetected === 'PDF' &&
+                extracted.ocrRequiredPages.includes(page.pageNumber)
+                  ? 'OCR_REQUIRED'
+                  : 'TEXT_NATIVE',
             })),
           },
         },
@@ -412,10 +421,19 @@ export class CorpusIngestionService {
         extractorVersion: extracted.extractorVersion,
         status: extracted.status,
         text: extracted.text,
+        ...(extracted.provenance
+          ? { provenance: extracted.provenance as Prisma.InputJsonValue }
+          : {}),
         pages: {
           create: extracted.pages.map((page) => ({
             pageNumber: page.pageNumber,
             text: page.text,
+            textKind: 'NATIVE',
+            processingStatus:
+              extracted.formatDetected === 'PDF' &&
+              extracted.ocrRequiredPages.includes(page.pageNumber)
+                ? 'OCR_REQUIRED'
+                : 'TEXT_NATIVE',
           })),
         },
       },

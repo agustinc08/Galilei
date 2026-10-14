@@ -112,7 +112,7 @@ type DocumentInfo = {
     mimeType: string;
   } | null;
   extraction: { status: string; pageCount: number } | null;
-  selectedPage?: { pageNumber: number; text: string };
+  selectedPage?: { pageNumber: number; text: string; textKind?: 'NATIVE' | 'OCR' };
 };
 type DocumentMatches = {
   total: number;
@@ -249,7 +249,9 @@ function fileTypeFromMime(mimeType: string | null): SearchHit["fileType"] {
   return "OTRO";
 }
 function documentStatusLabel(status: string | null) {
-  if (status === "OCR_REQUIRED") return "Requiere OCR";
+  if (status === "OCR_PROCESSING") return "Reconociendo texto…";
+  if (status === "OCR_REQUIRED") return "Texto escaneado pendiente";
+  if (status === "OCR_FAILED") return "No pudimos reconocer el texto";
   if (status === "INDEXED") return "Contenido indexado";
   if (status === "ERROR" || status === "INVALID_PDF") return "Error de lectura";
   return "Documento privado";
@@ -1398,8 +1400,17 @@ export function CopernicWorkspaceSearch() {
                   )}
                   {preview && !previewLoading && (
                     <>
+                      {preview.document.status === "OCR_PROCESSING" && (
+                        <p className={styles.missingSourceNote}>Reconociendo texto… La búsqueda y la navegación se actualizarán al terminar.</p>
+                      )}
                       {preview.document.status === "OCR_REQUIRED" && (
-                        <p className={styles.missingSourceNote}>El PDF tiene páginas que requieren OCR; se conserva y busca el texto nativo que pudo extraerse.</p>
+                        <p className={styles.missingSourceNote}>El texto escaneado quedó pendiente de procesamiento.</p>
+                      )}
+                      {preview.document.status === "OCR_FAILED" && (
+                        <p className={styles.missingSourceNote}>No pudimos reconocer el texto de este documento.</p>
+                      )}
+                      {preview.document.selectedPage?.textKind === "OCR" && (
+                        <p className={styles.missingSourceNote}>Texto reconocido por OCR. La navegación y el contexto están disponibles; no se dibujan resaltados visuales de OCR.</p>
                       )}
                       <div className={styles.previewToolbar}>
                         <span>

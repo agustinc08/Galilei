@@ -27,6 +27,8 @@ import { LocalDocumentStorageAdapter } from './document-storage.adapter';
 import type { DocumentStorageAdapter } from './document-storage.adapter';
 import { CorpusDocumentAccessService } from './corpus-document-access.service';
 import { normalizeRelativePath } from './document-source-scanner';
+import { LocalPdfOcrProcessor } from './document-local-processors';
+import { enqueueLocalOcrJob } from './ocr-job-queue';
 
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -36,6 +38,7 @@ export const WORKSPACE_STORAGE_ADAPTER = 'WORKSPACE_STORAGE_ADAPTER';
 @Injectable()
 export class WorkspaceDocumentService {
   private readonly storage: DocumentStorageAdapter;
+  private readonly ocrProcessor: LocalPdfOcrProcessor;
   constructor(
     private readonly prisma: PrismaService,
     private readonly search: BusquedaService,
@@ -43,8 +46,12 @@ export class WorkspaceDocumentService {
     @Optional()
     @Inject(WORKSPACE_STORAGE_ADAPTER)
     storage?: DocumentStorageAdapter,
+    @Optional()
+    @Inject(LocalPdfOcrProcessor)
+    ocrProcessor?: LocalPdfOcrProcessor,
   ) {
     this.storage = storage ?? new LocalDocumentStorageAdapter();
+    this.ocrProcessor = ocrProcessor ?? new LocalPdfOcrProcessor();
   }
 
   async mine(user: AuthenticatedUser) {
@@ -1144,9 +1151,11 @@ export class WorkspaceDocumentService {
         visibility: 'RESTRICTED',
         documentScope: 'PRIVATE_WORKSPACE' as const,
         status:
-          extraction.status === 'OCR_REQUIRED' ? 'OCR_REQUIRED' : 'INDEXED',
+          extraction.status === 'OCR_REQUIRED'
+            ? ('OCR_REQUIRED' as const)
+            : ('INDEXED' as const),
         searchText: extraction.text,
-      };
+      } satisfies Prisma.CorpusDocumentUncheckedCreateInput;
       const doc = replaceDocumentId
         ? await tx.corpusDocument.update({
             where: { id: replaceDocumentId },
@@ -1191,12 +1200,58 @@ export class WorkspaceDocumentService {
           extractorVersion: extraction.extractorVersion,
           status: extraction.status,
           text: extraction.text,
-          pages: { create: extraction.pages },
+          ...(extraction.provenance
+            ? {
+                provenance: extraction.provenance as Prisma.InputJsonValue,
+              }
+            : {}),
+          pages: {
+            create: extraction.pages.map((page) => ({
+              ...page,
+              textKind: 'NATIVE',
+              processingStatus:
+                extraction.formatDetected === 'PDF' &&
+                extraction.ocrRequiredPages.includes(page.pageNumber)
+                  ? 'OCR_REQUIRED'
+                  : 'TEXT_NATIVE',
+            })),
+          },
         },
       });
+      if (replaceDocumentId) {
+        await tx.corpusOcrJob.updateMany({
+          where: {
+            documentId: doc.id,
+            fileId: { not: storedFile.id },
+            status: 'PENDING',
+          },
+          data: {
+            status: 'CANCELLED',
+            completedAt: new Date(),
+            errorCode: 'SOURCE_REPLACED',
+            errorDetail: 'A newer source version replaced this pending job.',
+          },
+        });
+      }
+      const ocrPages =
+        extraction.formatDetected === 'PDF' ? extraction.ocrRequiredPages : [];
+      const job = ocrPages.length
+        ? await enqueueLocalOcrJob(tx, this.ocrProcessor, {
+            documentId: doc.id,
+            fileId: storedFile.id,
+            fileSha256: stored.sha256,
+            pageNumbers: ocrPages,
+          })
+        : null;
+      const finalStatus =
+        extraction.status === 'OCR_REQUIRED'
+          ? job
+            ? 'OCR_PROCESSING'
+            : 'OCR_REQUIRED'
+          : 'INDEXED';
       await tx.corpusDocument.update({
         where: { id: doc.id },
-        data: { latestExtractionId: extracted.id },
+        data: { latestExtractionId: extracted.id, status: finalStatus },
       });
       const idempotencyKey = replaceDocumentId
         ? `workspace-source:${workspaceId}:${doc.id}:${stored.sha256}`
@@ -1207,7 +1262,7 @@ export class WorkspaceDocumentService {
           sourceSystemId: source.id,
           documentId: doc.id,
           fileId: storedFile.id,
-          status: doc.status,
+          status: finalStatus,
           checksum: stored.sha256,
           idempotencyKey,
           originalFilename: name,
@@ -1219,7 +1274,7 @@ export class WorkspaceDocumentService {
           sourceSystemId: source.id,
           documentId: doc.id,
           fileId: storedFile.id,
-          status: doc.status,
+          status: finalStatus,
           checksum: stored.sha256,
           idempotencyKey,
           originalFilename: name,
@@ -1250,13 +1305,13 @@ export class WorkspaceDocumentService {
             documentId: doc.id,
             sha256: stored.sha256,
             bytes: stored.sizeBytes,
-            status: doc.status,
+            status: finalStatus,
           },
         },
       });
       return {
         id: doc.id,
-        status: doc.status,
+        status: finalStatus,
         title: doc.title,
         pageCount: extraction.pages.length,
       };
