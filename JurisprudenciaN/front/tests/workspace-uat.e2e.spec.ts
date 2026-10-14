@@ -18,6 +18,7 @@ const codeB = `S151UIE2E_B_${runId}`;
 const nameA = `Sala UAT privada A ${runId}`;
 const nameB = `Juzgado UAT privado B ${runId}`;
 const workspaceManifestPath = resolve(process.cwd(), '../../_recovery-work/sprint154a1/workspace-uat-created.json');
+const sprint155ScreenshotDir = resolve(process.cwd(), '../../_recovery-work/sprint155/screenshots');
 const createdWorkspaces: Array<{ id: string; code: string }> = [];
 
 function saveWorkspaceManifest() {
@@ -70,6 +71,7 @@ async function workspaceOptionValue(page: Page, name: string) {
 test('perfiles sintéticos de DEV completan los flujos privados principales desde la interfaz', async ({ page }) => {
   test.setTimeout(300_000);
   page.setDefaultTimeout(10_000);
+  mkdirSync(sprint155ScreenshotDir, { recursive: true });
   const outputDir = resolve(process.cwd(), '../../_recovery-work/sprint154a/screenshots');
   mkdirSync(outputDir, { recursive: true });
   const browserErrors: string[] = [];
@@ -248,6 +250,8 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText(/Texto reconocido por OCR\. La navegación y el contexto están disponibles; no se dibujan resaltados visuales de OCR\./u)).toBeVisible();
   await expect(page.locator('.bjc-pdf-match-current, .bjc-pdf-match')).toHaveCount(0);
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.screenshot({ path: resolve(sprint155ScreenshotDir, 'viewer-ocr-context.png'), fullPage: true });
   const ocrMatchIndicator = page.locator('span[aria-live="polite"]').filter({ hasText: /Coincidencia \d+ de \d+/u });
   await expect(ocrMatchIndicator).toContainText('Coincidencia 1 de 10');
   await page.getByText(/Texto reconocido por OCR\. La navegación/u).click();
@@ -331,9 +335,11 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.getByRole('heading', { name: 'Buscar documentos' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: resolve(outputDir, 'copernic-1366x768.png'), fullPage: true });
+  await page.screenshot({ path: resolve(sprint155ScreenshotDir, 'copernic-three-pane-1366.png'), fullPage: true });
   await page.setViewportSize({ width: 1920, height: 1080 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: resolve(outputDir, 'copernic-1920x1080.png'), fullPage: true });
+  await page.screenshot({ path: resolve(sprint155ScreenshotDir, 'copernic-three-pane-1920.png'), fullPage: true });
 
   await page.getByRole('link', { name: 'Abrir completo', exact: true }).click();
   await expect(page.getByRole('link', { name: '← Volver al espacio' })).toBeVisible();
@@ -359,6 +365,8 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
   const phraseMarks = page.locator('.bjc-pdf-match-current');
   await expect(phraseMarks.first()).toBeVisible({ timeout: 30_000 });
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.screenshot({ path: resolve(sprint155ScreenshotDir, 'viewer-native-highlight.png'), fullPage: true });
   const phraseHighlight = (await phraseMarks.allTextContents()).join('').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('es');
   expect(phraseHighlight).toBe('jorge porcel');
 
@@ -379,6 +387,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   const rtfPreview = page.locator('pre[aria-label="Vista previa del texto extraído"]');
   await expect(rtfPreview).toContainText(formatMarker);
   await expect(rtfPreview.locator('mark').first()).toContainText(formatMarker);
+  await page.screenshot({ path: resolve(sprint155ScreenshotDir, 'viewer-text-preview.png'), fullPage: true });
   const rtfMatchIndicator = page.getByText(/Coincidencia \d+ de \d+/u).last();
   await page.keyboard.press('F3');
   await expect(rtfMatchIndicator).toContainText('Coincidencia 1 de 1');
@@ -513,6 +522,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await page.goto(`/spaces/${workspaceAId}/documents/${documentIdA}`);
   await expect(page.locator('p[role="alert"]')).toHaveText('El espacio o documento ya no está disponible para tu cuenta.', { timeout: 30_000 });
   await expect(page.locator('.react-pdf__Page')).toHaveCount(0);
+  await page.screenshot({ path: resolve(sprint155ScreenshotDir, 'error-state.png'), fullPage: true });
   expect(deniedWorkspaceResponses).toHaveLength(2);
   expect(deniedWorkspaceResponses.every((status) => status === 404)).toBe(true);
   const expectedNotFoundErrors: string[] = browserErrors.filter(

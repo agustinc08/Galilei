@@ -41,6 +41,11 @@ if (!valid) {
   process.exit(2);
 }
 
+// Pass the already-validated local DEV URL to the child process. Several
+// integration tests instantiate PrismaService directly and do not load Nest's
+// .env.development.local configuration on their own.
+process.env.DATABASE_URL = rawUrl;
+
 const actions = {
   'prisma-generate': 'pnpm.cmd exec prisma generate',
   'prisma-format': 'pnpm.cmd exec prisma format',
@@ -164,6 +169,12 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts',
   'sprint15-full-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=300000',
+  'sprint155-golden':
+    'set SPRINT155_POSTGRES_TEST=1&& pnpm.cmd exec jest --runInBand --testTimeout=300000 --testPathPatterns=sprint155-search-golden.integration.spec.ts',
+  'sprint155-baseline':
+    'pnpm.cmd exec ts-node scripts/dev/sprint155-baseline.ts',
+  'sprint155-real-sample':
+    'pnpm.cmd exec ts-node scripts/dev/sprint155-real-corpus-sample.ts',
   'sprint154a1-e2e-cleanup':
     'pnpm.cmd exec ts-node scripts/dev/sprint154a1-e2e-cleanup.ts',
   'sprint154a1-residue-audit':

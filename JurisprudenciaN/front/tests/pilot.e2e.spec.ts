@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 const credentials = JSON.parse(readFileSync(resolve(process.cwd(), '../../_recovery-work/sprint10/acceptance/credentials.json'), 'utf8')) as {
   accounts: Record<string, { email: string; password: string }>;
 };
-const apiBase = 'http://localhost:4001/api';
+const apiBase = `http://127.0.0.1:${process.env.BJC_PLAYWRIGHT_BACKEND_PORT ?? '4001'}/api`;
 
 test('LECTOR ejecuta una búsqueda normal desde la interfaz y recibe resultados completos', async ({ page }) => {
   await page.goto('/login');
@@ -25,6 +25,14 @@ test('LECTOR ejecuta una búsqueda normal desde la interfaz y recibe resultados 
   expect(body.data.length).toBeGreaterThan(0);
   expect(body.federated?.partial).toBe(false);
   await expect(page.locator('tbody tr').first()).toBeVisible({ timeout: 30_000 });
+  const screenshotDir = resolve(process.cwd(), '../../_recovery-work/sprint155/screenshots');
+  mkdirSync(screenshotDir, { recursive: true });
+  await page.setViewportSize({ width: 1366, height: 768 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: resolve(screenshotDir, 'search-general-1366.png'), fullPage: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: resolve(screenshotDir, 'search-general-1920.png'), fullPage: true });
 });
 
 test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', async ({ page, request }) => {
@@ -81,8 +89,10 @@ test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', asy
   }
   if (process.env.BJC_CAPTURE_VIEWER_SCREENSHOTS === 'true') {
     const screenshotDir = resolve(process.cwd(), '../../_recovery-work/sprint1532/screenshots');
+    const sprint155ScreenshotDir = resolve(process.cwd(), '../../_recovery-work/sprint155/screenshots');
     const canvas = page.locator('.react-pdf__Page__canvas').first();
     mkdirSync(screenshotDir, { recursive: true });
+    mkdirSync(sprint155ScreenshotDir, { recursive: true });
     await page.setViewportSize({ width: 1366, height: 768 });
     const sampledInk = () => canvas.evaluate((element) => {
       const canvasElement = element as HTMLCanvasElement;
@@ -128,6 +138,7 @@ test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', asy
     if (hasHighlight) await expect(activeMark.first()).toBeVisible();
     else await expect(mappingFallback).toBeVisible();
     await page.screenshot({ path: resolve(screenshotDir, 'real-viewer-default.png'), fullPage: true });
+    await page.screenshot({ path: resolve(sprint155ScreenshotDir, 'viewer-native-highlight.png'), fullPage: true });
     await page.setViewportSize({ width: 1093, height: 614 });
     if (hasHighlight) await expect(activeMark.first()).toBeVisible();
     else await expect(mappingFallback).toBeVisible();

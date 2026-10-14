@@ -126,4 +126,12 @@ describe('SearchQueryParser', () => {
     const query = 'daño * moral * accidente * contrato * salud * amparo * consumo';
     expect(parseSearchQuery(query).terms).toHaveLength(7);
   });
+
+  it('parses 50 and 100 term OR/AND queries without dropping operands', () => {
+    for (const count of [50, 100]) {
+      const terms = Array.from({ length: count }, (_, index) => `token${index}`);
+      expect(parseSearchQuery(terms.join(' OR ')).terms).toHaveLength(count);
+      expect(parseSearchQuery(terms.join(' * ')).terms).toHaveLength(count);
+    }
+  });
 });
