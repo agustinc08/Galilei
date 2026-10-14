@@ -8,7 +8,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   timeout: 120_000,
-  outputDir: '../../_recovery-work/sprint123/acceptance/playwright-output',
+  outputDir: '../../_recovery-work/sprint154a/playwright-output',
   reporter: 'list',
   use: {
     baseURL: `http://127.0.0.1:${frontendPort}`,

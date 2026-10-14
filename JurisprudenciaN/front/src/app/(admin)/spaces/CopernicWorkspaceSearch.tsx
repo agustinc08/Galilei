@@ -22,7 +22,7 @@ const CorpusPdfViewer = dynamic(
     import("@/app/(admin)/corpus/[id]/CorpusPdfViewer").then(
       (module) => module.CorpusPdfViewer,
     ),
-  { ssr: false, loading: () => <p className={styles.previewMessage}>Cargando visor PDF…</p> },
+  { ssr: false, loading: () => <p className={styles.previewMessage}>Cargando visor documental…</p> },
 );
 
 type WorkspaceRole = "ADMIN" | "EDITOR" | "VIEWER";
@@ -89,7 +89,7 @@ type NameSearchPage = {
 type SearchHit = {
   documentId: string;
   filename: string;
-  fileType: "PDF" | "TXT" | "DOC";
+  fileType: "PDF" | "TXT" | "RTF" | "DOC" | "DOCX" | "ODT" | "OTRO";
   title: string;
   page: number;
   folderId: string | null;
@@ -239,6 +239,15 @@ function sourceStatusLabel(status: string) {
   return "Sin escaneos";
 }
 
+function fileTypeFromMime(mimeType: string | null): SearchHit["fileType"] {
+  if (mimeType === "application/pdf") return "PDF";
+  if (mimeType === "text/plain") return "TXT";
+  if (mimeType === "application/rtf" || mimeType === "text/rtf") return "RTF";
+  if (mimeType === "application/msword") return "DOC";
+  if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return "DOCX";
+  if (mimeType === "application/vnd.oasis.opendocument.text") return "ODT";
+  return "OTRO";
+}
 function documentStatusLabel(status: string | null) {
   if (status === "OCR_REQUIRED") return "Requiere OCR";
   if (status === "INDEXED") return "Contenido indexado";
@@ -283,9 +292,9 @@ function buildHitList(
     const documentId = result.sourceId;
     hits.set(documentId, {
       documentId,
-      filename: String(metadata.filename || result.title || "Documento PDF"),
-      fileType: result.document?.mimeType === "text/plain" ? "TXT" : result.document?.mimeType === "application/pdf" ? "PDF" : "DOC",
-      title: result.title || String(metadata.filename || "Documento PDF"),
+      filename: String(metadata.filename || result.title || "Documento"),
+      fileType: fileTypeFromMime(result.document?.mimeType ?? null),
+      title: result.title || String(metadata.filename || "Documento"),
       page: Math.max(1, Number(metadata.pageNumber || 1)),
       folderId: typeof metadata.folderId === "string" ? metadata.folderId : null,
       folderName: String(metadata.folderName || "Todos los documentos"),
@@ -303,7 +312,7 @@ function buildHitList(
     hits.set(result.documentId, {
       documentId: result.documentId,
       filename: result.filename,
-      fileType: result.mimeType === "text/plain" ? "TXT" : result.mimeType === "application/pdf" ? "PDF" : "DOC",
+      fileType: fileTypeFromMime(result.mimeType),
       title: result.title,
       page: 1,
       folderId: result.folder?.id ?? null,
@@ -1141,6 +1150,10 @@ export function CopernicWorkspaceSearch() {
                     <option value="">Todos</option>
                     <option value="PDF">PDF</option>
                     <option value="TXT">TXT</option>
+                    <option value="RTF">RTF</option>
+                    <option value="DOC">DOC</option>
+                    <option value="DOCX">DOCX</option>
+                    <option value="ODT">ODT</option>
                   </select>
                 </label>
                 <label>
@@ -1232,7 +1245,7 @@ export function CopernicWorkspaceSearch() {
                   <span className={styles.idleIcon} aria-hidden="true">⌕</span>
                   <h2>Buscá dentro de {workspace?.name ?? "tu espacio"}</h2>
                   <p>Los resultados de contenido y nombre se muestran juntos. La búsqueda respeta el espacio, carpeta o fuente seleccionados.</p>
-                  <span>PDF · texto indexado</span>
+                  <span>PDF y documentos con texto extraído</span>
                 </div>
               )}
               {committedQuery && !searching && !searchError && searchPage && hits.length === 0 && (
@@ -1272,7 +1285,7 @@ export function CopernicWorkspaceSearch() {
                           <span className={styles.resultTopline}>
                             <span className={styles.fileGlyph} aria-hidden="true">{hit.fileType}</span>
                             <strong title={hit.filename}>{hit.filename}</strong>
-                            <span className={styles.resultPage}>pág. {hit.page}</span>
+                            <span className={styles.resultPage}>{hit.fileType === "PDF" ? "pág. " + hit.page : "texto extraído"}</span>
                           </span>
                           {hit.snippet ? (
                             <span className={styles.resultSnippet}>{highlightSnippet(hit.snippet, committedQuery)}</span>
@@ -1373,7 +1386,7 @@ export function CopernicWorkspaceSearch() {
                     <div className={styles.previewLoading} role="status">
                       <span className={styles.spinner} />
                       <p>Cargando vista previa…</p>
-                      <small>Los resultados siguen disponibles mientras se prepara el PDF.</small>
+                      <small>Los resultados siguen disponibles mientras se prepara la vista previa.</small>
                     </div>
                   )}
                   {previewError && (
@@ -1386,13 +1399,13 @@ export function CopernicWorkspaceSearch() {
                   {preview && !previewLoading && (
                     <>
                       {preview.document.status === "OCR_REQUIRED" && (
-                        <p className={styles.missingSourceNote}>Este PDF todavía no tiene texto buscable; podés leerlo o descargarlo.</p>
+                        <p className={styles.missingSourceNote}>El PDF tiene páginas que requieren OCR; se conserva y busca el texto nativo que pudo extraerse.</p>
                       )}
                       <div className={styles.previewToolbar}>
                         <span>
-                          Página {previewPage} de {previewPageCount || preview.document.file?.pageCount || preview.document.extraction?.pageCount || "?"}
+                          {preview.document.file?.mimeType === "application/pdf" ? "Página " + previewPage + " de " + (previewPageCount || preview.document.file?.pageCount || preview.document.extraction?.pageCount || "?") : "Texto extraído"}
                         </span>
-                        <div className={styles.pageControls}>
+                        <div className={styles.pageControls} hidden={preview.document.file?.mimeType !== "application/pdf"}>
                           <button
                             type="button"
                             aria-label="Página anterior"
@@ -1421,7 +1434,7 @@ export function CopernicWorkspaceSearch() {
                             onLoadSuccess={setPreviewPageCount}
                           />
                         </div>
-                      ) : preview.document.file?.mimeType === "text/plain" ? (
+                      ) : preview.document.file ? (
                         <pre className={styles.textPreview} aria-label="Vista previa del texto extraído">
                           {renderTextPreview(
                             preview.document.selectedPage?.text ?? "",
@@ -1431,7 +1444,7 @@ export function CopernicWorkspaceSearch() {
                         </pre>
                       ) : (
                         <div className={styles.previewMessage}>
-                          <p>La vista previa visual no está disponible para este formato.</p>
+                          <p>La vista previa textual no está disponible para este formato.</p>
                           <p>{selectedHit.snippet ?? "Podés abrir o descargar el documento."}</p>
                         </div>
                       )}

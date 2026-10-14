@@ -24,7 +24,14 @@ import {
 } from './document-source-scanner';
 
 const MAX_SOURCE_FILE_BYTES = 20 * 1024 * 1024;
-const SUPPORTED_EXTENSIONS = new Set(['.pdf']);
+const SUPPORTED_EXTENSIONS = new Set([
+  '.pdf',
+  '.txt',
+  '.rtf',
+  '.doc',
+  '.docx',
+  '.odt',
+]);
 
 type SourceFileRow = {
   id: string;
@@ -577,7 +584,7 @@ export class DocumentSourceService implements OnModuleInit {
             requestedById,
             {
               originalname: pending.snapshot.fileName,
-              mimetype: 'application/pdf',
+              mimetype: 'application/octet-stream',
               buffer: content,
               size: content.byteLength,
             },
@@ -880,7 +887,7 @@ function safeErrorMessage(error: unknown): string {
   if (code) return accessStatus(error);
   const message = error instanceof Error ? error.message : '';
   if (message === 'FILE_EXCEEDS_20MB')
-    return 'El PDF supera el límite de 20 MB del pipeline actual.';
+    return 'El archivo supera el límite de 20 MiB del pipeline actual.';
   if (message === 'SOURCE_FILE_CHANGED_DURING_READ')
     return 'El archivo cambió mientras se leía; se reintentará en el próximo escaneo.';
   if (

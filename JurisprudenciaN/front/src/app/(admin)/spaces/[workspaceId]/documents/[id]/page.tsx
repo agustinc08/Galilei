@@ -16,7 +16,7 @@ const CorpusPdfViewer = dynamic(
     import("@/app/(admin)/corpus/[id]/CorpusPdfViewer").then(
       (module) => module.CorpusPdfViewer,
     ),
-  { ssr: false, loading: () => <p>Cargando PDF…</p> },
+  { ssr: false, loading: () => <p>Cargando documento…</p> },
 );
 
 type DocumentInfo = {
@@ -47,6 +47,15 @@ type Matches = {
   }>;
 };
 
+function fileTypeLabel(mimeType: string | undefined) {
+  if (mimeType === "application/pdf") return "PDF";
+  if (mimeType === "text/plain") return "TXT";
+  if (mimeType === "application/rtf" || mimeType === "text/rtf") return "RTF";
+  if (mimeType === "application/msword") return "DOC";
+  if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return "DOCX";
+  if (mimeType === "application/vnd.oasis.opendocument.text") return "ODT";
+  return "documento";
+}
 function renderTextMatch(
   text: string,
   matches: Matches["matches"],
@@ -123,6 +132,7 @@ export default function WorkspaceDocumentViewer() {
   const [error, setError] = useState("");
   const effectivePageCount =
     pageCount || document?.extraction?.pageCount || document?.file?.pageCount || 0;
+  const isPdf = document?.file?.mimeType === "application/pdf";
 
   useEffect(() => {
     let alive = true;
@@ -228,8 +238,8 @@ export default function WorkspaceDocumentViewer() {
       {document?.status === "OCR_REQUIRED" && (
         <Card>
           <p>
-            El PDF está disponible para lectura. No se incluyó en búsqueda
-            porque requiere OCR.
+            El PDF tiene páginas que requieren OCR. El texto nativo disponible
+            se conserva y puede buscarse mientras se completa ese procesamiento.
           </p>
         </Card>
       )}
@@ -290,27 +300,27 @@ export default function WorkspaceDocumentViewer() {
             marginBottom: 12,
           }}
         >
-          <button
+          {isPdf && (<button
             disabled={page <= 1}
             onClick={() => setPage((value) => Math.max(1, value - 1))}
           >
             Página anterior
-          </button>
+          </button>)}
           <span>
-            Página {page} de {effectivePageCount || "?"}
+            {isPdf ? "Página " + page + " de " + (effectivePageCount || "?") : "Texto extraído"}
           </span>
-          <button
+          {isPdf && (<button
             disabled={!!effectivePageCount && page >= effectivePageCount}
             onClick={() => setPage((value) => value + 1)}
           >
             Página siguiente
-          </button>
+          </button>)}
           <button onClick={() => void downloadPdf()}>
-            Descargar {document?.file?.mimeType === "text/plain" ? "TXT" : "PDF"}
+            Descargar {fileTypeLabel(document?.file?.mimeType)}
           </button>
         </div>
-        {document?.file?.mimeType === "text/plain" ? (
-          <pre className={styles.textPreview} aria-label="Vista previa del texto extraído">
+        {document?.file && !isPdf ? (
+          <pre className={styles.textPreview} aria-label="Texto extraído del documento">
             {renderTextMatch(
               document.selectedPage?.text ?? "",
               matches?.matches ?? [],
@@ -327,7 +337,7 @@ export default function WorkspaceDocumentViewer() {
             onLoadSuccess={setPageCount}
           />
         ) : (
-          <p>Cargando PDF…</p>
+          <p>Cargando documento…</p>
         )}
       </Card>
     </>

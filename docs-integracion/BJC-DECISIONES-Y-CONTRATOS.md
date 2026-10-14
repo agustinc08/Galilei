@@ -143,3 +143,11 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 5. Runs son asíncronos, uno activo por fuente; un reinicio marca los runs abandonados como FAILED para liberar el lock. No se almacenan credenciales SMB.
 6. Search general permanece `GENERAL`. Search privada preserva ACL workspace antes del conteo/página/snippet y puede devolver alias, nunca path. Sin filtro por fuente en esta entrega.
 7. Migración aditiva sólo a DEV loopback tras backup verificado. UNC real y UAT requieren validación posterior con identidad/permisos institucionales. Paridad 40/40 no se afirma sin la fixture SQLite disponible.
+
+## Decisión Sprint 15.4A — formatos y OCR (2026-10-14)
+
+1. P0 reconoce PDF/TXT/RTF/DOC/DOCX/ODT por contenido, conserva el original y no confía en MIME del cliente. Upload/fuente: máximo 20 MiB; ZIP/XML aplican límites documentados en `BJC-PROCESAMIENTO-DOCUMENTAL.md`.
+2. TXT/RTF/DOCX/ODT se procesan sin ejecutar Office, macros, scripts, objetos o relaciones externas. DOC se detecta y rechaza por falta de extractor local seguro; no se declara soporte funcional.
+3. `OCR_REQUIRED` es sólo detección de página de texto escaso. Sin motor/modelo local no se genera OCR ni se afirma indexación OCR; texto nativo disponible sigue buscando. Cloud OCR queda excluido.
+4. No se añadió schema, migración, paquete o binary y no se reindexó/reconstruyó Search global. ACL de workspace y Search general permanecen como límites obligatorios.
+5. Mantener 15.4A **PARTIAL** hasta provisionar y validar OCR local/worker y resolver `.doc`; no iniciar 15.4B automáticamente.

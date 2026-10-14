@@ -90,3 +90,7 @@ Una muestra real de 25 PDFs/827 páginas produjo 138 mappings seguros y cero fal
 ## Sprint 15.3.3 — cobertura de texto PDF.js
 
 En la muestra base real, el Viewer ubicó 221/221 spans auditados sin falsos highlights; TERM 25/25 y PHRASE 18/18 quedaron visibles. Diez recuperaciones de baseline se revisaron en navegador con resize y carrera de requests. El mapeo requiere misma secuencia de glifos no blancos, preserva puntuación y distingue `ñ`; separadores entre items necesitan evidencia de fin de línea o geometría. Ambigüedad o falta de capa mantiene fallback sin marca. La certificación cubre las muestras y clases observadas, no PDF/OCR arbitrarios; aceptación de usuarios sigue PENDING.
+
+## Sprint 15.4A — formatos y límites
+
+La carga privada ofrece PDF/TXT/RTF/DOC/DOCX/ODT; TXT, RTF, DOCX y ODT muestran preview textual y permiten descargar el original con ACL. El tipo se detecta con contenido/paquete y no sólo con MIME del navegador. DOC se detecta y rechaza con mensaje explícito. En PDF, texto nativo continúa disponible aunque algunas páginas se marquen `OCR_REQUIRED`; OCR local no está instalado y no se ejecuta. No se habilitaron formatos P1. Estado **PARTIAL**, pruebas y detalles en `BJC-PROCESAMIENTO-DOCUMENTAL.md`.

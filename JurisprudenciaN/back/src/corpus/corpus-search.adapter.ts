@@ -109,7 +109,7 @@ function buildBooleanCandidateCte(
   const ctes: string[] = [];
   let nextId = 0;
   const nextName = () => `"corpusCandidateNode${nextId++}"`;
-  const eligible = `d."visibility" = ANY($1::text[]) AND d."status" = 'INDEXED' AND ${scopePredicate}`;
+  const eligible = `d."visibility" = ANY($1::text[]) AND d."status" IN ('INDEXED', 'OCR_REQUIRED') AND ${scopePredicate}`;
   const fields: Record<string, string> = {
     tema: 'd."subtitle"',
     sala: 'd."chamber"',
@@ -456,7 +456,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const boundedCandidatePage = this.candidateStrategy === 'set-algebra-v2';
     const predicates = [
       `d."visibility" = ANY($1::text[])`,
-      `d."status" = 'INDEXED'`,
+      `d."status" IN ('INDEXED', 'OCR_REQUIRED')`,
       scopePredicate,
       ...(filterPredicate ? [filterPredicate] : []),
     ];

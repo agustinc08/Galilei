@@ -7,6 +7,8 @@ const credentials = JSON.parse(
 ) as { accounts: Record<string, { email: string; password: string }> };
 const pdf = readFileSync(resolve(process.cwd(), '../back/scripts/dev/fixtures/corpus/fallo-fixture.pdf'));
 const runId = `${Date.now()}`;
+const formatMarker = `sprint154aui${runId}`;
+const rtf = Buffer.from(`{\\rtf1\\ansi ${formatMarker} responsabilidad civil y daño moral}`, 'ascii');
 const codeA = `S151UIE2E_A_${runId}`;
 const codeB = `S151UIE2E_B_${runId}`;
 const nameA = `Sala UAT privada A ${runId}`;
@@ -57,7 +59,7 @@ async function workspaceOptionValue(page: Page, name: string) {
 test('perfiles sintéticos de DEV completan los flujos privados principales desde la interfaz', async ({ page }) => {
   test.setTimeout(300_000);
   page.setDefaultTimeout(10_000);
-  const outputDir = resolve(process.cwd(), '../../_recovery-work/sprint153/screenshots');
+  const outputDir = resolve(process.cwd(), '../../_recovery-work/sprint154a/screenshots');
   mkdirSync(outputDir, { recursive: true });
   const browserErrors: string[] = [];
   page.on('pageerror', (error) => browserErrors.push(error.message));
@@ -117,7 +119,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.getByRole('navigation', { name: 'Ruta de carpetas' })).toContainText('Actuaciones 2026');
 
   // Per-file status and continuation across one, five and twenty PDFs.
-  const fileInput = page.getByLabel('Seleccionar archivos PDF o TXT');
+  const fileInput = page.getByLabel('Seleccionar documentos PDF, TXT, RTF, DOC, DOCX u ODT');
   await fileInput.setInputFiles([{ name: 'sprint151-e2e-one.pdf', mimeType: 'application/pdf', buffer: pdf }]);
   await expect(page.getByRole('status').filter({ hasText: '1 archivo(s) procesado(s).' })).toBeVisible({ timeout: 60_000 });
 
@@ -136,6 +138,12 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
     name: `sprint151-e2e-twenty-${index + 1}.pdf`, mimeType: 'application/pdf', buffer: pdf,
   })));
   await expect(page.getByRole('status').filter({ hasText: '20 archivo(s) procesado(s).' })).toBeVisible({ timeout: 120_000 });
+  await fileInput.setInputFiles([
+    { name: 'sprint154a-e2e-note.rtf', mimeType: 'application/rtf', buffer: rtf },
+  ]);
+  await expect(page.getByRole('status').filter({ hasText: '1 archivo(s) procesado(s).' })).toBeVisible({ timeout: 60_000 });
+  const uploadedRtf = page.locator('article').filter({ hasText: 'sprint154a-e2e-note.rtf' });
+  await expect(uploadedRtf).toContainText('Listo para buscar');
 
   await page.getByLabel('Buscar documentos privados').fill('JORGE');
   await page.getByLabel('Buscar documentos privados').locator('xpath=..').getByRole('button', { name: 'Buscar', exact: true }).click();
@@ -171,13 +179,13 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   const performanceMs: Record<string, number> = {};
   await classicSearch.fill('JORGE');
   const searchStartedAt = Date.now();
-  const searchResponse = page.waitForResponse((response) => {
+  const searchResponseWithTimeout = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.pathname.endsWith(`/api/workspaces/${workspaceAId}/search`)
       && url.searchParams.get('q') === 'JORGE';
-  });
+  }, { timeout: 60_000 });
   await page.getByRole('search').getByRole('button', { name: 'Buscar', exact: true }).click();
-  await searchResponse;
+  await searchResponseWithTimeout;
   performanceMs.searchRequest = Date.now() - searchStartedAt;
   const classicResults = page.locator('[aria-label="Resultados por contenido y nombre"]');
   const firstClassicResult = classicResults.getByRole('button', { name: /Vista previa de sprint151-e2e-one\.pdf/iu });
@@ -273,7 +281,47 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   const phraseHighlight = (await phraseMarks.allTextContents()).join('').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('es');
   expect(phraseHighlight).toBe('jorge porcel');
 
+  // RTF uses the generic textual preview, exact extracted-text highlight and protected original download.
+  await classicSearch.fill(formatMarker);
+  const rtfSearchResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith(`/api/workspaces/${workspaceAId}/search`)
+      && url.searchParams.get('q') === formatMarker
+      && url.searchParams.get('type') === 'RTF';
+  });
+  await page.getByLabel('Filtrar por tipo').selectOption('RTF');
+  await page.getByRole('search').getByRole('button', { name: 'Buscar', exact: true }).click();
+  expect((await rtfSearchResponse).status()).toBe(200);
+  const rtfResult = classicResults.getByRole('button', { name: /Vista previa de sprint154a-e2e-note\.rtf/iu });
+  await expect(rtfResult).toBeVisible({ timeout: 60_000 });
+  await rtfResult.click();
+  const rtfPreview = page.locator('pre[aria-label="Vista previa del texto extraído"]');
+  await expect(rtfPreview).toContainText(formatMarker);
+  await expect(rtfPreview.locator('mark').first()).toContainText(formatMarker);
+  const rtfMatchIndicator = page.getByText(/Coincidencia \d+ de \d+/u).last();
+  await page.keyboard.press('F3');
+  await expect(rtfMatchIndicator).toContainText('Coincidencia 1 de 1');
+  await page.keyboard.press('Shift+F3');
+  await expect(rtfMatchIndicator).toContainText('Coincidencia 1 de 1');
+  await page.getByRole('link', { name: 'Abrir completo', exact: true }).click();
+  await expect(page.locator('pre[aria-label="Texto extraído del documento"]')).toContainText(formatMarker);
+  const rtfDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Descargar RTF' }).click();
+  expect((await rtfDownload).suggestedFilename()).toBe('sprint154a-e2e-note.rtf');
+  await page.getByRole('link', { name: '← Volver al espacio' }).click();
+  await expect(page).toHaveURL(/type=RTF/u);
+
   // The date and type constraints are sent to the API and survive URL state; this fixture's unknown date must not pass a date range.
+  await classicSearch.fill('JORGE');
+  const restorePdfFilterResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith(`/api/workspaces/${workspaceAId}/search`)
+      && url.searchParams.get('q') === 'JORGE'
+      && url.searchParams.get('type') === 'PDF';
+  });
+  await page.getByLabel('Filtrar por tipo').selectOption('PDF');
+  await page.getByRole('search').getByRole('button', { name: 'Buscar', exact: true }).click();
+  expect((await restorePdfFilterResponse).status()).toBe(200);
   await page.getByLabel('Filtrar por fecha').selectOption('custom');
   await page.getByLabel('Fecha desde').fill('2025-01-01');
   const combinedFilterResponse = page.waitForResponse((response) => {
@@ -305,7 +353,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await addMember(page, credentials.accounts.reader.email, 'Consulta');
   const viewerRoleB = page.getByLabel(`Permiso de ${credentials.accounts.reader.email}`);
   await expect(viewerRoleB).toHaveValue('VIEWER');
-  const fileInputB = page.getByLabel('Seleccionar archivos PDF o TXT');
+  const fileInputB = page.getByLabel('Seleccionar documentos PDF, TXT, RTF, DOC, DOCX u ODT');
   await fileInputB.setInputFiles([{ name: 'sprint151-e2e-one.pdf', mimeType: 'application/pdf', buffer: pdf }]);
   await expect(page.getByRole('status').filter({ hasText: '1 archivo(s) procesado(s).' })).toBeVisible({ timeout: 60_000 });
   await expect(workspaceSelect).toHaveValue(workspaceBId);
@@ -317,7 +365,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.getByRole('heading', { name: nameA })).toBeVisible();
   await expect(page.getByText('Tu espacio asignado se abrió automáticamente.')).toBeVisible();
   await expect(page.getByText('Tu rol: Editor')).toBeVisible();
-  await expect(page.getByLabel('Seleccionar archivos PDF o TXT')).toBeVisible();
+  await expect(page.getByLabel('Seleccionar documentos PDF, TXT, RTF, DOC, DOCX u ODT')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Miembros y permisos' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
 
@@ -326,7 +374,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await page.goto('/spaces/manage');
   await expect(page.getByRole('heading', { name: nameB })).toBeVisible();
   await expect(page.getByText('Tu rol: Consulta')).toBeVisible();
-  await expect(page.getByLabel('Seleccionar archivos PDF o TXT')).toHaveCount(0);
+  await expect(page.getByLabel('Seleccionar documentos PDF, TXT, RTF, DOC, DOCX u ODT')).toHaveCount(0);
   await expect(page.getByLabel('Nueva carpeta')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Miembros y permisos' })).toHaveCount(0);
   await page.getByLabel('Buscar documentos privados').fill('JORGE');

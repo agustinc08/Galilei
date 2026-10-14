@@ -113,7 +113,16 @@ export class CorpusDocumentAccessService {
       throw new InternalServerErrorException(
         'La integridad del archivo no pudo verificarse.',
       );
-    if (!['application/pdf', 'text/plain'].includes(file.mimeType))
+    if (
+      ![
+        'application/pdf',
+        'text/plain',
+        'application/rtf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.oasis.opendocument.text',
+      ].includes(file.mimeType)
+    )
       throw new NotFoundException('Tipo de archivo no disponible.');
     return {
       content,

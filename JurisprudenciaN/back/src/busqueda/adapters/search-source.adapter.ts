@@ -1,4 +1,5 @@
 import type { SearchQueryAst } from '../utils/search-ast';
+import type { CorpusFileType } from '../utils/search-filters';
 
 export type SearchVisibility = 'PUBLIC' | 'INTERNAL' | 'ADMIN' | 'RESTRICTED';
 export type SearchDialect = 'modern' | 'legacy-reference';
@@ -20,7 +21,7 @@ export type SearchContext = {
     dateFrom?: string;
     dateTo?: string;
     /** File type derived from the latest CorpusDocumentFile MIME type. */
-    types?: Array<'PDF' | 'TXT'>;
+    types?: CorpusFileType[];
     expediente?: string;
     numeroSentencia?: string;
     caratula?: string;

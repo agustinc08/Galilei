@@ -53,4 +53,8 @@ La UI Copernic expone sourceId y sourceFolder como alcance opcional de Search pr
 
 GET /api/workspaces/:workspaceId/search/sources devuelve alias, estado y cantidad autorizados. GET /api/workspaces/:workspaceId/search/sources/:sourceId/folders deriva el árbol virtual de relativePath (máximo 5.000 carpetas); no crea carpetas persistidas ni devuelve los paths raíz. La integración sintética verificó filtro por fuente/carpeta en contenido, nombres y denegación de fuente de otro workspace. El SQL conserva workspace/ACL como límite obligatorio.
 
+## Sprint 15.4A — formatos reconocidos
+
+El scanner incluye `.pdf`, `.txt`, `.rtf`, `.doc`, `.docx` y `.odt` con límite de 20 MiB. La detección valida el contenido y establece MIME canónico; `.doc` legado se registra explícitamente como no soportado por falta de extractor seguro. PDF escaneado no recibe OCR en esta versión; `OCR_REQUIRED` preserva cualquier texto nativo disponible. Integración PostgreSQL DEV probó RTF/DOCX/ODT, hash/no-change scan, filtros Search, archivos originales y aislamiento ACL. No se alteraron paths UNC, ni se probó una share institucional. Límites/provenance: `BJC-PROCESAMIENTO-DOCUMENTAL.md`.
+
 Search general no cambió y mantiene documentScope=GENERAL. Detalle UX, resultados y límites en BJC-ESPACIOS-DOCUMENTALES.md, Sprint 15.3. No se probó una UNC institucional.

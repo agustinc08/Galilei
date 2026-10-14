@@ -616,9 +616,7 @@ export default function PrivateSpacesPage() {
     const selected = Array.from(files);
     const rows: UploadRow[] = selected.map((file, index) => {
       const name = file.name.toLowerCase();
-      const isPdf = name.endsWith(".pdf") && file.type === "application/pdf";
-      const isTxt = name.endsWith(".txt") && file.type === "text/plain";
-      const supported = isPdf || isTxt;
+      const supported = [".pdf", ".txt", ".rtf", ".doc", ".docx", ".odt"].some((extension) => name.endsWith(extension));
       return {
         id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
         name: file.name,
@@ -629,7 +627,7 @@ export default function PrivateSpacesPage() {
             ? "Supera 20 MB"
             : "En espera",
         message: !supported
-          ? "Elegí un archivo PDF o TXT válido."
+          ? "Elegí un archivo PDF, TXT, RTF, DOC, DOCX u ODT válido."
           : file.size > MAX_FILE_BYTES
             ? "El límite por archivo es 20 MB."
             : undefined,
@@ -668,7 +666,7 @@ export default function PrivateSpacesPage() {
         if (!result || result.status === "ERROR") {
           updateUploadRow(row.id, {
             status: "Error",
-            message: result?.message || "El PDF no pudo procesarse.",
+            message: result?.message || "El documento no pudo procesarse.",
           });
         } else if (result.duplicate) {
           updateUploadRow(row.id, {
@@ -683,14 +681,14 @@ export default function PrivateSpacesPage() {
                 : "Listo para buscar",
             message:
               result.status === "OCR_REQUIRED"
-                ? "Se puede abrir; no aparece en búsqueda por contenido hasta procesar OCR."
+                ? "Se puede abrir; el texto nativo extraído sigue siendo buscable y las páginas escaneadas esperan OCR."
                 : "Documento incorporado.",
           });
         }
       } catch (cause) {
         updateUploadRow(row.id, {
           status: "Error",
-          message: friendlyError(cause, "No se pudo procesar este PDF."),
+          message: friendlyError(cause, "No se pudo procesar este documento."),
         });
       }
       finished += 1;
@@ -1126,7 +1124,7 @@ export default function PrivateSpacesPage() {
                 <strong>
                   {dragActive
                     ? "Soltá los archivos para agregarlos a la tanda"
-                    : "Arrastrá los PDF o TXT hasta acá"}
+                    : "Arrastrá los documentos PDF, TXT, RTF, DOC, DOCX u ODT hasta acá"}
                 </strong>
                 <span className={styles.muted}>
                   Los archivos se procesan de a uno; un error no detiene los
@@ -1137,10 +1135,10 @@ export default function PrivateSpacesPage() {
                   <input
                     className={styles.uploadInput}
                     type="file"
-                    accept="application/pdf,.pdf,text/plain,.txt"
+                    accept="application/pdf,.pdf,text/plain,.txt,application/rtf,.rtf,application/msword,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx,application/vnd.oasis.opendocument.text,.odt"
                     multiple
                     disabled={uploading}
-                    aria-label="Seleccionar archivos PDF o TXT"
+                    aria-label="Seleccionar documentos PDF, TXT, RTF, DOC, DOCX u ODT"
                     onChange={(event) => {
                       if (event.currentTarget.files)
                         void uploadFiles(event.currentTarget.files);
@@ -1373,7 +1371,7 @@ export default function PrivateSpacesPage() {
               <p className={styles.emptyState}>
                 {folderId
                   ? "Esta carpeta está vacía. Podés subir archivos o mover documentos acá."
-                  : "Este espacio todavía no tiene documentos. Podés subir un PDF o crear una carpeta."}
+                  : "Este espacio todavía no tiene documentos. Podés subir un documento compatible o crear una carpeta."}
               </p>
             )}
           </Card>

@@ -18,6 +18,8 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   BasicDocumentTextExtractor,
+  DocumentExtractionError,
+  extractionProvenance,
   InvalidPdfError,
   type ExtractionResult,
 } from './document-text-extractor';
@@ -486,7 +488,7 @@ export class WorkspaceDocumentService {
     ]);
     if (!files?.length || files.length > MAX_FILES)
       throw new BadRequestException(
-        `Subí entre 1 y ${MAX_FILES} archivos PDF o TXT por operación.`,
+        `Subí entre 1 y ${MAX_FILES} archivos por operación (PDF, TXT, RTF, DOC, DOCX u ODT).`,
       );
     if (
       folderId &&
@@ -1060,27 +1062,28 @@ export class WorkspaceDocumentService {
       .basename(file.originalname)
       .replace(/[\r\n]/gu, '_')
       .slice(0, 255);
-    const isPdf =
-      name.toLowerCase().endsWith('.pdf') &&
-      file.mimetype === 'application/pdf' &&
-      file.buffer.subarray(0, 5).toString('ascii') === '%PDF-';
-    const isTxt =
-      name.toLowerCase().endsWith('.txt') &&
-      file.mimetype.split(';', 1)[0].trim().toLowerCase() === 'text/plain';
-    if ((!isPdf && !isTxt) || file.size > MAX_FILE_BYTES)
-      throw new BadRequestException(
-        `El archivo ${name || '(sin nombre)'} debe ser PDF o TXT válido de hasta 20 MB.`,
-      );
+    if (file.buffer.byteLength > MAX_FILE_BYTES || file.size > MAX_FILE_BYTES) {
+      throw new BadRequestException('El archivo supera el límite de 20 MiB.');
+    }
     let extraction: ExtractionResult;
     try {
-      extraction = await extractor.extract(
-        name,
-        isPdf ? 'application/pdf' : 'text/plain',
-        file.buffer,
-      );
+      extraction = await extractor.extract(name, file.mimetype, file.buffer);
     } catch (error) {
       if (error instanceof InvalidPdfError)
-        throw new BadRequestException(`PDF inválido: ${name}`);
+        throw new BadRequestException('PDF inválido: ' + name);
+      if (error instanceof DocumentExtractionError) {
+        if (error.code === 'MACRO_DOCUMENT')
+          throw new BadRequestException(
+            'Los documentos con macros no están admitidos.',
+          );
+        if (error.code === 'LEGACY_DOC_UNSUPPORTED')
+          throw new BadRequestException(
+            'DOC legacy no está disponible en esta instalación.',
+          );
+        throw new BadRequestException(
+          'El archivo no es válido o su formato no está admitido.',
+        );
+      }
       throw error;
     }
     const stored = await this.storage.put(name, file.buffer);
@@ -1129,15 +1132,19 @@ export class WorkspaceDocumentService {
       },
       update: {},
     });
+    const metadataOriginal = {
+      source: replaceDocumentId ? 'workspace-source' : 'workspace-upload',
+      extractionProvenance: extractionProvenance(extraction),
+    } as Prisma.InputJsonObject;
     const document = await this.prisma.$transaction(async (tx) => {
       const documentData = {
         documentType: 'PRIVATE_DOCUMENT',
-        title: name.replace(/\.(?:pdf|txt)$/iu, ''),
+        title: name.replace(/\.(?:pdf|txt|rtf|docx?|odt)$/iu, ''),
         jurisdiction: 'CIVIL',
         visibility: 'RESTRICTED',
         documentScope: 'PRIVATE_WORKSPACE' as const,
         status:
-          extraction.status === 'TEXT_EXTRACTED' ? 'INDEXED' : 'OCR_REQUIRED',
+          extraction.status === 'OCR_REQUIRED' ? 'OCR_REQUIRED' : 'INDEXED',
         searchText: extraction.text,
       };
       const doc = replaceDocumentId
@@ -1171,7 +1178,7 @@ export class WorkspaceDocumentService {
               sha256: stored.sha256,
               sizeBytes: BigInt(stored.sizeBytes),
               originalFilename: name,
-              mimeType: isPdf ? 'application/pdf' : 'text/plain',
+              mimeType: extraction.mimeDetected,
               pageCount: extraction.pages.length,
               version: (currentVersion._max.version ?? 0) + 1,
             },
@@ -1205,7 +1212,7 @@ export class WorkspaceDocumentService {
           idempotencyKey,
           originalFilename: name,
           metadataOriginal: {
-            source: replaceDocumentId ? 'workspace-source' : 'workspace-upload',
+            ...metadataOriginal,
           },
         },
         create: {
@@ -1217,7 +1224,7 @@ export class WorkspaceDocumentService {
           idempotencyKey,
           originalFilename: name,
           metadataOriginal: {
-            source: replaceDocumentId ? 'workspace-source' : 'workspace-upload',
+            ...metadataOriginal,
           },
         },
       });
@@ -1237,7 +1244,7 @@ export class WorkspaceDocumentService {
           accion: replaceDocumentId ? 'SOURCE_REPROCESS' : 'UPLOAD',
           descripcion: replaceDocumentId
             ? 'Versión de fuente documental actualizada.'
-            : 'PDF incorporado al espacio privado.',
+            : 'Documento incorporado al espacio privado.',
           datosDespues: {
             workspaceId,
             documentId: doc.id,

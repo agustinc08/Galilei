@@ -18,13 +18,24 @@ describe('Corpus Search filters', () => {
     expect(() => validateSearchDateRange('2025-1-01', undefined)).toThrow();
   });
 
-  it('limits file type filters to latest-file MIME categories PDF and TXT', () => {
+  it('limits file type filters to detected format MIME categories', () => {
     expect(validateCorpusTypes('pdf')).toEqual(['PDF']);
-    expect(validateCorpusTypes(['TXT', 'PDF', 'TXT'])).toEqual(['TXT', 'PDF']);
-    expect(mimeTypesForCorpusTypes(['PDF', 'TXT'])).toEqual([
+    expect(validateCorpusTypes(['TXT', 'DOCX', 'RTF', 'PDF', 'TXT'])).toEqual([
+      'TXT',
+      'DOCX',
+      'RTF',
+      'PDF',
+    ]);
+    expect(
+      mimeTypesForCorpusTypes(['PDF', 'TXT', 'RTF', 'DOC', 'DOCX', 'ODT']),
+    ).toEqual([
       'application/pdf',
       'text/plain',
+      'application/rtf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.oasis.opendocument.text',
     ]);
-    expect(() => validateCorpusTypes('DOCX')).toThrow();
+    expect(() => validateCorpusTypes('XLSX')).toThrow();
   });
 });

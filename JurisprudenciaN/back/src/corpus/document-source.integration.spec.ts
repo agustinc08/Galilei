@@ -297,9 +297,9 @@ describe('Sprint 15.2 document sources PostgreSQL integration', () => {
         20,
         sourceA.id,
       );
-      expect(nestedNameWithoutFolder.results.map((row) => row.filename)).toEqual([
-        'C.pdf',
-      ]);
+      expect(
+        nestedNameWithoutFolder.results.map((row) => row.filename),
+      ).toEqual(['C.pdf']);
       const sourceFolderNameScoped = await workspaceDocuments.searchNames(
         workspaceA.id,
         viewerA,
@@ -310,9 +310,9 @@ describe('Sprint 15.2 document sources PostgreSQL integration', () => {
         sourceA.id,
         'sub',
       );
-      expect(sourceFolderNameScoped.results.map((row) => row.filename)).toEqual([
-        'C.pdf',
-      ]);
+      expect(sourceFolderNameScoped.results.map((row) => row.filename)).toEqual(
+        ['C.pdf'],
+      );
       const sourceFolderScoped = await workspaceDocuments.searchWorkspace(
         workspaceA.id,
         viewerA,
@@ -547,6 +547,154 @@ describe('Sprint 15.2 document sources PostgreSQL integration', () => {
     },
     300000,
   );
+
+  (enabled ? it : it.skip)(
+    'indexes RTF, DOCX and ODT source files with detected MIME, Search, preview and ACL',
+    async () => {
+      const root = await mkdtemp(
+        path.join(os.tmpdir(), 'galilei-s154a-formats-'),
+      );
+      tempRoots.push(root);
+      const markers = {
+        rtf: `sprint154artf${suffix}`,
+        docx: `sprint154adocx${suffix}`,
+        odt: `sprint154aodt${suffix}`,
+      };
+      await writeFile(
+        path.join(root, 'fixture.rtf'),
+        Buffer.from(
+          `{\\rtf1\\ansi ${markers.rtf} responsabilidad civil}`,
+          'ascii',
+        ),
+      );
+      await writeFile(
+        path.join(root, 'fixture.docx'),
+        makeOfficeZip([
+          [
+            '[Content_Types].xml',
+            '<Types><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+          ],
+          [
+            'word/document.xml',
+            `<w:document xmlns:w="urn:word"><w:body><w:p><w:r><w:t>${markers.docx} responsabilidad civil</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>celda</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>`,
+          ],
+          [
+            'word/_rels/document.xml.rels',
+            '<Relationships><Relationship Target="https://example.invalid/ignored" TargetMode="External"/></Relationships>',
+          ],
+        ]),
+      );
+      await writeFile(
+        path.join(root, 'fixture.odt'),
+        makeOfficeZip([
+          ['mimetype', 'application/vnd.oasis.opendocument.text'],
+          [
+            'content.xml',
+            `<office:document-content xmlns:office="urn:office" xmlns:text="urn:text"><office:body><office:text><text:p>${markers.odt} responsabilidad civil</text:p></office:text></office:body></office:document-content>`,
+          ],
+        ]),
+      );
+
+      const source = await sources.create(workspaceA.id, adminA, {
+        name: 'Sprint 15.4A synthetic formats',
+        path: root,
+      });
+      const run = await runScan(
+        sources,
+        prisma,
+        workspaceA.id,
+        source.id,
+        adminA,
+      );
+      expect(run).toMatchObject({
+        status: 'COMPLETED',
+        scanComplete: true,
+        filesSeen: 3,
+        newCount: 3,
+        errorCount: 0,
+      });
+      const rows = await prisma.sourceFile.findMany({
+        where: { sourceId: source.id },
+        include: { document: { include: { files: true } } },
+      });
+      const formatByExtension = new Map([
+        ['.rtf', { mime: 'application/rtf', marker: markers.rtf, type: 'RTF' }],
+        [
+          '.docx',
+          {
+            mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            marker: markers.docx,
+            type: 'DOCX',
+          },
+        ],
+        [
+          '.odt',
+          {
+            mime: 'application/vnd.oasis.opendocument.text',
+            marker: markers.odt,
+            type: 'ODT',
+          },
+        ],
+      ]);
+      expect(rows).toHaveLength(3);
+      for (const row of rows) {
+        if (row.documentId) documentIds.add(row.documentId);
+        const expected = formatByExtension.get(path.extname(row.fileName));
+        expect(expected).toBeDefined();
+        expect(row.status).toBe('INDEXED');
+        expect(row.document?.files[0]?.mimeType).toBe(expected?.mime);
+        const result = await workspaceDocuments.searchWorkspace(
+          workspaceA.id,
+          viewerA,
+          expected!.marker,
+          1,
+          20,
+          undefined,
+          source.id,
+          undefined,
+          { type: expected!.type },
+        );
+        expect(result?.results.map((item) => item.sourceId)).toEqual([
+          row.documentId,
+        ]);
+        const matches = await workspaceDocuments.matches(
+          workspaceA.id,
+          row.documentId!,
+          viewerA,
+          expected!.marker,
+        );
+        expect(matches.matches.length).toBeGreaterThan(0);
+        const original = await workspaceDocuments.file(
+          workspaceA.id,
+          row.documentId!,
+          viewerA,
+        );
+        expect(original.mimeType).toBe(expected?.mime);
+        expect(original.content.byteLength).toBeGreaterThan(0);
+        await expect(
+          workspaceDocuments.file(workspaceB.id, row.documentId!, adminB),
+        ).rejects.toMatchObject({ status: 404 });
+      }
+
+      const noChange = await runScan(
+        sources,
+        prisma,
+        workspaceA.id,
+        source.id,
+        adminA,
+      );
+      expect(noChange).toMatchObject({
+        status: 'COMPLETED',
+        filesSeen: 3,
+        unchangedCount: 3,
+        hashCount: 0,
+        newCount: 0,
+        modifiedCount: 0,
+        errorCount: 0,
+      });
+    },
+    300000,
+  );
 });
 
 function summarizeRun(run: Awaited<ReturnType<typeof runScan>>) {
@@ -588,4 +736,58 @@ async function runScan(
     await new Promise((resolveWait) => setTimeout(resolveWait, 50));
   }
   throw new Error('SOURCE_SCAN_TEST_TIMEOUT');
+}
+
+function makeOfficeZip(entries: Array<[string, string]>) {
+  const localParts: Buffer[] = [];
+  const centralParts: Buffer[] = [];
+  let localOffset = 0;
+  for (const [entryName, text] of entries) {
+    const name = Buffer.from(entryName, 'utf8');
+    const content = Buffer.from(text, 'utf8');
+    const crc = officeFixtureCrc32(content);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(content.length, 18);
+    local.writeUInt32LE(content.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    localParts.push(local, name, content);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(content.length, 20);
+    central.writeUInt32LE(content.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(localOffset, 42);
+    centralParts.push(central, name);
+    localOffset += local.length + name.length + content.length;
+  }
+  const centralDirectory = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralDirectory.length, 12);
+  end.writeUInt32LE(localOffset, 16);
+  return Buffer.concat([...localParts, centralDirectory, end]);
+}
+
+function officeFixtureCrc32(data: Buffer) {
+  let crc = 0xffffffff;
+  for (const byte of data) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
