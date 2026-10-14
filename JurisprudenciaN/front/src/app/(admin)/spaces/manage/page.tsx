@@ -138,7 +138,7 @@ type PendingConfirmation = {
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const ROLE_LABEL: Record<WorkspaceRole, string> = {
-  ADMIN: "Administrador del espacio",
+  ADMIN: "Responsable de la dependencia",
   EDITOR: "Editor",
   VIEWER: "Consulta",
 };
@@ -152,13 +152,13 @@ const TYPE_LABEL: Record<string, string> = {
 function friendlyError(cause: unknown, fallback: string) {
   if (!(cause instanceof ApiError)) return fallback;
   if (cause.status === 400 && /ya existe|código.*usado/iu.test(cause.message))
-    return "Ese código de dependencia ya está registrado. Revisá la administración de espacios.";
+    return "Esa dependencia ya está registrada. Revisá los datos e intentá nuevamente.";
   if (cause.status === 400)
     return "Revisá los datos ingresados e intentá nuevamente.";
   if (cause.status === 401) return "Tu sesión venció. Volvé a ingresar.";
-  if (cause.status === 403) return "Tu rol no permite realizar esta acción.";
+  if (cause.status === 403) return "Tu nivel de acceso no permite realizar esta acción.";
   if (cause.status === 404)
-    return "El espacio o documento ya no está disponible para tu cuenta.";
+    return "No encontramos este documento o no tenés acceso.";
   if (cause.status === 413) return "El archivo supera el límite de 20 MB.";
   if (cause.status >= 500)
     return "Ocurrió un problema al procesar la solicitud. Podés volver a intentarlo.";
@@ -174,12 +174,11 @@ function typeLabel(type: string) {
 function statusLabel(status?: string) {
   if (status === "INDEXED" || status === "TEXT_EXTRACTED")
     return "Listo para buscar";
-  if (status === "OCR_PROCESSING") return "Reconociendo texto…";
-  if (status === "OCR_REQUIRED") return "Texto escaneado pendiente";
-  if (status === "OCR_FAILED") return "No pudimos reconocer el texto de este documento.";
+  if (status === "OCR_PROCESSING" || status === "OCR_REQUIRED") return "Procesando documento…";
+  if (status === "OCR_FAILED") return "No pudimos extraer el texto de este archivo.";
   if (status === "ERROR" || status === "INVALID_PDF")
-    return "Error de procesamiento";
-  return "Procesando";
+    return "No pudimos procesar este archivo.";
+  return "Procesando documento…";
 }
 function formatBytes(size: number) {
   return size >= 1024 * 1024
@@ -243,6 +242,7 @@ export default function PrivateSpacesPage() {
   const [searchPage, setSearchPage] = useState<SearchPage | null>(null);
   const [nameSearch, setNameSearch] = useState<NameSearch | null>(null);
   const restoreSearch = useRef(false);
+  const refreshSequence = useRef(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -302,6 +302,7 @@ export default function PrivateSpacesPage() {
   const refresh = useCallback(
     async (nextId: string, nextFolderId = folderId) => {
       if (!nextId) return;
+      const requestSequence = ++refreshSequence.current;
       const queryFolder = nextFolderId || "ROOT";
       const [nextFolders, nextDocuments] = await Promise.all([
         api.get<Folder[]>(`/workspaces/${nextId}/folders`),
@@ -309,6 +310,7 @@ export default function PrivateSpacesPage() {
           query: { folderId: queryFolder },
         }),
       ]);
+      if (requestSequence !== refreshSequence.current) return;
       setFolders(nextFolders);
       setDocuments(nextDocuments);
       const selected = workspaces.find((workspace) => workspace.id === nextId);
@@ -320,6 +322,7 @@ export default function PrivateSpacesPage() {
         const nextSources = await api.get<DocumentSource[]>(
           `/workspaces/${nextId}/sources`,
         );
+        if (requestSequence !== refreshSequence.current) return;
         setMembers(nextMembers);
         setActivity(nextActivity);
         setSources(nextSources);
@@ -672,22 +675,18 @@ export default function PrivateSpacesPage() {
           });
         } else if (result.duplicate) {
           updateUploadRow(row.id, {
-            status: "Ya estaba en este espacio",
-            message: "El documento ya existe en este espacio.",
+            status: "Ya estaba cargado",
+            message: "Este documento ya estaba en la dependencia.",
           });
         } else {
           updateUploadRow(row.id, {
             status:
-              result.status === "OCR_PROCESSING"
-                ? "Reconociendo texto…"
-                : result.status === "OCR_REQUIRED"
-                  ? "Texto escaneado pendiente"
-                  : "Listo para buscar",
+              result.status === "OCR_PROCESSING" || result.status === "OCR_REQUIRED"
+                ? "Procesando documento…"
+                : "Listo para buscar",
             message:
-              result.status === "OCR_PROCESSING"
-                ? "El documento ya se puede abrir. La búsqueda se actualizará al terminar el reconocimiento."
-                : result.status === "OCR_REQUIRED"
-                  ? "El texto escaneado quedó pendiente de procesamiento en esta instalación."
+              result.status === "OCR_PROCESSING" || result.status === "OCR_REQUIRED"
+                ? "El documento ya se puede abrir. La búsqueda se actualizará cuando termine el procesamiento."
                   : "Documento incorporado.",
           });
         }
@@ -702,7 +701,7 @@ export default function PrivateSpacesPage() {
     setUploading(false);
     await refresh(workspaceId, folderId);
     const errors = rows.filter(
-      (row) => row.message && row.status !== "Ya estaba en este espacio",
+      (row) => row.message && row.status !== "Ya estaba cargado",
     ).length;
     const duplicates = rows.filter(
       (row) => row.status === "Ya estaba en este espacio",
@@ -857,33 +856,33 @@ export default function PrivateSpacesPage() {
 
       {loading ? (
         <Card>
-          <p className={styles.muted}>Cargando tus espacios documentales…</p>
+          <p className={styles.muted}>Cargando tus documentos…</p>
         </Card>
       ) : workspaces.length > 0 ? (
         <>
           <Card>
             <div className={styles.workspaceHeader}>
               <div>
-                <p className={styles.eyebrow}>Espacio documental privado</p>
+                <p className={styles.eyebrow}>Documentos de la dependencia</p>
                 <h2>{selectedWorkspace?.name ?? "Cargando espacio…"}</h2>
                 <p className={styles.muted}>
                   {selectedWorkspace
-                    ? `${typeLabel(selectedWorkspace.type)} · Código ${selectedWorkspace.code}`
-                    : "El contenido está limitado por tu membresía."}
+                    ? `${typeLabel(selectedWorkspace.type)} · Documentos compartidos con las personas autorizadas.`
+                    : "Los documentos compartidos se muestran según el acceso de tu cuenta."}
                 </p>
               </div>
               {selectedWorkspace && (
                 <span className={styles.roleBadge}>
-                  Tu rol: {roleLabel(selectedWorkspace.role)}
+                  Tu acceso: {roleLabel(selectedWorkspace.role)}
                 </span>
               )}
             </div>
             {workspaces.length > 1 && (
               <div className={styles.toolbar}>
                 <label>
-                  Espacio activo
+                  Dependencia activa
                   <select
-                    aria-label="Espacio documental"
+                    aria-label="Dependencia"
                     value={workspaceId}
                     onChange={(event) => {
                       setWorkspaceId(event.target.value);
@@ -894,8 +893,7 @@ export default function PrivateSpacesPage() {
                   >
                     {workspaces.map((workspace) => (
                       <option key={workspace.id} value={workspace.id}>
-                        {workspace.name} · {typeLabel(workspace.type)} ·{" "}
-                        {roleLabel(workspace.role)}
+                        {workspace.name}
                       </option>
                     ))}
                   </select>
@@ -904,12 +902,12 @@ export default function PrivateSpacesPage() {
             )}
             {workspaces.length === 1 && (
               <p className={styles.muted}>
-                Tu espacio asignado se abrió automáticamente.
+                Tu dependencia se abrió automáticamente.
               </p>
             )}
             <nav aria-label="Ruta de carpetas" className={styles.breadcrumb}>
               <button type="button" onClick={() => setFolderId("")}>
-                Mi espacio
+                Documentos compartidos
               </button>
               <span>›</span>
               <span>{selectedWorkspace?.name}</span>
@@ -930,8 +928,8 @@ export default function PrivateSpacesPage() {
 
           <Card className={styles.searchCard}>
             <div>
-              <p className={styles.eyebrow}>Búsqueda privada</p>
-              <h2>Encontrá documentos de este espacio</h2>
+              <p className={styles.eyebrow}>Buscar documentos</p>
+              <h2>Encontrá documentos de {selectedWorkspace?.name ?? "la dependencia"}</h2>
               <p className={styles.scopeText}>
                 Buscando en: {selectedWorkspace?.name}
                 {searchFolderMode === "CURRENT"
@@ -948,13 +946,13 @@ export default function PrivateSpacesPage() {
             >
               <input
                 className={styles.searchInput}
-                aria-label="Buscar documentos privados"
+                aria-label="Buscar documentos de la dependencia"
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);
                   clearSearch();
                 }}
-                placeholder={`Buscar dentro de ${selectedWorkspace?.name ?? "este espacio"}…`}
+                placeholder="Palabra, frase o nombre de archivo…"
               />
               <button
                 className={styles.primaryButton}
@@ -992,7 +990,7 @@ export default function PrivateSpacesPage() {
               searchPage.results.length === 0 &&
               (!nameSearch || nameSearch.results.length === 0) && (
                 <p className={styles.emptyState}>
-                  No encontramos resultados en este espacio. Probá otros
+                  No encontramos resultados. Probá otros
                   términos o elegí todas las carpetas.
                 </p>
               )}
@@ -1021,7 +1019,7 @@ export default function PrivateSpacesPage() {
                         <span>Página {page}</span>
                         {typeof result.metadata.sourceName === "string" &&
                           result.metadata.sourceName && (
-                            <span>Fuente: {result.metadata.sourceName}</span>
+                            <span>Carpeta compartida: {result.metadata.sourceName}</span>
                           )}
                         <span>
                           Carpeta:{" "}
@@ -1110,6 +1108,12 @@ export default function PrivateSpacesPage() {
                   Hasta 20 archivos por tanda y 20 MiB por archivo. DOC legado
                   se procesa localmente sin abrir Word ni ejecutar macros; cada
                   archivo informa su propio resultado.
+                </p>
+                <p className={styles.emptyState}>
+                  <strong>Destino:</strong> {selectedWorkspace?.name}
+                  {folderId ? ` › ${folderPath(folderId, folders)}` : " › Documentos compartidos"}
+                  <br />
+                  <strong>Acceso:</strong> compartido con las personas autorizadas de {selectedWorkspace?.name ?? "la dependencia"}.
                 </p>
               </div>
               <div
@@ -1332,17 +1336,17 @@ export default function PrivateSpacesPage() {
                       </div>
                       {item.document.status === "OCR_PROCESSING" && (
                         <p className={styles.muted}>
-                          Reconociendo texto… El documento se habilitará en búsqueda al terminar.
+                          Procesando documento… La búsqueda se habilitará cuando termine.
                         </p>
                       )}
                       {item.document.status === "OCR_REQUIRED" && (
                         <p className={styles.muted}>
-                          El texto escaneado quedó pendiente de procesamiento.
+                          Procesando documento… El texto todavía no está disponible para buscar.
                         </p>
                       )}
                       {item.document.status === "OCR_FAILED" && (
                         <p className={styles.muted}>
-                          No pudimos reconocer el texto de este documento.
+                          No pudimos extraer el texto de este archivo.
                         </p>
                       )}
                     </div>
@@ -1387,7 +1391,7 @@ export default function PrivateSpacesPage() {
               <p className={styles.emptyState}>
                 {folderId
                   ? "Esta carpeta está vacía. Podés subir archivos o mover documentos acá."
-                  : "Este espacio todavía no tiene documentos. Podés subir un documento compatible o crear una carpeta."}
+                  : "Esta dependencia todavía no tiene documentos. Podés subir un documento compatible o crear una carpeta."}
               </p>
             )}
           </Card>
@@ -1659,8 +1663,8 @@ export default function PrivateSpacesPage() {
       ) : (
         <Card>
           <div>
-            <p className={styles.eyebrow}>Acceso al espacio</p>
-            <h2>No tenés un espacio documental asignado</h2>
+            <p className={styles.eyebrow}>Acceso a documentos</p>
+            <h2>Todavía no tenés una dependencia asignada</h2>
             <p className={styles.muted}>
               Contactá al administrador de Galilei para que te incorpore a un
               Juzgado, Sala o dependencia.

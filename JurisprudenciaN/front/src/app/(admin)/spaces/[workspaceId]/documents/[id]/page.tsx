@@ -87,7 +87,7 @@ function viewerError(cause: unknown, fallback: string) {
   if (cause instanceof ApiError) {
     if (cause.status === 401) return "Tu sesión venció. Volvé a ingresar.";
     if (cause.status === 403 || cause.status === 404)
-      return "El espacio o documento ya no está disponible para tu cuenta.";
+      return "No encontramos este documento o no tenés acceso.";
     if (cause.status >= 500)
       return "Ocurrió un problema al abrir el documento. Podés volver a intentarlo.";
   }
@@ -145,7 +145,7 @@ export default function WorkspaceDocumentViewer() {
       })
       .catch((cause: unknown) => {
         if (alive)
-          setError(viewerError(cause, "No se pudo abrir el documento privado."));
+          setError(viewerError(cause, "No se pudo abrir este documento."));
       });
     return () => {
       alive = false;
@@ -165,7 +165,7 @@ export default function WorkspaceDocumentViewer() {
       })
       .catch((cause: unknown) => {
         if (alive)
-          setError(viewerError(cause, "No se pudo abrir el documento privado."));
+          setError(viewerError(cause, "No se pudo abrir este documento."));
       });
     return () => {
       alive = false;
@@ -203,7 +203,7 @@ export default function WorkspaceDocumentViewer() {
       );
       downloadBlob(blob, document?.file?.filename ?? "documento");
     } catch (cause) {
-      setError(viewerError(cause, "No se pudo descargar el documento privado."));
+      setError(viewerError(cause, "No se pudo descargar este documento."));
     }
   }
   useEffect(() => {
@@ -217,37 +217,36 @@ export default function WorkspaceDocumentViewer() {
   return (
     <>
       <nav aria-label="Ruta del documento">
-        <Link href={backHref}>← Volver al espacio</Link>
+        <Link href={backHref}>← Volver a los documentos</Link>
         <span>
-          　›　{workspaceName ?? "Espacio documental"}　›　
+          　›　{workspaceName ?? "Documentos de la dependencia"}　›　
           {document?.file?.filename ?? "Documento"}
         </span>
       </nav>
       <PageHeader
-        title={document?.title ?? "Documento privado"}
+        title={document?.title ?? "Documento"}
         description={
           document?.file?.filename ??
-          "Visor con acceso controlado por workspace"
+          `Documento compartido con ${workspaceName ?? "tu dependencia"}`
         }
       />
-      {error && (
-        <p role="alert" style={{ color: "#b42318" }}>
-          {error}
-        </p>
-      )}
+      {error ? (
+        <p className={styles.viewerError} role="alert">{error}</p>
+      ) : (
+        <>
       {document?.status === "OCR_PROCESSING" && (
         <Card>
-          <p>Reconociendo texto… La búsqueda y la navegación se actualizarán al terminar.</p>
+          <p>Procesando documento… La búsqueda se actualizará cuando termine.</p>
         </Card>
       )}
       {document?.status === "OCR_REQUIRED" && (
         <Card>
-          <p>El texto escaneado quedó pendiente de procesamiento.</p>
+          <p>Procesando documento… El texto todavía no está disponible para buscar.</p>
         </Card>
       )}
       {document?.status === "OCR_FAILED" && (
         <Card>
-          <p>No pudimos reconocer el texto de este documento.</p>
+          <p>No pudimos extraer el texto de este archivo.</p>
         </Card>
       )}
       <Card>
@@ -338,7 +337,7 @@ export default function WorkspaceDocumentViewer() {
         ) : pdf ? (
           <>
           {document?.selectedPage?.textKind === 'OCR' && (
-            <p role="status">Texto reconocido por OCR. La navegación y el contexto están disponibles; no se dibujan resaltados visuales de OCR.</p>
+            <p role="status">Texto reconocido automáticamente. La navegación está disponible; el resaltado visual no está disponible para texto reconocido.</p>
           )}
           <CorpusPdfViewer
             file={pdf}
@@ -352,6 +351,8 @@ export default function WorkspaceDocumentViewer() {
           <p>Cargando documento…</p>
         )}
       </Card>
+        </>
+      )}
     </>
   );
 }

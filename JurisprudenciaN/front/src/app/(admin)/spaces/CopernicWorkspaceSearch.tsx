@@ -205,7 +205,7 @@ function validateDateFilter(from: string, to: string) {
 
 function safeError(cause: unknown) {
   if (cause instanceof ApiError && (cause.status === 403 || cause.status === 404))
-    return "El espacio o documento ya no está disponible para tu cuenta.";
+    return "No encontramos este documento o no tenés acceso.";
   if (cause instanceof ApiError && cause.status === 401)
     return "Tu sesión venció. Volvé a ingresar.";
   return "No se pudo completar la búsqueda. Revisá tu conexión e intentá nuevamente.";
@@ -231,12 +231,11 @@ function folderName(folderId: string | null, folders: Folder[]) {
   return parts.join(" / ") || "Todos los documentos";
 }
 
-function sourceStatusLabel(status: string) {
-  if (status === "CONNECTED") return "Conectada";
-  if (status === "OFFLINE") return "Sin conexión";
-  if (status === "ACCESS_DENIED") return "Sin permiso de lectura";
-  if (status === "ERROR") return "Requiere revisión";
-  return "Sin escaneos";
+function dependencyKindLabel(type: string) {
+  if (type === "SALA") return "MI SALA";
+  if (type === "JUZGADO") return "MI JUZGADO";
+  if (type === "SECRETARIA") return "MI SECRETARÍA";
+  return "MI DEPENDENCIA";
 }
 
 function fileTypeFromMime(mimeType: string | null): SearchHit["fileType"] {
@@ -249,12 +248,11 @@ function fileTypeFromMime(mimeType: string | null): SearchHit["fileType"] {
   return "OTRO";
 }
 function documentStatusLabel(status: string | null) {
-  if (status === "OCR_PROCESSING") return "Reconociendo texto…";
-  if (status === "OCR_REQUIRED") return "Texto escaneado pendiente";
-  if (status === "OCR_FAILED") return "No pudimos reconocer el texto";
-  if (status === "INDEXED") return "Contenido indexado";
-  if (status === "ERROR" || status === "INVALID_PDF") return "Error de lectura";
-  return "Documento privado";
+  if (status === "OCR_PROCESSING" || status === "OCR_REQUIRED") return "Procesando documento…";
+  if (status === "OCR_FAILED" || status === "ERROR" || status === "INVALID_PDF")
+    return "No pudimos procesar este archivo";
+  if (status === "INDEXED") return "Listo para buscar";
+  return "Documento compartido";
 }
 
 function positiveTerms(query: string) {
@@ -331,6 +329,10 @@ function buildHitList(
   return [...hits.values()];
 }
 
+function displaySourceName(name: string | null) {
+  return name === "Carga manual" ? "Documentos cargados" : name;
+}
+
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
   return Boolean(
@@ -364,7 +366,9 @@ export function CopernicWorkspaceSearch() {
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
+  const [workspaceChoiceId, setWorkspaceChoiceId] = useState("");
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => new Set());
   const [sources, setSources] = useState<SearchSource[]>([]);
   const [sourceFolders, setSourceFolders] = useState<SourceFolder[]>([]);
   const [sourceFoldersLoading, setSourceFoldersLoading] = useState(false);
@@ -398,6 +402,24 @@ export function CopernicWorkspaceSearch() {
   const selectedDocumentId = selectedHit?.documentId ?? "";
   const selectedPage = selectedHit?.page ?? 1;
   const isAuthorizedWorkspace = workspaces.some((item) => item.id === workspaceId);
+  const showWorkspaceChooser = !workspaceLoading && workspaces.length > 1 && !isAuthorizedWorkspace;
+  const folderTreeRows = useMemo(() => {
+    const byId = new Map(folders.map((folder) => [folder.id, folder]));
+    return folders
+      .map((folder) => {
+        const fullName = folderName(folder.id, folders);
+        return { folder, fullName, depth: fullName.split(" / ").length - 1 };
+      })
+      .sort((left, right) => left.fullName.localeCompare(right.fullName, "es"))
+      .filter(({ folder }) => {
+        let parentId = folder.parentId;
+        while (parentId) {
+          if (collapsedFolderIds.has(parentId)) return false;
+          parentId = byId.get(parentId)?.parentId ?? null;
+        }
+        return true;
+      });
+  }, [collapsedFolderIds, folders]);
 
   useEffect(() => {
     initialMatchOrdinalRef.current = initialMatchOrdinal;
@@ -435,7 +457,9 @@ export function CopernicWorkspaceSearch() {
         if (!live) return;
         setWorkspaces(mine);
         const requestedId = new URLSearchParams(window.location.search).get("workspaceId");
-        const selected = mine.find((item) => item.id === requestedId) ?? mine[0];
+        const requested = mine.find((item) => item.id === requestedId);
+        const selected = requested ?? (mine.length === 1 ? mine[0] : undefined);
+        setWorkspaceChoiceId(selected?.id ?? "");
         if (selected && selected.id !== requestedId) {
           navigate(
             {
@@ -449,6 +473,8 @@ export function CopernicWorkspaceSearch() {
             },
             true,
           );
+        } else if (!selected && requestedId) {
+          navigate({ workspaceId: null, folderId: null, sourceId: null, sourceFolder: null, selected: null, match: null, page: 1 }, true);
         }
       })
       .catch((cause: unknown) => {
@@ -700,6 +726,7 @@ export function CopernicWorkspaceSearch() {
   );
 
   const selectWorkspace = (nextWorkspaceId: string) => {
+    setWorkspaceChoiceId(nextWorkspaceId);
     navigate({
       workspaceId: nextWorkspaceId,
       folderId: null,
@@ -921,10 +948,10 @@ export function CopernicWorkspaceSearch() {
   }
 
   const activeScope = activeSource
-    ? `Fuente: ${activeSource.name}${activeSourceFolder ? ` / ${activeSourceFolder.replaceAll("\\", " / ")}` : ""}`
+    ? `${displaySourceName(activeSource.name)}${activeSourceFolder ? ` / ${activeSourceFolder.replaceAll("\\", " / ")}` : ""}`
     : activeFolder
-      ? `Carpeta: ${folderName(activeFolderId, folders)}`
-      : `Espacio: ${workspace?.name ?? "Mi espacio"}`;
+      ? `${folderName(activeFolderId, folders)} · ${workspace?.name ?? ""}`
+      : `Documentos compartidos con ${workspace?.name ?? "tu dependencia"}`;
   const offlineSource = activeSource && ["OFFLINE", "ACCESS_DENIED"].includes(activeSource.status);
   const contentTotal = searchPage
     ? searchPage.totalExact === false
@@ -933,28 +960,28 @@ export function CopernicWorkspaceSearch() {
     : "0";
 
   return (
-    <section className={styles.shell} aria-label="Buscador clásico de Mi espacio">
+    <section className={styles.shell} aria-label={`Documentos de ${workspace?.name ?? "la dependencia"}`}>
       <header className={styles.shellHeader}>
         <div className={styles.productTitle}>
           <span className={styles.productMark} aria-hidden="true">G</span>
           <div>
-            <p className={styles.eyebrow}>GALILEI · MI ESPACIO</p>
-            <h1>Buscar documentos</h1>
+            <p className={styles.eyebrow}>{workspace ? dependencyKindLabel(workspace.type) : "GALILEI · DOCUMENTOS"}</p>
+            <h1 title={workspace?.name}>{workspace?.name ?? "Buscar documentos"}</h1>
           </div>
         </div>
         <div className={styles.headerActions}>
-          {workspaces.length > 1 && (
+          {workspaces.length > 1 && isAuthorizedWorkspace && (
             <label className={styles.workspaceSelectLabel}>
-              <span>Espacio</span>
+              <span>Dependencia</span>
               <select
-                aria-label="Espacio de búsqueda"
+                aria-label="Cambiar dependencia"
                 value={workspaceId}
                 onChange={(event) => selectWorkspace(event.target.value)}
                 disabled={workspaceLoading}
               >
                 {workspaces.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.name} · {item.role === "VIEWER" ? "Consulta" : item.role === "EDITOR" ? "Editor" : "Admin"}
+                    {item.name}
                   </option>
                 ))}
               </select>
@@ -965,32 +992,48 @@ export function CopernicWorkspaceSearch() {
               className={styles.secondaryLink}
               href={`/spaces/manage?workspaceId=${encodeURIComponent(workspace.id)}`}
             >
-              Administrar espacio
+              Administrar dependencia
             </Link>
           )}
           <Link className={styles.secondaryLink} href="/busqueda-avanzada">
-            Corpus general
+            Jurisprudencia y Digesto
           </Link>
         </div>
       </header>
 
-      {workspaceLoading ? (
-        <div className={styles.loadingWorkspace} role="status">Cargando tus espacios…</div>
+      {workspaceLoading || (workspaces.length === 1 && !isAuthorizedWorkspace) ? (
+        <div className={styles.loadingWorkspace} role="status">Cargando tus documentos…</div>
       ) : workspaces.length === 0 ? (
         <div className={styles.noWorkspace}>
-          <h2>No tenés un espacio asignado</h2>
-          <p>Los documentos privados sólo aparecen dentro de un espacio al que tenés acceso.</p>
+          <h2>Todavía no tenés una dependencia asignada</h2>
+          <p>Cuando te den acceso, acá vas a encontrar los documentos de tu Sala o Juzgado.</p>
           {user?.rol.nombre === "ADMIN" && (
-            <Link className={styles.primaryLink} href="/spaces/manage">Administrar espacios</Link>
+            <Link className={styles.primaryLink} href="/spaces/manage">Administrar dependencias</Link>
           )}
+        </div>
+      ) : showWorkspaceChooser ? (
+        <div className={styles.workspaceChooser}>
+          <p className={styles.eyebrow}>TUS DEPENDENCIAS</p>
+          <h2>¿Dónde querés trabajar?</h2>
+          <p>Elegí la Sala, el Juzgado o la Secretaría cuyos documentos querés consultar.</p>
+          <label className={styles.chooserField}>
+            <span>Sala, Juzgado o Secretaría</span>
+            <select aria-label="Elegir dependencia" value={workspaceChoiceId} onChange={(event) => setWorkspaceChoiceId(event.target.value)}>
+              <option value="">Seleccioná una dependencia</option>
+              {workspaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </label>
+          <button className={styles.primaryLink} type="button" disabled={!workspaceChoiceId} onClick={() => selectWorkspace(workspaceChoiceId)}>
+            Entrar
+          </button>
         </div>
       ) : (
         <div
           className={`${styles.panels} ${leftCollapsed ? styles.leftCollapsed : ""} ${previewCollapsed ? styles.previewCollapsed : ""}`}
         >
-          <aside className={styles.leftPanel} aria-label="Árbol de espacios, carpetas y fuentes">
+          <aside className={styles.leftPanel} aria-label={`Carpetas de ${workspace?.name ?? "la dependencia"}`}>
             <div className={styles.panelHeading}>
-              <h2>{leftCollapsed ? "" : "Explorar"}</h2>
+              <h2>{leftCollapsed ? "" : "Carpetas"}</h2>
               <button
                 type="button"
                 className={styles.iconButton}
@@ -1003,47 +1046,72 @@ export function CopernicWorkspaceSearch() {
             {!leftCollapsed && (
               <div className={styles.treeContent}>
                 <div className={styles.scopeGroup}>
-                  <p className={styles.treeLabel}>MIS ESPACIOS</p>
+                  <p className={styles.treeLabel}>DOCUMENTOS COMPARTIDOS</p>
                   <button
                     type="button"
+                    aria-pressed={!activeFolderId && !activeSourceId}
                     className={`${styles.treeItem} ${!activeFolderId && !activeSourceId ? styles.treeItemActive : ""}`}
                     onClick={() => selectFolder(null)}
                   >
                     <span aria-hidden="true">▣</span>
-                    <span>Todos los documentos</span>
+                    <span>{workspace?.name ?? "Todos los documentos"}</span>
                   </button>
-                  {workspace && (
-                    <p className={styles.workspaceRole}>
-                      {workspace.name} · {workspace.role === "VIEWER" ? "Consulta" : workspace.role === "EDITOR" ? "Editor" : "Administrador"}
-                    </p>
-                  )}
-                  <div className={styles.folderTree}>
-                    {[...folders]
-                      .sort((a, b) => folderName(a.id, folders).localeCompare(folderName(b.id, folders), "es"))
-                      .map((folder) => {
-                        const depth = folderName(folder.id, folders).split(" / ").length - 1;
-                        return (
+                  <div className={styles.folderTree} role="tree" aria-label={`Carpetas de ${workspace?.name ?? "la dependencia"}`}>
+                    {folderTreeRows.map(({ folder, fullName, depth }) => {
+                      const hasChildren = folder._count.children > 0;
+                      const expanded = !collapsedFolderIds.has(folder.id);
+                      return (
+                        <div className={styles.folderTreeRow} key={folder.id}>
+                          {hasChildren ? (
+                            <button
+                              type="button"
+                              className={styles.folderDisclosure}
+                              aria-label={`${expanded ? "Contraer" : "Expandir"} ${folder.name}`}
+                              aria-expanded={expanded}
+                              onClick={() => setCollapsedFolderIds((current) => {
+                                const next = new Set(current);
+                                if (next.has(folder.id)) next.delete(folder.id);
+                                else next.add(folder.id);
+                                return next;
+                              })}
+                            >
+                              {expanded ? "▾" : "▸"}
+                            </button>
+                          ) : <span className={styles.folderDisclosurePlaceholder} aria-hidden="true" />}
                           <button
                             type="button"
-                            key={folder.id}
+                            role="treeitem"
+                            aria-level={depth + 1}
+                            aria-expanded={hasChildren ? expanded : undefined}
+                            aria-selected={activeFolderId === folder.id}
                             className={`${styles.treeItem} ${activeFolderId === folder.id ? styles.treeItemActive : ""}`}
-                            style={{ "--depth": depth } as React.CSSProperties}
-                            aria-current={activeFolderId === folder.id ? "location" : undefined}
+                            title={fullName}
+                            onKeyDown={(event) => {
+                              if (!hasChildren || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+                              event.preventDefault();
+                              setCollapsedFolderIds((current) => {
+                                const next = new Set(current);
+                                if (event.key === "ArrowLeft") next.add(folder.id);
+                                else next.delete(folder.id);
+                                return next;
+                              });
+                            }}
                             onClick={() => selectFolder(folder.id)}
                           >
-                            <span aria-hidden="true">▸</span>
+                            <span aria-hidden="true">▣</span>
                             <span>{folder.name}</span>
                             <small>{folder._count.documents}</small>
                           </button>
-                        );
-                      })}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
                 <div className={styles.scopeGroup}>
                   <div className={styles.treeLabelRow}>
-                    <p className={styles.treeLabel}>FUENTES</p>
-                    {workspaceDataLoading && <span className={styles.miniSpinner} aria-label="Cargando fuentes" />}
+                    <p className={styles.treeLabel}>CARPETAS COMPARTIDAS</p>
+                    {workspaceDataLoading && <span className={styles.miniSpinner} aria-label="Cargando carpetas compartidas" />}
                   </div>
                   {sources.filter((source) => source.id !== MANUAL_SOURCE_ID).map((source) => (
                     <div key={source.id} className={styles.sourceBranch}>
@@ -1059,9 +1127,9 @@ export function CopernicWorkspaceSearch() {
                       </button>
                       {activeSourceId === source.id && (
                         <>
-                          <p className={styles.sourceState}>{sourceStatusLabel(source.status)}</p>
+                          {offlineSource && <p className={styles.sourceState}>La carpeta de origen no está disponible en este momento.</p>}
                           {sourceFoldersLoading ? (
-                            <p className={styles.sourceState}>Cargando carpetas de fuente…</p>
+                            <p className={styles.sourceState}>Cargando carpetas…</p>
                           ) : (
                             sourceFolders.map((folder) => (
                               <button
@@ -1089,11 +1157,11 @@ export function CopernicWorkspaceSearch() {
                     onClick={() => selectSource(activeSourceId === MANUAL_SOURCE_ID ? null : MANUAL_SOURCE_ID)}
                   >
                     <span className={styles.sourceDot} aria-hidden="true">●</span>
-                    <span>Carga manual</span>
+                    <span>Documentos cargados</span>
                     <small>{sources.find((item) => item.id === MANUAL_SOURCE_ID)?.fileCount ?? 0}</small>
                   </button>
                 </div>
-                <p className={styles.scopePrivacy}>Este árbol sólo incluye tu espacio actual.</p>
+                <p className={styles.scopePrivacy}>Mostramos los documentos compartidos con {workspace?.name ?? "tu dependencia"}.</p>
               </div>
             )}
           </aside>
@@ -1110,12 +1178,12 @@ export function CopernicWorkspaceSearch() {
                 onSubmit={(event) => commitSearch(event)}
               >
                 <label className={styles.visuallyHidden} htmlFor="copernic-workspace-query">
-                  Buscar documentos privados
+                  Buscar documentos de la dependencia
                 </label>
                 <input
                   id="copernic-workspace-query"
                   ref={queryInputRef}
-                  aria-label="Buscar documentos privados"
+                  aria-label="Buscar documentos de la dependencia"
                   autoComplete="off"
                   value={draftQuery}
                   onChange={(event) => setDraftQuery(event.target.value)}
@@ -1126,7 +1194,7 @@ export function CopernicWorkspaceSearch() {
                       resultsListRef.current?.focus();
                     }
                   }}
-                  placeholder="Escribí palabras, una frase o una consulta…"
+                  placeholder="Palabra, frase o nombre de archivo…"
                 />
                 {draftQuery && (
                   <button
@@ -1195,7 +1263,7 @@ export function CopernicWorkspaceSearch() {
                   </div>
                 </details>
                 <span className={styles.searchMode}>Contenido y nombre de archivo</span>
-                <span className={styles.searchShortcut}>Ctrl+F para buscar · F3 para coincidencia</span>
+                <span className={styles.searchShortcut}>Ctrl+F para buscar · F3: siguiente coincidencia</span>
               </div>
               {(activeFolderId || activeSourceId || activeType || hasDateFilter) && (
                 <div className={styles.filterChips} aria-label="Filtros activos">
@@ -1206,7 +1274,7 @@ export function CopernicWorkspaceSearch() {
                   )}
                   {activeSourceId && (
                     <button type="button" onClick={() => selectSource(null)}>
-                      Fuente: {activeSource?.name ?? (activeSourceId === MANUAL_SOURCE_ID ? "Carga manual" : "Fuente")} {activeSourceFolder ? `· ${activeSourceFolder.replaceAll("\\", " / ")}` : ""} <span aria-hidden="true">×</span>
+                      Carpeta compartida: {displaySourceName(activeSource?.name ?? (activeSourceId === MANUAL_SOURCE_ID ? "Documentos cargados" : "Carpeta"))} {activeSourceFolder ? `· ${activeSourceFolder.replaceAll("\\", " / ")}` : ""} <span aria-hidden="true">×</span>
                     </button>
                   )}
                   {activeType && (
@@ -1227,7 +1295,7 @@ export function CopernicWorkspaceSearch() {
             <div className={styles.resultsViewport}>
               {offlineSource && (
                 <p className={styles.offlineNote} role="status">
-                  La fuente está {sourceStatusLabel(activeSource.status).toLowerCase()}. Los documentos ya indexados siguen disponibles para búsqueda.
+                  La carpeta de origen no está disponible en este momento. Los documentos ya incorporados siguen disponibles para búsqueda.
                 </p>
               )}
               {message && <p className={styles.notice} role="status">{message}</p>}
@@ -1245,19 +1313,19 @@ export function CopernicWorkspaceSearch() {
               ) : (
                 <div className={styles.idleState}>
                   <span className={styles.idleIcon} aria-hidden="true">⌕</span>
-                  <h2>Buscá dentro de {workspace?.name ?? "tu espacio"}</h2>
-                  <p>Los resultados de contenido y nombre se muestran juntos. La búsqueda respeta el espacio, carpeta o fuente seleccionados.</p>
-                  <span>PDF y documentos con texto extraído</span>
+                  <h2>Buscá en los documentos de {workspace?.name ?? "tu dependencia"}</h2>
+                  <p>Podés buscar por contenido o por nombre. La búsqueda respeta la carpeta compartida que elegiste.</p>
+                  <span>PDF y documentos con texto disponible</span>
                 </div>
               )}
               {committedQuery && !searching && !searchError && searchPage && hits.length === 0 && (
                 <div className={styles.emptyResults}>
-                  <h2>{activeType || hasDateFilter || activeFolderId || activeSourceId ? "No hay resultados con estos filtros." : "No encontramos documentos en este espacio."}</h2>
-                  <p>Revisá los términos o quitá filtros de {activeScope}.</p>
+                  <h2>{activeType || hasDateFilter || activeFolderId || activeSourceId ? "No encontramos documentos con estos filtros." : "Todavía no hay documentos."}</h2>
+                  <p>Probá otras palabras, cambiá de carpeta o limpiá los filtros de {activeScope}.</p>
                 </div>
               )}
               {searching && hits.length === 0 && (
-                <div className={styles.searchLoading} role="status"><span className={styles.spinner} />Buscando en este espacio…</div>
+                <div className={styles.searchLoading} role="status"><span className={styles.spinner} />Buscando en {workspace?.name ?? "la dependencia"}…</div>
               )}
               {hits.length > 0 && (
                 <div
@@ -1296,7 +1364,7 @@ export function CopernicWorkspaceSearch() {
                           )}
                           <span className={styles.resultMeta}>
                             <span>{hit.folderName || folderName(hit.folderId, folders)}</span>
-                            {hit.sourceName && <span>Fuente: {hit.sourceName}</span>}
+                            {hit.sourceName && <span>Carpeta compartida: {displaySourceName(hit.sourceName)}</span>}
                             {hit.sourceFolder && <span>{hit.sourceFolder.replaceAll("\\", " / ")}</span>}
                             <span>{formattedDate(hit.uploadedAt)}</span>
                           </span>
@@ -1308,7 +1376,7 @@ export function CopernicWorkspaceSearch() {
                             <button type="button" onClick={() => void copyValue(hit.filename, "Nombre copiado.")}>Copiar nombre</button>
                             <button
                               type="button"
-                              onClick={() => void copyValue(`${workspace?.name ?? "Mi espacio"} / ${hit.folderName} / ${hit.filename} · página ${hit.page}`, "Referencia copiada.")}
+              onClick={() => void copyValue(`${workspace?.name ?? "Documentos compartidos"} / ${hit.folderName} / ${hit.filename} · página ${hit.page}`, "Referencia copiada.")}
                             >
                               Copiar referencia
                             </button>
@@ -1367,7 +1435,7 @@ export function CopernicWorkspaceSearch() {
               selectedHit ? (
                 <div className={styles.previewContent}>
                   <header className={styles.previewDocumentHeader}>
-                    <p className={styles.previewType}>DOCUMENTO PRIVADO · {documentStatusLabel(selectedHit.documentStatus)}</p>
+                      <p className={styles.previewType}>COMPARTIDO CON {workspace?.name ?? "TU DEPENDENCIA"} · {documentStatusLabel(selectedHit.documentStatus)}</p>
                     <h2 title={preview?.document.file?.filename ?? selectedHit.filename}>
                       {preview?.document.file?.filename ?? selectedHit.filename}
                     </h2>
@@ -1382,7 +1450,7 @@ export function CopernicWorkspaceSearch() {
                     </div>
                   </header>
                   {selectedHit.sourceStatus === "MISSING" && (
-                    <p className={styles.missingSourceNote}>El archivo ya no está presente en su fuente; la copia indexada sigue disponible.</p>
+                    <p className={styles.missingSourceNote}>No pudimos acceder al archivo original. El contenido incorporado sigue disponible para búsqueda.</p>
                   )}
                   {previewLoading && (
                     <div className={styles.previewLoading} role="status">
@@ -1401,16 +1469,16 @@ export function CopernicWorkspaceSearch() {
                   {preview && !previewLoading && (
                     <>
                       {preview.document.status === "OCR_PROCESSING" && (
-                        <p className={styles.missingSourceNote}>Reconociendo texto… La búsqueda y la navegación se actualizarán al terminar.</p>
+                        <p className={styles.missingSourceNote}>Procesando documento… La búsqueda se actualizará cuando termine.</p>
                       )}
                       {preview.document.status === "OCR_REQUIRED" && (
-                        <p className={styles.missingSourceNote}>El texto escaneado quedó pendiente de procesamiento.</p>
+                        <p className={styles.missingSourceNote}>Procesando documento… El texto todavía no está disponible para buscar.</p>
                       )}
                       {preview.document.status === "OCR_FAILED" && (
-                        <p className={styles.missingSourceNote}>No pudimos reconocer el texto de este documento.</p>
+                        <p className={styles.missingSourceNote}>No pudimos extraer el texto de este archivo.</p>
                       )}
                       {preview.document.selectedPage?.textKind === "OCR" && (
-                        <p className={styles.missingSourceNote}>Texto reconocido por OCR. La navegación y el contexto están disponibles; no se dibujan resaltados visuales de OCR.</p>
+                        <p className={styles.missingSourceNote}>Texto reconocido automáticamente. La navegación está disponible; el resaltado visual no está disponible para texto reconocido.</p>
                       )}
                       <div className={styles.previewToolbar}>
                         <span>
@@ -1493,8 +1561,8 @@ export function CopernicWorkspaceSearch() {
               ) : (
                 <div className={styles.previewEmpty}>
                   <span aria-hidden="true">▤</span>
-                  <p>Seleccioná un resultado para ver una vista previa.</p>
-                  <small>Enter abre la vista previa · doble clic abre el documento completo.</small>
+                  <p>Seleccioná un documento para verlo acá.</p>
+                  <small>Enter muestra la vista previa · doble clic abre el documento completo.</small>
                 </div>
               )
             )}
