@@ -1,0 +1,23 @@
+{
+  "records": [
+    { "sourceRecordId": "P-001", "portalId": "PORTAL-001", "expediente": "101/2020", "expedienteYear": "2020", "decisionYear": "2021", "decisionDate": "2021-03-10", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 1", "title": "Fixture uno", "documentUrl": "https://example.test/doc/1" },
+    { "sourceRecordId": "P-002", "expediente": "102/2020", "expedienteYear": "2020", "decisionDate": "2020-04-11", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 2", "title": "Fixture dos" },
+    { "sourceRecordId": "P-003", "expediente": "103/2020", "expedienteYear": "2020", "decisionDate": "2020-05-12", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 3", "title": "Fixture tres" },
+    { "sourceRecordId": "P-004", "expediente": "104/2020", "expedienteYear": "2020", "decisionDate": "2020-06-13", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 4", "title": "Fixture cuatro" },
+    { "sourceRecordId": "P-005", "expediente": "201/2019", "expedienteYear": "2019", "decisionDate": "2019-07-14", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 5", "title": "Fixture cinco" },
+    { "sourceRecordId": "P-006", "expediente": "202/2019", "expedienteYear": "2019", "decisionDate": "2019-08-15", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 6", "title": "Fixture seis" },
+    { "sourceRecordId": "P-007", "expediente": "301/2018", "expedienteYear": "2018", "decisionDate": "2018-09-16", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 7", "title": "Fixture siete" },
+    { "sourceRecordId": "P-008", "portalId": "PORTAL-001", "expediente": "401/2017", "expedienteYear": "2017", "decisionDate": "2017-10-17", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 8", "title": "ID de portal duplicado" },
+    { "sourceRecordId": "P-010", "expediente": "501/2016", "expedienteYear": "2016", "decisionDate": "31/02/2016", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 9", "title": "Fecha inválida" },
+    { "sourceRecordId": "P-011", "expediente": "601/2015", "expedienteYear": "2015", "decisionDate": "2015-01-01", "court": "Tribunal Fantasía", "title": "Órgano desconocido" }
+  ],
+  "corpus": [
+    { "id": "corpus-1", "sourceRecordId": "P-001", "expediente": "101/2020", "expedienteYear": "2020", "decisionDate": "2021-03-10", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 1" },
+    { "id": "corpus-2", "sourceRecordId": "P-002", "expediente": "102/2020", "expedienteYear": "2020", "decisionDate": "2020-04-11", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 2" },
+    { "id": "corpus-3", "sourceRecordId": "P-003", "expediente": "103/2020", "expedienteYear": "2020", "decisionDate": "2020-05-12", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 3" },
+    { "id": "corpus-4", "sourceRecordId": "P-004", "expediente": "104/2020", "expedienteYear": "2020", "decisionDate": "2020-06-13", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 4" },
+    { "id": "corpus-5", "expediente": "201/2019", "expedienteYear": "2019", "decisionDate": "2019-07-14", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 5" },
+    { "id": "corpus-6", "expediente": "202/2019", "expedienteYear": "2019", "decisionDate": "2019-08-15", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 6" },
+    { "id": "corpus-7", "expediente": "301/2018", "expedienteYear": "2018", "court": "Juzgado Nacional de Primera Instancia en lo Civil N° 7" }
+  ]
+}

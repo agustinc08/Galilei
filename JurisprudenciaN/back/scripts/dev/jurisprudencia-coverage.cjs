@@ -44,20 +44,23 @@ function first(row, names) {
 function normalizeRow(row) {
   const docket = String(first(row, ['expediente','caseNumber','case_number','docket'])).trim();
   const date = String(first(row, ['fecha','decisionDate','decision_date','date'])).slice(0,10);
-  const yearRaw = String(first(row, ['año','anio','year']) || date.slice(0,4));
+  const yearRaw = String(first(row, ['decisionYear','decision_year','año','anio','year']) || date.slice(0,4));
   const year = /^\d{4}$/u.test(yearRaw) ? yearRaw : 'UNKNOWN';
   const chamber = String(first(row, ['Sala','sala','chamber','room'])).trim().replace(/^sala\s*/iu, '').toUpperCase() || 'UNKNOWN';
-  const court = String(first(row, ['Juzgado','juzgado','court','tribunal'])).trim() || 'UNKNOWN';
+  const court = String(first(row, ['courtNormalized','court_normalized','Juzgado','juzgado','court','tribunal'])).trim() || 'UNKNOWN';
+  const sourceRecordId = String(first(row, ['sourceRecordId','source_record_id'])).trim();
   const portalId = String(first(row, ['portalId','portal_id','id','externalId'])).trim();
   const instanceRaw = String(first(row, ['instance','instancia'])).trim().toUpperCase();
-  const instance = /FIRST|PRIMERA|JUZGADO/u.test(instanceRaw) || court !== 'UNKNOWN' && /juzgado/i.test(court)
+  const instance = row.courtType === 'FIRST_INSTANCE_CIVIL' || /FIRST|PRIMERA|JUZGADO/u.test(instanceRaw) || court !== 'UNKNOWN' && /juzgado/i.test(court)
     ? 'FIRST_INSTANCE' : /SECOND|SEGUNDA|CAMARA|CÁMARA/u.test(instanceRaw) || chamber !== 'UNKNOWN'
       ? 'SECOND_INSTANCE' : 'UNKNOWN';
-  const status = String(first(row, ['status','viewerStatus','sourceViewerStatus','estado'])).trim().toUpperCase();
-  const confidence = String(first(row, ['confidence','matchConfidence','match_confidence'])).trim().toUpperCase();
+  const status = String(first(row, ['status','viewerStatus','sourceViewerStatus','estado','availability']) || row.match?.confidence || '').trim().toUpperCase();
+  const confidence = String(first(row, ['confidence','matchConfidence','match_confidence']) || row.match?.confidence || '').trim().toUpperCase();
   const matched = row.matched === true || /^(true|1|yes)$/iu.test(String(row.matched || '')) ||
-    Boolean(first(row, ['corpusDocumentId','corpus_document_id'])) || ['EXACT','HIGH','HIGH_CONFIDENCE'].includes(confidence);
-  const key = docket ? `${docket}|${year}|${instance === 'FIRST_INSTANCE' ? court : chamber}` : portalId || `row:${JSON.stringify(row)}`;
+    ['EXACT','HIGH','HIGH_CONFIDENCE'].includes(confidence);
+  const key = sourceRecordId || (row.expedienteNormalized
+    ? `${docket}|${String(first(row,['expedienteYear','expediente_year']) || year)}|${court}|${chamber}`
+    : docket ? `${docket}|${year}|${instance === 'FIRST_INSTANCE' ? court : chamber}` : portalId || `row:${JSON.stringify(row)}`);
   return { key, portalId, docket, year, chamber, court, instance, date, status, matched,
     acquired: /PDF_ACCESSIBLE|ACQUIRED|INGESTED/u.test(status) || row.acquired === true,
     unknown: !status || /UNKNOWN/u.test(status),
