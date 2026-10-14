@@ -517,6 +517,26 @@ export class WorkspaceDocumentService {
     return { results };
   }
 
+  async ingestFromSource(
+    workspaceId: string,
+    uploadedById: number,
+    file: {
+      originalname: string;
+      mimetype: string;
+      buffer: Buffer;
+      size: number;
+    },
+    replaceDocumentId?: string,
+  ) {
+    return this.ingestOne(
+      workspaceId,
+      uploadedById,
+      file,
+      undefined,
+      replaceDocumentId,
+    );
+  }
+
   async searchWorkspace(
     workspaceId: string,
     user: AuthenticatedUser,
@@ -563,7 +583,25 @@ export class WorkspaceDocumentService {
         document: { select: { status: true } },
       },
     });
+    const sourceFiles = await this.prisma.sourceFile.findMany({
+      where: {
+        documentId: { in: result.results.map((item) => item.sourceId) },
+        source: { workspaceId },
+      },
+      select: {
+        documentId: true,
+        source: { select: { name: true } },
+      },
+    });
     const metadataById = new Map(links.map((link) => [link.documentId, link]));
+    const sourceNamesById = new Map<string, Set<string>>();
+    for (const sourceFile of sourceFiles) {
+      if (!sourceFile.documentId) continue;
+      const names =
+        sourceNamesById.get(sourceFile.documentId) ?? new Set<string>();
+      names.add(sourceFile.source.name);
+      sourceNamesById.set(sourceFile.documentId, names);
+    }
     return {
       ...result,
       results: result.results.map((item) => {
@@ -576,6 +614,9 @@ export class WorkspaceDocumentService {
             folderName: link?.folder?.name ?? 'Todos los documentos',
             uploadedAt: link?.createdAt.toISOString() ?? null,
             status: link?.document.status ?? null,
+            sourceName:
+              [...(sourceNamesById.get(item.sourceId) ?? [])].join(', ') ||
+              null,
           },
         };
       }),
@@ -748,6 +789,7 @@ export class WorkspaceDocumentService {
       size: number;
     },
     folderId?: string,
+    replaceDocumentId?: string,
   ) {
     const name = path
       .basename(file.originalname)
@@ -775,9 +817,26 @@ export class WorkspaceDocumentService {
       throw error;
     }
     const stored = await this.storage.put(name, file.buffer);
+    if (
+      replaceDocumentId &&
+      !(await this.prisma.workspaceDocument.findFirst({
+        where: {
+          workspaceId,
+          documentId: replaceDocumentId,
+          document: { documentScope: 'PRIVATE_WORKSPACE' },
+        },
+        select: { id: true },
+      }))
+    )
+      throw new NotFoundException(
+        'Documento de fuente no encontrado en el espacio.',
+      );
     const existing = await this.prisma.workspaceDocument.findFirst({
       where: {
         workspaceId,
+        ...(replaceDocumentId
+          ? { documentId: { not: replaceDocumentId } }
+          : {}),
         document: {
           documentScope: 'PRIVATE_WORKSPACE',
           files: { some: { sha256: stored.sha256 } },
@@ -804,29 +863,52 @@ export class WorkspaceDocumentService {
       update: {},
     });
     const document = await this.prisma.$transaction(async (tx) => {
-      const doc = await tx.corpusDocument.create({
-        data: {
-          documentType: 'PRIVATE_DOCUMENT',
-          title: name.replace(/\.pdf$/iu, ''),
-          jurisdiction: 'CIVIL',
-          visibility: 'RESTRICTED',
-          documentScope: 'PRIVATE_WORKSPACE',
-          status:
-            extraction.status === 'TEXT_EXTRACTED' ? 'INDEXED' : 'OCR_REQUIRED',
-          searchText: extraction.text,
+      const documentData = {
+        documentType: 'PRIVATE_DOCUMENT',
+        title: name.replace(/\.pdf$/iu, ''),
+        jurisdiction: 'CIVIL',
+        visibility: 'RESTRICTED',
+        documentScope: 'PRIVATE_WORKSPACE' as const,
+        status:
+          extraction.status === 'TEXT_EXTRACTED' ? 'INDEXED' : 'OCR_REQUIRED',
+        searchText: extraction.text,
+      };
+      const doc = replaceDocumentId
+        ? await tx.corpusDocument.update({
+            where: { id: replaceDocumentId },
+            data: documentData,
+          })
+        : await tx.corpusDocument.create({ data: documentData });
+      const priorFile = await tx.corpusDocumentFile.findUnique({
+        where: {
+          documentId_sha256: { documentId: doc.id, sha256: stored.sha256 },
         },
       });
-      const storedFile = await tx.corpusDocumentFile.create({
-        data: {
-          documentId: doc.id,
-          storageKey: stored.storageKey,
-          sha256: stored.sha256,
-          sizeBytes: BigInt(stored.sizeBytes),
-          originalFilename: name,
-          mimeType: 'application/pdf',
-          pageCount: extraction.pages.length,
-        },
+      const currentVersion = await tx.corpusDocumentFile.aggregate({
+        where: { documentId: doc.id },
+        _max: { version: true },
       });
+      const storedFile = priorFile
+        ? await tx.corpusDocumentFile.update({
+            where: { id: priorFile.id },
+            data: {
+              storageKey: stored.storageKey,
+              originalFilename: name,
+              pageCount: extraction.pages.length,
+            },
+          })
+        : await tx.corpusDocumentFile.create({
+            data: {
+              documentId: doc.id,
+              storageKey: stored.storageKey,
+              sha256: stored.sha256,
+              sizeBytes: BigInt(stored.sizeBytes),
+              originalFilename: name,
+              mimeType: 'application/pdf',
+              pageCount: extraction.pages.length,
+              version: (currentVersion._max.version ?? 0) + 1,
+            },
+          });
       const extracted = await tx.corpusExtraction.create({
         data: {
           documentId: doc.id,
@@ -842,32 +924,53 @@ export class WorkspaceDocumentService {
         where: { id: doc.id },
         data: { latestExtractionId: extracted.id },
       });
-      await tx.corpusIngestionRecord.create({
-        data: {
+      const idempotencyKey = replaceDocumentId
+        ? `workspace-source:${workspaceId}:${doc.id}:${stored.sha256}`
+        : `workspace:${workspaceId}:${stored.sha256}`;
+      await tx.corpusIngestionRecord.upsert({
+        where: { idempotencyKey },
+        update: {
           sourceSystemId: source.id,
           documentId: doc.id,
           fileId: storedFile.id,
           status: doc.status,
           checksum: stored.sha256,
-          idempotencyKey: `workspace:${workspaceId}:${stored.sha256}`,
+          idempotencyKey,
           originalFilename: name,
-          metadataOriginal: { source: 'workspace-upload' },
+          metadataOriginal: {
+            source: replaceDocumentId ? 'workspace-source' : 'workspace-upload',
+          },
         },
-      });
-      await tx.workspaceDocument.create({
-        data: {
-          workspaceId,
+        create: {
+          sourceSystemId: source.id,
           documentId: doc.id,
-          folderId: folderId ?? null,
-          uploadedById: userId,
+          fileId: storedFile.id,
+          status: doc.status,
+          checksum: stored.sha256,
+          idempotencyKey,
+          originalFilename: name,
+          metadataOriginal: {
+            source: replaceDocumentId ? 'workspace-source' : 'workspace-upload',
+          },
         },
       });
+      if (!replaceDocumentId)
+        await tx.workspaceDocument.create({
+          data: {
+            workspaceId,
+            documentId: doc.id,
+            folderId: folderId ?? null,
+            uploadedById: userId,
+          },
+        });
       await tx.accionLog.create({
         data: {
           usuarioId: userId,
           entidad: 'WorkspaceDocument',
-          accion: 'UPLOAD',
-          descripcion: 'PDF incorporado al espacio privado.',
+          accion: replaceDocumentId ? 'SOURCE_REPROCESS' : 'UPLOAD',
+          descripcion: replaceDocumentId
+            ? 'Versión de fuente documental actualizada.'
+            : 'PDF incorporado al espacio privado.',
           datosDespues: {
             workspaceId,
             documentId: doc.id,

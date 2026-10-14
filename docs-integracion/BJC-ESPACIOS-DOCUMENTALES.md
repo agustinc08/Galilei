@@ -62,6 +62,10 @@ La eliminación física queda fuera del MVP para no borrar blobs compartidos. Re
 
 El Search PHRASE sigue con el estado PARTIAL documentado en `BJC-SEARCH.md`; Sprint 15 no implementa ni optimiza ese camino.
 
+## Fuentes de carpetas de red — Sprint 15.2
+
+Los workspaces admiten fuentes privadas UNC, escaneo en segundo plano y reconciliación incremental por ruta, metadata y SHA. La interfaz ADMIN permite crear, probar, pausar/reactivar e iniciar escaneos; Search muestra sólo el alias de origen. Los endpoints de archivos, runs y errores requieren ACL ADMIN explícita del workspace. `MISSING` no elimina documentos ni blobs. La lectura usa la identidad Windows del backend y requiere permisos SMB/NTFS; no se almacenan credenciales SMB. Especificación, límites y evidencia: `BJC-FUENTES-DOCUMENTALES.md`.
+
 ## Sprint 15.1.1 — rendimiento ACL de TERM privado (2026-10-13)
 
 **Resultado: PARTIAL.** Se mitigó el plan ACL repetitivo mediante mantenimiento de estadísticas local, sin cambiar el modelo de acceso, el SQL de filtrado por workspace ni agregar índices. El conteo TERM sigue exacto y aislado. La meta no queda cerrada porque 1.000 documentos llegó a p95 417 ms (objetivo 400) y 5.000 documentos llegó a p95 839 ms (objetivo 800), con max/p50 4,74× en la búsqueda común. La búsqueda de cero resultados también es costosa por el conteo exacto.

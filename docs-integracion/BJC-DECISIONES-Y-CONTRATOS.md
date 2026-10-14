@@ -133,3 +133,13 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 4. Reusar extracción PDF, páginas, Search AST/adapter y storage SHA existente. Hash igual en dos dependencias conserva dos documentos/vínculos lógicos y comparte un blob. Upload limitado a PDF; OCR_REQUIRED queda visible pero fuera de Search.
 5. Migración aditiva `20261013130000_sprint15_private_document_workspaces`, sólo DEV loopback, sin reindexar CorpusSearchToken. Backup pre-migración: manifiesto verificado Sprint 14.9. No se habilita producción ni aceptación institucional.
 6. Sprint 14.9.2 PHRASE permanece PARTIAL; Sprint 15 no altera ni optimiza esa semántica.
+
+## Decisión Sprint 15.2 — fuentes documentales de workspace (2026-10-13)
+
+1. Cada fuente es propiedad de un workspace; todas las operaciones exigen membership ADMIN activa de ese workspace. El rol global no suple membership.
+2. La carpeta se representa por una UNC, pero el backend accede con la identidad de proceso Windows. No persistir usuario/password SMB ni servir el path UNC a resultados/Search.
+3. MVP procesa sólo PDFs de hasta 20 MiB mediante el pipeline existente. Incrementalidad se confirma por metadata y SHA; renames sólo se aceptan cuando la pareja de hashes es inequívoca.
+4. `MISSING` y `OFFLINE` son estados de reconciliación, nunca órdenes de borrar documentos, vínculos privados o blobs. Sólo reconciliar ausencias después de enumeración completa.
+5. Runs son asíncronos, uno activo por fuente; un reinicio marca los runs abandonados como FAILED para liberar el lock. No se almacenan credenciales SMB.
+6. Search general permanece `GENERAL`. Search privada preserva ACL workspace antes del conteo/página/snippet y puede devolver alias, nunca path. Sin filtro por fuente en esta entrega.
+7. Migración aditiva sólo a DEV loopback tras backup verificado. UNC real y UAT requieren validación posterior con identidad/permisos institucionales. Paridad 40/40 no se afirma sin la fixture SQLite disponible.

@@ -156,6 +156,12 @@ const actions = {
     'pnpm.cmd exec jest --runInBand --testTimeout=120000 --testPathPatterns=workspace-document.integration.spec.ts',
   'sprint1511-postgres-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=300000 --testPathPatterns=workspace-document.integration.spec.ts',
+  'sprint152-source-tests':
+    'pnpm.cmd exec jest --runInBand --testTimeout=300000 --testPathPatterns=document-source.integration.spec.ts',
+  'sprint152-search-smoke':
+    'pnpm.cmd exec ts-node scripts/dev/sprint152-search-smoke.ts',
+  'sprint152-backup-before':
+    'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts',
   'sprint15-full-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=300000',
   'sprint151-ui-tests': 'node scripts/dev/sprint151-ui-run.cjs',
@@ -286,6 +292,7 @@ const childEnv = {
   SPRINT9_POSTGRES_TEST: action === 'sprint9-postgres-tests' ? '1' : '',
   SPRINT10_POSTGRES_TEST: action === 'sprint10-postgres-tests' ? '1' : '',
   SPRINT15_POSTGRES_TEST: action === 'sprint15-postgres-tests' || action === 'sprint15-full-tests' || action === 'sprint1511-postgres-tests' ? '1' : '',
+  SPRINT152_SOURCE_TEST: action === 'sprint152-source-tests' ? '1' : '',
   BJC_SPRINT1511_PHASE: action === 'sprint1511-postgres-tests' || action === 'sprint15-full-tests' ? 'after' : process.env.BJC_SPRINT1511_PHASE,
   BJC_SEARCH_PROFILE: action === 'sprint11-search-profile' || action.startsWith('sprint121-search-') || action.startsWith('sprint122-search-') || action.startsWith('sprint123-search-') || action.startsWith('sprint148-search-') || action.startsWith('sprint149-search-') || action.startsWith('sprint1491-search-') || action.startsWith('sprint1492-search-') || action === 'sprint121-concurrency' || action === 'sprint122-concurrency' || action === 'sprint123-concurrency' || action === 'sprint149-concurrency' || action === 'sprint1492-concurrency' ? 'true' : '',
   BJC_SEARCH_STATEMENT_TIMEOUT_MS: action === 'sprint1492-parity' ? '4500' : process.env.BJC_SEARCH_STATEMENT_TIMEOUT_MS,
@@ -296,9 +303,10 @@ const childEnv = {
   BJC_SPRINT149: action.startsWith('sprint149-') ? 'true' : '',
   BJC_SPRINT1491: action.startsWith('sprint1491-') ? 'true' : '',
   BJC_SPRINT1492: action.startsWith('sprint1492-') ? 'true' : '',
+  BJC_SPRINT152: action.startsWith('sprint152-') ? 'true' : '',
   BJC_SPRINT_PROFILE_ROOT: action.startsWith('sprint1492-profile-') ? path.resolve(__dirname, '../../../_recovery-work/sprint1492') : '',
   BJC_SPRINT_PROFILE_SKIP_DIRECT: action.startsWith('sprint1492-profile-') ? 'true' : '',
-  NODE_OPTIONS: action === 'sprint15-postgres-tests' || action === 'sprint15-full-tests' || action === 'sprint1511-postgres-tests' ? '--experimental-vm-modules' : action === 'sprint122-concurrency' ? '--trace-warnings' : process.env.NODE_OPTIONS,
+  NODE_OPTIONS: action === 'sprint15-postgres-tests' || action === 'sprint15-full-tests' || action === 'sprint1511-postgres-tests' || action === 'sprint152-source-tests' ? '--experimental-vm-modules' : action === 'sprint122-concurrency' ? '--trace-warnings' : process.env.NODE_OPTIONS,
   BJC_BENCHMARK_OUTPUT_ROOT: action === 'sprint121-parity' ? 'sprint121' : action === 'sprint122-parity' ? 'sprint122' : action === 'sprint123-parity' ? 'sprint123' : action === 'sprint148-parity' ? 'sprint148' : action === 'sprint149-parity' ? 'sprint149' : action === 'sprint1492-parity' ? 'sprint1492' : '',
   BJC_BENCHMARK_OUTPUT_PATH: action === 'sprint121-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint121/parity/benchmark.json') : action === 'sprint122-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint122/parity/benchmark.json') : action === 'sprint123-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint123/parity/benchmark.json') : action === 'sprint148-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint148/parity/benchmark.json') : action === 'sprint149-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint149/parity/benchmark.json') : action === 'sprint1492-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint1492/parity/benchmark.json') : '',
   BJC_CONCURRENCY_WAVES: action === 'sprint149-concurrency' || action === 'sprint1492-concurrency' ? '1,5,10' : process.env.BJC_CONCURRENCY_WAVES,

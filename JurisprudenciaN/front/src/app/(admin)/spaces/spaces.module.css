@@ -138,6 +138,16 @@
 .adminList { display: grid; gap: 5px; }
 .adminLine { align-items: flex-start; }
 .adminIdentity { display: grid; gap: 3px; }
+.sourceList { display: grid; gap: 10px; margin-top: 18px; }
+.sourceRow { display: flex; justify-content: space-between; gap: 14px; padding: 14px 0; border-top: 1px solid #e6ecf1; }
+.sourceDetails { display: grid; gap: 5px; min-width: 0; }
+.sourceDetails code { color: #455b6e; overflow-wrap: anywhere; }
+.sourceDetails small { color: #667085; }
+.sourceActions { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.sourceActions button { min-height: 40px; padding: 8px 13px; border: 1px solid #9ab2c6; border-radius: 7px; color: #17445d; background: #fff; font-weight: 700; cursor: pointer; }
+.sourceActions button:disabled { opacity: .55; cursor: not-allowed; }
+.sourceConnected { color: #19633a; font-weight: 700; }
+.sourceError { color: #8c2821 !important; }
 .emptyState { padding: 18px; border-radius: 8px; color: #667085; background: #f6f8fa; line-height: 1.5; }
 .modalBackdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(16, 24, 40, .48); }
 .modal { display: grid; gap: 15px; width: min(100%, 460px); padding: 22px; border-radius: 12px; background: #fff; box-shadow: 0 18px 60px rgba(0,0,0,.22); }
@@ -150,5 +160,6 @@
   .documentCard { grid-template-columns: 1fr; }
   .documentActions { justify-content: flex-start; }
   .memberRow, .adminLine { align-items: flex-start; flex-direction: column; }
+  .sourceRow { align-items: flex-start; flex-direction: column; }
   .memberActions { justify-content: flex-start; }
 }

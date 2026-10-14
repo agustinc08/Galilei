@@ -63,6 +63,36 @@ type ActivityItem = {
   nombre: string;
   apellido: string | null;
 };
+type SourceRun = {
+  id: string;
+  status: string;
+  scanComplete: boolean;
+  filesSeen: number;
+  indexedCount: number;
+  newCount: number;
+  modifiedCount: number;
+  unchangedCount: number;
+  metadataOnlyCount: number;
+  renamedCount: number;
+  missingCount: number;
+  unsupportedCount: number;
+  errorCount: number;
+  hashCount: number;
+  totalDurationMs: number;
+  errorMessage: string | null;
+};
+type DocumentSource = {
+  id: string;
+  name: string;
+  type: string;
+  path: string;
+  enabled: boolean;
+  status: string;
+  lastError: string | null;
+  lastSuccessfulScanAt: string | null;
+  fileCount: number;
+  lastRun: SourceRun | null;
+};
 type SearchResult = {
   id: string;
   sourceId: string;
@@ -227,6 +257,11 @@ export default function PrivateSpacesPage() {
   const [depType, setDepType] = useState("JUZGADO");
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [sources, setSources] = useState<DocumentSource[]>([]);
+  const [sourceName, setSourceName] = useState("");
+  const [sourcePath, setSourcePath] = useState("");
+  const [sourceTestStatus, setSourceTestStatus] = useState("");
+  const [sourceBusy, setSourceBusy] = useState(false);
   const [memberQuery, setMemberQuery] = useState("");
   const [memberCandidates, setMemberCandidates] = useState<MemberCandidate[]>(
     [],
@@ -280,8 +315,12 @@ export default function PrivateSpacesPage() {
           api.get<WorkspaceMember[]>(`/workspaces/${nextId}/members`),
           api.get<ActivityItem[]>(`/workspaces/${nextId}/activity`),
         ]);
+        const nextSources = await api.get<DocumentSource[]>(
+          `/workspaces/${nextId}/sources`,
+        );
         setMembers(nextMembers);
         setActivity(nextActivity);
+        setSources(nextSources);
         setMemberRoleDrafts(
           Object.fromEntries(
             nextMembers.map((member) => [member.userId, member.role]),
@@ -290,6 +329,7 @@ export default function PrivateSpacesPage() {
       } else {
         setMembers([]);
         setActivity([]);
+        setSources([]);
       }
     },
     [folderId, workspaces],
@@ -368,9 +408,94 @@ export default function PrivateSpacesPage() {
       );
   }, [globalAdmin]);
 
+  useEffect(() => {
+    if (
+      selectedWorkspace?.role !== "ADMIN" ||
+      !sources.some((source) =>
+        ["QUEUED", "RUNNING"].includes(source.lastRun?.status ?? ""),
+      )
+    ) return;
+    const timer = window.setInterval(() => {
+      void api
+        .get<DocumentSource[]>(`/workspaces/${workspaceId}/sources`)
+        .then(setSources)
+        .catch(() => undefined);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [selectedWorkspace?.role, sources, workspaceId]);
+
   function clearSearch() {
     setSearchPage(null);
     setNameSearch(null);
+  }
+
+  async function testSourceAccess() {
+    if (!workspaceId || !sourcePath.trim()) return;
+    setSourceBusy(true);
+    setSourceTestStatus("");
+    setError("");
+    try {
+      const result = await api.post<{ status: string }>(
+        `/workspaces/${workspaceId}/sources/test-access`,
+        { path: sourcePath },
+      );
+      setSourceTestStatus(result.status);
+    } catch (cause) {
+      setError(friendlyError(cause, "No se pudo probar el acceso a la fuente."));
+    } finally {
+      setSourceBusy(false);
+    }
+  }
+
+  async function createSource(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspaceId || sourceTestStatus !== "CONNECTED") return;
+    setSourceBusy(true);
+    setError("");
+    try {
+      await api.post(`/workspaces/${workspaceId}/sources`, {
+        name: sourceName,
+        path: sourcePath,
+      });
+      setSources(await api.get<DocumentSource[]>(`/workspaces/${workspaceId}/sources`));
+      setSourceName("");
+      setSourcePath("");
+      setSourceTestStatus("");
+      setNotice("Fuente documental creada.");
+    } catch (cause) {
+      setError(friendlyError(cause, "No se pudo crear la fuente documental."));
+    } finally {
+      setSourceBusy(false);
+    }
+  }
+
+  async function scanSource(source: DocumentSource) {
+    setSourceBusy(true);
+    setError("");
+    try {
+      await api.post(`/workspaces/${workspaceId}/sources/${source.id}/scan`);
+      setSources(await api.get<DocumentSource[]>(`/workspaces/${workspaceId}/sources`));
+      setNotice(`Escaneo iniciado para ${source.name}.`);
+    } catch (cause) {
+      setError(friendlyError(cause, "No se pudo iniciar el escaneo."));
+    } finally {
+      setSourceBusy(false);
+    }
+  }
+
+  async function toggleSource(source: DocumentSource) {
+    setSourceBusy(true);
+    setError("");
+    try {
+      await api.patch(`/workspaces/${workspaceId}/sources/${source.id}`, {
+        enabled: !source.enabled,
+      });
+      setSources(await api.get<DocumentSource[]>(`/workspaces/${workspaceId}/sources`));
+    } catch (cause) {
+      setError(friendlyError(cause, "No se pudo actualizar la fuente."));
+    } finally {
+      setSourceBusy(false);
+    }
   }
 
   async function createWorkspace() {
@@ -888,6 +1013,10 @@ export default function PrivateSpacesPage() {
                       )}
                       <div className={styles.resultMeta}>
                         <span>Página {page}</span>
+                        {typeof result.metadata.sourceName === "string" &&
+                          result.metadata.sourceName && (
+                            <span>Fuente: {result.metadata.sourceName}</span>
+                          )}
                         <span>
                           Carpeta:{" "}
                           {folderPath(
@@ -1246,6 +1375,90 @@ export default function PrivateSpacesPage() {
               </p>
             )}
           </Card>
+
+          {selectedWorkspace?.role === "ADMIN" && (
+            <Card>
+              <div>
+                <p className={styles.eyebrow}>Copernic 2.0</p>
+                <h2>Fuentes documentales</h2>
+                <p className={styles.muted}>
+                  Galilei usa la identidad del backend para leer carpetas UNC.
+                  No se guardan credenciales de red.
+                </p>
+              </div>
+              <form className={styles.inlineForm} onSubmit={(event) => void createSource(event)}>
+                <label>
+                  Nombre
+                  <input
+                    value={sourceName}
+                    onChange={(event) => setSourceName(event.target.value)}
+                    maxLength={120}
+                    placeholder="Sentencias 2026"
+                  />
+                </label>
+                <label>
+                  Ruta de red
+                  <input
+                    value={sourcePath}
+                    onChange={(event) => {
+                      setSourcePath(event.target.value);
+                      setSourceTestStatus("");
+                    }}
+                    placeholder={String.raw`\\servidor\share\carpeta`}
+                    spellCheck={false}
+                    autoCapitalize="off"
+                  />
+                </label>
+                <button type="button" disabled={sourceBusy || !sourcePath.trim()} onClick={() => void testSourceAccess()}>
+                  Probar acceso
+                </button>
+                <button className={styles.primaryButton} disabled={sourceBusy || !sourceName.trim() || sourceTestStatus !== "CONNECTED"}>
+                  Guardar fuente
+                </button>
+                {sourceTestStatus && (
+                  <span role="status" className={sourceTestStatus === "CONNECTED" ? styles.sourceConnected : styles.sourceError}>
+                    {sourceTestStatus === "CONNECTED" ? "Conectada" : `Acceso: ${sourceTestStatus.replaceAll("_", " ").toLowerCase()}`}
+                  </span>
+                )}
+              </form>
+              {sources.length ? (
+                <div className={styles.sourceList}>
+                  {sources.map((source) => {
+                    const run = source.lastRun;
+                    const active = run && ["QUEUED", "RUNNING"].includes(run.status);
+                    return (
+                      <article className={styles.sourceRow} key={source.id}>
+                        <div className={styles.sourceDetails}>
+                          <strong>{source.name}</strong>
+                          <code>{source.path}</code>
+                          <small>
+                            Estado: {source.status.replaceAll("_", " ").toLowerCase()} · {source.enabled ? "Activa" : "Pausada"} · {source.fileCount} registros
+                          </small>
+                          {run && (
+                            <small>
+                              Último run: {run.status.toLowerCase()} · {run.filesSeen} vistos · {run.indexedCount} disponibles · {run.newCount} nuevos · {run.modifiedCount} modificados · {run.unchangedCount} sin cambios · {run.missingCount} ausentes · {run.errorCount} errores · {run.hashCount} hashes · {run.totalDurationMs} ms
+                            </small>
+                          )}
+                          {source.lastError && <small className={styles.sourceError}>{source.lastError}</small>}
+                          {run?.errorMessage && <small className={styles.sourceError}>{run.errorMessage}</small>}
+                        </div>
+                        <div className={styles.sourceActions}>
+                          <button disabled={sourceBusy || !source.enabled || Boolean(active)} onClick={() => void scanSource(source)}>
+                            {active ? "Escaneando…" : "Escanear ahora"}
+                          </button>
+                          <button disabled={sourceBusy || Boolean(active)} onClick={() => void toggleSource(source)}>
+                            {source.enabled ? "Pausar" : "Reanudar"}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className={styles.emptyState}>Todavía no hay fuentes en este espacio.</p>
+              )}
+            </Card>
+          )}
 
           {selectedWorkspace?.role === "ADMIN" && (
             <Card>
