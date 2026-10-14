@@ -86,3 +86,7 @@ Copernic manda filtros de tipo PDF/TXT y fecha desde/hasta al backend junto con 
 Search sigue entregando el span exacto de la página extraída. PDF.js se mapea por item/local offset; cuando texto, contexto y ordinal no señalan un lugar único, la coincidencia permanece navegable por página y snippet, con un aviso `role=status` y sin marca visual. La prueba detectó y corrigió la carrera en que el text layer terminaba antes de Search: el mapa de PDF.js ahora se conserva y se recalcula al llegar los spans.
 
 Una muestra real de 25 PDFs/827 páginas produjo 138 mappings seguros y cero falsos; 83 spans no pudieron ubicarse de forma confiable, sobre todo en TERM/PHRASE con diferencias de whitespace y saltos de línea. El estado es PARTIAL: la UI demuestra un highlight real visible y fallback seguro, pero no promete mapping para todo PDF jurídico. Evidencia y capturas locales ignoradas en `_recovery-work/sprint1532/`; sin cambio de contrato Search ni ACL.
+
+## Sprint 15.3.3 — cobertura de texto PDF.js
+
+En la muestra base real, el Viewer ubicó 221/221 spans auditados sin falsos highlights; TERM 25/25 y PHRASE 18/18 quedaron visibles. Diez recuperaciones de baseline se revisaron en navegador con resize y carrera de requests. El mapeo requiere misma secuencia de glifos no blancos, preserva puntuación y distingue `ñ`; separadores entre items necesitan evidencia de fin de línea o geometría. Ambigüedad o falta de capa mantiene fallback sin marca. La certificación cubre las muestras y clases observadas, no PDF/OCR arbitrarios; aceptación de usuarios sigue PENDING.

@@ -28,8 +28,10 @@ export type PdfTextSegment = {
 
 export type PdfMatchMappingStatus =
   | 'DIRECT_EXACT'
-  | 'CONTEXT_EXACT'
+  | 'SEGMENTED_EXACT'
   | 'NORMALIZED_EXACT'
+  | 'CONTEXT_EXACT'
+  | 'CONTEXT_NORMALIZED_EXACT'
   | 'AMBIGUOUS'
   | 'UNMAPPABLE'
   | 'NO_TEXT_LAYER';
@@ -45,9 +47,30 @@ export type PdfMatchMapping = {
 
 type Origin = { itemIndex: number; start: number; end: number };
 type NormalizedUnit = { rawStart: number; rawEnd: number; origins: Origin[] };
+type NonWhitespaceUnit = {
+  text: string;
+  rawStart: number;
+  rawEnd: number;
+  origins: Origin[];
+};
+
+export type PdfTextPageAlignmentStatus =
+  | 'EXACT'
+  | 'WHITESPACE_EQUIVALENT'
+  | 'NON_WHITESPACE_DIFFERENCE';
+
+type PdfTextPageAlignment = {
+  status: PdfTextPageAlignmentStatus;
+  sourceText: string;
+  normalizedSourceText: string;
+  sourceUnits: NonWhitespaceUnit[];
+  pdfUnits: NonWhitespaceUnit[];
+};
 
 export type PdfTextPageMap = {
   rawText: string;
+  rawOrigins: Array<Origin | null>;
+  nonWhitespaceUnits: NonWhitespaceUnit[];
   normalizedText: string;
   normalizedUnits: NormalizedUnit[];
   itemCount: number;
@@ -63,6 +86,7 @@ export type PdfTextPageMap = {
     width?: number;
     height?: number;
   }>;
+  alignment?: PdfTextPageAlignment;
 };
 
 function normalizeSpanText(value: string) {
@@ -86,23 +110,19 @@ function allOccurrences(source: string, needle: string) {
   while (cursor <= source.length - needle.length) {
     const index = source.indexOf(needle, cursor);
     if (index < 0) break;
-    found.push(index);
+    if (isUtf16Boundary(source, index) && isUtf16Boundary(source, index + needle.length)) {
+      found.push(index);
+    }
     cursor = index + 1;
   }
   return found;
 }
 
-function geometryNeedsSeparator(previous: PdfTextItemInput, current: PdfTextItemInput) {
-  if (previous.hasEOL || previous.dir === 'ttb' || current.dir === 'ttb') return false;
-  const prev = previous.transform;
-  const next = current.transform;
-  if (!prev || !next || prev.length < 6 || next.length < 6) return false;
-  if (previous.dir && current.dir && previous.dir !== current.dir) return false;
-  const fontSize = Math.max(1, Math.min(Math.abs(prev[0]) || 1, Math.abs(next[0]) || 1));
-  const sameBaseline = Math.abs(prev[5] - next[5]) <= Math.max(1, fontSize * 0.25);
-  if (!sameBaseline) return false;
-  const gap = next[4] - (prev[4] + (previous.width ?? 0));
-  return gap > Math.max(1.5, fontSize * 0.2);
+function isUtf16Boundary(value: string, index: number) {
+  if (index <= 0 || index >= value.length) return true;
+  const previous = value.charCodeAt(index - 1);
+  const current = value.charCodeAt(index);
+  return !(previous >= 0xd800 && previous <= 0xdbff && current >= 0xdc00 && current <= 0xdfff);
 }
 
 function appendRaw(
@@ -135,17 +155,59 @@ function uniqueOrigins(origins: Array<Origin | null>) {
   return result;
 }
 
+function buildNormalizedUnits(rawText: string, rawOrigins: Array<Origin | null>) {
+  const normalizedUnits: NormalizedUnit[] = [];
+  const pageNonWhitespaceUnits: NonWhitespaceUnit[] = [];
+  let normalizedText = '';
+  let index = 0;
+  while (index < rawText.length) {
+    const start = index;
+    const first = String.fromCodePoint(rawText.codePointAt(index)!);
+    if (/^\s$/u.test(first)) {
+      index += first.length;
+      while (index < rawText.length) {
+        const next = String.fromCodePoint(rawText.codePointAt(index)!);
+        if (!/^\s$/u.test(next)) break;
+        index += next.length;
+      }
+      normalizedText += ' ';
+      normalizedUnits.push({
+        rawStart: start,
+        rawEnd: index,
+        origins: uniqueOrigins(rawOrigins.slice(start, index)),
+      });
+      continue;
+    }
+
+    let cluster = first;
+    index += first.length;
+    while (index < rawText.length) {
+      const next = String.fromCodePoint(rawText.codePointAt(index)!);
+      if (!/^\p{M}$/u.test(next)) break;
+      cluster += next;
+      index += next.length;
+    }
+    pageNonWhitespaceUnits.push({
+      text: cluster.normalize('NFC'),
+      rawStart: start,
+      rawEnd: index,
+      origins: uniqueOrigins(rawOrigins.slice(start, index)),
+    });
+    const normalized = normalizeSpanText(cluster);
+    const origins = uniqueOrigins(rawOrigins.slice(start, index));
+    normalizedText += normalized;
+    for (let unit = 0; unit < normalized.length; unit += 1) {
+      normalizedUnits.push({ rawStart: start, rawEnd: index, origins });
+    }
+  }
+  return { normalizedText, normalizedUnits, nonWhitespaceUnits: pageNonWhitespaceUnits };
+}
+
 export function buildPdfTextPageMap(inputItems: PdfTextItemInput[]): PdfTextPageMap {
   const state = { text: '', origins: [] as Array<Origin | null> };
   const items: PdfTextPageMap['items'] = [];
-  let previousNonEmpty: PdfTextItemInput | undefined;
   inputItems.forEach((item, arrayIndex) => {
     const itemIndex = item.itemIndex ?? arrayIndex;
-    if (item.str && previousNonEmpty &&
-        !/\s$/u.test(state.text) && !/^\s/u.test(item.str) &&
-        geometryNeedsSeparator(previousNonEmpty, item)) {
-      appendRaw(state, ' ', null);
-    }
     const start = state.text.length;
     appendRaw(state, item.str, itemIndex);
     const end = state.text.length;
@@ -160,94 +222,209 @@ export function buildPdfTextPageMap(inputItems: PdfTextItemInput[]): PdfTextPage
       width: item.width,
       height: item.height,
     });
-    if (item.str) previousNonEmpty = item;
     if (item.hasEOL) appendRaw(state, '\n', null);
   });
-
-  const normalizedUnits: NormalizedUnit[] = [];
-  let normalizedText = '';
-  let index = 0;
-  while (index < state.text.length) {
-    const start = index;
-    const first = String.fromCodePoint(state.text.codePointAt(index)!);
-    if (/^\s$/u.test(first)) {
-      const whitespaceOrigins: Array<Origin | null> = [];
-      index += first.length;
-      whitespaceOrigins.push(state.origins.slice(start, index).at(0) ?? null);
-      while (index < state.text.length) {
-        const next = String.fromCodePoint(state.text.codePointAt(index)!);
-        if (!/^\s$/u.test(next)) break;
-        whitespaceOrigins.push(state.origins[index] ?? null);
-        index += next.length;
-      }
-      normalizedText += ' ';
-      normalizedUnits.push({
-        rawStart: start,
-        rawEnd: index,
-        origins: uniqueOrigins(whitespaceOrigins),
-      });
-      continue;
-    }
-
-    let cluster = first;
-    index += first.length;
-    while (index < state.text.length) {
-      const next = String.fromCodePoint(state.text.codePointAt(index)!);
-      if (!/^\p{M}$/u.test(next)) break;
-      cluster += next;
-      index += next.length;
-    }
-    const normalized = normalizeSpanText(cluster);
-    const origins = uniqueOrigins(state.origins.slice(start, index));
-    normalizedText += normalized;
-    for (let unit = 0; unit < normalized.length; unit += 1) {
-      normalizedUnits.push({ rawStart: start, rawEnd: index, origins });
-    }
-  }
-
+  const normalized = buildNormalizedUnits(state.text, state.origins);
   return {
     rawText: state.text,
-    normalizedText,
-    normalizedUnits,
+    rawOrigins: state.origins,
+    nonWhitespaceUnits: normalized.nonWhitespaceUnits,
+    normalizedText: normalized.normalizedText,
+    normalizedUnits: normalized.normalizedUnits,
     itemCount: inputItems.length,
     nonEmptyItemCount: inputItems.filter((item) => item.str.length > 0).length,
     items,
   };
 }
 
-function anchorsMatch(
-  pageText: string,
-  matchStart: number,
-  matchEnd: number,
-  contextBefore: string,
-  contextAfter: string,
-) {
-  const before = normalizeSpanText(contextBefore);
-  const after = normalizeSpanText(contextAfter);
-  const beforeAnchor = before.slice(-Math.min(32, before.length));
-  const afterAnchor = after.slice(0, Math.min(32, after.length));
-  const actualBefore = pageText.slice(Math.max(0, matchStart - beforeAnchor.length), matchStart);
-  const actualAfter = pageText.slice(matchEnd, matchEnd + afterAnchor.length);
+function nonWhitespaceUnits(value: string, origins?: Array<Origin | null>): NonWhitespaceUnit[] {
+  const units: NonWhitespaceUnit[] = [];
+  let index = 0;
+  while (index < value.length) {
+    const rawStart = index;
+    let text = String.fromCodePoint(value.codePointAt(index)!);
+    index += text.length;
+    if (/^\s$/u.test(text)) continue;
+    while (index < value.length) {
+      const next = String.fromCodePoint(value.codePointAt(index)!);
+      if (!/^\p{M}$/u.test(next)) break;
+      text += next;
+      index += next.length;
+    }
+    units.push({
+      text: text.normalize('NFC'),
+      rawStart,
+      rawEnd: index,
+      origins: origins ? uniqueOrigins(origins.slice(rawStart, index)) : [],
+    });
+  }
+  return units;
+}
+
+/** Aligns source offsets to PDF.js glyphs only when every non-whitespace code point is preserved in order. */
+export function alignPdfTextPageMap(page: PdfTextPageMap, sourceText: string): PdfTextPageMap {
+  const sourceUnits = nonWhitespaceUnits(sourceText);
+  const pdfUnits = page.nonWhitespaceUnits;
+  const sameNonWhitespace = sourceUnits.length === pdfUnits.length &&
+    sourceUnits.every((unit, index) => unit.text === pdfUnits[index]?.text);
   return {
-    hasContext: Boolean(beforeAnchor || afterAnchor),
-    matches: (!beforeAnchor || actualBefore === beforeAnchor) &&
-      (!afterAnchor || actualAfter === afterAnchor),
+    ...page,
+    alignment: {
+      status: !sameNonWhitespace
+        ? 'NON_WHITESPACE_DIFFERENCE'
+        : sourceText === page.rawText
+          ? 'EXACT'
+          : 'WHITESPACE_EQUIVALENT',
+      sourceText,
+      normalizedSourceText: normalizeSpanText(sourceText),
+      sourceUnits,
+      pdfUnits,
+    },
   };
 }
 
-function segmentsForRange(page: PdfTextPageMap, start: number, end: number): PdfTextSegment[] {
-  const origins = page.normalizedUnits.slice(start, end).flatMap((unit) => unit.origins);
-  const ordered = origins.sort((left, right) => left.itemIndex - right.itemIndex || left.start - right.start);
+function geometryConfirmsWhitespace(page: PdfTextPageMap, left: NonWhitespaceUnit, right: NonWhitespaceUnit) {
+  const previousOrigin = left.origins.at(-1);
+  const currentOrigin = right.origins[0];
+  if (!previousOrigin || !currentOrigin || previousOrigin.itemIndex === currentOrigin.itemIndex) return false;
+  const previous = page.items.find((item) => item.itemIndex === previousOrigin.itemIndex);
+  const current = page.items.find((item) => item.itemIndex === currentOrigin.itemIndex);
+  if (!previous || !current || previous.hasEOL || previous.dir === 'ttb' || current.dir === 'ttb') return false;
+  if (previous.dir && current.dir && previous.dir !== current.dir) return false;
+  const prev = previous.transform;
+  const next = current.transform;
+  if (!prev || !next || prev.length < 6 || next.length < 6) return false;
+  const coordinateScale = Math.max(1, Math.abs(prev[5]), Math.abs(next[5]));
+  const baselineTolerance = Number.EPSILON * coordinateScale * 16;
+  if (Math.abs(prev[5] - next[5]) > baselineTolerance) return false;
+  if (!Number.isFinite(previous.width) || previous.width! <= 0) return false;
+  const gap = next[4] - (prev[4] + previous.width!);
+  // The source extraction confirms a separator here; positive same-baseline space is the secondary PDF evidence.
+  return Number.isFinite(gap) && gap > 0;
+}
+
+function segmentsForRawRange(page: PdfTextPageMap, start: number, end: number): PdfTextSegment[] {
   const segments: PdfTextSegment[] = [];
-  for (const origin of ordered) {
+  for (let index = start; index < end; index += 1) {
+    const origin = page.rawOrigins[index];
+    if (!origin) continue;
     const previous = segments.at(-1);
     if (previous && previous.itemIndex === origin.itemIndex && origin.start <= previous.endInItem) {
       previous.endInItem = Math.max(previous.endInItem, origin.end);
-    } else if (!segments.some((item) => item.itemIndex === origin.itemIndex && item.startInItem === origin.start && item.endInItem === origin.end)) {
+    } else {
       segments.push({ itemIndex: origin.itemIndex, startInItem: origin.start, endInItem: origin.end });
     }
   }
   return segments;
+}
+
+function mappedByAlignedOffsets(page: PdfTextPageMap, match: PdfMatchInput, needle: string): PdfMatchMapping | null {
+  const alignment = page.alignment;
+  if (!alignment || alignment.status === 'NON_WHITESPACE_DIFFERENCE') return null;
+  const fail = (reason: string): PdfMatchMapping => ({
+    ordinal: match.ordinal,
+    status: 'UNMAPPABLE',
+    segments: [],
+    reason,
+  });
+  if (!Number.isInteger(match.start) || !Number.isInteger(match.end) ||
+      match.start < 0 || match.end <= match.start || match.end > alignment.sourceText.length ||
+      !isUtf16Boundary(alignment.sourceText, match.start) || !isUtf16Boundary(alignment.sourceText, match.end)) {
+    return fail('INVALID_SOURCE_OFFSETS');
+  }
+  const sourceSpan = alignment.sourceText.slice(match.start, match.end);
+  if (normalizeSpanText(sourceSpan) !== needle ||
+      (match.text && normalizeSpanText(sourceSpan) !== normalizeSpanText(match.text))) {
+    return fail('SOURCE_SPAN_TEXT_MISMATCH');
+  }
+
+  const overlapping = alignment.sourceUnits
+    .map((unit, index) => ({ unit, index }))
+    .filter(({ unit }) => unit.rawEnd > match.start && unit.rawStart < match.end);
+  if (!overlapping.length || overlapping.some(({ unit }) => unit.rawStart < match.start || unit.rawEnd > match.end)) {
+    return fail('SOURCE_OFFSETS_SPLIT_GLYPH');
+  }
+  const firstIndex = overlapping[0].index;
+  const lastIndex = overlapping.at(-1)!.index;
+  const firstPdf = alignment.pdfUnits[firstIndex];
+  const lastPdf = alignment.pdfUnits[lastIndex];
+  if (!firstPdf?.origins.length || !lastPdf?.origins.length) return fail('NO_PDF_GLYPH_ORIGIN');
+
+  for (let index = firstIndex + 1; index <= lastIndex; index += 1) {
+    const leftSource = alignment.sourceUnits[index - 1];
+    const rightSource = alignment.sourceUnits[index];
+    const leftPdf = alignment.pdfUnits[index - 1];
+    const rightPdf = alignment.pdfUnits[index];
+    const sourceSeparator = /\s/u.test(alignment.sourceText.slice(leftSource.rawEnd, rightSource.rawStart));
+    const pdfSeparator = /\s/u.test(page.rawText.slice(leftPdf.rawEnd, rightPdf.rawStart));
+    if (sourceSeparator && !pdfSeparator && !geometryConfirmsWhitespace(page, leftPdf, rightPdf)) {
+      return fail('SOURCE_WHITESPACE_WITHOUT_PDF_EVIDENCE');
+    }
+    if (!sourceSeparator && pdfSeparator) return fail('PDF_SEPARATOR_NOT_IN_SOURCE_SPAN');
+  }
+
+  const segments = segmentsForRawRange(page, firstPdf.rawStart, lastPdf.rawEnd);
+  if (!segments.length) return fail('NO_VISIBLE_GLYPH_SEGMENTS');
+  const rawCandidate = page.rawText.slice(firstPdf.rawStart, lastPdf.rawEnd);
+  const itemCount = new Set(segments.map((segment) => segment.itemIndex)).size;
+  const isDirect = alignment.status === 'EXACT' && itemCount === 1 &&
+    firstPdf.rawStart === overlapping[0].unit.rawStart &&
+    lastPdf.rawEnd === overlapping.at(-1)!.unit.rawEnd &&
+    rawCandidate === sourceSpan;
+  const status: PdfMatchMappingStatus = isDirect
+    ? 'DIRECT_EXACT'
+    : itemCount > 1
+      ? 'SEGMENTED_EXACT'
+      : 'NORMALIZED_EXACT';
+  return {
+    ordinal: match.ordinal,
+    status,
+    segments,
+    normalizedStart: firstIndex,
+    normalizedEnd: lastIndex + 1,
+  };
+}
+
+function takeTailCodePoints(value: string, count: number) {
+  return Array.from(value).slice(-count).join('');
+}
+
+function takeHeadCodePoints(value: string, count: number) {
+  return Array.from(value).slice(0, count).join('');
+}
+
+function contextWindows(match: PdfMatchInput) {
+  const before = normalizeSpanText(match.contextBefore ?? '');
+  const after = normalizeSpanText(match.contextAfter ?? '');
+  const windows = [16, 32, 64].map((size) => ({
+    before: takeTailCodePoints(before, size),
+    after: takeHeadCodePoints(after, size),
+  }));
+  return windows.filter((window, index) =>
+    (window.before || window.after) &&
+    windows.findIndex((candidate) => candidate.before === window.before && candidate.after === window.after) === index,
+  );
+}
+
+function matchesContext(pageText: string, start: number, end: number, window: { before: string; after: string }) {
+  const actualBefore = pageText.slice(Math.max(0, start - window.before.length), start);
+  const actualAfter = pageText.slice(end, end + window.after.length);
+  return (!window.before || actualBefore === window.before) &&
+    (!window.after || actualAfter === window.after);
+}
+
+function hasExactRawContext(page: PdfTextPageMap, start: number, end: number, match: PdfMatchInput) {
+  const before = match.contextBefore ?? '';
+  const after = match.contextAfter ?? '';
+  if (!before && !after) return false;
+  return page.rawText.slice(Math.max(0, start - before.length), start) === before &&
+    page.rawText.slice(end, end + after.length) === after;
+}
+
+function segmentsForNormalizedRange(page: PdfTextPageMap, start: number, end: number): PdfTextSegment[] {
+  const units = page.normalizedUnits.slice(start, end);
+  if (!units.length) return [];
+  return segmentsForRawRange(page, units[0].rawStart, units.at(-1)!.rawEnd);
 }
 
 export function mapPdfMatch(page: PdfTextPageMap, match: PdfMatchInput): PdfMatchMapping {
@@ -262,57 +439,75 @@ export function mapPdfMatch(page: PdfTextPageMap, match: PdfMatchInput): PdfMatc
   const needle = normalizeSpanText(rawNeedle);
   if (!needle) return fail('UNMAPPABLE', 'EMPTY_MATCH_TEXT');
 
+  const aligned = mappedByAlignedOffsets(page, match, needle);
+  if (aligned) return aligned;
+
   const candidates = allOccurrences(page.normalizedText, needle);
   if (!candidates.length) return fail('UNMAPPABLE', 'MATCH_TEXT_NOT_IN_TEXT_LAYER');
-  const contextual = candidates.filter((start) => anchorsMatch(
-    page.normalizedText,
-    start,
-    start + needle.length,
-    match.contextBefore ?? '',
-    match.contextAfter ?? '',
-  ).matches);
-  const anchor = (start: number) => anchorsMatch(
-    page.normalizedText,
-    start,
-    start + needle.length,
-    match.contextBefore ?? '',
-    match.contextAfter ?? '',
-  );
-  const hasContext = Boolean(normalizeSpanText(match.contextBefore ?? '') || normalizeSpanText(match.contextAfter ?? ''));
+  const windows = contextWindows(match);
+  let contextual = candidates;
+  let usedContext = false;
+  for (const window of windows) {
+    const filtered = contextual.filter((start) => matchesContext(
+      page.normalizedText,
+      start,
+      start + needle.length,
+      window,
+    ));
+    if (!filtered.length) {
+      if (!usedContext) return fail('UNMAPPABLE', 'CONTEXT_ANCHOR_MISMATCH');
+      break;
+    }
+    contextual = filtered;
+    usedContext = true;
+    if (contextual.length === 1) break;
+  }
 
   let selected: number | undefined;
   if (contextual.length === 1) selected = contextual[0];
   else if (contextual.length > 1 && match.pageOccurrenceOrdinal && match.pageOccurrenceOrdinal > 0) {
-    const ordinalCandidate = candidates[match.pageOccurrenceOrdinal - 1];
+    const sourceOccurrences = page.alignment
+      ? allOccurrences(page.alignment.normalizedSourceText, needle)
+      : [];
+    const sameOccurrenceSemantics = sourceOccurrences.length === candidates.length;
+    const ordinalCandidate = sameOccurrenceSemantics
+      ? candidates[match.pageOccurrenceOrdinal - 1]
+      : undefined;
     if (ordinalCandidate !== undefined && contextual.includes(ordinalCandidate)) selected = ordinalCandidate;
     else return fail('AMBIGUOUS', 'ORDINAL_DOES_NOT_DISAMBIGUATE_CONTEXT');
   } else if (contextual.length > 1) return fail('AMBIGUOUS', 'MULTIPLE_CONTEXT_MATCHES');
-  else if (hasContext) return fail('UNMAPPABLE', 'CONTEXT_ANCHOR_MISMATCH');
-  else if (candidates.length === 1 && (!match.pageOccurrenceOrdinal || match.pageOccurrenceOrdinal === 1)) selected = candidates[0];
-  else if (candidates.length > 1 && match.pageOccurrenceOrdinal && match.pageOccurrenceOrdinal > 0) {
-    selected = candidates[match.pageOccurrenceOrdinal - 1];
-    if (selected === undefined) return fail('UNMAPPABLE', 'ORDINAL_OUT_OF_RANGE');
-  } else return fail('AMBIGUOUS', 'REPEATED_TEXT_WITHOUT_ANCHOR');
+  else if (!usedContext && windows.length) return fail('UNMAPPABLE', 'CONTEXT_ANCHOR_MISMATCH');
+  else if (!windows.length && candidates.length === 1) selected = candidates[0];
+  else if (!windows.length && candidates.length > 1 && match.pageOccurrenceOrdinal && match.pageOccurrenceOrdinal > 0) {
+    const sourceOccurrences = page.alignment
+      ? allOccurrences(page.alignment.normalizedSourceText, needle)
+      : [];
+    if (sourceOccurrences.length === candidates.length) selected = candidates[match.pageOccurrenceOrdinal - 1];
+    if (selected === undefined) return fail('AMBIGUOUS', 'ORDINAL_OCCURRENCES_DIFFER');
+  } else if (!windows.length) return fail('AMBIGUOUS', 'REPEATED_TEXT_WITHOUT_ANCHOR');
 
+  if (selected === undefined) return fail('UNMAPPABLE', 'NO_UNIQUE_CONTEXT_ANCHOR');
   const units = page.normalizedUnits.slice(selected, selected + needle.length);
-  if (!units.length || units.some((unit) => !unit.origins.length)) {
-    // Virtual whitespace is allowed inside a phrase, but the visible match must contain glyphs.
-    if (!units.some((unit) => unit.origins.length)) return fail('UNMAPPABLE', 'NO_VISIBLE_GLYPH_SEGMENTS');
+  if (!units.length || units.every((unit) => !unit.origins.length)) {
+    return fail('UNMAPPABLE', 'NO_VISIBLE_GLYPH_SEGMENTS');
   }
-  const segments = segmentsForRange(page, selected, selected + needle.length);
+  const segments = segmentsForNormalizedRange(page, selected, selected + needle.length);
   if (!segments.length) return fail('UNMAPPABLE', 'NO_VISIBLE_GLYPH_SEGMENTS');
 
   const rawStart = units[0].rawStart;
   const rawEnd = units.at(-1)!.rawEnd;
   const rawCandidate = page.rawText.slice(rawStart, rawEnd);
+  if (normalizeSpanText(rawCandidate) !== needle) return fail('UNMAPPABLE', 'MAPPED_TEXT_NORMALIZATION_MISMATCH');
   const direct = rawStart === match.start && rawEnd === match.end && rawCandidate === rawNeedle;
-  const anchorResult = anchor(selected);
-  const normalizedOnly = normalizeSpanText(rawCandidate) !== normalizeSpanText(rawNeedle) || rawCandidate !== rawNeedle;
   const status: PdfMatchMappingStatus = direct
     ? 'DIRECT_EXACT'
-    : anchorResult.hasContext && anchorResult.matches && !normalizedOnly
-      ? 'CONTEXT_EXACT'
-      : 'NORMALIZED_EXACT';
+    : !usedContext && new Set(segments.map((segment) => segment.itemIndex)).size > 1
+      ? 'SEGMENTED_EXACT'
+      : !usedContext
+        ? 'NORMALIZED_EXACT'
+        : hasExactRawContext(page, rawStart, rawEnd, match) && rawCandidate === rawNeedle
+          ? 'CONTEXT_EXACT'
+          : 'CONTEXT_NORMALIZED_EXACT';
   return {
     ordinal: match.ordinal,
     status,

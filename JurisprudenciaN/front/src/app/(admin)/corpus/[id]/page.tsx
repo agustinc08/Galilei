@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { CorpusPdfViewer } from './CorpusPdfViewer';
@@ -24,6 +24,7 @@ type DocumentInfo = {
   source?: { code: string; sourceReference?: string | null; checksum?: string | null } | null;
   file?: { filename: string; pageCount?: number | null; mimeType: string } | null;
   extraction?: { status: string; extractor: string; extractorVersion: string; extractedAt: string; pageCount: number } | null;
+  selectedPage?: { pageNumber: number; text: string } | null;
 };
 type DocumentMatches = {
   total: number;
@@ -87,6 +88,10 @@ export default function CorpusDocumentPage() {
   const [selectionNote, setSelectionNote] = useState('');
   const [curationBusy, setCurationBusy] = useState(false);
   const [pageCount, setPageCount] = useState(0);
+  const [sourcePageState, setSourcePageState] = useState<{ key: string; text: string } | null>(null);
+  const searchRequest = useRef(0);
+  const sourcePageKey = `${params.id}:${page}`;
+  const sourcePageText = sourcePageState?.key === sourcePageKey ? sourcePageState.text : null;
   const role = user?.rol.nombre ?? '';
   const canReview = ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA'].includes(role);
   const canSelectJurisprudence = ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(role) && document?.source?.code === 'JURISPRUDENCIA_LOCAL_PDF';
@@ -118,6 +123,20 @@ export default function CorpusDocumentPage() {
   }, [params.id]);
 
   useEffect(() => {
+    let active = true;
+    void api.get<DocumentInfo>(`/corpus/documents/${params.id}`, {
+      query: { pageNumber: page },
+    }).then((info) => {
+      if (active && info.selectedPage?.pageNumber === page) {
+        setSourcePageState({ key: sourcePageKey, text: info.selectedPage.text });
+      }
+    }).catch(() => {
+      // The PDF viewer keeps its context-only fail-closed fallback when page text is unavailable.
+    });
+    return () => { active = false; };
+  }, [page, params.id, sourcePageKey]);
+
+  useEffect(() => {
     void Promise.all([
       api.get<CurationData>(`/corpus/curation/documents/${params.id}`).then(setCuration),
       api.get<CollectionOption[]>('/corpus/curation/digesto/collections').then(setCollections),
@@ -135,19 +154,27 @@ export default function CorpusDocumentPage() {
 
   const searchInside = async (nextQuery = query) => {
     const clean = nextQuery.trim();
-    if (!clean) { setMatches(null); return; }
+    const requestId = ++searchRequest.current;
+    setMatches(null);
+    setActiveMatch(0);
+    if (!clean) return;
     try {
       const result = await api.get<DocumentMatches>(`/corpus/documents/${params.id}/matches`, { query: { q: clean } });
+      if (requestId !== searchRequest.current) return;
       setMatches(result);
       setActiveMatch(0);
       if (result.matches[0]) setPage(result.matches[0].page);
       setError('');
     } catch (searchError) {
-      setError(searchError instanceof Error ? searchError.message : 'No se pudo buscar en el documento.');
+      if (requestId === searchRequest.current) {
+        setError(searchError instanceof Error ? searchError.message : 'No se pudo buscar en el documento.');
+      }
     }
   };
 
   useEffect(() => {
+    // The URL's initial query starts an async request; its result updates component state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (initialQuery.trim()) void searchInside(initialQuery);
   // URL query is the initial request; later searches are user-driven.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -183,14 +210,22 @@ export default function CorpusDocumentPage() {
         <span>{pageCount ? `de ${pageCount}` : ''}</span>
         <button type="button" onClick={() => setPage((value) => Math.min(pageCount || value + 1, value + 1))}>Página siguiente</button>
         <form onSubmit={(event) => { event.preventDefault(); void searchInside(); }}>
-          <input aria-label="Buscar en este documento" placeholder="Buscar en este documento" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <input aria-label="Buscar en este documento" placeholder="Buscar en este documento" value={query} onChange={(event) => {
+            const next = event.target.value;
+            setQuery(next);
+            if (next.trim() !== query.trim()) {
+              searchRequest.current += 1;
+              setMatches(null);
+              setActiveMatch(0);
+            }
+          }} />
           <button type="submit">Buscar</button>
         </form>
         <button type="button" onClick={() => void download()}>Descargar PDF</button>
       </div>
       <div className={styles.layout}>
         <section className={styles.pdfPanel} aria-label="Visor PDF">
-          {pdfUrl ? <CorpusPdfViewer file={pdfUrl} page={page} matches={matches?.matches ?? []} activeMatch={activeMatch} onLoadSuccess={setPageCount} /> : <Card><p>Cargando PDF…</p></Card>}
+          {pdfUrl ? <CorpusPdfViewer file={pdfUrl} page={page} sourceText={sourcePageText} matches={matches?.matches ?? []} activeMatch={activeMatch} onLoadSuccess={setPageCount} /> : <Card><p>Cargando PDF…</p></Card>}
         </section>
         <aside className={styles.sidePanel}>
           <Card>

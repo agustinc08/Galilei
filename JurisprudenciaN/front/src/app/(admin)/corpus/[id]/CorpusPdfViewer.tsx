@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import type { TextContent, TextItem } from 'pdfjs-dist/types/src/display/api';
-import { buildPdfTextPageMap, mapPdfMatches } from './pdf-match-mapper';
+import { alignPdfTextPageMap, buildPdfTextPageMap, mapPdfMatches } from './pdf-match-mapper';
 import type { PdfTextItemInput, PdfTextPageMap } from './pdf-match-mapper';
 import styles from './viewer.module.css';
 
@@ -30,12 +30,13 @@ export type PdfMatch = {
 type Props = {
   file: string;
   page: number;
+  sourceText?: string | null;
   matches: PdfMatch[];
   activeMatch: number;
   onLoadSuccess: (pages: number) => void;
 };
 
-export function CorpusPdfViewer({ file, page, matches, activeMatch, onLoadSuccess }: Props) {
+export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, onLoadSuccess }: Props) {
   const [width, setWidth] = useState(960);
   const [textPageState, setTextPageState] = useState<{
     key: string;
@@ -44,12 +45,18 @@ export function CorpusPdfViewer({ file, page, matches, activeMatch, onLoadSucces
   const active = matches[activeMatch];
   const pageKey = `${file}:${page}`;
   const textPage = textPageState?.key === pageKey ? textPageState.pageMap : null;
+  const alignedTextPage = useMemo(
+    () => textPage && sourceText !== undefined && sourceText !== null
+      ? alignPdfTextPageMap(textPage, sourceText)
+      : textPage,
+    [sourceText, textPage],
+  );
   const mappings = useMemo(
-    () => textPage ? mapPdfMatches(textPage, matches.filter((match) => match.page === page)) : [],
-    [matches, page, textPage],
+    () => alignedTextPage ? mapPdfMatches(alignedTextPage, matches.filter((match) => match.page === page)) : [],
+    [alignedTextPage, matches, page],
   );
   const unresolvedActive = mappings.find((mapping) => mapping.ordinal === active?.ordinal &&
-    !['DIRECT_EXACT', 'CONTEXT_EXACT', 'NORMALIZED_EXACT'].includes(mapping.status));
+    !['DIRECT_EXACT', 'SEGMENTED_EXACT', 'CONTEXT_EXACT', 'CONTEXT_NORMALIZED_EXACT', 'NORMALIZED_EXACT'].includes(mapping.status));
 
   const handleTextSuccess = useCallback(({ items }: TextContent) => {
     const textItems = items.flatMap((item, itemIndex) => 'str' in item
