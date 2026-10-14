@@ -584,3 +584,9 @@ El contraste read-only de J7.1 confirmó que los 1.254 registros sin Sala son ex
 ### J7.1.2 — límite de metadata histórica Sala (2026-10-14)
 
 Auditoría local de los 1.254 fallos CSJN_TFN_HISTORICAL: 53 rutas de metadata raw, cero campos estructurados con Sala, 1.254 source records con externalId prefijado y referencia flid/expediente, y 1.254 filenames sin marca Sala. En las 4.453 páginas de texto ya almacenadas se clasificaron 365 Sala probables para revisión, 39 ambiguas, 849 sin referencia propia recuperable y 1 sin texto suficiente. El encabezado no pasó precisión perfecta contra 4.816 documentos conocidos; por eso no hay propuestas auto-safe. No se consultaron fuentes externas, no se hizo OCR, no se derivaron Salas del flid, expediente, filename ni composición judicial, y no se aplicó metadata. Futuras ingestas sólo deberían guardar una Sala extraída del encabezado como candidata hasta validar un clasificador sin falsos positivos. Evidencia privada en _recovery-work/jurisprudencia-j712/.
+
+### J7.1.3 — preparación de revisión de faltantes históricos (2026-10-14)
+
+El review pack se reconstruye localmente a partir de provenance y texto de página ya almacenados del snapshot J7.1.2; no consulta fuentes ni descarga documentos. Incluye 365 propuestas probables y separa 39 ambiguas; excluye 849 sin Sala propia detectable y diagnostica aparte un documento sin texto suficiente. Los extractos, SHA y casos son evidencia privada ignorada en `_recovery-work/jurisprudencia-j713/`; no versionarlos ni copiar rutas de storage.
+
+La herramienta sólo prepara decisiones humanas y exports con detección de versión obsoleta. Una confirmación permitiría filtro exacto por Sala en los 365 casos; sólo 26 completarían la clave legal y 339 seguirían parciales. Hacer primero la muestra determinista de 25; no extender la revisión por defecto ni tratar la propuesta como metadata confirmada.

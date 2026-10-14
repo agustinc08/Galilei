@@ -203,6 +203,7 @@ const actions = {
   'j7-corpus-quality-audit': 'node scripts/dev/jurisprudencia-corpus-quality-audit.cjs',
   'j7-quality-repair-dry-run': 'node scripts/dev/jurisprudencia-quality-repair-dry-run.cjs',
   'sprint-j712-historical-sala-readonly': 'node scripts/dev/sprint-j712-historical-sala-run.cjs',
+  'sprint-j713-historical-sala-review-pack': 'node scripts/dev/sprint-j713-historical-sala-review-pack.cjs',
   'sprint-j5-readonly': 'node scripts/dev/jurisprudencia-candidate-recovery.cjs',
   'sprint-j6-readonly': 'node scripts/dev/jurisprudencia-primary-identity.cjs',
   'sprint-j5-restore-projection-marker': 'node scripts/dev/sprint-j5-restore-projection-marker.cjs',

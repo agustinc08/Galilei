@@ -206,3 +206,11 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 3. J7.1.2 clasificó 1.254/1.254 filas históricas: 0 auto-safe, 365 probables, 39 ambiguas, 849 sin evidencia propia y 1 con texto insuficiente. No completó campos, no generó decisiones humanas ni modificó el pack J6.1.
 4. La validación en 4.816 documentos con Sala conocida produjo 4.479 aciertos/4.479 predicciones para la regla estructurada. La regla de encabezado tuvo 13 desacuerdos/4.722 y tribunal 11/4.576; se mantienen como revisión humana. Las cuatro propuestas auto-safe anteriores de J7.1 fueron degradadas o no reproducidas.
 5. El filtro Search usa CorpusDocument.chamber en vivo. Un eventual cambio individual de ese campo no requiere rebuild ni reindex de la proyección tokenizada; J7.1.2 no aplicó cambios. La validez jurídica del dato sigue requiriendo evidencia de fuente y revisión conforme al flujo vigente.
+
+## Contrato J7.1.3 — revisión humana de Sala histórica
+
+El paquete `j713-review-v1` conserva `machineProposalSala` separado de `humanDecisionSala` (ledger de decisiones). Cada caso liga `reviewId` determinístico, documentId, SHA de archivo, clasificación, evidencia/página, propuesta, impacto sobre clave jurídica y filtro exacto, e `inputHash`. Las citas del cuerpo se rotulan “Referencia a otra Sala / evidencia no primaria”. La UI nunca escribe Corpus ni Search.
+
+Decisiones permitidas: `CONFIRM_PROPOSAL`, `SET_OTHER_SALA` (Sala A–M obligatoria), `NO_SALA_EVIDENCE`, `AMBIGUOUS`, `NOT_APPLICABLE` y `SKIP`; comentario opcional. Checkpoint/export JSON contiene input hash, revisión del pack, revisor, timestamp y decisiones; al importar se validan hashes globales y por caso (documentId, SHA, propuesta), duplicados, estados y Sala. CSV es una salida validable; JSON es fuente autoritativa. `--apply` responde “Apply mode is not implemented.” No se genera SQL ni herramienta de aplicación.
+
+Las prioridades ordenan utilidad/evidencia: P0 evidencia propia corroborada y completitud de clave; P1 encabezado propio en página/zona inicial; P2 otra evidencia propia singular; P3 evidencia auxiliar/cola ambigua. La prioridad no equivale a confianza jurídica.

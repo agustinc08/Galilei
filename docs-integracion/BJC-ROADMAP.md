@@ -310,3 +310,7 @@ J7.1.1 reconoce 1.079/1.089 referencias con reglas determinísticas conservadora
 ## Continuidad después de Sprint J7.1.2 (2026-10-14)
 
 J7.1.2 confirmó el universo histórico exacto (1.254/1.254) y cero metadata raw estructurada de Sala. El detector clasificó 365 como propuestas humanas, 39 ambiguas, 849 sin Sala propia y 1 con texto insuficiente. La precisión del encabezado no cumple cero falsos positivos (13 discrepancias en validación conocida), por lo que las cuatro propuestas auto-safe heredadas se degradaron/no reprodujeron y no hay backfill automático. Clave parcial: 1.241 sólo Sala, 2 sólo expediente/año y 13 múltiples. Próxima recomendación: J7.1.3 — HISTORICAL METADATA HUMAN REVIEW PACK para revisión por evidencia, sin aplicar valores; mantener J6.1 UAT separada y sin decisiones humanas. Si no se realizará revisión de esos 365 casos, puede retomarse J6.1 por separado.
+
+## Después de J7.1.3 — UAT acotada de Sala histórica
+
+Tooling `READY FOR HUMAN REVIEW`; revisión humana `NOT STARTED`. Ejecutar primero la muestra local determinista de 25, exportando checkpoints periódicos. Después medir acuerdo con propuesta, Sala alternativa, ambigüedad, falta de evidencia y tiempo promedio. Con esos resultados decidir si conviene revisar los restantes, mantener el faltante histórico como desconocido, solicitar otra fuente o cerrar con gaps conocidos. No revisar automáticamente los 365 ni aplicar Salas; cualquier aplicación futura requiere sprint y revalidación separados.
