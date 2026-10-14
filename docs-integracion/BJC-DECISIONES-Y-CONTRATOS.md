@@ -174,3 +174,12 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 - El enum Corpus `RESTRICTED` mantiene la separación del scope `PRIVATE_WORKSPACE` frente a `GENERAL`; no es ACL por miembro o carpeta. No reinterpretar ni cambiar estas semantics sólo en UI.
 - Errores 403/404 en rutas documentales no deben revelar existencia ni nombres ajenos; texto común: «No encontramos este documento o no tenés acceso».
 - Antes de habilitar propiedad individual o restricciones por carpeta se requiere contrato de datos y predicados consistentes para lista/árbol/Search/count/snippet/metadata/matches/file/upload/move, más pruebas de mismo SHA entre ámbitos. El diseño de producto/seguridad es `BJC-UX-ESPACIOS-DOCUMENTALES.md`.
+
+## Contrato de privacidad aplicado — Sprint 15.6.1 (2026-10-14)
+
+- El alcance personal es `GLOBAL_PER_USER`: una fila personal tiene `workspaceId=NULL` y `ownerUserId` autenticado; su acceso no se deriva de la dependencia activa y no lo obtiene un administrador global por defecto.
+- Una fila de workspace tiene `workspaceId` y `ownerUserId=NULL`. La base exige exactamente uno de esos ámbitos. El mismo blob/SHA puede tener asociaciones personales y compartidas separadas; ACL se decide por asociación.
+- Una carpeta de workspace usa `INHERIT`, `DEPENDENCY_SHARED` o `RESTRICTED`. La lectura requiere que toda la ruta efectiva autorice. Un hijo no amplía una carpeta restringida: el backend rechaza `DEPENDENCY_SHARED` mientras su padre efectivo sea restringido. Para ampliar, primero se confirma el cambio de la carpeta restringida superior.
+- Los grants apuntan a membresías activas del workspace. Sólo las personas ADMIN/EDITOR autorizadas pueden editar ACL; una persona creadora y ADMIN conservan acceso. Al desactivar/quitar membership, el grant deja de autorizar inmediatamente.
+- Personal→dependencia y Compartido→Personal son transiciones de audiencia; los endpoints requieren permiso y confirmación explícita. Los documentos con `SourceFile` vinculado no admiten estas transiciones personales.
+- Search y su conteo, árbol, metadata, snippets/matches, Viewer y download comparten el mismo límite; el acceso ajeno se oculta con 404. No hay caché de ACL con grants obsoletos. El contrato completo y las limitaciones externas están en `BJC-ESPACIOS-DOCUMENTALES.md` y `BJC-UX-ESPACIOS-DOCUMENTALES.md`.

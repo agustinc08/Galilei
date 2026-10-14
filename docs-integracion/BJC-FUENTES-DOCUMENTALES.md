@@ -69,3 +69,9 @@ El worker no escanea roots en segundo plano ni realiza fetch externo desde docum
 La administración de carpetas de red, estado de sincronización y diagnóstico queda bajo permisos de gestión; no se incorpora al panel normal de búsqueda. En la navegación se presenta el nombre configurado de la carpeta y las subcarpetas relativas, nunca la ruta UNC como título. Si el origen no está disponible, el usuario ve un mensaje general y los resultados ya incorporados conservan su disponibilidad autorizada.
 
 Las fuentes actuales siguen compartidas dentro de la dependencia mediante membresía. La interfaz no permite tratar una fuente o carpeta como personal o restringida a usuarios seleccionados; esos permisos no existen aún en el backend.
+
+## Sprint 15.6.1 — límites de acceso de archivos sincronizados (2026-10-14)
+
+Las fuentes conservan la propiedad operativa de sus archivos sincronizados. El endpoint para mover un documento personal a una dependencia y el de una dependencia a Mis documentos rechazan un documento vinculado a `SourceFile`; el usuario no puede privatizar ni republicar arbitrariamente un archivo de red. Sus permisos siguen los de la dependencia y la carpeta correspondiente. El contrato de ACL, la regresión que comprueba este rechazo y el dictamen técnico están en `_recovery-work/sprint1561/` y `BJC-ESPACIOS-DOCUMENTALES.md`.
+
+Esta protección se probó con una fila `DocumentSource`/`SourceFile` sintética en DEV. No se probó un share UNC institucional real ni se modificaron configuraciones, credenciales o archivos de ninguna fuente existente. UAT de la identidad Windows y autorización institucional permanecen pendientes.

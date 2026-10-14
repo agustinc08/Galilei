@@ -61,3 +61,7 @@ UAT institucional, preproducción, compatibilidad universal de PDF/OCR, highligh
 La suite E2E creó 2 workspaces y 5 documentos sintéticos; cleanup DEV guarded eliminó ambos workspaces, los 5 documentos, dependencias y storage aislado: 0 residuos lógicos. Los tres directorios `galilei-*` preexistentes siguen siendo el residuo histórico permitido; esta sprint no creó ni borró otros. La proyección se verificó después del cleanup, sin rebuild global.
 
 El collision audit está en `_recovery-work/sprint155/collision-report.json`. Se compararon `origin/feature/copernic`, `origin/feature/jurisprudencia` y worktree sin checkout ni merge. El commit y push finales se registran en el cierre de la sprint.
+
+## Extensión de ACL — Sprint 15.6.1 (2026-10-14)
+
+La certificación Search/Viewer suma los scopes personal `GLOBAL_PER_USER` y carpeta `RESTRICTED` de workspace. La E2E autenticada probó autorización y denegación en búsqueda, conteo, metadata, coincidencias, Viewer y descarga, revocación inmediata de una membresía/grant y transiciones explícitas entre personal/compartido. Search general, ranking y proyección no se reconstruyeron ni cambiaron de scope. Golden Search 319/319; verificación final 17.078 documentos / 18.799.500 tokens, stale=0, discrepancias 0/100, rebuild=0. Es una extensión automatizada de ACL en DEV, no certificación UAT, UNC, preproducción, producción ni de highlight OCR.

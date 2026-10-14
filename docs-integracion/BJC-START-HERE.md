@@ -107,3 +107,9 @@ UAT institucional y preproducción siguen pendientes. OCR visual bbox, prueba XS
 ## Estado vigente — Sprint 15.6 (2026-10-14)
 
 Copernic mejoró la navegación para salas y juzgados: acceso directo para dependencia única, selector humano cuando hay varias, carpetas/alcance/preview y carga compartida con lenguaje claro. La certificación integral queda **PARTIAL** porque el modelo actual no ofrece archivos sólo personales ni carpetas restringidas por persona. Leer `BJC-UX-ESPACIOS-DOCUMENTALES.md`, `BJC-ESPACIOS-DOCUMENTALES.md` y `BJC-ESTADO-ACTUAL.md`. UAT humana, integración de ramas y diseño de ACL fina siguen pendientes; no tratar DEV como preproducción o producción.
+
+## Estado vigente — Sprint 15.6.1 (2026-10-14)
+
+Sprint 15.6.1 cerró técnicamente en `feature/copernic` sobre PostgreSQL DEV local: documentos personales globales por usuario, permisos compartidos/restringidos heredables, transiciones de acceso confirmadas y aislamiento de cola/storage en las pruebas OCR. Prisma status reporta 27 migraciones al día; E2E ACL, Workspace/Source PostgreSQL, Search golden y Search Verify pasaron. El cleanup dejó baseline íntegro y cero blobs E2E. Leer `BJC-ESTADO-ACTUAL.md`, `BJC-ESPACIOS-DOCUMENTALES.md` y `BJC-UX-ESPACIOS-DOCUMENTALES.md`; evidencia local ignorada: `_recovery-work/sprint1561/`.
+
+El resultado no acredita UAT humana ni habilita UNC institucional, preproducción o producción. Próximo trabajo candidato: preparar integración coordinada entre `feature/copernic` y `feature/jurisprudencia`; no hacer merge/cherry-pick automáticamente.

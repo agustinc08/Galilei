@@ -70,3 +70,15 @@ Cuando existan permisos personales y restringidos en backend, agregar: cargar un
 El cleanup E2E removió 2 workspaces y 5 documentos sintéticos, eliminó el storage aislado y dejó el baseline igual al previo: 17.078 documentos, 17.098 archivos, 198.129 páginas, 17.685 ingestas, cero privados/workspaces y 18.799.500 tokens. Search verify reportó stale=0, mismatch=0/100 y rebuild=0.
 
 La promesa «Mis documentos / sólo yo» y las carpetas restringidas por persona quedan pendientes de contrato y autorización backend; por lo tanto, este sprint no certifica la experiencia completa pedida para esas dos clases de visibilidad. UAT humana, aprobación institucional y producción siguen fuera del alcance.
+
+## Sprint 15.6.1 — cierre técnico (2026-10-14)
+
+Este resultado supersede el dictamen parcial de Sprint 15.6: los tres alcances ahora existen en persistencia y se validan en backend, y la interfaz ofrece cargas privadas, compartidas y restringidas con confirmación al cambiar de audiencia. El alcance personal es `GLOBAL_PER_USER`; los documentos personales siguen a su titular cuando cambia entre dependencias. Las carpetas restringidas conceden acceso por membresías activas elegidas dentro de esa dependencia, más la persona creadora y sus administradores.
+
+El permiso efectivo de una carpeta se hereda por toda la ruta. Una subcarpeta con acceso compartido no puede ampliar por sí sola una carpeta superior restringida: primero se debe cambiar explícitamente el acceso de la carpeta superior. El backend rechaza esta combinación y la UI no la ofrece. Mover documentos entre audiencias pide confirmación; retirar una membresía o grant revoca Search, metadatos, coincidencias, Viewer y descarga en la siguiente petición.
+
+La corrida final de Playwright pasó 1/1 y cubrió propietario y no propietario, usuarios autorizados/no autorizados de la misma dependencia, otra dependencia, Search/Viewer/descarga, edición inmediata de grants, movimientos Personal↔Compartido y Compartido↔Restringido, PDF personal y dependencia única/múltiple. Siete viewports (1366×768 a 2560×1440) reportaron cero overflow horizontal. Se inspeccionaron visualmente las diez capturas requeridas. Los estados de interfaz, pruebas y límites quedan en `_recovery-work/sprint1561/`.
+
+El síntoma histórico `attemptCount=2` apareció dos veces con un servicio ya activo en puerto 4001. La prueba Workspace usaba la cola OCR compartida `default`; se aisló cada corrida con un `queueName` efímero y storage de test, manteniendo la semántica del worker. Seis corridas consecutivas después del aislamiento pasaron con intento 1. No se reprodujo una falla de retry del worker; la intercalación antigua entre procesos no se puede reconstruir con evidencia conservada. Tras limpieza no quedó fixture sintético y Search Verify volvió a 17.078 documentos/18.799.500 tokens, stale=0, 0/100 discrepancias y cero rebuilds.
+
+**Sprint 15.6.1 CLOSED técnicamente en DEV local.** Sprint 15.6 queda cerrado respecto del alcance funcional definido; UAT humana, aprobación de titulares institucionales, uso de UNC real, preproducción y producción siguen pendientes y no se infieren de esta certificación automatizada.
