@@ -118,8 +118,10 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await folderButton.click();
   await expect(page.getByRole('navigation', { name: 'Ruta de carpetas' })).toContainText('Actuaciones 2026');
 
-  // Per-file status and continuation across one, five and twenty PDFs.
+  // Per-file status and continuation across one, five and twenty documents.
   const fileInput = page.getByLabel('Seleccionar documentos PDF, TXT, RTF, DOC, DOCX u ODT');
+  await expect(page.getByRole('heading', { name: 'Subir documentos' })).toBeVisible();
+  await expect(page.getByText(/DOC legado se detecta, pero aún no se puede extraer/u)).toBeVisible();
   await fileInput.setInputFiles([{ name: 'sprint151-e2e-one.pdf', mimeType: 'application/pdf', buffer: pdf }]);
   await expect(page.getByRole('status').filter({ hasText: '1 archivo(s) procesado(s).' })).toBeVisible({ timeout: 60_000 });
 

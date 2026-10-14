@@ -1099,9 +1099,10 @@ export default function PrivateSpacesPage() {
             <Card>
               <div>
                 <p className={styles.eyebrow}>Carga documental</p>
-                <h2>Subir archivos PDF</h2>
+                <h2>Subir documentos</h2>
                 <p className={styles.muted}>
-                  Hasta 20 PDF por tanda y 20 MB por archivo. Cada archivo
+                  Hasta 20 archivos por tanda y 20 MiB por archivo. DOC legado
+                  se detecta, pero aún no se puede extraer; cada archivo
                   informa su propio resultado.
                 </p>
               </div>
