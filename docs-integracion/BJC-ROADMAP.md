@@ -297,3 +297,7 @@ Fase A terminó `READY FOR HUMAN UAT`. La persona debe revisar primero la muestr
 ## Continuidad después de Sprint J7 (2026-10-14)
 
 J7 cerró la auditoría read-only del snapshot: 6.070 documentos, archivos válidos y provenance completa; cero SHA duplicados; 12 grupos de texto normalizado igual con SHA distinto; 4 casos con claves jurídicas múltiples; 1.254 filas sin Sala (principalmente `CSJN_TFN_HISTORICAL`). Las propuestas P1/P2 siguen sin aplicar y no habilitan cambios automáticos. Cuando el usuario vuelva, continuar con **J6.1 — HUMAN REVIEW UAT** según su cola de 187 casos; J7 no alteró la cola ni registró decisiones.
+
+## Continuidad después de Sprint J7.1 (2026-10-14)
+
+J7.1 cerró el dry-run con `READ_ONLY_PASS`, determinismo aprobado en dos ejecuciones y sentinelas DEV idénticos. La anomalía dominante de los 1.092 expedientes/años es límite de parsing (1.089), no evidencia de datos incorrectos; los 1.254 faltantes de Sala coinciden exactamente con la fuente histórica, donde sólo cuatro tienen evidencia inequívoca disponible. Cero reparaciones fueron aplicadas. Próxima recomendación única: **J7.1.1 — NORMALIZER HARDENING**, limitada a parser/tests y fixtures sintéticos, sin modificar metadata del Corpus ni inventar año. J6.1 sigue `READY FOR HUMAN UAT` como flujo independiente; no iniciar UAT ni el siguiente sprint automáticamente.

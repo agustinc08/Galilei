@@ -182,3 +182,11 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 2. Un SHA igual prueba identidad de bytes, pero no identidad de decisión. Texto normalizado igual con SHA distinto indica representaciones candidatas; no autoriza borrar, fusionar ni enlazar CorpusDocuments.
 3. Claves jurídicas incompletas o múltiples permanecen candidatas. Provenance completa describe trazabilidad disponible, no validación independiente de la fuente.
 4. J7 produce propuestas P1/P2 sin aplicarlas; cualquier reparación exige un sprint posterior con dry-run y controles explícitos. J6.1 conserva su estado `READY FOR HUMAN UAT`; ningún resultado automático equivale a decisión humana.
+
+## Contrato de propuestas J7.1 — recuperación dry-run (2026-10-14)
+
+1. `AUTO_SAFE_DRY_RUN` significa candidata a operación determinística futura, no aplicación, veracidad productiva ni publicación. Toda propuesta exige precondiciones de valor actual, `updatedAt`, SHA del archivo y hash de `metadataOriginal`, más recálculo de clave y Search cuando corresponda.
+2. `HUMAN_CONFIRMATION_REQUIRED`, `SOURCE_DATA_REQUIRED`, `MODEL_LIMITATION`, `NO_CHANGE_REQUIRED` y `UNRESOLVED` son estados de análisis y no autorizan escritura. No se completan campos por expediente aproximado, citas ni inferencias masivas de fuente.
+3. Una reparación de metadata que altere evidencia de un pack humano debe invalidarlo o volverlo stale; J7.1 cruzó SHA contra J6.1 y no encontró pack afectado por sus cinco propuestas. El hash J6.1 permanece `2b04cdb75acaa36dec515b7b7d8e8928dc80186d10bb6b293d119317b6f1827d` y no se registraron decisiones.
+4. La identificación de texto igual con SHA distinto sólo permite proponer relación de representación tras evidencia legal suficiente; no permite fusionar/borrar documentos. Los source records múltiples se preservan salvo duplicidad de identidad probada. En J7.1 los 341 casos fueron provenance esperada.
+5. El número docket sin año puede indicar limitación del parser; normalizar su lectura no inventa un año ni completa una clave legal parcial. No cambiar runtime ni datos como parte de J7.1.

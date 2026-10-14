@@ -1,0 +1,20 @@
+{
+  "mission": "J7.1 synthetic classification fixtures",
+  "realJudicialData": false,
+  "caseNumbers": [
+    { "id": "case-valid", "value": "12345/2020", "expected": "VALID_CANONICAL_CASE_YEAR" },
+    { "id": "case-legacy-corrob", "value": "12.345", "source": ["Expediente 12.345"], "header": ["Expte. 12.345"], "expected": "LEGACY_NUMBER_NO_YEAR_CORROBORATED" },
+    { "id": "case-legacy-source", "value": "12.345", "source": ["Expediente 12.345"], "expected": "LEGACY_NUMBER_NO_YEAR_SOURCE_MATCH" },
+    { "id": "case-unresolved", "value": "12.345", "expected": "NUMBER_NO_YEAR_UNCORROBORATED" },
+    { "id": "case-multiple", "value": "12.345/20 - 98.765/21", "expected": "MULTIPLE_CASES_OR_COMPOSITE_FIELD" },
+    { "id": "case-field-label", "value": "Acuerdo Plenario", "expected": "FIELD_MISALIGNED_OR_LABEL" },
+    { "id": "case-malformed", "value": "expte sin número", "expected": "MALFORMED_OR_UNRECOGNIZED" }
+  ],
+  "sala": [
+    { "id": "sala-header", "pages": [{ "pageNumber": 1, "text": "Cámara Nacional de Apelaciones en lo Civil — Sala D" }], "expected": "CONFIRMED_RECOVERABLE" },
+    { "id": "sala-source", "source": ["Sala A"], "expected": "CONFIRMED_RECOVERABLE" },
+    { "id": "sala-probable", "pages": [{ "pageNumber": 3, "text": "Cámara Civil Sala B" }], "expected": "PROBABLE" },
+    { "id": "sala-conflict", "pages": [{ "pageNumber": 1, "text": "Cámara Civil Sala B" }], "source": ["Sala A"], "expected": "CONFLICT" },
+    { "id": "sala-unresolved", "pages": [{ "pageNumber": 1, "text": "Tribunal Civil. Expediente 12345/2020" }], "expected": "UNRESOLVED" }
+  ]
+}
