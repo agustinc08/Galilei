@@ -49,6 +49,8 @@
     "corpus:institutional:status": "node scripts/with-dev-db-guard.cjs institutional-status",
     "corpus:institutional:classify": "node scripts/with-dev-db-guard.cjs institutional-classify",
     "civil:backfill": "node scripts/sources/civil/historical-backfill-workers.cjs",
+    "first-instance:intake": "node scripts/dev/first-instance/intake.cjs",
+    "first-instance:test": "node --test scripts/dev/first-instance/intake.test.cjs",
     "civil:backfill:filter": "node scripts/sources/civil/filtered-civil-backfill.cjs",
     "civil:download:pilot": "node scripts/sources/civil/download-pilot.cjs",
     "civil:download:batch": "node scripts/sources/civil/download-pilot.cjs --new-only --limit=100",

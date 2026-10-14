@@ -271,3 +271,7 @@ Se clasificaron con evidencia de procedencia los 4.596 registros Civil sin insta
 El buscador CSJN actual ya confirma consulta de fallos de primera instancia, pero la evidencia oficial revisada no establece que sea un censo Civil completo ni documenta exportación, IDs estables, total/paginación o permiso de automatización. Siguiente acción recomendada: **gestionar el export autorizado** usando el borrador técnico no enviado en `_recovery-work/jurisprudencia-j2/authorized-export-request.md`. No iniciar adquisición del piloto hasta confirmar el permiso y la forma estable del feed. Al recibirlo, validar importador/coverage en fixtures y luego una muestra de hasta 20 documentos aprobados.
 
 El importador y el identity linker v2 quedan read-only/dry-run. Los 451 casos están divididos por causa y los PDFs fuente están presentes; seguir resolución por P0/P1/P2/P3 en el artefacto local, conservando separada la identidad de bytes.
+
+## Después de Sprint J3 — 2026-10-14
+
+J3 quedó CLOSED en readiness: solicitud institucional preparada sin enviar y pipeline local de intake/reconcile/gaps probado con fixtures sintéticos. El siguiente paso técnico independiente recomendado es diseñar la representación de identidad legal/archivos y el orden de revisión de los 451 grupos ya adquiridos, en read-only/dry-run; no fusionar por coincidencia de metadata o por SHA distinto. Si llega el export autorizado antes, priorizar J3.1 para medir sólo `coverage within supplied authorized census`, validar alcance y producir gaps sin descarga masiva.
