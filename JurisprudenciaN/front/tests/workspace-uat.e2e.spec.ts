@@ -25,8 +25,13 @@ async function createSpace(page: Page, code: string, name: string, type: string)
   await page.getByLabel('Código de dependencia').fill(code);
   await page.getByLabel('Nombre de dependencia').fill(name);
   await page.getByLabel('Tipo de dependencia').selectOption(type);
+  const createdResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname.endsWith('/api/workspaces'),
+  );
   await page.getByRole('button', { name: 'Crear espacio', exact: true }).click();
-  await expect(page.getByRole('heading', { name })).toBeVisible();
+  const created = await (await createdResponse).json() as { id: string };
+  await expect(page.getByText('Espacio creado. Ya figurás como administrador de esta dependencia.')).toBeVisible();
+  return created.id;
 }
 
 async function addMember(page: Page, email: string, role: string) {
@@ -52,7 +57,7 @@ async function workspaceOptionValue(page: Page, name: string) {
 test('perfiles sintéticos de DEV completan los flujos privados principales desde la interfaz', async ({ page }) => {
   test.setTimeout(300_000);
   page.setDefaultTimeout(10_000);
-  const outputDir = resolve(process.cwd(), '../../_recovery-work/sprint151/ui');
+  const outputDir = resolve(process.cwd(), '../../_recovery-work/sprint153/screenshots');
   mkdirSync(outputDir, { recursive: true });
   const browserErrors: string[] = [];
   page.on('pageerror', (error) => browserErrors.push(error.message));
@@ -64,26 +69,22 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   // The seeded acceptance reader begins without any private membership.
   await login(page, credentials.accounts.reader);
   await page.goto('/spaces');
-  await expect(page.getByRole('heading', { name: 'No tenés un espacio documental asignado' })).toBeVisible();
-  await expect(page.getByText('Contactá al administrador de Galilei')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No tenés un espacio asignado' })).toBeVisible();
+  await expect(page.getByText('Los documentos privados sólo aparecen dentro de un espacio al que tenés acceso.')).toBeVisible();
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
 
   // Galilei ADMIN creates the two synthetic workspaces and manages the first.
   await login(page, credentials.accounts.admin);
-  await page.goto('/spaces');
+  await page.goto('/spaces/manage');
   await expect(page.getByText('Administración global', { exact: true })).toBeVisible();
-  await createSpace(page, codeA, nameA, 'SALA');
+  const workspaceAId = await createSpace(page, codeA, nameA, 'SALA');
+  await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceAId)}`);
+  await expect(page.getByRole('heading', { name: nameA })).toBeVisible();
 
-  await page.setViewportSize({ width: 1366, height: 768 });
-  await page.screenshot({ path: resolve(outputDir, 'workspace-1366x768.png'), fullPage: true });
-  await page.setViewportSize({ width: 1920, height: 1080 });
-  await page.screenshot({ path: resolve(outputDir, 'workspace-1920x1080.png'), fullPage: true });
-
-  await createSpace(page, codeB, nameB, 'JUZGADO');
+  const workspaceBId = await createSpace(page, codeB, nameB, 'JUZGADO');
+  await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceBId)}`);
   const workspaceSelect = page.getByLabel('Espacio documental');
   await expect(workspaceSelect).toBeVisible();
-  const workspaceAId = await workspaceOptionValue(page, nameA);
-  const workspaceBId = await workspaceOptionValue(page, nameB);
   await workspaceSelect.selectOption(workspaceAId);
 
   // Workspace administration adds and changes people by name/email, not by ID.
@@ -152,8 +153,9 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   expect((await download).suggestedFilename()).toBe('sprint151-e2e-one.pdf');
   await page.getByRole('link', { name: '← Volver al espacio' }).click();
   await expect(page.getByLabel('Buscar documentos privados')).toHaveValue('JORGE');
-  await expect(page.locator('[aria-label="Resultados por contenido"]').getByRole('link', { name: /sprint151-e2e-one\.pdf/iu })).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('[aria-label="Resultados por contenido y nombre"]').getByRole('button', { name: /Vista previa de sprint151-e2e-one\.pdf/iu })).toBeVisible({ timeout: 60_000 });
 
+  await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceAId)}`);
   await page.getByLabel('Buscar documentos privados').fill('sprint151-e2e-one');
   await page.getByLabel('Buscar documentos privados').locator('xpath=..').getByRole('button', { name: 'Buscar', exact: true }).click();
   await expect(page.getByRole('heading', { name: /Coincidencias por nombre/iu })).toBeVisible({ timeout: 60_000 });
@@ -162,7 +164,90 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.getByText(/Buscando en:.*Actuaciones 2026/iu)).toBeVisible();
   await expect(page.getByLabel('Buscar documentos privados').locator('xpath=..').getByRole('button', { name: 'Buscar', exact: true })).toBeEnabled({ timeout: 60_000 });
 
+  // Classic Copernic workspace: real manual-source filtering, persistent preview and keyboard navigation.
+  await page.goto(`/spaces?workspaceId=${encodeURIComponent(workspaceAId)}`);
+  await expect(page.getByRole('main', { name: 'Búsqueda y resultados' }).getByText(nameA, { exact: false }).first()).toBeVisible();
+  const classicSearch = page.getByLabel('Buscar documentos privados');
+  const performanceMs: Record<string, number> = {};
+  await classicSearch.fill('JORGE');
+  const searchStartedAt = Date.now();
+  const searchResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith(`/api/workspaces/${workspaceAId}/search`)
+      && url.searchParams.get('q') === 'JORGE';
+  });
+  await page.getByRole('search').getByRole('button', { name: 'Buscar', exact: true }).click();
+  await searchResponse;
+  performanceMs.searchRequest = Date.now() - searchStartedAt;
+  const classicResults = page.locator('[aria-label="Resultados por contenido y nombre"]');
+  const firstClassicResult = classicResults.getByRole('button', { name: /Vista previa de sprint151-e2e-one\.pdf/iu });
+  const renderStartedAt = Date.now();
+  await expect(firstClassicResult).toBeVisible({ timeout: 60_000 });
+  performanceMs.firstResultRender = Date.now() - renderStartedAt;
+
+  const manualSourceRequests: string[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.endsWith(`/workspaces/${workspaceAId}/search`))
+      manualSourceRequests.push(url.searchParams.get('sourceId') ?? '');
+  });
+  await page.getByRole('button', { name: /Carga manual/iu }).click();
+  await expect.poll(() => manualSourceRequests.includes('__manual_upload__')).toBe(true);
+  await expect(firstClassicResult).toBeVisible({ timeout: 60_000 });
+  await expect(classicResults.locator('article').first()).toContainText('Fuente: Carga manual');
+  const previewStartedAt = Date.now();
+  await firstClassicResult.click();
+  await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
+  performanceMs.previewFirstPaint = Date.now() - previewStartedAt;
+  await expect(page.getByText('Página 2 de 2')).toBeVisible();
+  const pageChangeStartedAt = Date.now();
+  await page.getByRole('button', { name: 'Página anterior' }).click();
+  await expect(page.getByText('Página 1 de 2')).toBeVisible();
+  performanceMs.pageStateChange = Date.now() - pageChangeStartedAt;
+  await page.getByRole('button', { name: 'Página siguiente' }).click();
+  await expect(page.getByText('Página 2 de 2')).toBeVisible();
+  const matchIndicator = page.getByText(/Coincidencia \d+ de \d+/u).last();
+  await expect(matchIndicator).toContainText(/Coincidencia \d+ de \d+/u);
+
+  await page.keyboard.press('Escape');
+  await expect(page.getByText('Seleccioná un resultado para ver una vista previa.')).toBeVisible();
+  await classicSearch.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(firstClassicResult).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ArrowUp');
+  await expect(firstClassicResult).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
+  const beforeF3 = await matchIndicator.textContent();
+  const totalMatches = Number(beforeF3?.match(/de (\d+)/u)?.[1] ?? 0);
+  const matchNavigationStartedAt = Date.now();
+  await page.keyboard.press('F3');
+  if (totalMatches > 1) await expect(matchIndicator).toContainText('Coincidencia 2 de');
+  else await expect(matchIndicator).toContainText('Coincidencia 1 de 1');
+  performanceMs.matchNavigation = Date.now() - matchNavigationStartedAt;
+  await page.keyboard.press('Shift+F3');
+  await expect(matchIndicator).toContainText('Coincidencia 1 de');
+
+  await mkdirSync(outputDir, { recursive: true });
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await expect(page.getByRole('heading', { name: 'Buscar documentos' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: resolve(outputDir, 'copernic-1366x768.png'), fullPage: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: resolve(outputDir, 'copernic-1920x1080.png'), fullPage: true });
+
+  await page.getByRole('link', { name: 'Abrir completo', exact: true }).click();
+  await expect(page.getByRole('link', { name: '← Volver al espacio' })).toBeVisible();
+  await page.getByRole('link', { name: '← Volver al espacio' }).click();
+  await expect(page).toHaveURL(/sourceId=__manual_upload__/u);
+  await expect(page).toHaveURL(new RegExp(`selected=[^&]+`, 'u'));
+  await expect(page.getByLabel('Buscar documentos privados')).toHaveValue('JORGE');
+  await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
+
   // The admin sees and changes only workspace assignments; the shared search remains available.
+  await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceAId)}`);
+  await expect(workspaceSelect).toBeVisible();
   await workspaceSelect.selectOption(workspaceBId);
   await addMember(page, credentials.accounts.operator.email, 'Consulta');
   const operatorRoleB = page.getByLabel(`Permiso de ${credentials.accounts.operator.email}`);
@@ -184,7 +269,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
 
   // A one-workspace editor opens directly into that space and has no membership controls.
   await login(page, credentials.accounts.reviewer);
-  await page.goto('/spaces');
+  await page.goto('/spaces/manage');
   await expect(page.getByRole('heading', { name: nameA })).toBeVisible();
   await expect(page.getByText('Tu espacio asignado se abrió automáticamente.')).toBeVisible();
   await expect(page.getByText('Tu rol: Editor')).toBeVisible();
@@ -194,7 +279,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
 
   // Viewer can search/open/download B, sees no editing actions and cannot open A by guessed URL.
   await login(page, credentials.accounts.reader);
-  await page.goto('/spaces');
+  await page.goto('/spaces/manage');
   await expect(page.getByRole('heading', { name: nameB })).toBeVisible();
   await expect(page.getByText('Tu rol: Consulta')).toBeVisible();
   await expect(page.getByLabel('Seleccionar archivos PDF')).toHaveCount(0);
@@ -202,9 +287,11 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.getByRole('heading', { name: 'Miembros y permisos' })).toHaveCount(0);
   await page.getByLabel('Buscar documentos privados').fill('JORGE');
   await page.getByLabel('Buscar documentos privados').locator('xpath=..').getByRole('button', { name: 'Buscar', exact: true }).click();
-  await expect(page.locator('[aria-label="Resultados por contenido"]').getByRole('link', { name: /sprint151-e2e-one\.pdf/iu })).toBeVisible({ timeout: 60_000 });
-  const hrefB = await page.locator('[aria-label="Resultados por contenido"]').getByRole('link', { name: /sprint151-e2e-one\.pdf/iu }).getAttribute('href');
-  const documentIdB = hrefB?.match(/\/documents\/([^?]+)/u)?.[1];
+  const readerContentResults = page.locator('[aria-label="Resultados por contenido"]');
+  const readerDocumentLink = readerContentResults.getByRole('link', { name: /sprint151-e2e-one\.pdf/iu });
+  await expect(readerDocumentLink).toBeVisible({ timeout: 60_000 });
+  const readerDocumentHref = await readerDocumentLink.getAttribute('href');
+  const documentIdB = readerDocumentHref?.match(/\/documents\/([^?]+)/u)?.[1];
   expect(documentIdB).toBeTruthy();
   await page.goto(`/spaces/${workspaceBId}/documents/${documentIdB}`);
   await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
@@ -224,14 +311,19 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.locator('.react-pdf__Page')).toHaveCount(0);
   expect(deniedWorkspaceResponses).toHaveLength(2);
   expect(deniedWorkspaceResponses.every((status) => status === 404)).toBe(true);
-  expect(browserErrors).toEqual([]);
+  const expectedNotFoundErrors: string[] = browserErrors.filter(
+    (error) => error === 'Failed to load resource: net::ERR_FILE_NOT_FOUND',
+  );
+  expect(expectedNotFoundErrors.length).toBeLessThanOrEqual(deniedWorkspaceResponses.length);
+  expect(browserErrors.filter((error) => !expectedNotFoundErrors.includes(error))).toEqual([]);
+  console.log(`SPRINT153_PERFORMANCE_MS=${JSON.stringify(performanceMs)}`);
 });
 
 test('usuario con dos espacios autorizados cambia de ámbito sin mezclar nombres', async ({ page }) => {
   test.setTimeout(120_000);
   page.setDefaultTimeout(10_000);
   await login(page, credentials.accounts.operator);
-  await page.goto('/spaces');
+  await page.goto('/spaces/manage');
   const selector = page.getByLabel('Espacio documental');
   await expect(selector).toBeVisible();
   await expect(selector.locator('option').filter({ hasText: nameA })).toHaveCount(1);

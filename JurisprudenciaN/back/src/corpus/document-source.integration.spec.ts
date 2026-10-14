@@ -244,6 +244,108 @@ describe('Sprint 15.2 document sources PostgreSQL integration', () => {
           (result) => result.metadata.sourceName === 'Fixture Network A',
         ),
       ).toBe(true);
+      const visibleSources = await workspaceDocuments.searchSources(
+        workspaceA.id,
+        viewerA,
+      );
+      expect(visibleSources).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: sourceA.id,
+            name: 'Fixture Network A',
+            fileCount: 3,
+          }),
+        ]),
+      );
+      expect(JSON.stringify(visibleSources)).not.toContain(rootA);
+      const sourceFolders = await workspaceDocuments.searchSourceFolders(
+        workspaceA.id,
+        sourceA.id,
+        viewerA,
+      );
+      expect(sourceFolders.folders.map((folder) => folder.path)).toContain(
+        'sub',
+      );
+      const sourceScoped = await workspaceDocuments.searchWorkspace(
+        workspaceA.id,
+        viewerA,
+        '"JORGE PORCEL FIXTURE"',
+        1,
+        20,
+        undefined,
+        sourceA.id,
+      );
+      expect(sourceScoped?.total).toBe(3);
+      const sourceNameScoped = await workspaceDocuments.searchNames(
+        workspaceA.id,
+        viewerA,
+        'A.pdf',
+        undefined,
+        1,
+        20,
+        sourceA.id,
+      );
+      expect(sourceNameScoped.results.map((row) => row.filename)).toEqual([
+        'A.pdf',
+      ]);
+      const nestedNameWithoutFolder = await workspaceDocuments.searchNames(
+        workspaceA.id,
+        viewerA,
+        'C.pdf',
+        undefined,
+        1,
+        20,
+        sourceA.id,
+      );
+      expect(nestedNameWithoutFolder.results.map((row) => row.filename)).toEqual([
+        'C.pdf',
+      ]);
+      const sourceFolderNameScoped = await workspaceDocuments.searchNames(
+        workspaceA.id,
+        viewerA,
+        'C.pdf',
+        undefined,
+        1,
+        20,
+        sourceA.id,
+        'sub',
+      );
+      expect(sourceFolderNameScoped.results.map((row) => row.filename)).toEqual([
+        'C.pdf',
+      ]);
+      const sourceFolderScoped = await workspaceDocuments.searchWorkspace(
+        workspaceA.id,
+        viewerA,
+        '"JORGE PORCEL FIXTURE"',
+        1,
+        20,
+        undefined,
+        sourceA.id,
+        'sub',
+      );
+      expect(sourceFolderScoped?.total).toBe(1);
+      await expect(
+        workspaceDocuments.searchWorkspace(
+          workspaceB.id,
+          adminB,
+          '"JORGE PORCEL FIXTURE"',
+          1,
+          20,
+          undefined,
+          sourceA.id,
+        ),
+      ).rejects.toMatchObject({ status: 404 });
+      await expect(
+        workspaceDocuments.searchNames(
+          workspaceB.id,
+          adminB,
+          'A.pdf',
+          undefined,
+          1,
+          20,
+          sourceA.id,
+        ),
+      ).rejects.toMatchObject({ status: 404 });
       const firstDoc = docsA.find((doc) => doc.documentId)?.documentId;
       expect(firstDoc).toBeTruthy();
       expect(

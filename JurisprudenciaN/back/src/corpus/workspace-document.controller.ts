@@ -153,6 +153,8 @@ export class WorkspaceDocumentController {
     @Query('page') page: string | undefined,
     @Query('pageSize') pageSize: string | undefined,
     @Query('folderId') folderId: string | undefined,
+    @Query('sourceId') sourceId: string | undefined,
+    @Query('sourceFolder') sourceFolder: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.workspaces.searchWorkspace(
@@ -162,7 +164,26 @@ export class WorkspaceDocumentController {
       positiveInt(page, 1),
       Math.min(100, positiveInt(pageSize, 20)),
       folderId === 'ROOT' ? null : folderId,
+      sourceId,
+      sourceFolder,
     );
+  }
+
+  @Get(':workspaceId/search/sources')
+  searchSources(
+    @Param('workspaceId') workspaceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.searchSources(workspaceId, user);
+  }
+
+  @Get(':workspaceId/search/sources/:sourceId/folders')
+  searchSourceFolders(
+    @Param('workspaceId') workspaceId: string,
+    @Param('sourceId') sourceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.searchSourceFolders(workspaceId, sourceId, user);
   }
 
   @Get(':workspaceId/member-candidates')
@@ -179,6 +200,8 @@ export class WorkspaceDocumentController {
     @Param('workspaceId') workspaceId: string,
     @Query('q') q: string | undefined,
     @Query('folderId') folderId: string | undefined,
+    @Query('sourceId') sourceId: string | undefined,
+    @Query('sourceFolder') sourceFolder: string | undefined,
     @Query('page') page: string | undefined,
     @Query('pageSize') pageSize: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
@@ -190,6 +213,8 @@ export class WorkspaceDocumentController {
       folderId === 'ROOT' ? null : folderId,
       positiveInt(page, 1),
       Math.min(100, positiveInt(pageSize, 20)),
+      sourceId,
+      sourceFolder,
     );
   }
 

@@ -122,3 +122,22 @@ Dataset sintético separado: 100, 500 y 1.000 documentos. Última corrida TERM p
 `EXPLAIN ANALYZE` sobre el count TERM privado sintético de 500 filas usó índice de `CorpusDocument` por scope/status y luego un nested loop ACL: 500 loops de índice `WorkspaceDocument_workspaceId_folderId_createdAt_idx`, 250 filas por loop, 124.750 eliminadas por condición de join; 81,81 ms y 3.132 shared buffers (todos hit). El plan valida aplicación en SQL y evidencia que el predicado ACL puede recorrer demasiadas filas para cardinalidades mayores; no se agregó índice en esta Sprint. El endpoint TERM devuelve count exacto, pero su p95 a 1.000 osciló hasta 2,70 s en la última corrida y el p50 entre corridas hasta 2,30 s. Perfilar esa variación antes de ampliar el corpus del piloto.
 
 Search general quedó intacto: verificación 17.078 documentos, 18.799.500 tokens, stale=0, 0/100 discrepancias; paridad 40/40; viewer general 6/6. La suite de backend general pasó 94 tests y omitió 15. Builds y typechecks frontend/backend pasan. Sin despliegue compartido, preproducción o producción. Sprint 15.1 queda PARTIAL hasta que usuarios/owners reales registren UAT y se perfile la variación ACL/TERM observada con más escala; PHRASE exact-total/performance sigue siendo deuda independiente.
+## Sprint 15.3 — Copernic Classic UX 2.0 (2026-10-13)
+
+**PARTIAL.** /spaces ofrece búsqueda privada desktop-first en tres paneles. El lateral muestra sólo los espacios autorizados, carpetas Galilei y fuentes; las subcarpetas de SourceFile.relativePath se derivan en memoria y no crean WorkspaceFolder. Carga manual se presenta una sola vez como fuente virtual. El alcance visible cambia entre espacio, carpeta, fuente y carpeta de fuente; Search por contenido y nombre aplica los mismos filtros autorizados.
+
+El centro conserva la búsqueda explícita con ayuda de sintaxis. No hay búsqueda por tecla ni filtros de fecha/tipo activos porque la API privada no los soporta; tampoco se ofrece un filtro de extensión que no corresponda al pipeline actual, que indexa PDF. Las filas son compactas y muestran nombre, página, fragmento resaltado, carpeta/fuente y fecha. El conteo distingue respuestas parciales: si totalExact=false, la interfaz muestra “Más de N”.
+
+El panel derecho reutiliza CorpusPdfViewer y carga sólo el documento seleccionado desde metadata, /matches y /file protegidos. La selección no cambia de ruta; Escape la limpia. El visor completo abre en página y coincidencia actuales. La vuelta al Search conserva workspaceId, query, fuente/carpeta, página, selección y match. Ctrl+F enfoca la consulta; flechas mueven selección cuando la lista tiene foco; Enter muestra el preview; F3/Shift+F3 avanzan/retroceden coincidencias. Los requests previos de Search y preview se cancelan al cambiar el contexto.
+
+El resaltado TERM del fixture y el salto a página pasan en browser. El alineamiento exacto entre offsets del extractor y text layer de PDF.js, en particular para PHRASE, todavía no está garantizado; la UI no afirma spans de frase exactos. PHRASE conserva el contrato de total parcial y su deuda de rendimiento, sin cambio al parser ni al ranking.
+
+### Verificación Sprint 15.3
+
+Playwright DEV sintético: 2/2 escenarios PASS; Search privado, filtro __manual_upload__, preview persistente, PDF en página 2, controles de página, ArrowDown/Enter, Escape, F3/Shift+F3, regreso con estado, Viewer y descarga; denegación A/B produjo 404 sin render. Capturas inspeccionadas a 1366×768 y 1920×1080, sin overflow horizontal. Archivos locales ignorados: _recovery-work/sprint153/screenshots/.
+
+La corrida final de browser midió Search request 155 ms, primer resultado 12 ms, primer render PDF 954 ms, cambio de página 61 ms y navegación F3 10 ms. Son mediciones de un fixture DEV y no SLO.
+
+prisma migrate status: 24 migraciones, schema al día. Search verify: 17.078 documentos, 18.799.500 tokens, stale=0, 0/100 discrepancias; general smoke 21 resultados, 20 devueltos y 0 privados; Viewer general 6/6. Integración específica de fuentes: 1 suite / 1 test PASS. Typecheck y builds frontend/backend PASS; lint dirigido a archivos modificados PASS. El lint completo conserva cuatro errores previos en páginas institucionales ajenas a este cambio.
+
+Sprint 15.3 queda PARTIAL por exactitud de spans PHRASE y refinamientos de tipo/fecha todavía no respaldados por API; no se presenta como aceptación humana. ACL y separación Search general/privado: PASS. No hubo acceso a preproducción, producción o shares institucionales.

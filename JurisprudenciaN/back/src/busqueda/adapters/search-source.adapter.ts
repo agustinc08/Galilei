@@ -30,7 +30,13 @@ export type SearchContext = {
   /** Set only by an authenticated workspace service after membership authorization. */
   documentScope?:
     | { kind: 'GENERAL' }
-    | { kind: 'WORKSPACE'; workspaceId: string; folderId?: string | null };
+    | {
+        kind: 'WORKSPACE';
+        workspaceId: string;
+        folderId?: string | null;
+        sourceId?: string;
+        sourceFolder?: string;
+      };
 };
 
 export type SearchResult = {

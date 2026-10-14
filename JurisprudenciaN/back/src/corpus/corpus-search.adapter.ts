@@ -374,7 +374,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     }
     const documentScopeValue: unknown = context.documentScope;
     const documentScope = typeof documentScopeValue === 'object' && documentScopeValue !== null
-      ? documentScopeValue as { kind?: unknown; workspaceId?: unknown; folderId?: unknown }
+      ? documentScopeValue as { kind?: unknown; workspaceId?: unknown; folderId?: unknown; sourceId?: unknown; sourceFolder?: unknown }
       : undefined;
     const isWorkspaceScope = documentScope?.kind === 'WORKSPACE';
     const workspaceId = isWorkspaceScope && typeof documentScope.workspaceId === 'string'
@@ -387,8 +387,23 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const values: SqlValue[] = [allowedVisibility(context.visibility)];
     if (workspaceId) values.push(workspaceId);
     if (typeof workspaceFolderId === 'string') values.push(workspaceFolderId);
+    const sourceId = isWorkspaceScope && typeof documentScope?.sourceId === 'string'
+      ? documentScope.sourceId
+      : null;
+    const sourceFolder = isWorkspaceScope && typeof documentScope?.sourceFolder === 'string'
+      ? documentScope.sourceFolder
+      : null;
+    const sourceIdIndex = sourceId && sourceId !== '__manual_upload__'
+      ? values.push(sourceId)
+      : null;
+    const sourceFolderIndex = sourceFolder ? values.push(sourceFolder) : null;
+    const sourcePredicate = sourceId === '__manual_upload__'
+      ? ' AND NOT EXISTS (SELECT 1 FROM "SourceFile" sourceFile JOIN "DocumentSource" source ON source."id" = sourceFile."sourceId" WHERE sourceFile."documentId" = d."id" AND source."workspaceId" = $2)'
+      : sourceIdIndex
+        ? ` AND EXISTS (SELECT 1 FROM "SourceFile" sourceFile JOIN "DocumentSource" source ON source."id" = sourceFile."sourceId" WHERE sourceFile."documentId" = d."id" AND sourceFile."sourceId" = $${sourceIdIndex} AND source."workspaceId" = $2${sourceFolderIndex ? ` AND (sourceFile."normalizedPath" = $${sourceFolderIndex} OR (left(sourceFile."normalizedPath", char_length($${sourceFolderIndex})) = $${sourceFolderIndex} AND substring(sourceFile."normalizedPath" from char_length($${sourceFolderIndex}) + 1 for 1) = E'\\\\'))` : ''})`
+        : '';
     const scopePredicate = workspaceId
-      ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ' AND workspaceDocument."folderId" = $3') : ''})`
+      ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ' AND workspaceDocument."folderId" = $3') : ''})${sourcePredicate}`
       : `d."documentScope" = 'GENERAL'`;
     const shortTermWindow = useTokenProjection && query.root?.type === 'term' && !query.root.field &&
       query.root.matchMode === 'contains' && [...normalizeSearchText(query.root.value)].length < 3;

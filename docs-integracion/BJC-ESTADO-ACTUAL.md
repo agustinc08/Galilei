@@ -357,3 +357,12 @@ Próximo trabajo técnico: perfilar el statement completo de page/hydration y re
 La suite backend completa terminó: 94 PASS, 19 omitidas, 0 fallos (21 suites PASS, 7 omitidas). No se probó una carpeta UNC real: IT debe habilitar lectura SMB/NTFS para la identidad del backend. La paridad legacy 40/40 está bloqueada porque no existe el SQLite local esperado; no se reporta PASS. No hubo acceso a shares institucionales, preproducción ni producción, ni UAT humana. Evidencia privada local: `_recovery-work/sprint152/`; contrato en `BJC-FUENTES-DOCUMENTALES.md`.
 
 `origin/feature/jurisprudencia` contiene cambios independientes de adquisición y modificaciones divergentes en `BJC-ESTADO-ACTUAL.md` y `BJC-ROADMAP.md`. No se integraron ni sobrescribieron; un futuro cherry-pick/merge puede requerir resolver esos dos documentos manualmente.
+## Estado vigente — Sprint 15.3 (2026-10-13)
+
+**Sprint 15.3 PARTIAL; implementación de UX y validaciones técnicas PASS en DEV.** /spaces ahora usa layout Copernic de tres paneles con árbol por workspace, carpetas virtuales de fuentes, búsqueda explícita combinada por contenido/nombre, filtros de fuente/carpeta y preview PDF persistente. La página de viewer conserva query, workspace, alcance, página y coincidencia al volver. Sin cambios de schema/migraciones.
+
+E2E Playwright 2/2 PASS, capturas inspeccionadas 1366×768/1920×1080, sin overflow. ACL cruzada A/B: 404; lector autorizado pudo buscar, abrir y descargar. Search general smoke devolvió 21 (20 en página) y ningún privado; proyección 17.078 documentos / 18.799.500 tokens, stale 0, discrepancias 0/100; Viewer 6/6. migrate status limpio, 24 migraciones. Typecheck/build backend/frontend y lint dirigido PASS; cuatro lint errors del repo completo siguen en páginas no modificadas. La paridad legacy 40/40 continúa pendiente por falta del SQLite.
+
+Se mantiene PARTIAL porque offsets de PHRASE no garantizan todavía resaltado de frase exacto y no existen filtros backend de tipo/fecha; la UI omite esos controles. Performance browser en fixture DEV: Search 155 ms, render del primer resultado 12 ms, preview PDF 954 ms, cambio de página 61 ms y F3 10 ms; una muestra, no SLO.
+
+No hubo UAT humano, acceso UNC institucional, preproducción ni producción. Riesgo de integración con feature/jurisprudencia: corpus-search.adapter.ts, workspace-document.service.ts, controller de workspace y documentos maestros generales; no se mergeó esa rama ni se tocó main/dev.

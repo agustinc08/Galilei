@@ -19,6 +19,7 @@ import {
 import { LocalDocumentStorageAdapter } from './document-storage.adapter';
 import type { DocumentStorageAdapter } from './document-storage.adapter';
 import { CorpusDocumentAccessService } from './corpus-document-access.service';
+import { normalizeRelativePath } from './document-source-scanner';
 
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -544,6 +545,8 @@ export class WorkspaceDocumentService {
     page = 1,
     pageSize = 20,
     folderId?: string | null,
+    sourceId?: string,
+    sourceFolder?: string,
   ): Promise<
     import('../busqueda/adapters/search-source.adapter').SearchResultPage | null
   > {
@@ -557,6 +560,25 @@ export class WorkspaceDocumentService {
       }))
     )
       throw new NotFoundException('Carpeta no encontrada.');
+    if (sourceFolder && (!sourceId || sourceId === '__manual_upload__'))
+      throw new BadRequestException(
+        'Elegí una fuente antes de filtrar por su carpeta.',
+      );
+    if (sourceId && sourceId !== '__manual_upload__') {
+      const source = await this.prisma.documentSource.findFirst({
+        where: { id: sourceId, workspaceId },
+        select: { id: true },
+      });
+      if (!source) throw new NotFoundException('Fuente no encontrada.');
+    }
+    let normalizedSourceFolder: string | undefined;
+    if (sourceFolder) {
+      try {
+        normalizedSourceFolder = normalizeRelativePath(sourceFolder);
+      } catch {
+        throw new BadRequestException('La carpeta de fuente no es válida.');
+      }
+    }
     const result = await this.search.federatedSearch(q, 'AND', {
       visibility: 'ADMIN',
       dialect: 'modern',
@@ -568,6 +590,10 @@ export class WorkspaceDocumentService {
         kind: 'WORKSPACE',
         workspaceId,
         ...(folderId !== undefined ? { folderId } : {}),
+        ...(sourceId ? { sourceId } : {}),
+        ...(normalizedSourceFolder
+          ? { sourceFolder: normalizedSourceFolder }
+          : {}),
       },
     });
     if (!result?.results?.length) return result;
@@ -590,17 +616,19 @@ export class WorkspaceDocumentService {
       },
       select: {
         documentId: true,
+        sourceId: true,
+        relativePath: true,
+        status: true,
         source: { select: { name: true } },
       },
     });
     const metadataById = new Map(links.map((link) => [link.documentId, link]));
-    const sourceNamesById = new Map<string, Set<string>>();
+    const sourceFilesByDocument = new Map<string, typeof sourceFiles>();
     for (const sourceFile of sourceFiles) {
       if (!sourceFile.documentId) continue;
-      const names =
-        sourceNamesById.get(sourceFile.documentId) ?? new Set<string>();
-      names.add(sourceFile.source.name);
-      sourceNamesById.set(sourceFile.documentId, names);
+      const rows = sourceFilesByDocument.get(sourceFile.documentId) ?? [];
+      rows.push(sourceFile);
+      sourceFilesByDocument.set(sourceFile.documentId, rows);
     }
     return {
       ...result,
@@ -614,12 +642,131 @@ export class WorkspaceDocumentService {
             folderName: link?.folder?.name ?? 'Todos los documentos',
             uploadedAt: link?.createdAt.toISOString() ?? null,
             status: link?.document.status ?? null,
-            sourceName:
-              [...(sourceNamesById.get(item.sourceId) ?? [])].join(', ') ||
-              null,
+            sourceName: [
+              ...new Set(
+                (sourceFilesByDocument.get(item.sourceId) ?? [])
+                  .filter((row) => !sourceId || row.sourceId === sourceId)
+                  .map((row) => row.source.name),
+              ),
+            ].join(', ') || 'Carga manual',
+            sourceStatus: (() => {
+              const rows = (sourceFilesByDocument.get(item.sourceId) ?? [])
+                .filter((row) => !sourceId || row.sourceId === sourceId);
+              return rows.length > 0 && rows.every((row) => row.status === 'MISSING')
+                ? 'MISSING'
+                : rows.length > 0
+                  ? 'PRESENT'
+                  : 'MANUAL';
+            })(),
+            sourceFolder: (() => {
+              const rows = sourceFilesByDocument.get(item.sourceId) ?? [];
+              const preferred =
+                rows.find((row) => row.sourceId === sourceId) ?? rows[0];
+              if (!preferred) return null;
+              const segments = preferred.relativePath.split(/[\\/]/u);
+              return segments.length > 1
+                ? segments.slice(0, -1).join('\\')
+                : null;
+            })(),
           },
         };
       }),
+    };
+  }
+
+  async searchSources(workspaceId: string, user: AuthenticatedUser) {
+    await this.requireMembership(workspaceId, user);
+    const [sources, manualUploadCount] = await Promise.all([
+      this.prisma.documentSource.findMany({
+        where: { workspaceId },
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          status: true,
+          enabled: true,
+          _count: { select: { files: true } },
+        },
+      }),
+      this.prisma.workspaceDocument.count({
+        where: {
+          workspaceId,
+          document: {
+            documentScope: 'PRIVATE_WORKSPACE',
+            sourceFiles: {
+              none: { source: { workspaceId } },
+            },
+          },
+        },
+      }),
+    ]);
+    return [
+      {
+        id: '__manual_upload__',
+        name: 'Carga manual',
+        type: 'MANUAL_UPLOAD',
+        status: 'CONNECTED',
+        enabled: true,
+        fileCount: manualUploadCount,
+      },
+      ...sources.map(({ _count, ...source }) => ({
+        ...source,
+        fileCount: _count.files,
+      })),
+    ];
+  }
+
+  async searchSourceFolders(
+    workspaceId: string,
+    sourceId: string,
+    user: AuthenticatedUser,
+  ) {
+    await this.requireMembership(workspaceId, user);
+    const source = await this.prisma.documentSource.findFirst({
+      where: { id: sourceId, workspaceId },
+      select: { id: true },
+    });
+    if (!source) throw new NotFoundException('Fuente no encontrada.');
+    const files = await this.prisma.sourceFile.findMany({
+      where: { sourceId, documentId: { not: null } },
+      select: { relativePath: true },
+      orderBy: { normalizedPath: 'asc' },
+    });
+    const directories = new Map<
+      string,
+      { path: string; parentPath: string | null; name: string; fileCount: number }
+    >();
+    for (const file of files) {
+      const segments = file.relativePath.split(/[\\/]/u);
+      if (segments.length < 2) continue;
+      let parentPath = '';
+      for (const segment of segments.slice(0, -1)) {
+        parentPath = parentPath ? `${parentPath}\\${segment}` : segment;
+        let normalized: string;
+        try {
+          normalized = normalizeRelativePath(parentPath);
+        } catch {
+          break;
+        }
+        const parent = normalized.includes('\\')
+          ? normalized.slice(0, normalized.lastIndexOf('\\'))
+          : null;
+        const current = directories.get(normalized);
+        directories.set(normalized, {
+          path: normalized,
+          parentPath: parent,
+          name: segment,
+          fileCount: (current?.fileCount ?? 0) + 1,
+        });
+      }
+    }
+    const sortedFolders = [...directories.values()].sort((a, b) =>
+      a.path.localeCompare(b.path, 'en'),
+    );
+    return {
+      folders: sortedFolders.slice(0, 5000),
+      truncated: sortedFolders.length > 5000,
     };
   }
 
@@ -630,6 +777,8 @@ export class WorkspaceDocumentService {
     folderId?: string | null,
     page = 1,
     pageSize = 20,
+    sourceId?: string,
+    sourceFolder?: string,
   ) {
     await this.requireMembership(workspaceId, user);
     const term = q.trim();
@@ -643,11 +792,82 @@ export class WorkspaceDocumentService {
       }))
     )
       throw new NotFoundException('Carpeta no encontrada.');
+    if (sourceFolder && (!sourceId || sourceId === '__manual_upload__'))
+      throw new BadRequestException(
+        'Elegí una fuente antes de filtrar por su carpeta.',
+      );
+    if (sourceId && sourceId !== '__manual_upload__') {
+      const source = await this.prisma.documentSource.findFirst({
+        where: { id: sourceId, workspaceId },
+        select: { id: true },
+      });
+      if (!source) throw new NotFoundException('Fuente no encontrada.');
+    }
+    let normalizedSourceFolder: string | undefined;
+    if (sourceFolder) {
+      try {
+        normalizedSourceFolder = normalizeRelativePath(sourceFolder);
+      } catch {
+        throw new BadRequestException('La carpeta de fuente no es válida.');
+      }
+    }
+    const sourceFolderDocumentIds = normalizedSourceFolder
+      ? (
+          await this.prisma.$queryRaw<Array<{ documentId: string }>>(
+            Prisma.sql`
+              SELECT DISTINCT "documentId"
+                FROM "SourceFile"
+               WHERE "sourceId" = ${sourceId!}
+                 AND "documentId" IS NOT NULL
+                 AND (
+                   "normalizedPath" = ${normalizedSourceFolder}
+                   OR (
+                     left("normalizedPath", char_length(${normalizedSourceFolder})) = ${normalizedSourceFolder}
+                     AND substring("normalizedPath" from char_length(${normalizedSourceFolder}) + 1 for 1) = E'\\\\'
+                   )
+                 )
+            `,
+          )
+        ).map((row) => row.documentId)
+      : undefined;
+    const sourceDocumentFilter: Prisma.CorpusDocumentWhereInput =
+      sourceId === '__manual_upload__'
+        ? {
+            sourceFiles: {
+              none: { source: { workspaceId } },
+            },
+          }
+        : sourceId && !normalizedSourceFolder
+          ? {
+              sourceFiles: {
+                some: {
+                  sourceId,
+                  source: { workspaceId },
+                  ...(normalizedSourceFolder
+                    ? {
+                        OR: [
+                          { normalizedPath: normalizedSourceFolder },
+                          {
+                            normalizedPath: {
+                              startsWith: `${normalizedSourceFolder}\\`,
+                            },
+                          },
+                        ],
+                      }
+                    : {}),
+                },
+              },
+            }
+          : {};
     const where: Prisma.WorkspaceDocumentWhereInput = {
       workspaceId,
+      ...(sourceFolderDocumentIds
+        ? { documentId: { in: sourceFolderDocumentIds } }
+        : {}),
       ...(folderId !== undefined ? { folderId } : {}),
       document: {
         documentScope: 'PRIVATE_WORKSPACE',
+        ...sourceDocumentFilter,
         OR: [
           { title: { contains: term, mode: 'insensitive' } },
           {

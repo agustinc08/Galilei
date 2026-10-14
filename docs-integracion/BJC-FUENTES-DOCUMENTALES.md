@@ -47,3 +47,10 @@ La Search privada conserva el filtro SQL exacto por workspace antes de conteo, p
 - Paridad legacy 40/40: bloqueada porque falta `_legacy-audit-work/extracted/jurisprudencia/jurisp_6/db/jurisprudencia_db.sqlite` en esta PC. No se reporta como PASS.
 
 La evidencia detallada vive en `_recovery-work/sprint152/` y permanece local/ignorada. No se usaron shares, documentos institucionales, producción ni preproducción.
+## Refinamiento de búsqueda por fuente — Sprint 15.3 (2026-10-13)
+
+La UI Copernic expone sourceId y sourceFolder como alcance opcional de Search privado y búsqueda por nombre. El pseudo-source __manual_upload__ limita resultados a documentos cargados manualmente, excluyendo documentos vinculados a una fuente documental del mismo workspace. Las fuentes reales validan membership y pertenencia al workspace antes de enumerar carpetas o buscar; sus rutas UNC completas no se devuelven a Search.
+
+GET /api/workspaces/:workspaceId/search/sources devuelve alias, estado y cantidad autorizados. GET /api/workspaces/:workspaceId/search/sources/:sourceId/folders deriva el árbol virtual de relativePath (máximo 5.000 carpetas); no crea carpetas persistidas ni devuelve los paths raíz. La integración sintética verificó filtro por fuente/carpeta en contenido, nombres y denegación de fuente de otro workspace. El SQL conserva workspace/ACL como límite obligatorio.
+
+Search general no cambió y mantiene documentScope=GENERAL. Detalle UX, resultados y límites en BJC-ESPACIOS-DOCUMENTALES.md, Sprint 15.3. No se probó una UNC institucional.

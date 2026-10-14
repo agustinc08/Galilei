@@ -52,7 +52,16 @@ export default function WorkspaceDocumentViewer() {
   const initialQuery = searchParams.get("q") ?? "";
   const workspaceName = searchParams.get("workspaceName");
   const backParams = new URLSearchParams();
-  for (const key of ["workspaceId", "folderId", "q", "searchFolderMode"]) {
+  for (const key of [
+    "workspaceId",
+    "folderId",
+    "sourceId",
+    "sourceFolder",
+    "q",
+    "searchFolderMode",
+    "selected",
+    "match",
+  ]) {
     const value = searchParams.get(key);
     if (value !== null) backParams.set(key, value);
   }
@@ -108,12 +117,18 @@ export default function WorkspaceDocumentViewer() {
         { query: { q: query } },
       );
       setMatches(data);
-      setActive(0);
-      if (data.matches[0]) setPage(data.matches[0].page);
+      const cameFromSearch = searchParams.has("searchPage");
+      const requestedOrdinal = Math.max(1, Number(searchParams.get("match") ?? 1));
+      const requestedIndex = cameFromSearch
+        ? data.matches.findIndex((match) => match.ordinal === requestedOrdinal)
+        : 0;
+      const nextIndex = requestedIndex >= 0 ? requestedIndex : 0;
+      setActive(nextIndex);
+      if (data.matches[nextIndex]) setPage(data.matches[nextIndex].page);
     } catch (cause) {
       setError(viewerError(cause, "No se pudo buscar dentro del documento."));
     }
-  }, [params.id, params.workspaceId, query]);
+  }, [params.id, params.workspaceId, query, searchParams]);
   async function downloadPdf() {
     try {
       const blob = await api.download(
