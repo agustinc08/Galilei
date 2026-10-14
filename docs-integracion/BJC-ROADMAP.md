@@ -314,3 +314,7 @@ J7.1.2 confirmó el universo histórico exacto (1.254/1.254) y cero metadata raw
 ## Después de J7.1.3 — UAT acotada de Sala histórica
 
 Tooling `READY FOR HUMAN REVIEW`; revisión humana `NOT STARTED`. Ejecutar primero la muestra local determinista de 25, exportando checkpoints periódicos. Después medir acuerdo con propuesta, Sala alternativa, ambigüedad, falta de evidencia y tiempo promedio. Con esos resultados decidir si conviene revisar los restantes, mantener el faltante histórico como desconocido, solicitar otra fuente o cerrar con gaps conocidos. No revisar automáticamente los 365 ni aplicar Salas; cualquier aplicación futura requiere sprint y revalidación separados.
+
+## Después de Sprint J8 — calidad del corpus cerrada (2026-10-14)
+
+J8 concluyó `CERTIFIED_WITH_KNOWN_GAPS` para los 6.070 documentos Civil actualmente adquiridos: manifiesto 100%, `BROKEN`/`UNKNOWN`/`UNRESOLVED` 0 y escrituras 0. La limpieza técnica de este snapshot queda cerrada; gaps históricos, OCR y colas humanas están documentados. Esto no afirma cobertura total Civil. No abrir una nueva adquisición/scraper como continuación de J8. Líneas siguientes posibles: certificación independiente de endpoint/ranking Search y ruta autenticada Viewer, UX/UAT o preparación de integración coordinada con `feature/copernic`. Detalle y re-ejecución: `BJC-CERTIFICACION-CORPUS-CIVIL.md`.

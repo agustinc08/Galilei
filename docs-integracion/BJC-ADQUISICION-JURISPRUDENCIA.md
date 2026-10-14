@@ -590,3 +590,7 @@ Auditoría local de los 1.254 fallos CSJN_TFN_HISTORICAL: 53 rutas de metadata r
 El review pack se reconstruye localmente a partir de provenance y texto de página ya almacenados del snapshot J7.1.2; no consulta fuentes ni descarga documentos. Incluye 365 propuestas probables y separa 39 ambiguas; excluye 849 sin Sala propia detectable y diagnostica aparte un documento sin texto suficiente. Los extractos, SHA y casos son evidencia privada ignorada en `_recovery-work/jurisprudencia-j713/`; no versionarlos ni copiar rutas de storage.
 
 La herramienta sólo prepara decisiones humanas y exports con detección de versión obsoleta. Una confirmación permitiría filtro exacto por Sala en los 365 casos; sólo 26 completarían la clave legal y 339 seguirían parciales. Hacer primero la muestra determinista de 25; no extender la revisión por defecto ni tratar la propuesta como metadata confirmada.
+
+## Cierre J8 — calidad del corpus actualmente adquirido (2026-10-14)
+
+J8 certificó la integridad técnica de los 6.070 documentos ya adquiridos: cero archivos perdidos/corruptos, cero desconocidos y Search completo. No adquirió jurisprudencia ni midió el universo total disponible. La revisión de Sala histórica continúa pendiente. Toda nueva adquisición cambia el universo certificado y requiere una nueva auditoría; este cierre no autoriza scraping ni equivale a cobertura completa. Ver `BJC-CERTIFICACION-CORPUS-CIVIL.md`.

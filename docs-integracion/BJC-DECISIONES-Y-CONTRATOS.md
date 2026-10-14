@@ -214,3 +214,7 @@ El paquete `j713-review-v1` conserva `machineProposalSala` separado de `humanDec
 Decisiones permitidas: `CONFIRM_PROPOSAL`, `SET_OTHER_SALA` (Sala A–M obligatoria), `NO_SALA_EVIDENCE`, `AMBIGUOUS`, `NOT_APPLICABLE` y `SKIP`; comentario opcional. Checkpoint/export JSON contiene input hash, revisión del pack, revisor, timestamp y decisiones; al importar se validan hashes globales y por caso (documentId, SHA, propuesta), duplicados, estados y Sala. CSV es una salida validable; JSON es fuente autoritativa. `--apply` responde “Apply mode is not implemented.” No se genera SQL ni herramienta de aplicación.
 
 Las prioridades ordenan utilidad/evidencia: P0 evidencia propia corroborada y completitud de clave; P1 encabezado propio en página/zona inicial; P2 otra evidencia propia singular; P3 evidencia auxiliar/cola ambigua. La prioridad no equivale a confianza jurídica.
+
+## Contrato de certificación de corpus Civil — J8
+
+Cada documento del manifiesto J8 tiene estados explícitos para archivo, provenance, páginas, Search, Viewer, normalización, Sala, clave jurídica y representaciones. Los estados del corte suman 6.070: `CERTIFIED` 4.814, `CERTIFIED_WITH_KNOWN_GAP` 874, `HUMAN_REVIEW_PENDING` 365 y `MODEL_LIMITATION` 17; `BROKEN`, `UNRESOLVED` y `UNKNOWN` son cero. Un gap histórico o una revisión humana pendiente no se convierte en fallo técnico ni se promueve silenciosamente a limpio. Ningún estado J8 implica una escritura persistida. Contrato y detalle: `BJC-CERTIFICACION-CORPUS-CIVIL.md`.

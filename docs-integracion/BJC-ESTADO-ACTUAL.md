@@ -1,5 +1,6 @@
 # Estado actual — Buscador Jurídico Civil
 
+
 ## Auditoría de paridad de source — 2026-10-13
 
 **Resultado: SOURCE EQUIVALENCE PASS en `dev`.** El clone limpio del commit `373e7c0add34580baade5fe873849c97f2fda061` instaló backend y frontend con `pnpm install --frozen-lockfile`; Prisma validate/generate, backend/frontend typecheck y builds pasaron. La suite backend sin runtime pasó 90 tests; 19 tests/suites optativos quedaron omitidos. No se copió runtime ni SQLite histórica.
@@ -444,3 +445,7 @@ Estado: **READY FOR HUMAN REVIEW; HUMAN REVIEW NOT STARTED**. Se reconstruyeron 
 La app estática local presenta la sugerencia de máquina separada de la decisión humana, resalta contexto, advierte sobre citas de otras Salas y no expone paths PDF. Permite filtros, búsqueda, decisión explícita, undo, export/import de checkpoint con stale detection y export JSON/CSV. El filtro UAT muestra exactamente los 25 casos deterministas. Entrada reproducible: `node scripts/with-dev-db-guard.cjs sprint-j713-historical-sala-review-pack`; luego iniciar desde `JurisprudenciaN/back`: `node scripts/dev/jurisprudencia-historical-sala-review-server.cjs`. El server escucha sólo en `127.0.0.1:43173`. Evidencia y checkpoints permanecen ignorados en `_recovery-work/jurisprudencia-j713/`.
 
 Generación read-only y sentinelas PostgreSQL/Search iguales; J6.1 sigue intacto. Playwright pasó el flujo completo con datos sintéticos y un smoke test del paquete real verificó los 365/39 casos y el filtro de 25; se registraron cero decisiones sobre casos reales. Próximo paso humano recomendado: sólo la muestra de 25; no asumir que deben revisarse los 365.
+
+## Sprint J8 — certificación final del corpus Civil (2026-10-14)
+
+`CERTIFIED_WITH_KNOWN_GAPS`: manifiesto determinista 6.070/6.070, sin duplicados ni faltantes; 0 `BROKEN`, `UNRESOLVED` o `UNKNOWN`. Archivos y provenance 6.070/6.070 válidos/completos; Search 6.070/6.070 presente, stale 0; Viewer 6.069 `READY` y 1 `TEXT_MISSING`. Se clasificaron las 50 páginas vacías: 46 legítimas y 4 candidatas OCR. Los 1.254 faltantes históricos de Sala están tipados entre revisión humana, ambiguos, sin evidencia propia y texto insuficiente; no se aplicó ninguna decisión ni corrección. PostgreSQL/Search, timestamps y storage no cambiaron. El 100% técnico significa estado conocido del corpus adquirido, no metadata completa ni universo total Civil. Detalle: `BJC-CERTIFICACION-CORPUS-CIVIL.md`; artefactos locales ignorados en `_recovery-work/jurisprudencia-j8/`.
