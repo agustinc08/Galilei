@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
 
@@ -28,10 +29,38 @@ test('J9 lector entra a Jurisprudencia, filtra sin controles de operador y manti
   await expect(page.getByLabel('Expediente')).toBeVisible();
   await expect(page.getByRole('button', { name: '+ Nuevo fallo' })).toHaveCount(0);
   await expect(page.getByText('Últimos fallos publicados')).toBeVisible();
-  await expect(page.getByText('0 resultados')).toBeVisible();
+  await expect(page.getByText('6014 resultados', { exact: true })).toBeVisible();
+  await expect(page.getByText('Fallo civil').first()).toBeVisible();
 
+  const first = await request.get(`${apiBase}/public/busqueda?page=1&pageSize=300`);
+  const firstPage = await first.json();
+  expect(firstPage.meta.total).toBeGreaterThan(300);
+  expect(firstPage.data).toHaveLength(300);
+  const second = await (await request.get(`${apiBase}/public/busqueda?page=2&pageSize=300`)).json();
+  expect(second.meta.page).toBe(2);
+  expect(second.data).toHaveLength(300);
+  const last = await (await request.get(`${apiBase}/public/busqueda?page=${firstPage.meta.pageCount}&pageSize=300`)).json();
+  expect(last.meta.page).toBe(firstPage.meta.pageCount);
+  expect(last.data.length).toBeGreaterThan(0);
+  const ids = [...firstPage.data, ...second.data, ...last.data].map((item: { sentenciaId: number }) => item.sentenciaId);
+  expect(new Set(ids).size).toBe(ids.length);
+
+  for (const params of [
+    'expediente=CIV%20072119%2F2022',
+    'caratula=AIZAMA',
+    'sala=Juzgado%20Civil%2064',
+    'tipoFallo=JURISPRUDENCIA',
+    'fechaDesde=2026-10-08&fechaHasta=2026-10-08',
+  ]) {
+    const filtered = await (await request.get(`${apiBase}/public/busqueda?${params}&pageSize=5`)).json();
+    expect(filtered.meta.total, params).toBeGreaterThan(0);
+  }
+
+  const screenshotRoot = resolve(process.cwd(), '../../_recovery-work/jurisprudencia-j901');
+  mkdirSync(screenshotRoot, { recursive: true });
   await page.setViewportSize({ width: 1366, height: 768 });
-  await page.screenshot({ path: resolve(process.cwd(), '../../_recovery-work/jurisprudencia-j9/reader-search-1366.png'), fullPage: true });
+  await page.screenshot({ path: resolve(screenshotRoot, 'jurisprudence-search-real-data.png'), fullPage: true });
+  await page.screenshot({ path: resolve(screenshotRoot, 'reader-result.png'), fullPage: true });
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.screenshot({ path: resolve(process.cwd(), '../../_recovery-work/jurisprudencia-j9/reader-search-1920.png'), fullPage: true });
 
@@ -48,7 +77,7 @@ test('J9 lector entra a Jurisprudencia, filtra sin controles de operador y manti
   const headers = { Authorization: `Bearer ${token}` };
   for (const [method, route] of [
     ['POST', '/sentencias'], ['PATCH', '/sentencias/1'], ['PATCH', '/sentencias/1/publicar'],
-    ['DELETE', '/sentencias/1'], ['POST', '/archivos/upload/jurisprudencia'],
+    ['PATCH', '/sentencias/1/archivar'], ['DELETE', '/sentencias/1'], ['POST', '/archivos/upload/jurisprudencia'],
   ] as const) {
     const response = await request.fetch(`${apiBase}${route}`, { method, headers });
     expect(response.status(), `${method} ${route}`).toBe(403);

@@ -122,6 +122,10 @@ describe('Sprint J9 jurisprudencia workflow', () => {
       sentencia: {
         findUnique: jest.fn().mockResolvedValue({ id: 3 }),
         findUniqueOrThrow: jest.fn().mockResolvedValue(before),
+        update: jest.fn().mockResolvedValue({
+          ...updated,
+          slugPublico: 'sala-h-responsabilidad-civil-2026',
+        }),
       },
       $transaction: jest.fn((callback: (value: typeof tx) => unknown) =>
         callback(tx),

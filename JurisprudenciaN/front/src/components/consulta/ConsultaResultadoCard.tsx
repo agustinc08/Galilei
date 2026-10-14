@@ -44,7 +44,7 @@ export function ConsultaResultadoCard({
       <div className={styles.resultMain}>
         <div className={styles.badges}>
           <span className={styles.badge}>
-            N. Sumario: {item.numeroSumario ?? `#${item.id}`}
+            {item.esFalloCorpus ? 'Fallo civil' : `N. Sumario: ${item.numeroSumario ?? `#${item.id}`}`}
           </span>
           {item.sala ? <span className={styles.badge}>Sala {item.sala}</span> : null}
           {item.tipoFallo ? <span className={styles.badge}>{item.tipoFallo}</span> : null}
@@ -79,8 +79,10 @@ export function ConsultaResultadoCard({
         </div>
 
         <div className={styles.sumarioBox}>
-          <strong className={styles.theme}>Tema: {item.tema ?? 'Sin tema'}</strong>
-          <p className={styles.sumarioText}>{item.textoSumario}</p>
+          <strong className={styles.theme}>
+            {item.esFalloCorpus ? 'Extracto del fallo' : `Tema: ${item.tema ?? 'Sin tema'}`}
+          </strong>
+          <p className={styles.sumarioText}>{item.esFalloCorpus ? item.extractoFallo : item.textoSumario}</p>
         </div>
 
         {item.highlights.length > 0 ? (

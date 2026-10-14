@@ -1124,7 +1124,7 @@ export class SentenciasService {
     }
 
     const publishedAt = publicado ? new Date() : null;
-    const sentencia = await this.prisma.$transaction(async (tx) => {
+    const sentenciaActualizada = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.sentencia.update({
         where: { id },
         data: {
@@ -1153,6 +1153,10 @@ export class SentenciasService {
       }
       return updated;
     });
+
+    const sentencia = publicado && !sentenciaActualizada.slugPublico
+      ? (await this.generarSlug(id, sentenciaActualizada)).data
+      : sentenciaActualizada;
 
     if (usuarioId) {
       await this.logsService.registrarAccion({
@@ -1341,8 +1345,8 @@ export class SentenciasService {
     return { data };
   }
 
-  async generarSlug(id: number) {
-    const sentencia = await this.prisma.sentencia.findUnique({
+  async generarSlug(id: number, publishedSnapshot?: Sentencia) {
+    const sentencia = publishedSnapshot ?? await this.prisma.sentencia.findUnique({
       where: { id },
     });
 
@@ -1356,7 +1360,9 @@ export class SentenciasService {
       );
     }
 
-    const temaPrincipal = await this.getTemaPrincipalPublico(sentencia.id);
+    const temaPrincipal = publishedSnapshot
+      ? null
+      : await this.getTemaPrincipalPublico(sentencia.id);
     const anio = sentencia.fecha?.getFullYear();
     const slugBase = slugify(
       [

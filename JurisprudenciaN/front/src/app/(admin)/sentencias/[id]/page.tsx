@@ -201,8 +201,12 @@ export default function SentenciaDetailPage() {
   };
 
   const updateSentencia = async (values: SentenciaFormValues) => {
+    const { tipoFalloId, salaId, tribunalOrigenId, ...textValues } = values;
     await api.patch(`/sentencias/${id}`, {
-      ...values,
+      ...textValues,
+      ...(typeof tipoFalloId === 'number' ? { tipoFalloId } : {}),
+      ...(typeof salaId === 'number' ? { salaId } : {}),
+      ...(typeof tribunalOrigenId === 'number' ? { tribunalOrigenId } : {}),
       fecha: values.fecha ? new Date(values.fecha).toISOString() : undefined,
     });
     setFeedback('Sentencia actualizada.');

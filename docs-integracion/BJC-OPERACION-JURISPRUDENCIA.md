@@ -1,6 +1,6 @@
 # Operación de Jurisprudencia — Sprint J9
 
-**Fecha:** 2026-10-14 · **Estado:** `PARTIAL_IMPLEMENTED_ACL_PUBLICATION_BLOCKER` · **Rama:** `feature/jurisprudencia`
+**Fecha:** 2026-10-14 · **Estado:** `J9_CLOSED_IN_DEV` · **Rama:** `feature/jurisprudencia`
 
 ## Propósito
 
@@ -40,20 +40,26 @@ La consulta mantiene tema/texto, Sala, fechas, tipo y expediente visibles; los f
 
 `Nº sentencia` conserva su significado legal/legacy y nunca se confunde con el id de base. `Nº expediente` conserva su propio campo. La búsqueda global incluye Juez; no hay filtro exacto separado para Juez. Los posibles duplicados legales se advierten por expediente/Sala/fecha o número de sentencia; no se bloquean ni fusionan automáticamente.
 
-## Estado del corpus certificado y bloqueo
+## Publicación legacy y auditoría ACL — J9.0.1
 
-La auditoría de solo lectura del 2026-10-14 registró: 21.109 filas `Sentencia`, 0 publicadas y 0 sumarios visibles; 17.078 documentos Corpus, 0 `PUBLIC`; 6.070 documentos Civil certificados por J8, todos actualmente `INTERNAL`, y 0 vínculos `JURISPRUDENCIA/SENTENCIA`.
+La auditoría pre-write reconstruyó exactamente el manifest J8 de 6.070/6.070 IDs y archivos, con SHA/provenance íntegros, las tres fuentes institucionales esperadas y 0 asociaciones a workspaces o asociaciones privadas. Ningún archivo, página, texto, provenance, Search projection ni visibilidad Corpus fue cambiado por el backfill. No se asignaron fechas ficticias ni autores humanos.
 
-No se hizo backfill ni se cambió visibilidad. Publicar en bloque documentos importados contradiría la política vigente de ACL y curaduría explícita. Por eso J9 **no puede declarar cumplido el requisito de que los 6.070 sean visibles a lectores** hasta que exista decisión de publicación/ACL y asociación aprobada. El buscador no debe presentar el corpus interno como público. Evidencia reproducible local/ignorada: `_recovery-work/jurisprudencia-j9/database-audit.json`.
+Se publicaron 6.014 fallos mediante filas de workflow `Sentencia` y enlaces existentes/creados con provenance `LEGACY_JURISPRUDENCE_PUBLICATION_BACKFILL`. La consulta pública expone sólo filas activas/publicadas, con búsqueda y visor protegidos por el vínculo exacto. Los documentos Corpus permanecen `INTERNAL`; no se abrió el acceso general a Corpus ni se cambió su ACL. Se conservaron 56 casos para revisión (colisiones de identidad legal y archivos TXT/modelo); los 36 registros afectados por colisiones quedaron como borradores/inactivos y sus documentos fuente se preservaron. La reejecución dry-run indicó `wouldCreate=0`.
+
+Prueba ACL: `PUBLICATION_SAFE=6014`, revisión/ambigüedad=56, `PRIVATE_CONFLICT=0`, `WORKSPACE_CONFLICT=0`, `ARCHIVED_CONFLICT=0`, `UNKNOWN=0`. La tabla `WorkspaceDocument` y asociaciones privadas no recibieron escrituras. La prueba de regresión de espacios privados pasó.
 
 ## Seguridad y límites
 
 - El lector no puede cargar, editar, publicar ni archivar; la UI no sustituye guards.
-- La visibilidad de publicación sólo se propaga a `documentScope=GENERAL`; no toca documentos privados.
+- La publicación nueva sólo propaga visibilidad a documentos `GENERAL` vinculados a esa sentencia. El backfill legacy J9.0.1 deja Corpus `INTERNAL` y sirve el conjunto aprobado por la ruta pública de Sentencia.
 - Los archivos son inmutables y content-addressed. El endpoint de borrado de archivo no elimina el original.
 - No hay scraper, descargas externas, OCR nuevo ni resumen AI.
 - No se reconstruyó Search ni se hizo reindex masivo.
 
-## Validación
+## Validación y decisión
 
-Después de aplicar la migración aditiva `20261013160000_sprint_j9_jurisprudence_workflow`, J8 volvió a `CERTIFIED_WITH_KNOWN_GAPS` (6.070/6.070, 0 BROKEN/UNKNOWN). Suite backend: 97 PASS, 16 omitidos; prueba PostgreSQL J9 sintética: 1/1 PASS y cleanup sin residuos; build backend, typecheck y build frontend: PASS. Playwright/UAT de navegador no se ejecutó; queda pendiente junto con la autorización ACL/publicación del corpus certificado.
+La ruta Playwright cubrió búsqueda real, filtros/paginación, rechazo de PDF inválido y el ciclo de PDF válido desde operador: borrador invisible, publicación visible, detalle, Viewer, descarga, edición, archivo que retira visibilidad y rechazo de mismo SHA. La regresión de roles niega al lector crear, editar, publicar, archivar, borrar o cargar. Responsive pasó a 375/768/1366 px. Suite backend: 98 PASS/17 omitidos en 21 suites; test PostgreSQL J9 1/1 PASS; ACL PostgreSQL 1/1 PASS; Prisma generate/validate y 24/24 migraciones PASS; builds backend/frontend, typecheck y lint enfocado PASS. J8 continúa `CERTIFIED_WITH_KNOWN_GAPS`: 6.070/6.070, `BROKEN=0`, `UNKNOWN=0`, `UNRESOLVED=0`, integridad y provenance 100%.
+
+Performance loopback (10 muestras tras warmup): broad 6.014 resultados p50/p95 72.93/83.91 ms; Sala H 366 resultados 382.49/395.19 ms; expediente exacto 339.09/364.13 ms; carátula 305.99/337.04 ms; año 2022 289.15/335.29 ms. Consulta media `responsabilidad civil` p50 8.353 ms/p95 10.507 ms (`totalExact=false`), marcada para el sprint final de Search. No se forzó un cambio de motor sin prueba de paridad.
+
+**Dictamen:** J9 queda `CLOSED` en DEV: el lector tiene un corpus institucional sustancial, reconciliado y sin exposición privada, y el flujo PDF completo se probó desde navegador. Los 56 casos de revisión y el costo de la búsqueda media permanecen explícitos. Esto no habilita producción, preproducción ni red compartida. Evidencia local/ignorada: `_recovery-work/jurisprudencia-j901/`.
