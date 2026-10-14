@@ -123,3 +123,7 @@ Los 1.254 documentos sin Sala son exactamente los 1.254 registros `CSJN_TFN_HIST
 ## Sprint J3 — ingestión de censo autorizado
 
 El intake implementado no consulta las URLs del export ni accede a fuentes institucionales. Sólo analiza archivos locales recibidos por un canal autorizado, conservando hash, procedencia, declaración de alcance y filas de origen. Los campos faltantes legítimamente opcionales se conservan nulos; un tipo de tribunal desconocido queda en revisión y no se elimina. Una URL declarada no equivale a documento disponible ni a PDF verificado. No hay export real recibido ni permiso de automatización confirmado; completeness oficial continúa UNKNOWN.
+
+## Formatos de expediente observados — J7.1.1 (2026-10-14)
+
+El inventario DEV contiene 1.089 entradas previamente limitadas por parsing: ocho firmas estructurales, concentradas en `CSJN_TFN_HISTORICAL` (1.087) y con dos casos en `CIVIL_CUANTIFICACION_DANOS`. Las siete más frecuentes cubren 1.088 filas. La regla observada de mayor volumen es un número Civil con agrupación por punto y sin año en el campo; el año de decisión no reemplaza al año de expediente. Los 1.079 números agrupados reconocidos quedan legacy con año nulo. Los otros diez son formas sin confirmación suficiente y no se coaccionan. Dos formas ya válidas muestran año agrupado `2.007` corroborado por `caseYear=2007`, y un punto terminal; ambos se soportan sólo con el campo de año concordante. No extrapolar estas reglas a otras jurisdicciones ni usar fuente/texto para completar metadata.

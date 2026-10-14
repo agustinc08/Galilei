@@ -190,3 +190,10 @@ Diseño del buscador: 13–20. Procedencia: 21. Digesto: 22. PostgreSQL inicial:
 3. Una reparación de metadata que altere evidencia de un pack humano debe invalidarlo o volverlo stale; J7.1 cruzó SHA contra J6.1 y no encontró pack afectado por sus cinco propuestas. El hash J6.1 permanece `2b04cdb75acaa36dec515b7b7d8e8928dc80186d10bb6b293d119317b6f1827d` y no se registraron decisiones.
 4. La identificación de texto igual con SHA distinto sólo permite proponer relación de representación tras evidencia legal suficiente; no permite fusionar/borrar documentos. Los source records múltiples se preservan salvo duplicidad de identidad probada. En J7.1 los 341 casos fueron provenance esperada.
 5. El número docket sin año puede indicar limitación del parser; normalizar su lectura no inventa un año ni completa una clave legal parcial. No cambiar runtime ni datos como parte de J7.1.
+
+## Contrato J7.1.1 — normalizador de expediente Civil (2026-10-14)
+
+1. `normalizeCivilCaseReference()` es una función pura versionada `civil-case-normalizer-v2`; la cadena cruda se conserva en `evidence.rawPreserved`. Sus estados separan canónico, legacy, multi-expediente, parcial, ambiguo, malformado y no soportado.
+2. El número canónico elimina separadores de agrupación observados, pero conserva ceros iniciales. Los años de dos dígitos permanecen de dos dígitos; nunca se infiere siglo. Un expediente legacy sin año puede ser reconocido como número, pero conserva `canonicalYear=null` y la clave legal sigue parcial.
+3. La barra sólo separa número/año en una forma completa; listas explícitas conservan cada caso y nunca eligen uno. Año contradictorio, año agrupado sin corroboración o lista incierta quedan ambiguos. El parser no recibe texto del fallo ni citas.
+4. J7.1.1 no persiste identidad ni reconstruye Search. Los tres cambios frente al normalizador anterior en filas ya válidas son ceros iniciales preservados y corroborados por referencia de origen; no hubo otros cambios de identidad sin justificar. Evidencia real detallada local/ignorada en `_recovery-work/jurisprudencia-j711/`.

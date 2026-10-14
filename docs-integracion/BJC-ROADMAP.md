@@ -301,3 +301,7 @@ J7 cerró la auditoría read-only del snapshot: 6.070 documentos, archivos váli
 ## Continuidad después de Sprint J7.1 (2026-10-14)
 
 J7.1 cerró el dry-run con `READ_ONLY_PASS`, determinismo aprobado en dos ejecuciones y sentinelas DEV idénticos. La anomalía dominante de los 1.092 expedientes/años es límite de parsing (1.089), no evidencia de datos incorrectos; los 1.254 faltantes de Sala coinciden exactamente con la fuente histórica, donde sólo cuatro tienen evidencia inequívoca disponible. Cero reparaciones fueron aplicadas. Próxima recomendación única: **J7.1.1 — NORMALIZER HARDENING**, limitada a parser/tests y fixtures sintéticos, sin modificar metadata del Corpus ni inventar año. J6.1 sigue `READY FOR HUMAN UAT` como flujo independiente; no iniciar UAT ni el siguiente sprint automáticamente.
+
+## Continuidad después de Sprint J7.1.1 (2026-10-14)
+
+J7.1.1 reconoce 1.079/1.089 referencias con reglas determinísticas conservadoras; nueve quedan parciales y una malformada, sin escribir filas ni Search. Próxima recomendación: **J7.1.2 — LEGAL KEY COMPLETENESS / HISTORICAL SALA RECOVERY**, dado que la clave jurídica sigue parcial y hay 1.254 documentos históricos sin Sala. Mantener J6.1 `READY FOR HUMAN UAT` como línea independiente; no iniciar UAT ni J7.1.2 automáticamente. Una futura recalculación persistida del caso/año requeriría primero un dry-run independiente y evaluar la actualización del paquete J6.1 si alcanza sus expedientes.
