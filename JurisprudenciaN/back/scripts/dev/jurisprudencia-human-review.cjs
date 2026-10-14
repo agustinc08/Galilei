@@ -440,25 +440,32 @@ function buildSample(reviewInput) {
   const highMention = p1.filter(item => item.pdf.cases.length >= 5);
   const weakP1 = p1.filter(item => !item.machineProposal?.resolutory && item.machineProposal?.score <= 8);
   const selected = [];
-  const add = (items, count) => {
+  const add = (items, count, allowSamePdf = false) => {
     let added = 0;
     for (const item of items) {
-      if (selected.length >= 20 || selected.some(value => value.groupId === item.groupId)) continue;
+      if (selected.length >= 20 || selected.some(value => value.groupId === item.groupId) || selected.some(value => value.pdf.sha256 === item.pdf.sha256)) continue;
       selected.push(item); added += 1;
       if (added >= count) break;
+    }
+    if (added < count && allowSamePdf) {
+      for (const item of items) {
+        if (selected.length >= 20 || selected.some(value => value.groupId === item.groupId)) continue;
+        selected.push(item); added += 1;
+        if (added >= count) break;
+      }
     }
   };
   add(p0, 4);
   add(highMention, 2);
   add(weakP1, 4);
   add(p1, 12 - selected.filter(item => item.priority === 'P1').length);
-  add(p2, 4);
+  add(p2, 4, true);
   add(reviewInput.cases, 20 - selected.length);
   return {
     schemaVersion: 'galilei-human-review-sample-v1',
     reviewInputHash: reviewInput.reviewInputHash,
     selectedCount: selected.length,
-    selectionMethod: 'Stratified deterministic sample: single-decision P0, multi-case P1 including weak/header-only proposals and many-docket PDFs, then lower-confidence P2; groupId order breaks ties.',
+    selectionMethod: 'Stratified deterministic sample: single-decision P0, multi-case P1 including weak/header-only proposals and many-docket PDFs, then lower-confidence P2; prefer unique PDF SHA while retaining two paired source groups that share a PDF to test cross-group identity review.',
     difficultyMix: Object.fromEntries(['P0', 'P1', 'P2'].map(priority => [priority, selected.filter(item => item.priority === priority).length])),
     cases: selected.map(item => ({ groupId: item.groupId, priority: item.priority, classification: item.classification, proposedPrimaryCase: item.machineProposal?.primaryCase || null, sha256: item.pdf.sha256, sourceCaseNumber: item.source.caseNumber, year: item.source.year, chamber: item.source.chamber, difficulty: item.priority === 'P0' ? 'single-decision primary proposal' : item.priority === 'P2' ? 'lower-confidence / inspect ambiguity' : item.pdf.cases.length >= 5 ? 'many dockets in one PDF' : item.machineProposal?.resolutory ? 'multi-case with resolutory evidence' : 'multi-case; verify opening/context evidence' })),
   };

@@ -67,6 +67,7 @@ test('sample has 20 cases and a representative deterministic difficulty mix', ()
   assert.equal(sample.selectedCount, 20);
   assert.equal(new Set(sample.cases.map(item => item.groupId)).size, 20);
   assert.deepEqual(sample.difficultyMix, { P0: 4, P1: 12, P2: 4 });
+  assert.ok(new Set(sample.cases.map(item => item.sha256)).size >= 18, 'prefer distinct PDFs while retaining paired source identities that share one PDF');
   assert.deepEqual(input.sampleGroupIds, sample.cases.map(item => item.groupId));
   assert.ok(sample.cases.some(item => item.difficulty.includes('many dockets')) || sample.cases.some(item => item.difficulty.includes('weak/header-only')));
   assert.deepEqual(sample, buildSample(input));
