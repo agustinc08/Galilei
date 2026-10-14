@@ -199,3 +199,31 @@ Benchmark endpoint Search V2, una warmup + 10 medidas; la consulta no se persist
 TERM común y PHRASE no muestran regresión material en p95; cero resultados sube ~19 ms en términos absolutos. Los benchmarks no incluyeron PHRASE de 3 palabras, por lo que su before/after queda N/A.
 
 Filtro privado en fixture sintético de 2 documentos: source 17,76/18,90 ms; folder 17,13/20,34 ms; type 18,84/24,59 ms; date 17,12/18,09 ms; combinado 20,87/22,62 ms (p50/p95, 1 warmup + 10 medidas). Search verify sigue PASS: 17.078 documentos, 18.799.500 tokens, stale 0, mismatch 0/100. Viewer general: 6/6. Los artefactos locales ignorados están en `_recovery-work/sprint1531/`.
+
+## Sprint 15.3.2 — mapping visual de Search a PDF.js (2026-10-14)
+
+**Certificación: PARTIAL / PARTIALLY CERTIFIED.** El contrato Search no cambió: `/matches` conserva `page`, `start` inclusivo, `end` exclusivo, texto y contexto; los offsets siguen siendo UTF-16 sobre el texto original extraído por página. El Viewer construye un mapa aparte desde los items de texto de PDF.js, mantiene los offsets locales de cada item y produce segmentos visuales sólo cuando una ocurrencia única queda anclada por texto/contexto/ordinal. La normalización de vocales, espacios y saltos conserva el origen de cada carácter; `ñ` sigue siendo distinta de `n`. Separadores inferidos por geometría sólo se insertan entre items de la misma línea cuando hay hueco visible.
+
+Estados del mapper: `DIRECT_EXACT`, `CONTEXT_EXACT` y `NORMALIZED_EXACT` generan segmentos; `AMBIGUOUS`, `UNMAPPABLE` y `NO_TEXT_LAYER` generan cero segmentos. En estos últimos casos el Viewer conserva la página de Search y muestra el snippet/contexto con un aviso accesible; no elige una coincidencia aproximada. El mapping es visual independiente del span exacto de Search y no altera filtros, parser, ranking, ACL ni base de datos.
+
+### Muestra local y resultado
+
+Se auditaron 25 PDFs locales de DEV, 827 páginas, años 2008–2026, de Cámara Nacional de Apelaciones en lo Civil (22), Juzgado Civil 64 — Secretaría 94 (1) y 2 sin tribunal informado. Los productores detectados incluyen OpenOffice, LibreOffice, Nitro, OpenHTMLToPDF/iText, ABBYY FineReader y Ghostscript. Checksums SHA-256: 25/25 válidos. No se copiaron ni versionaron PDFs.
+
+| Comparación de página | Cantidad |
+|---|---:|
+| Extractor y PDF.js exactos | 155 |
+| Diferentes sólo por espacios/saltos de línea | 672 |
+| Sin text layer | 0 |
+
+El mapper procesó 221 spans: 35 `DIRECT_EXACT`, 103 `CONTEXT_EXACT`, 0 `NORMALIZED_EXACT`, 0 `AMBIGUOUS`, 83 `UNMAPPABLE` y 0 `NO_TEXT_LAYER`. Revisó los glifos de los 138 segmentos mapeados: **0 mapeos falsos**. TERM real: 4/25 spans mapeados; 21/25 sin anclaje seguro. PHRASE de dos/tres palabras: Search produjo 18 spans, 3 mapeados y 15 `UNMAPPABLE`; otros 7 intentos no devolvieron span. Repeticiones: 71/75 mapeadas con ordinal/contexto. Acentos: 5/25 mapeadas; `ñ`: 25/25. Se resolvieron 2 casos reales multi-item y 2 spans con salto de línea. Estos resultados mantienen el sprint PARTIAL para términos/frases habituales.
+
+Las diferencias del texto de página fueron únicamente `WHITESPACE_OR_LINE_BREAK` (672); no se observaron páginas sin texto. La muestra no aporta evidencia suficiente para certificar ligaduras, palabras con guion editorial, orden de columnas u OCR como clases generales. La tasa de mapping no convierte equivalencia de texto en prueba de posición: cualquier discrepancia sin anclaje sigue cerrando sin highlight.
+
+### Rendimiento, UI y regresión
+
+`buildPdfTextPageMap` por página: p50 1,744 ms / p95 4,921 ms (827 páginas). Mapping por span: p50 0,116 ms / p95 0,441 ms, máximo 0,956 ms (221 spans). La transición F3 de 10 ms pertenece al E2E previo Sprint 15.3.1; no se volvió a medir en esta ronda.
+
+Se corrigió una condición de carrera: el text layer puede llegar antes que la respuesta Search. El Viewer ahora guarda el mapa de página y deriva de nuevo los mappings al recibir los matches, evitando quedarse con el estado vacío inicial. El E2E acepta únicamente highlight activo visible o fallback explícito sin highlight activo. Playwright pasó 5/5; el smoke autenticado de Viewer general pasó 6/6. La captura visual comprobó canvas no vacío, texto PDF.js y highlight activo superpuesto sobre el texto; se revisaron estados de viewport 1366×768, escala de viewport equivalente a 125%/80% y resize a 900×768. Artefactos locales ignorados: `_recovery-work/sprint1532/`.
+
+Search verify: 17.078 documentos, 18.799.500 tokens, stale 0 y 0 discrepancias/100; no guardó texto de consulta. Prisma migrate status: 24 migraciones al día. Frontend typecheck, lint dirigido y build: PASS. ACL workspace/general no cambió; su evidencia automatizada sigue siendo la de Sprint 15.3.1 y no se repitió aquí. No hubo cambios backend, de schema o migraciones.

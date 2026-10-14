@@ -268,3 +268,11 @@ Sprint 15.3.1 queda **PARTIAL**: los filtros privados y el contrato de spans pas
 Siguiente paso técnico: recopilar fixtures PDF representativos autorizados/locales, comparar texto de extractor con PDF.js y añadir casos de mapeo (repeticiones, saltos de línea, ítems separados, acentos y ligaduras) sin introducir heurísticas. Luego elegir 15.4A (formatos/OCR) antes que NEAR si sigue siendo el cambio con menos choque con Search compartido por `feature/jurisprudencia`. No hacer merge de otras ramas ni desplegar.
 
 La medición general Search V2 mantuvo p95 de TERM común y PHRASE de dos palabras; el benchmark de PHRASE de tres palabras no se capturó comparablemente en before/after. Los filtros privados tienen p95 de 18–26 ms en el fixture sintético, que no es SLO. Evidencia: `_recovery-work/sprint1531/` (local ignorado).
+
+## Prioridad después de Sprint 15.3.2 — 2026-10-14
+
+Sprint 15.3.2 queda **PARTIAL**. El mapper determinista produjo 0 falsos mappings y el Viewer presenta fallback cuando falta un anclaje confiable; la muestra de 25 PDFs/827 páginas todavía dejó 83/221 spans sin mapping, incluidos TERM frecuentes y PHRASE. No avanzar a la certificación universal de Search→PDF.js.
+
+Siguiente paso técnico: ampliar la muestra local con text layers que separen palabras por espacios geométricos, saltos/guiones y segmentación de extractores distintos; identificar clases TERM/PHRASE que puedan resolverse con anclaje de contexto manteniendo cero falsos mappings. No introducir fuzzy matching ni reconstruir Search. Mantener reporte PARTIAL hasta que los casos habituales tengan highlight determinista o fallback validado por clase.
+
+Cuando el gate visual y los casos habituales cierren, elegir 15.4A — formatos/OCR antes que NEAR mientras `feature/jurisprudencia` siga tocando Search compartido. Hoy esa rama también modifica `CorpusPdfViewer.tsx` y `BJC-SEARCH.md`, `BJC-FUNCIONAL.md`, `BJC-ESTADO-ACTUAL.md` y `BJC-ROADMAP.md`; resolver esas colisiones al integrar, sin merge automático. No tocar ACL, migraciones, producción ni adquisición dentro de esta continuidad.

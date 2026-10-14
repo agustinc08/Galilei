@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import type { TextContent, TextItem } from 'pdfjs-dist/types/src/display/api';
+import { buildPdfTextPageMap, mapPdfMatches } from './pdf-match-mapper';
+import type { PdfTextItemInput, PdfTextPageMap } from './pdf-match-mapper';
 import styles from './viewer.module.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -33,176 +35,37 @@ type Props = {
   onLoadSuccess: (pages: number) => void;
 };
 
-type TextRange = { start: number; end: number };
-type MappedMatch = TextRange & { ordinal: number };
-
-function normalizeSpanText(value: string) {
-  return value.toLocaleLowerCase('es')
-    .normalize('NFD')
-    .replace(/n\u0303/gu, '\uE000')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/\uE000/gu, 'ñ')
-    .normalize('NFC')
-    .replace(/\s+/gu, ' ');
-}
-
-function normalizeWithOffsets(source: string) {
-  let text = '';
-  const offsets: Array<{ start: number; end: number }> = [];
-  let index = 0;
-  while (index < source.length) {
-    const start = index;
-    let cluster = String.fromCodePoint(source.codePointAt(index)!);
-    if (/^\s$/u.test(cluster)) {
-      index += cluster.length;
-      while (index < source.length) {
-        const next = String.fromCodePoint(source.codePointAt(index)!);
-        if (!/^\s$/u.test(next)) break;
-        index += next.length;
-      }
-      text += ' ';
-      offsets.push({ start, end: index });
-      continue;
-    }
-    index += cluster.length;
-    while (index < source.length) {
-      const next = String.fromCodePoint(source.codePointAt(index)!);
-      if (!/^\p{M}$/u.test(next)) break;
-      cluster += next;
-      index += next.length;
-    }
-    const normalized = normalizeSpanText(cluster);
-    text += normalized;
-    for (let unit = 0; unit < normalized.length; unit += 1) {
-      offsets.push({ start, end: index });
-    }
-  }
-  return { text, offsets };
-}
-
-function allOccurrences(source: string, needle: string) {
-  const found: number[] = [];
-  if (!needle) return found;
-  let cursor = 0;
-  while (cursor <= source.length - needle.length) {
-    const index = source.indexOf(needle, cursor);
-    if (index < 0) break;
-    found.push(index);
-    cursor = index + 1;
-  }
-  return found;
-}
-
-function contextMatches(
-  normalizedPage: string,
-  matchStart: number,
-  matchEnd: number,
-  contextBefore: string,
-  contextAfter: string,
-) {
-  const before = normalizeSpanText(contextBefore);
-  const after = normalizeSpanText(contextAfter);
-  const actualBefore = normalizedPage.slice(Math.max(0, matchStart - before.length), matchStart);
-  const actualAfter = normalizedPage.slice(matchEnd, matchEnd + after.length);
-  return (!before || actualBefore === before) && (!after || actualAfter === after);
-}
-
-function mapMatchesToPdfText(
-  pageText: string,
-  matches: PdfMatch[],
-  itemOffsets: Map<number, TextRange>,
-) {
-  const normalized = normalizeWithOffsets(pageText);
-  const mapped: MappedMatch[] = [];
-  for (const match of matches) {
-    const needle = normalizeSpanText(match.text || match.term);
-    const candidates = allOccurrences(normalized.text, needle);
-    if (!candidates.length) continue;
-    const contextual = candidates.filter((index) =>
-      contextMatches(
-        normalized.text,
-        index,
-        index + needle.length,
-        match.contextBefore ?? '',
-        match.contextAfter ?? '',
-      ),
-    );
-    let selected: number | undefined;
-    if (contextual.length === 1) selected = contextual[0];
-    else if (contextual.length > 1 && match.pageOccurrenceOrdinal) {
-      selected = contextual[match.pageOccurrenceOrdinal - 1];
-    } else if (candidates.length === 1) {
-      selected = candidates[0];
-    }
-    if (selected === undefined) continue;
-    const start = normalized.offsets[selected]?.start;
-    const end = normalized.offsets[selected + needle.length - 1]?.end;
-    if (start === undefined || end === undefined) continue;
-    if (![...itemOffsets.values()].some((item) => item.start <= start && item.end >= end)) {
-      // A match can cross PDF.js text items. Split it at those item boundaries below.
-      const intersections = [...itemOffsets.values()].filter((item) => item.end > start && item.start < end);
-      if (!intersections.length) continue;
-      for (const item of intersections) {
-        mapped.push({ start: Math.max(start, item.start), end: Math.min(end, item.end), ordinal: match.ordinal });
-      }
-    } else {
-      mapped.push({ start, end, ordinal: match.ordinal });
-    }
-  }
-  return mapped.sort((left, right) => left.start - right.start || left.end - right.end);
-}
-
 export function CorpusPdfViewer({ file, page, matches, activeMatch, onLoadSuccess }: Props) {
   const [width, setWidth] = useState(960);
-  const [mappedState, setMappedState] = useState<{
+  const [textPageState, setTextPageState] = useState<{
     key: string;
-    matches: MappedMatch[];
-  }>({ key: '', matches: [] });
-  const itemOffsets = useRef(new Map<number, TextRange>());
+    pageMap: PdfTextPageMap;
+  } | null>(null);
   const active = matches[activeMatch];
-  const mappingKey = `${page}:${active?.ordinal ?? 0}:${matches
-    .map((match) => `${match.ordinal}-${match.start}-${match.end}`)
-    .join(',')}`;
-  const mappedMatches = useMemo(
-    () => (mappedState.key === mappingKey ? mappedState.matches : []),
-    [mappedState, mappingKey],
+  const pageKey = `${file}:${page}`;
+  const textPage = textPageState?.key === pageKey ? textPageState.pageMap : null;
+  const mappings = useMemo(
+    () => textPage ? mapPdfMatches(textPage, matches.filter((match) => match.page === page)) : [],
+    [matches, page, textPage],
   );
-  useEffect(() => {
-    itemOffsets.current.clear();
-  }, [activeMatch, matches, page]);
+  const unresolvedActive = mappings.find((mapping) => mapping.ordinal === active?.ordinal &&
+    !['DIRECT_EXACT', 'CONTEXT_EXACT', 'NORMALIZED_EXACT'].includes(mapping.status));
 
   const handleTextSuccess = useCallback(({ items }: TextContent) => {
-    const offsets = new Map<number, TextRange>();
-    let pageText = '';
-    items.forEach((item, itemIndex) => {
-      if (!('str' in item)) return;
-      const textItem = item as TextItem;
-      const start = pageText.length;
-      pageText += textItem.str;
-      offsets.set(itemIndex, { start, end: pageText.length });
-      if (textItem.hasEOL) pageText += '\n';
-    });
-    itemOffsets.current = offsets;
-    setMappedState({
-      key: mappingKey,
-      matches: mapMatchesToPdfText(
-        pageText,
-        matches.filter((match) => match.page === page),
-        offsets,
-      ),
-    });
-  }, [mappingKey, matches, page]);
+    const textItems = items.flatMap((item, itemIndex) => 'str' in item
+      ? [{ ...(item as TextItem), itemIndex } as unknown as PdfTextItemInput]
+      : []);
+    setTextPageState({ key: pageKey, pageMap: buildPdfTextPageMap(textItems) });
+  }, [pageKey]);
 
   const renderText = useCallback(({ str, itemIndex }: { str: string; itemIndex: number }) => {
-    const itemRange = itemOffsets.current.get(itemIndex);
-    if (!itemRange) return escapeHtml(str);
-    const ranges = mappedMatches
-      .filter((match) => match.end > itemRange.start && match.start < itemRange.end)
-      .map((match) => ({
-        start: Math.max(0, match.start - itemRange.start),
-        end: Math.min(str.length, match.end - itemRange.start),
-        active: match.ordinal === active?.ordinal,
-      }))
+    const ranges = mappings.flatMap((mapping) => mapping.segments
+      .filter((segment) => segment.itemIndex === itemIndex)
+      .map((segment) => ({
+        start: segment.startInItem,
+        end: segment.endInItem,
+        active: mapping.ordinal === active?.ordinal,
+      })))
       .sort((left, right) => left.start - right.start || left.end - right.end);
     if (!ranges.length) return escapeHtml(str);
     let cursor = 0;
@@ -216,7 +79,7 @@ export function CorpusPdfViewer({ file, page, matches, activeMatch, onLoadSucces
       cursor = range.end;
     }
     return html + escapeHtml(str.slice(cursor));
-  }, [active?.ordinal, mappedMatches]);
+  }, [active?.ordinal, mappings]);
 
   const setContainer = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
@@ -228,6 +91,10 @@ export function CorpusPdfViewer({ file, page, matches, activeMatch, onLoadSucces
   }, []);
 
   return <div className={styles.pdfDocument} ref={setContainer}>
+    {unresolvedActive && active && <p className={styles.mappingFallback} role="status" aria-live="polite">
+      Coincidencia encontrada en el texto indexado, pero no pudo ubicarse visualmente con precisión en esta página. La navegación sigue disponible.
+      {(active.context || active.text) && <span> Contexto: {active.context || active.text}</span>}
+    </p>}
     <Document file={file} loading={<p>Cargando PDF…</p>} error={<p>No se pudo renderizar el PDF. Podés usar la descarga y el contexto lateral.</p>} onLoadSuccess={({ numPages }) => onLoadSuccess(numPages)}>
       <Page
         key={`${page}-${activeMatch}`}

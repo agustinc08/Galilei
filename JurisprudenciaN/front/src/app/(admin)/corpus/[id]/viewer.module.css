@@ -8,6 +8,8 @@
 .pdfPanel { min-height: 72vh; background: #e5e7eb; border-radius: .6rem; overflow: hidden; }
 .pdfPanel iframe { width: 100%; height: 78vh; border: 0; background: #fff; }
 .pdfDocument { width: 100%; min-height: 72vh; overflow: auto; padding: .75rem; }
+.mappingFallback { margin: 0 auto .75rem; max-width: 72rem; padding: .55rem .7rem; border: 1px solid #fbbf24; border-radius: .4rem; background: #fffbeb; color: #78350f; font-size: .82rem; }
+.mappingFallback span { display: block; margin-top: .3rem; overflow-wrap: anywhere; }
 .pdfDocument :global(.react-pdf__Page) { margin: 0 auto; box-shadow: 0 2px 12px #0f172a26; }
 .pdfDocument :global(.react-pdf__Page__canvas) { max-width: 100%; height: auto !important; }
 .pdfDocument :global(.react-pdf__Page__textContent) { user-select: text; }
