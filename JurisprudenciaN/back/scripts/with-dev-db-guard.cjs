@@ -52,6 +52,15 @@ const actions = {
   'prisma-validate': 'pnpm.cmd exec prisma validate',
   'prisma-migrate-status': 'pnpm.cmd exec prisma migrate status',
   'prisma-migrate-deploy': 'pnpm.cmd exec prisma migrate deploy',
+  'int1-temp-create': 'node scripts/dev/int1-temp-db.cjs create',
+  'int1-temp-drop': 'node scripts/dev/int1-temp-db.cjs drop',
+  'int1-temp-inspect': 'node scripts/dev/int1-temp-db.cjs inspect',
+  'int1-temp-migrate': 'pnpm.cmd exec prisma migrate deploy',
+  'int1-temp-status': 'pnpm.cmd exec prisma migrate status',
+  'int1-temp-validate': 'pnpm.cmd exec prisma validate',
+  'int1-temp-generate': 'pnpm.cmd exec prisma generate',
+  'int1-temp-diff': 'pnpm.cmd exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code',
+  'int1-dev-backup': 'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts',
   typecheck: 'pnpm.cmd exec tsc --noEmit',
   'schema-verify': 'node scripts/dev/verify-search-schema.cjs',
   'fixture-import':
@@ -327,9 +336,26 @@ if (!commandLine) {
   process.exit(2);
 }
 
+const int1TempDatabase = process.argv[3] ?? '';
+if (action.startsWith('int1-temp-')) {
+  if (!/^buscador_juridico_civil_int1_tmp_\d{8}_[a-f0-9]{8}$/u.test(int1TempDatabase)) {
+    console.error('DEV_DB_GUARD=ABORT; INT-1 temporary database name is not allowlisted.');
+    process.exit(2);
+  }
+}
+
+let childDatabaseUrl = rawUrl;
+if (action.startsWith('int1-temp-') && action !== 'int1-temp-create' && action !== 'int1-temp-drop') {
+  const tempUrl = new URL(rawUrl);
+  tempUrl.pathname = `/${int1TempDatabase}`;
+  childDatabaseUrl = tempUrl.toString();
+}
+
 const childEnv = {
   ...process.env,
-  DATABASE_URL: rawUrl,
+  DATABASE_URL: childDatabaseUrl,
+  BJC_INT1_TEMP_DB: action.startsWith('int1-temp-') ? int1TempDatabase : '',
+  BJC_SPRINT_INT1: action === 'int1-dev-backup' ? 'true' : '',
   DOTENV_CONFIG_PATH: envFile,
   SEARCH_SPIKE_SQLITE_PATH: path.resolve(
     __dirname,

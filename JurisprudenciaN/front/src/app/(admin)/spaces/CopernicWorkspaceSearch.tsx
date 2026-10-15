@@ -995,9 +995,6 @@ export function CopernicWorkspaceSearch() {
               Administrar dependencia
             </Link>
           )}
-          <Link className={styles.secondaryLink} href="/busqueda-avanzada">
-            Jurisprudencia y Digesto
-          </Link>
         </div>
       </header>
 

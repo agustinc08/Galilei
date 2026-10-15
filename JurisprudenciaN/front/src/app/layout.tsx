@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import { AuthProvider } from '@/hooks/use-auth';
+import { AuthenticatedAppShell } from '@/components/layout/AuthenticatedAppShell';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Sistema de Jurisprudencia Civil',
-  description: 'Consulta pública y gestión interna de jurisprudencia civil',
+  title: 'Galilei',
+  description: 'Jurisprudencia, documentos de tu dependencia y tus documentos personales.',
 };
 
 export default function RootLayout({
@@ -17,7 +18,9 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <AuthenticatedAppShell>{children}</AuthenticatedAppShell>
+        </AuthProvider>
       </body>
     </html>
   );

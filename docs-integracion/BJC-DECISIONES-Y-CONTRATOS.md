@@ -1,4 +1,11 @@
+## Integración INT-1 — Galilei
+
+La interfaz normal expone Jurisprudencia, Mi Sala / Juzgado y Mis documentos. Copernic es nombre interno, no sección para usuarios. Jurisprudencia mantiene publicación institucional; la membresía de dependencia no concede permisos editoriales; documentos personales requieren owner; carpetas restringidas requieren grant efectivo. INT-1 es PARTIAL y origin/dev no debe cambiar hasta resolver el mismatch del snapshot J9 y obtener los manifests J7/J8. Los registros siguientes conservan sus cortes originales.
+
 # Decisiones y contratos vigentes
+
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
 
 **Estado del documento:** actualizado tras Sprint 12.3; distinguir diseño, implementación y gates de integración.
 

@@ -17,8 +17,9 @@ async function signIn(page: import('@playwright/test').Page, account: { email: s
 
 test('J9 lector entra a Jurisprudencia, filtra sin controles de operador y mantiene la consulta', async ({ page, request }) => {
   await signIn(page, credentials.accounts.reader);
-  await expect(page.getByRole('link', { name: 'Jurisprudencia', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Jurisprudencia', exact: true }).click();
+  const navigation = page.getByRole('navigation', { name: 'Secciones principales' });
+  await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toBeVisible();
+  await navigation.getByRole('link', { name: /Jurisprudencia/u }).click();
   await expect(page).toHaveURL(/\/consulta$/u);
   await expect(page.getByRole('heading', { name: 'Jurisprudencia', exact: true })).toBeVisible();
   await expect(page.getByLabel('TemaTodos los temas')).toBeVisible();
@@ -86,8 +87,15 @@ test('J9 lector entra a Jurisprudencia, filtra sin controles de operador y manti
 
 test('J9 operator can reach PDF-first intake and invalid file is rejected', async ({ page }) => {
   await signIn(page, credentials.accounts.operator);
-  await page.getByRole('link', { name: 'Jurisprudencia', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Secciones principales' })
+    .getByRole('link', { name: /Jurisprudencia/u }).click();
   await expect(page.getByRole('button', { name: '+ Nuevo fallo' })).toBeVisible();
+  await expect(page.getByText('Buscando fallos…')).toHaveCount(0, { timeout: 30_000 });
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.screenshot({
+    path: resolve(process.cwd(), '../../_recovery-work/integration-int1/screenshots/operator-jurisprudencia.png'),
+    fullPage: false,
+  });
   await page.getByRole('button', { name: '+ Nuevo fallo' }).click();
   await expect(page.getByRole('heading', { name: 'Nuevo fallo' })).toBeVisible();
   await page.locator('input[type="file"]').setInputFiles({ name: 'not-a-pdf.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a PDF') });

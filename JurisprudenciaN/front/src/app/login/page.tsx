@@ -59,7 +59,7 @@ export default function LoginPage() {
       <section className={styles.authCard}>
         <div className={styles.authCardHeader}>
           <h1>Ingresar</h1>
-          <p>Accedé al panel administrativo de jurisprudencia civil.</p>
+          <p>Ingresá a Galilei para consultar jurisprudencia y tus documentos autorizados.</p>
           <p>Ingresá con las credenciales asignadas a tu perfil.</p>
         </div>
 

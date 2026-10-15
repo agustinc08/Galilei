@@ -1,6 +1,6 @@
 # Galilei — inicio rápido
 
-**Actualizado:** 2026-10-14, Sprint INT-1. La rama de integración reúne Jurisprudencia y espacios documentales privados. El destino de integración es `integration/galilei-beta`; `origin/dev` sólo se actualizará después de aprobar todos los gates críticos.
+**Actualizado:** 2026-10-14, Sprint INT-1. Dictamen: PARTIAL en integration/galilei-beta; ambas ramas funcionales están integradas y la navegación global está implementada. origin/dev permanece intacta hasta aprobar los gates de datos y certificación.
 
 ## Producto integrado
 
@@ -12,7 +12,7 @@ Search, Viewer, archivos descargables, OCR/formats y permisos usan sus contratos
 
 ## Estado de INT-1
 
-**EN CURSO en `integration/galilei-beta`.** Las ramas fuente se integran en el orden indicado por la misión. La certificación de este producto y los gates de migración, datos, rutas, Search, ACL, UI y E2E se documentarán en `BJC-ESTADO-ACTUAL.md` al cerrar la evaluación. Hasta entonces, no considerar este estado como aceptación de DEV, UAT o preproducción.
+**PARTIAL en integration/galilei-beta.** Los tips de feature/jurisprudencia y feature/copernic están incorporados. Replay limpio 28/28, Prisma validate/generate/status, Search golden/verify, Viewer smoke, builds y E2E de navegación/lector/operador/workspace/ACL pasaron. La auditoría del DEV local observó 0 publicadas frente a la referencia de 6.014 y faltan manifests J7/J8; no se aplicó publicación y origin/dev no se actualizó. UAT, preproducción y producción siguen pendientes.
 
 ## Rutas principales
 

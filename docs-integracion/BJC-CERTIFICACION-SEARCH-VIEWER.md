@@ -1,6 +1,9 @@
 # Sprint 15.5 — Search + Viewer final certification
 
-Fecha: 2026-10-14. Rama: `feature/copernic`. Base observada: `34ad48d965fc9576eacc5d0760b42e60531f830a`.
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
+
+Fecha: 2026-10-14. Certificación original de componente ejecutada en feature/copernic, base 34ad48d965fc9576eacc5d0760b42e60531f830a. Revalidación INT-1 en integration/galilei-beta: Search golden PASS; verify stale=0, mismatch=0/100, rebuild=0; Viewer smoke 6/6; E2E visual de Search/PDF PASS contra el storage local real.
 
 ## Dictamen
 

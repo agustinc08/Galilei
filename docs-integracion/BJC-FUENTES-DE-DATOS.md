@@ -1,5 +1,8 @@
 # Fuentes de datos — estado y estrategia
 
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
+
 ## Auditoría profunda Civil — corte 2026-10-13
 
 | Universo oficial | Qué se confirmó | Conteo / cobertura | Automatización y límite |

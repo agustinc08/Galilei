@@ -2,55 +2,33 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import styles from './home.module.css';
 
-const cards = [
-  {
-    title: 'Búsqueda global',
-    text: 'Buscá jurisprudencia y documentos autorizados desde una sola pantalla.',
-  },
-  {
-    title: 'Jurisprudencia',
-    text: 'Sentencias, sumarios, temas y decisiones editoriales conservan su identidad.',
-  },
-  {
-    title: 'Digesto',
-    text: 'Colecciones y temas organizan documentos sin duplicar los archivos.',
-  },
-  {
-    title: 'Repositorio documental',
-    text: 'Procedencia, lectura, navegación de coincidencias y curaduría trazable.',
-  },
+const destinations = [
+  { href: '/consulta', icon: '⚖', title: 'Jurisprudencia', text: 'Buscar fallos publicados.' },
+  { href: '/spaces', icon: '🏛', title: 'Mi Sala / Juzgado', text: 'Documentos compartidos de tu dependencia.' },
+  { href: '/personal', icon: '🔒', title: 'Mis documentos', text: 'Tus archivos privados.' },
 ];
 
 export default function HomePage() {
   return (
     <main className={styles.page}>
       <section className={styles.hero}>
-        <div className={styles.brandBlock}>
-          <span className={styles.kicker}>Buscador Jurídico Civil</span>
-          <h1>Jurisprudencia y documentos en un mismo lugar</h1>
-          <p>
-            Buscá, leé y organizá jurisprudencia y documentos con su procedencia,
-            permisos y estado editorial visibles.
-          </p>
-        </div>
-
+        <header className={styles.brandBlock}>
+          <span className={styles.kicker}>Galilei</span>
+          <h1>¿Qué querés consultar?</h1>
+          <p>Jurisprudencia, documentos de tu dependencia y tus archivos personales.</p>
+        </header>
+        <nav className={styles.cards} aria-label="Secciones de Galilei">
+          {destinations.map((destination) => (
+            <Link className={styles.card} href={destination.href} key={destination.href}>
+              <span aria-hidden="true">{destination.icon}</span>
+              <strong>{destination.title}</strong>
+              <p>{destination.text}</p>
+            </Link>
+          ))}
+        </nav>
         <div className={styles.actions}>
-          <Link href="/busqueda-avanzada">
-            <Button>Buscar documentos</Button>
-          </Link>
-          <Link href="/login">
-            <Button variant="secondary">Ingresar</Button>
-          </Link>
+          <Link href="/login"><Button>Iniciar sesión</Button></Link>
         </div>
-      </section>
-
-      <section className={styles.cards} aria-label="Secciones principales">
-        {cards.map((card) => (
-          <article key={card.title} className={styles.card}>
-            <strong>{card.title}</strong>
-            <p>{card.text}</p>
-          </article>
-        ))}
       </section>
     </main>
   );

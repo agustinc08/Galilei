@@ -1,5 +1,11 @@
 # Search V2 — estado operativo
 
+> **Revalidación INT-1 (2026-10-14):** Search golden PASS; search verify PASS (17.078 documentos, 18.799.500 tokens, stale=0, discrepancias=0/100, rebuild=0). PHRASE responsabilidad civil total 10x: p50 956,57 ms, p95/máx 1.304,95 ms; Jurisprudencia 183/188/188 ms y Corpus 956/1.304/1.304 ms. Es un corte local, no SLO; p95 de Corpus sigue siendo prioridad antes de UAT.
+
+
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
+
 **Vigente:** Sprint 14.9.2 confirmó que el runtime PHRASE mantiene una ordenación y agregación completa de IDs candidatos antes de leer la primera ventana. No se retuvo un cambio de runtime; p95 comparable 2.427,38 ms y el total exacto continúa sin certificarse en early exit. Estado PARTIAL / PHRASE REGRESSION REMAINS.
 
 ## Arquitectura

@@ -1,6 +1,11 @@
 # Operación de Jurisprudencia — Sprint J9
 
-**Fecha:** 2026-10-14 · **Estado:** `J9_CLOSED_IN_DEV` · **Rama:** `feature/jurisprudencia`
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
+
+**Fecha:** 2026-10-14 · **Estado de componente:** J9_CLOSED_IN_DEV en el snapshot de su sprint · **Integración:** integration/galilei-beta — PARTIAL
+
+> El DEV local auditado por INT-1 es otro snapshot: 0 sentencias publicadas y 21.083 activas no publicadas. La cifra histórica de 6.014 publicadas / 56 en revisión no se presume presente y no se reconstituye sin manifests J7/J8. No ejecutar publicación ni usar esta nota como gate J9 aprobado para el snapshot actual.
 
 ## Propósito
 

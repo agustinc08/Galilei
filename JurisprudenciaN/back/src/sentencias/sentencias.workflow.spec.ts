@@ -18,7 +18,7 @@ describe('Sprint J9 jurisprudencia workflow', () => {
   it('permits the jurisprudence editor to upload and publish but denies a reader', () => {
     const guard = new RolesGuard(new Reflector());
     const contextFor = (
-      handler: ExecutionContext['getHandler'],
+      handler: object,
       role: string,
     ): ExecutionContext =>
       ({

@@ -4,7 +4,9 @@ import { resolve } from 'node:path';
 
 const backendPort = process.env.BJC_PLAYWRIGHT_BACKEND_PORT ?? '4001';
 const frontendPort = process.env.BJC_PLAYWRIGHT_FRONTEND_PORT ?? '4002';
-const e2eStoragePath = resolve(process.cwd(), '../../_dev-corpus-storage-test/sprint1561-e2e');
+const e2eStoragePath = process.env.BJC_PLAYWRIGHT_STORAGE_PATH
+  ? resolve(process.cwd(), process.env.BJC_PLAYWRIGHT_STORAGE_PATH)
+  : resolve(process.cwd(), '../../_dev-corpus-storage-test/sprint1561-e2e');
 mkdirSync(e2eStoragePath, { recursive: true });
 
 export default defineConfig({

@@ -1,4 +1,11 @@
+## Galilei integrado — INT-1
+
+La shell autenticada se monta desde JurisprudenciaN/front/src/components/layout/AuthenticatedAppShell.tsx; el menú global está en components/layout/AdminShell.tsx y las rutas principales son /galilei, /consulta, /spaces y /personal. Las APIs de Jurisprudencia conservan su dominio; espacios usan /workspaces y /personal con ACL antes del conteo, resultado, metadata, Viewer y descarga. Estado de integración: PARTIAL hasta validar el snapshot J8/J9 local.
+
 # Mapa técnico
+
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
 
 **Actualizado:** 2026-10-08 tras Sprint 12. Rutas locales absolutas bajo `C:\proyecto triple`.
 

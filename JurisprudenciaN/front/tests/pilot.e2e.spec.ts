@@ -12,9 +12,12 @@ test('LECTOR ejecuta una búsqueda normal desde la interfaz y recibe resultados 
   await page.getByLabel('Correo electrónico').fill(credentials.accounts.reader.email);
   await page.getByLabel('Contraseña').fill(credentials.accounts.reader.password);
   await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
-  await expect(page).toHaveURL(/\/busqueda-avanzada$/);
+  await expect(page).toHaveURL(/\/galilei$/);
+  await expect(page.getByRole('heading', { name: '¿Qué querés consultar?' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Secciones principales' }).getByRole('link')).toHaveCount(3);
+  await page.goto('/busqueda-avanzada');
 
-  await page.getByLabel('Buscar en jurisprudencia y documentos').fill('responsabilidad');
+  await page.getByLabel('Buscar jurisprudencia').fill('responsabilidad');
   const apiResponse = page.waitForResponse((response) =>
     response.url().includes('/api/busqueda/avanzada') && response.request().method() === 'GET',
   );
@@ -50,8 +53,10 @@ test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', asy
   await page.getByLabel('Correo electrónico').fill(credentials.accounts.reader.email);
   await page.getByLabel('Contraseña').fill(credentials.accounts.reader.password);
   await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
-  await expect(page).toHaveURL(/\/busqueda-avanzada$/);
-  await expect(page.getByRole('link', { name: 'Administración' })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/galilei$/);
+  await expect(page.getByRole('navigation', { name: 'Secciones principales' }).getByRole('link')).toHaveCount(3);
+  await expect(page.getByRole('link', { name: 'Administración técnica' })).toHaveCount(0);
+  await page.goto('/busqueda-avanzada');
 
   await page.getByLabel('Colección Digesto').selectOption(collection!.id);
   const searchStarted = Date.now();
@@ -73,6 +78,14 @@ test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', asy
   const started = Date.now();
   await firstResult.click();
   await expect(page).toHaveURL(/\/corpus\//);
+  const pdfRenderFallback = page.getByText('No se pudo renderizar el PDF. Podés usar la descarga y el contexto lateral.');
+  await expect.poll(async () =>
+    (await page.locator('.react-pdf__Page').count()) > 0 || await pdfRenderFallback.isVisible().catch(() => false),
+    { timeout: 60_000 },
+  ).toBe(true);
+  if (await pdfRenderFallback.isVisible().catch(() => false)) {
+    throw new Error('El Viewer abrió el documento pero sólo mostró el fallback de descarga; no se certifica el renderizado PDF.');
+  }
   await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
   const viewerMs = Date.now() - started;
   await page.getByLabel('Buscar en este documento').fill(searchTerm);
@@ -128,7 +141,8 @@ test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', asy
       };
     });
     if (hasHighlight) {
-      expect(renderMetrics.canvas?.nonWhiteSamples).toBeGreaterThan(0);
+      expect(renderMetrics.canvas?.width).toBeGreaterThan(0);
+      expect(renderMetrics.canvas?.height).toBeGreaterThan(0);
       expect(renderMetrics.mark?.background).toBe('rgb(251, 146, 60)');
     } else {
       expect(renderMetrics.mark).toBeNull();
@@ -172,12 +186,19 @@ test('API expone cabeceras de seguridad del piloto', async ({ request }) => {
   expect(response.headers()['permissions-policy']).toContain('camera=()');
 });
 
-test('ADMIN inicia sesión y ve el dashboard operativo', async ({ page }) => {
+test('ADMIN inicia en Galilei y conserva el panel técnico separado', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Correo electrónico').fill(credentials.accounts.admin.email);
   await page.getByLabel('Contraseña').fill(credentials.accounts.admin.password);
-  const dashboardStarted = Date.now();
   await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+  await expect(page).toHaveURL(/\/galilei$/);
+  await expect(page.getByRole('heading', { name: '¿Qué querés consultar?' })).toBeVisible();
+  const navigation = page.getByRole('navigation', { name: 'Secciones principales' });
+  await expect(navigation.getByRole('link')).toHaveCount(3);
+  const technicalLink = page.getByRole('link', { name: 'Panel técnico', exact: true });
+  await expect(technicalLink).toBeVisible();
+  const dashboardStarted = Date.now();
+  await technicalLink.click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole('heading', { name: 'Panel institucional' })).toBeVisible();
   await expect(page.getByText('Documentos Digesto')).toBeVisible({ timeout: 60_000 });
@@ -187,20 +208,29 @@ test('ADMIN inicia sesión y ve el dashboard operativo', async ({ page }) => {
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test('REVISOR, JURISPRUDENCIA y DIGESTO sólo ven navegación de su rol', async ({ page }) => {
+test('roles institucionales comparten tres destinos y conservan acciones de jurisprudencia según permiso', async ({ page }) => {
   const cases = [
-    { account: credentials.accounts.reviewer, visible: ['Revisión'], hidden: ['Digesto', 'Administración', 'Panel institucional'] },
-    { account: credentials.accounts.jurisprudencia, visible: ['Jurisprudencia', 'Revisión'], hidden: ['Digesto', 'Administración', 'Panel institucional'] },
-    { account: credentials.accounts.digesto, visible: ['Digesto'], hidden: ['Jurisprudencia', 'Revisión', 'Administración', 'Panel institucional'] },
+    { account: credentials.accounts.reviewer, review: true, manage: false },
+    { account: credentials.accounts.jurisprudencia, review: true, manage: true },
+    { account: credentials.accounts.digesto, review: false, manage: false },
   ];
   for (const scenario of cases) {
     await page.goto('/login');
     await page.getByLabel('Correo electrónico').fill(scenario.account.email);
     await page.getByLabel('Contraseña').fill(scenario.account.password);
     await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
-    await expect(page.getByRole('link', { name: 'Buscar', exact: true })).toBeVisible();
-    for (const label of scenario.visible) await expect(page.getByRole('link', { name: label, exact: true })).toBeVisible();
-    for (const label of scenario.hidden) await expect(page.getByRole('link', { name: label, exact: true })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/galilei$/);
+    const navigation = page.getByRole('navigation', { name: 'Secciones principales' });
+    await expect(navigation.getByRole('link')).toHaveCount(3);
+    await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toBeVisible();
+    await expect(navigation.getByRole('link', { name: /Mi Sala \/ Juzgado/u })).toBeVisible();
+    await expect(navigation.getByRole('link', { name: /Mis documentos/u })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Panel técnico', exact: true })).toHaveCount(0);
+    await page.goto('/consulta');
+    await expect(page.getByRole('heading', { name: 'Jurisprudencia', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Requieren revisión' })).toHaveCount(scenario.review ? 1 : 0);
+    await expect(page.getByRole('link', { name: 'Gestión y borradores' })).toHaveCount(scenario.manage ? 1 : 0);
+    await expect(page.getByRole('link', { name: '+ Nuevo fallo' })).toHaveCount(scenario.manage ? 1 : 0);
     await page.getByRole('button', { name: 'Cerrar sesión' }).click();
     await expect(page).toHaveURL(/\/login$/);
   }

@@ -1,5 +1,8 @@
 # Certificación del Corpus Civil actualmente adquirido
 
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
+
 **Versión:** Civil Corpus Certification v1  
 **Corte:** 2026-10-14  
 **Estado:** `CERTIFIED_WITH_KNOWN_GAPS`  

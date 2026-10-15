@@ -1,5 +1,8 @@
 # UX de Jurisprudencia — J9.1
 
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
+
 **Alcance:** interfaz web de Jurisprudencia para lectores y operadores. Este contrato no modifica el motor de búsqueda, el visor PDF, el Corpus, el esquema ni los permisos de espacios. Evidencia local no versionada: `_recovery-work/jurisprudencia-j91/`.
 
 ## Personas y recorridos

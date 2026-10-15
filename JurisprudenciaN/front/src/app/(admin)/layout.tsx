@@ -1,4 +1,3 @@
-import { AdminShell } from '@/components/layout/AdminShell';
 import { ProtectedContent } from '@/components/layout/ProtectedContent';
 
 export default function AdminLayout({
@@ -8,7 +7,7 @@ export default function AdminLayout({
 }>) {
   return (
     <ProtectedContent>
-      <AdminShell>{children}</AdminShell>
+      {children}
     </ProtectedContent>
   );
 }

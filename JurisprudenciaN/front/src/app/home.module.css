@@ -2,72 +2,75 @@
   min-height: 100vh;
   display: grid;
   align-content: center;
-  gap: 28px;
-  padding: 40px 24px;
+  padding: 32px 24px;
   background: #f5f8fb;
   color: #0f172a;
 }
 
 .hero {
-  width: min(1120px, 100%);
+  width: min(1040px, 100%);
   margin: 0 auto;
   display: grid;
-  gap: 24px;
-  padding: 44px;
-  border: 1px solid #cfddea;
-  border-radius: 8px;
+  gap: 22px;
+  padding: clamp(22px, 5vw, 42px);
+  border: 1px solid #d4deea;
+  border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 18px 40px rgba(15, 53, 88, 0.1);
 }
 
 .brandBlock {
   display: grid;
-  gap: 12px;
-  max-width: 780px;
+  gap: 8px;
 }
 
 .kicker {
   color: #536b82;
   font-size: 13px;
   font-weight: 700;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .brandBlock h1 {
   margin: 0;
   color: #0f3558;
-  font-size: 42px;
-  line-height: 1.08;
+  font-size: clamp(28px, 4vw, 38px);
+  line-height: 1.15;
 }
 
 .brandBlock p {
   margin: 0;
   color: #475569;
-  font-size: 17px;
-  line-height: 1.65;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  line-height: 1.55;
 }
 
 .cards {
-  width: min(1120px, 100%);
-  margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .card {
   display: grid;
-  gap: 8px;
+  align-content: start;
+  gap: 9px;
+  min-height: 132px;
   padding: 18px;
   border: 1px solid #dbe4ee;
   border-radius: 8px;
   background: #ffffff;
+  color: #344054;
+  text-decoration: none;
+}
+
+.card:hover,
+.card:focus-visible {
+  border-color: #4278a5;
+  outline: none;
+}
+
+.card > span {
+  font-size: 22px;
 }
 
 .card strong {
@@ -78,15 +81,19 @@
   margin: 0;
   color: #536b82;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
-@media (max-width: 720px) {
-  .hero {
-    padding: 28px;
+.actions {
+  display: flex;
+}
+
+@media (max-width: 760px) {
+  .cards {
+    grid-template-columns: 1fr;
   }
 
-  .brandBlock h1 {
-    font-size: 32px;
+  .card {
+    min-height: 0;
   }
 }

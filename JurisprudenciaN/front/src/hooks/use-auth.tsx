@@ -141,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       pathname.startsWith('/busqueda-avanzada') ||
       pathname.startsWith('/busqueda') ||
       pathname.startsWith('/jurisprudencia') ||
+      pathname.startsWith('/galilei') ||
       pathname.startsWith('/perfil') ||
       pathname.startsWith('/institutos-juridicos') ||
       pathname.startsWith('/normas') ||
@@ -148,7 +149,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isNewProtectedRoute =
       pathname.startsWith('/digesto') ||
       pathname.startsWith('/documentos') ||
-      pathname.startsWith('/revision');
+      pathname.startsWith('/revision') ||
+      pathname.startsWith('/spaces') ||
+      pathname.startsWith('/personal');
 
     if (!user && (isProtectedRoute || isNewProtectedRoute)) {
       setAuthNotice('Debés iniciar sesión para continuar.');
@@ -157,7 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (user && pathname === '/login') {
-      router.replace(landingForRole(user.rol.nombre));
+      router.replace(landingForRole());
     }
   }, [isLoading, pathname, router, user]);
 
@@ -177,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setTokenState(response.accessToken);
       setAuthNoticeState(null);
       setIsLoading(false);
-      router.replace(landingForRole(response.user.rol.nombre));
+      router.replace(landingForRole());
     },
     [router],
   );
@@ -211,13 +214,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-function landingForRole(role: string) {
-  return ({
-    LECTOR: '/busqueda-avanzada',
-    REVISOR: '/revision',
-    JURISPRUDENCIA: '/jurisprudencia',
-    DIGESTO: '/digesto',
-  } as Record<string, string>)[role] ?? '/dashboard';
+function landingForRole() {
+  return '/galilei';
 }
 
 export function useAuth() {

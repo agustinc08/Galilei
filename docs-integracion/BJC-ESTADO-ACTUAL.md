@@ -1,5 +1,15 @@
 # Estado actual — Buscador Jurídico Civil
 
+## Sprint INT-1 — estado integrado de Galilei (2026-10-14)
+
+**Dictamen: PARTIAL** en integration/galilei-beta. Los tips remotos de feature/jurisprudencia y feature/copernic están incorporados; workflow, Search/Viewer, documentos, OCR y ACL coexisten en código y esquema, con navegación superior para Jurisprudencia, Mi Sala / Juzgado y Mis documentos. Replay temporal desde cero: 28/28 migraciones; Prisma validate/generate/status PASS. La comparación raw registra proyecciones e índices SQL históricos fuera del datamodel Prisma e índices PostgreSQL con nombres truncados, sin borrado de objetos ni migration de reconciliación.
+
+**Gates técnicos verificados:** suite backend 28 PASS / 10 omitidas; typecheck y build backend PASS; typecheck, build y lint dirigido frontend PASS; Search golden PASS; Search verify 17.078 docs / 18.799.500 tokens, stale=0, discrepancias=0/100 y rebuild=0; Viewer smoke 6/6; E2E de navegación, lector, operador, workspaces (incluye multi-dependencia) y ACL personal/restringida PASS. Cleanup DB sintético verificó 0 filas restantes; el audit de residuos devolvió candidates=[]. Cuatro blobs de prueba no referenciados permanecen en el directorio aislado _dev-corpus-storage-test/sprint1561-int1-e2e: la revisión automática rechazó su borrado. No se tocaron los roots del corpus real.
+
+**Barrera para actualizar origin/dev:** el DEV local auditado tiene 21.109 sentencias, 0 publicadas y 21.083 activas no publicadas; la referencia J9 era 6.014 publicadas y 56 en revisión. Faltan _recovery-work/jurisprudencia-j7/final-summary.json y _recovery-work/jurisprudencia-j8/civil-certification-manifest.json; por eso no se puede repetir J8 ni demostrar que el snapshot esperado está presente. No se ejecutó ningún cambio editorial/publicación. Mantener origin/dev sin cambios hasta traer el snapshot/manifiestos autorizados y aprobar esos gates. Los registros de sprints anteriores debajo conservan su alcance y fecha originales.
+
+Search PHRASE (10 repeticiones, "responsabilidad civil"): total p50 956,57 ms / p95 1.304,95 ms / máximo 1.304,95 ms; adaptador Jurisprudencia p50/p95/máx 183/188/188 ms y Corpus 956/1.304/1.304 ms. El p95 total supera 1.200 ms y queda como deuda antes de UAT.
+
 
 ## Auditoría de paridad de source — 2026-10-13
 

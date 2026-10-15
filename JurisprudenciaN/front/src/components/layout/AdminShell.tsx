@@ -7,68 +7,84 @@ import { cn } from '@/lib/utils';
 import { Button } from '../ui/Button';
 import styles from './layout.module.css';
 
-const navItems = [
-  { href: '/dashboard', label: 'Inicio', roles: ['ADMIN', 'OPERADOR'] },
-  { href: '/busqueda-avanzada', label: 'Buscar', roles: ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO'] },
-  { href: '/jurisprudencia', label: 'Jurisprudencia', roles: ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO'] },
-  { href: '/digesto', label: 'Digesto', roles: ['ADMIN', 'OPERADOR', 'DIGESTO'] },
-  { href: '/corpus', label: 'Documentos', roles: ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA'] },
-  { href: '/spaces', label: 'Mi espacio', roles: ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO'] },
-  { href: '/personal', label: 'Mis documentos', roles: ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO'] },
-  { href: '/revision', label: 'Revisión', roles: ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA'] },
-  { href: '/estadisticas', label: 'Estado', roles: ['ADMIN', 'OPERADOR'] },
-  { href: '/perfil', label: 'Perfil', roles: ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO'] },
-  { href: '/admin/logs', label: 'Administración', roles: ['ADMIN'] },
-];
+const mainDestinations = [
+  { href: '/consulta', label: '⚖ Jurisprudencia', key: 'jurisprudencia' },
+  { href: '/spaces', label: '🏛 Mi Sala / Juzgado', key: 'spaces' },
+  { href: '/personal', label: '🔒 Mis documentos', key: 'personal' },
+] as const;
 
-const roleLabels: Record<string, string> = {
-  ADMIN: 'Administración', OPERADOR: 'Operación', LECTOR: 'Consulta',
-  REVISOR: 'Revisión', JURISPRUDENCIA: 'Jurisprudencia', DIGESTO: 'Digesto',
-};
+function activeDestination(pathname: string) {
+  if (pathname.startsWith('/spaces')) return 'spaces';
+  if (pathname.startsWith('/personal')) return 'personal';
+  if (
+    pathname.startsWith('/consulta') ||
+    pathname.startsWith('/fallos') ||
+    pathname.startsWith('/jurisprudencia') ||
+    pathname.startsWith('/sentencias') ||
+    pathname.startsWith('/sumarios') ||
+    pathname.startsWith('/revision')
+  ) {
+    return 'jurisprudencia';
+  }
+  return null;
+}
+
+function breadcrumbLabel(key: string | null) {
+  return mainDestinations.find((item) => item.key === key)?.label.replace(/^\S+\s/u, '') ?? null;
+}
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const { user, logout } = useAuth();
+  const active = activeDestination(pathname);
+  const breadcrumb = breadcrumbLabel(active);
 
   return (
     <div className={styles.appShell}>
       <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-            <strong>Buscador Jurídico Civil</strong>
-            <span>Jurisprudencia · Digesto · Documentos</span>
-        </div>
+        <Link className={styles.brand} href="/galilei" aria-label="Galilei, inicio">
+          <strong>Galilei</strong>
+          <span>Jurisprudencia · Mi Sala / Juzgado · Mis documentos</span>
+        </Link>
 
-        <nav className={styles.nav}>
-          {navItems.filter((item) => item.roles.includes(user?.rol.nombre ?? '')).map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                styles.navLink,
-                pathname.startsWith(item.href) && styles.navLinkActive,
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
+        <nav className={styles.nav} aria-label="Secciones principales">
+          {mainDestinations.map((item) => {
+            const isActive = active === item.key;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(styles.navLink, isActive && styles.navLinkActive)}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
-        <Button variant="secondary" onClick={logout}>
-          Cerrar sesión
-        </Button>
+        <div className={styles.sidebarFooter}>
+          <span>{user ? `${user.nombre} ${user.apellido ?? ''}`.trim() : 'Sesión activa'}</span>
+          {user?.rol.nombre === 'ADMIN' ? (
+            <div className={styles.technicalAdmin}>
+              <strong>Administración técnica</strong>
+              <Link href="/dashboard">Panel técnico</Link>
+              <Link href="/admin/logs">Registros</Link>
+            </div>
+          ) : null}
+          <Button variant="secondary" onClick={logout}>
+            Cerrar sesión
+          </Button>
+        </div>
       </aside>
 
       <div className={styles.main}>
         <header className={styles.topbar}>
-          <div>
-            <strong>Buscador Jurídico Civil</strong>
-          </div>
-          <div className={styles.topbarMeta}>
-            <strong>
-              {user?.nombre} {user?.apellido ?? ''}
-            </strong>
-            <span>{user ? roleLabels[user.rol.nombre] ?? 'Usuario' : ''}</span>
-          </div>
+          <nav className={styles.breadcrumbs} aria-label="Migas de pan">
+            <Link href="/galilei">Galilei</Link>
+            {breadcrumb ? <><span aria-hidden="true">›</span><span aria-current="page">{breadcrumb}</span></> : null}
+          </nav>
+          <strong className={styles.userName}>{user?.nombre} {user?.apellido ?? ''}</strong>
         </header>
         <main className={styles.content}>{children}</main>
       </div>

@@ -1,6 +1,9 @@
 # Procesamiento documental multiformato — Sprint 15.4A
 
-**Corte:** 2026-10-14 · `feature/copernic` · estado: **PARTIAL**.
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
+
+**Corte del componente:** 2026-10-14 · estado: PARTIAL. Integrado en integration/galilei-beta por INT-1.
 
 Este documento describe lo implementado en DEV para detección segura y extracción local. No acredita OCR, aceptación institucional ni preparación para producción.
 

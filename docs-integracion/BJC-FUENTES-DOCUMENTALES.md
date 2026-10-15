@@ -1,5 +1,8 @@
 # Fuentes documentales privadas
 
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
+
 ## Estado
 
 Sprint 15.2 agrega en DEV fuentes de carpetas de red para los workspaces privados. La validación con carpetas sintéticas pasó; no se probó una UNC institucional real ni hubo UAT con personal de dependencias. El benchmark legacy de paridad 40/40 no pudo correr porque falta su base SQLite local. Search general, proyección y Viewer se verificaron por separado. Estado del sprint: **PARTIAL por verificación ambiental**.

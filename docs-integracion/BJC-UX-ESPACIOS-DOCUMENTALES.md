@@ -1,6 +1,9 @@
 # UX de espacios documentales — contrato de Sprint 15.6
 
-**Actualizado:** 2026-10-14. **Estado:** experiencia de dependencia y búsqueda implementada; visibilidad personal/restringida por carpeta no disponible en el modelo actual. La evaluación cero capacitación es heurística y E2E; UAT humana sigue pendiente.
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
+
+**Actualizado:** 2026-10-14. **Estado:** experiencia de dependencia, búsqueda, Mis documentos y ACL personal/restringida implementadas y verificadas por E2E. La evaluación cero capacitación es heurística y E2E; UAT humana sigue pendiente.
 
 ## Lenguaje para el usuario
 

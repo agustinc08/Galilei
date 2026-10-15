@@ -1,5 +1,19 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Estado vigente — Sprint INT-1 (2026-10-14)
+
+**INT-1 PARTIAL; integración local lista para revisión/publicación de branch.** Ambas ramas están fusionadas en integration/galilei-beta; la shell Galilei distingue Jurisprudencia, Mi Sala / Juzgado y Mis documentos. Replay limpio de 28 migraciones, Search golden + verify, Viewer, ACL/workspace E2E, typechecks y builds pasan. No actualizar origin/dev: DEV local reporta 0 fallos publicados (frente al snapshot J9 esperado de 6.014) y faltan los manifests J7/J8 que autorizan repetir certificación de Corpus/publicación. No transformar ni publicar datos para hacer coincidir conteos.
+
+| Gate vigente | Estado | Evidencia / siguiente paso |
+|---|---|---|
+| Integración source/schema | PASS | Ambos tips son ancestros de integration/galilei-beta; 28 migraciones preservadas; sin migration de reconciliación. |
+| Replay/migrate/Search/Viewer | PASS con objetos SQL administrados | Replay 28/28; diff raw muestra proyecciones e índices históricos fuera del datamodel, sin pérdida; no quitar esos objetos. |
+| J8/J9 snapshot de datos | BLOCKED | DEV local: 0 published, 21.083 activas no publicadas; faltan manifests J7/J8. Obtener bundle correcto y certificar en sólo lectura. |
+| E2E/ACL/workspace | PASS | Reader/operator, workspace y multi-dependencia, ACL personal/restringida pasan; cleanup DB=0. Quedan cuatro archivos sintéticos no referenciados en un storage aislado porque la revisión automática rechazó su borrado. |
+| UAT/preproducción | PENDING | Continuar tras resolver snapshot, performance y cleanup, y obtener aceptación humana. |
+
+PHRASE "responsabilidad civil" dio 956,57/1.304,95/1.304,95 ms (p50/p95/máx); Jurisprudencia 183/188/188 ms, Corpus 956/1.304/1.304 ms. Bajar el p95 total sin relajar exactitud ni ACL antes de UAT.
+
 ## Gate de portabilidad source — 2026-10-13
 
 **PASS en `dev`, commit `373e7c0add34580baade5fe873849c97f2fda061`.** El clone limpio instalado sólo desde los lockfiles validó Prisma, typecheck/build de backend y frontend y 90 tests backend sin runtime; 19 tests/suites optativos se omitieron por depender de PostgreSQL DEV o de la SQLite histórica. La regla global `**/logs/` fue reemplazada por exclusiones runtime específicas; se recuperaron seis fuentes ignoradas y el fixture SQLite real permanece fuera de Git. El lint frontend conserva cuatro errores previos de hooks y una advertencia; typecheck y builds están limpios.

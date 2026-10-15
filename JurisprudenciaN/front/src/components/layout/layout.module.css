@@ -20,6 +20,8 @@
 .brand {
   display: grid;
   gap: 6px;
+  color: inherit;
+  text-decoration: none;
 }
 
 .brand strong {
@@ -71,6 +73,25 @@
   font-weight: 700;
 }
 
+.technicalAdmin {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.technicalAdmin strong {
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.technicalAdmin a {
+  color: #d9ecfb;
+  font-size: 13px;
+}
+
 .main {
   min-width: 0;
 }
@@ -86,18 +107,30 @@
   backdrop-filter: blur(10px);
 }
 
-.topbarMeta {
-  display: grid;
-  gap: 4px;
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  color: #526579;
+  font-size: 14px;
 }
 
-.topbarMeta strong {
+.breadcrumbs a {
+  color: #0f3d66;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.breadcrumbs [aria-current='page'] {
+  color: #344054;
+  font-weight: 600;
+}
+
+.userName {
   font-size: 15px;
-}
-
-.topbarMeta span {
-  font-size: 13px;
-  color: #667085;
+  color: #344054;
+  text-align: right;
 }
 
 .content {
@@ -155,7 +188,7 @@
   }
 
   .nav {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
   }
 
   .topbar,

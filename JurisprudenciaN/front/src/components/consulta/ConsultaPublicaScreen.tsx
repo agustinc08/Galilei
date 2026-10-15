@@ -238,22 +238,19 @@ function ConsultaPublicaScreenContent() {
   return (
     <main className={styles.page}>
       <section className={styles.hero}>
-        {user ? (
-          <div className={styles.publicHeader}>
-            <span />
-            <Link href="/dashboard">
-              <Button variant="secondary">Volver al panel</Button>
-            </Link>
-          </div>
-        ) : null}
         <h1 className={styles.heroTitle}>Jurisprudencia</h1>
         <p className={styles.heroSubtitle}>
-          Cámara Nacional de Apelaciones en lo Civil
+          Buscar fallos institucionales publicados · Cámara Nacional de Apelaciones en lo Civil
         </p>
-        {user && ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user.rol.nombre) ? (
+        {user && ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user.rol.nombre) ? (
           <div className={styles.publicHeader}>
-            <Link href="/sentencias"><Button variant="secondary">Gestionar fallos</Button></Link>
-            <Link href="/sentencias/nueva"><Button>+ Nuevo fallo</Button></Link>
+            {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user.rol.nombre) ? (
+              <>
+                <Link href="/sentencias"><Button variant="secondary">Gestión y borradores</Button></Link>
+                <Link href="/sentencias/nueva"><Button>+ Nuevo fallo</Button></Link>
+              </>
+            ) : null}
+            <Link href="/revision"><Button variant="secondary">Requieren revisión</Button></Link>
           </div>
         ) : null}
       </section>
