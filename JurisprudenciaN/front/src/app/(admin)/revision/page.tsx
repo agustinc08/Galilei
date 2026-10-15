@@ -26,7 +26,10 @@ export default function RevisionPage() {
     try { setQueue(await api.get<Queue>('/corpus/documents/admin/review', { query: { filter: kind, page, pageSize: 50 } })); setSelected([]); setError(''); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'No se pudo cargar la revisión.'); }
   }, [kind, page]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(initialLoad);
+  }, [load]);
   const reviewBatch = async (status: 'APPROVED' | 'REJECTED') => {
     if (!selected.length) return;
     const action = status === 'APPROVED' ? 'aprobar' : 'rechazar';

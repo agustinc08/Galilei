@@ -55,6 +55,7 @@ const actions = {
   'int1-temp-create': 'node scripts/dev/int1-temp-db.cjs create',
   'int1-temp-drop': 'node scripts/dev/int1-temp-db.cjs drop',
   'int1-temp-inspect': 'node scripts/dev/int1-temp-db.cjs inspect',
+  'int1-storage-audit': 'node scripts/dev/int1-storage-audit.cjs',
   'int1-temp-migrate': 'pnpm.cmd exec prisma migrate deploy',
   'int1-temp-status': 'pnpm.cmd exec prisma migrate status',
   'int1-temp-validate': 'pnpm.cmd exec prisma validate',

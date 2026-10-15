@@ -36,7 +36,14 @@ export default function CorpusAdminPage() {
       setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar el inventario documental.');
     }
   }, [filter, page]);
-  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 30_000); return () => window.clearInterval(timer); }, [load]);
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => void load(), 0);
+    const timer = window.setInterval(() => void load(), 30_000);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(timer);
+    };
+  }, [load]);
 
   return <div className={styles.page}>
     <PageHeader title="Corpus documental" description="Inventario institucional local, extracción y elementos pendientes de revisión." />

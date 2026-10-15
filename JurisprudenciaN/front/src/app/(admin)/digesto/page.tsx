@@ -23,7 +23,10 @@ export default function DigestoPage() {
     try { setItems(await api.get<Collection[]>('/corpus/curation/digesto/collections')); setError(''); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'No se pudieron cargar las colecciones.'); }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(initialLoad);
+  }, [load]);
 
   const create = async (event: FormEvent) => {
     event.preventDefault();
