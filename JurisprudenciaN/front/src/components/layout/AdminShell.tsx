@@ -24,39 +24,50 @@ const navItems = [
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const visibleNavItems = navItems.filter((item) =>
+    item.roles.includes(user?.rol.nombre ?? ''),
+  );
+  const activeNavItem = visibleNavItems.find(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
 
   return (
     <div className={styles.appShell}>
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
-            <strong>Buscador Jurídico Civil</strong>
-            <span>Jurisprudencia · Digesto · Documentos</span>
+          <strong>Buscador Jurídico Civil</strong>
+          <span>Jurisprudencia · Digesto · Documentos</span>
         </div>
 
-        <nav className={styles.nav}>
-          {navItems.filter((item) => item.roles.includes(user?.rol.nombre ?? '')).map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                styles.navLink,
-                pathname.startsWith(item.href) && styles.navLinkActive,
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
+        <nav className={styles.nav} aria-label="Navegación principal">
+          {visibleNavItems.map((item) => {
+            const isActive =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(styles.navLink, isActive && styles.navLinkActive)}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
-        <Button variant="secondary" onClick={logout}>
-          Cerrar sesión
-        </Button>
+        <div className={styles.sidebarFooter}>
+          <Button variant="secondary" onClick={logout}>
+            Cerrar sesión
+          </Button>
+        </div>
       </aside>
 
       <div className={styles.main}>
         <header className={styles.topbar}>
-          <div>
-            <strong>Buscador Jurídico Civil</strong>
+          <div className={styles.sectionName}>
+            {activeNavItem?.label ?? 'Buscador Jurídico Civil'}
           </div>
           <div className={styles.topbarMeta}>
             <strong>
