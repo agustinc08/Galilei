@@ -4,7 +4,7 @@
 
 La rama `feature/preprod-uat-fix` conserva la base exacta `4d68c49d80642a19e93cc1af799fa78414421309`. El código cierra P0/P1 de parser/driver PostgreSQL, preflight obligatorio antes de Nest, alias OpenSearch ajeno/múltiple, TLS efectivo de `pg_dump` y namespace de production; también cubre los P2 seguros de IPv6, storage, efectos de startup, conteo de integraciones y topología. Se mantiene fuera de DEV y no modifica Search semantics, ACL, Viewer, schema Prisma o migraciones.
 
-Calidad local: backend/frontend build y typecheck PASS; suite segura 42/272 con 7 omitidos; focused guard/namespace 65/65; backup 2/2; frontend URL 5/5; ESLint de todos los archivos modificados sin errores ni warnings. Smokes DEV sólo GET: OpenSearch 2.19.6 green, alias activo v3 y 69.313 documentos; no hubo conexión DB ni escrituras. Siguiente gate: auditar/push exclusivamente `origin/feature/preprod-uat-fix` y solicitar PREPROD-FIX-REVIEW-1 independiente. PREPROD no provisionado; backup/restore real, Docker image y UAT no probados.
+Calidad local: backend/frontend build y typecheck PASS; suite segura 42/272 con 7 omitidos; focused guard/namespace 65/65; backup 2/2; frontend URL 5/5; ESLint de todos los archivos modificados sin errores ni warnings. Smokes DEV sólo GET: OpenSearch 2.19.6 green, alias activo v3 y 69.313 documentos; no hubo conexión DB ni escrituras. `feature/preprod-uat-fix` se publicó sólo en su ref autorizada. Siguiente gate: PREPROD-FIX-REVIEW-1 independiente; no promover antes de esa revisión. PREPROD no provisionado; backup/restore real, Docker image y UAT no probados.
 
 ## Corte vigente — preparación de preproducción/UAT (2026-10-18)
 
@@ -12,14 +12,14 @@ Calidad local: backend/frontend build y typecheck PASS; suite segura 42/272 con 
 |---|---|---|
 | DEV + UX | PROMOTED + REVIEWED | `origin/dev=af8f51d6f5e5be48e0167c5890328acd3c80c2c4`; UX ya está en DEV. `main` intacta. |
 | INT-1R | PASS | SHA certificado `111bc5c86faff0bf946ef5e199b4463fe8217d5a` permanece en `integration/galilei-beta`; no se mueve en esta misión. |
-| PREPROD-UAT-PREP-1 / PREPROD-FIX-1 | CANDIDATE HARDENED; INFRA BLOCKED | Rama de preparación preservada en `feature/preprod-uat-prep`. `feature/preprod-uat-fix` parte exactamente de `4d68c49d80642a19e93cc1af799fa78414421309`; quality local PASS; requiere publicación/revisión independiente; sin promoción. |
+| PREPROD-UAT-PREP-1 / PREPROD-FIX-1 | CANDIDATE PUBLISHED; INFRA BLOCKED | Rama de preparación preservada en `feature/preprod-uat-prep`. `feature/preprod-uat-fix` parte exactamente de `4d68c49d80642a19e93cc1af799fa78414421309`; quality local PASS; publicada sólo en su ref; revisión independiente pendiente; sin promoción. |
 | Host / DB / storage preprod | NOT PROVISIONED | No se identificó destino institucional autorizado. Solicitar host, PostgreSQL 16, volumen, OpenSearch, TLS, DNS/proxy, firewall y owners (doc 140). |
 | Fresh migration replay | CERTIFIED BY EXISTING SHA EVIDENCE | 31/31; hashes coinciden con la prueba aislada INT-1R. No repetir sobre DEV ni crear DB sin destino temporal autorizado. |
 | Backup / restore preprod | CODE FIX IN CANDIDATE; REAL DUMP/RESTORE NOT PROVEN | El plan fuerza `verify-full`, CA, identidad canónica y passfile; falta correr `pg_dump`/restore real en infraestructura aprobada. |
 | UAT institucional | PLAN ONLY / NOT STARTED | Sin host, perfiles reales, corpus aprobado ni cuentas. No invitar usuarios ni emitir credenciales. |
 | Capacidad local | BELOW RESERVE | C: 40,84 GiB libres vs ≥50 GiB recomendado; v3 actual 13,19 GiB, además de DB/storage/backups. No dimensiona el host UAT. |
 
-Siguiente gate: cerrar el audit final y publicar sólo `feature/preprod-uat-fix`; después PREPROD-FIX-REVIEW-1 independiente. La topología elegida es API loopback + proxy del mismo host; proxy en contenedor separado NO CERTIFIED. El startup puede recuperar scans/OCR y procesar outbox, por lo que DB/Search/storage/backup deben estar healthy antes de iniciar. Luego infraestructura provisiona y entrega identidad/owner/ventana. Sólo entonces ejecutar el runbook 136 con guard de DB, restore drill y service manager aprobado. No desplegar producción ni iniciar UAT real.
+Siguiente gate: PREPROD-FIX-REVIEW-1 independiente. La topología elegida es API loopback + proxy del mismo host; proxy en contenedor separado NO CERTIFIED. El startup puede recuperar scans/OCR y procesar outbox, por lo que DB/Search/storage/backup deben estar healthy antes de iniciar. Luego infraestructura provisiona y entrega identidad/owner/ventana. Sólo entonces ejecutar el runbook 136 con guard de DB, restore drill y service manager aprobado. No desplegar producción ni iniciar UAT real.
 
 ## Corte vigente — Search DEV y reconciliación UX separada (2026-10-18)
 

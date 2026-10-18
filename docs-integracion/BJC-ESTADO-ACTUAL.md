@@ -8,7 +8,7 @@ Verificación de esta candidata: backend/frontend typecheck y build PASS; suite 
 
 El smoke de DEV fue sólo lectura, con cuatro requests GET a OpenSearch: versión 2.19.6, health green, alias `galilei-search-active` → `galilei-search-v003-20261017t232432555z-a6af18cb`, 69.313 documentos; 0 conexiones DB y 0 escrituras. No se usó DEV como destino de herramientas de backup/migración.
 
-La candidata requiere publicación sólo a `origin/feature/preprod-uat-fix` y revisión independiente PREPROD-FIX-REVIEW-1. PREPROD sigue NOT_PROVISIONED; dump/restore real NOT_PROVEN; imagen Docker, storage de producción, certificado TLS y UAT institucional pendientes. Evidencia local ignorada: `_recovery-work/preprod-fix1/`.
+La candidata está publicada únicamente en `origin/feature/preprod-uat-fix`; requiere revisión independiente PREPROD-FIX-REVIEW-1 antes de cualquier promoción. PREPROD sigue NOT_PROVISIONED; dump/restore real NOT_PROVEN; imagen Docker, storage de producción, certificado TLS y UAT institucional pendientes. Evidencia local ignorada: `_recovery-work/preprod-fix1/`.
 
 ## PREPROD-UAT-PREP-1 — estado vigente (2026-10-18)
 
