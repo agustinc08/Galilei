@@ -25,7 +25,9 @@ test('J9.1 reader zero-training journey, visual states and target desktop widths
   await signIn(page, 'reader');
   await page.setViewportSize({ width: 1366, height: 768 });
   const initialRenderStart = Date.now();
-  await page.getByRole('link', { name: 'Jurisprudencia', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Secciones principales' })
+    .getByRole('link', { name: /Jurisprudencia/u })
+    .click();
   await expect(page).toHaveURL(/\/consulta$/u);
   await expect(page.getByRole('heading', { name: 'Jurisprudencia', exact: true })).toBeVisible();
   await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();

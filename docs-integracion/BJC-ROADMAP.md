@@ -10,13 +10,15 @@
 | Integración de rutas y seguridad | CLOSED en branch | HTTP golden/phrase/prefix/filter/sort/names/ACL/publicación/Viewer/sync/fail-closed certificados. |
 | Alias de integración | V3 ACTIVE | `galilei-search-active` → `galilei-search-v003-20261017t232432555z-a6af18cb`; v1 retenido para rollback. |
 | INT-1S | CLOSED | Semántica, exactitud y rendimiento Search certificados. |
-| INT-1R | READY FOR FINAL RECERTIFICATION | Ejecutar su recertificación/UAT con su snapshot y gates propios; no repetir tuning de Search sin regresión concreta. |
-| DEV / UAT institucional / preproducción | NOT PROMOTED / PENDING | Requieren la autorización y gates de INT-1R; producción no está habilitada. |
-| Reserva de almacenamiento de producción | PENDING | Recomendada ≥50 GiB libres; el volumen local al cierre tenía ~42,4 GiB. |
+| INT-1R | PASS — READY_FOR_DEV_PROMOTION | Recertificación local completa; la promoción integración→dev es una operación separada. |
+| DEV / UAT institucional / preproducción | NOT PROMOTED / PENDING | Esta recertificación no promueve DEV ni completa UAT/preproducción; producción no está habilitada. |
+| Reserva de almacenamiento de producción | PENDING | Recomendada ≥50 GiB libres; el volumen local al cierre tenía 41,98 GiB. |
 
-Calidad: backend 36 suites, 223 tests pass (9 suites/21 tests optativos omitidos), typecheck/build/lint dirigido/secret scan/diff-check PASS, Prisma 31/31 migraciones up-to-date y replay limpio PASS. El barrido posterior al corte comparó los 69.313 IDs y el mismo SHA-256 del gate prepromoción. Hubo dos cierres de canal de transporte en el verificador guarded postpromoción; se documentan en el artefacto y se cubrieron con el barrido directo independiente, sin discrepancias.
+Calidad INT-1R: backend 37 suites/224 tests pass, con 8 suites/20 tests optativos omitidos; typecheck/build backend y frontend, lint dirigido, secret scan y diff-check PASS. Prisma 31/31 up-to-date; replay limpio de las 31 migraciones reutilizado por SHA desde el clúster PostgreSQL 16 aislado certificado en Sprint 1.5.1. El scan final del alias v3 confirma 69.313 IDs exactos, outbox 0/0. El benchmark HTTP actual (2 warmups + 20 muestras) registró p95 de 173,86/240,03 ms y cero timeouts.
 
-Próxima acción: INT-1R FINAL RECERTIFICATION/UAT. Esta rama puede publicarse únicamente a `origin/integration/galilei-beta`; `dev`, `main` y ramas UX quedan fuera del alcance.
+Nota de alcance de tests: el test optativo PostgreSQL-only Sprint 15.5 falló al ser forzado en `C-PHRASE-LINE` por timeout del adapter legacy; no ejercita la ruta activa OpenSearch. La Golden HTTP v3 continúa 325/325; las fixtures de ese intento se limpiaron, los eventos de outbox se drenaron y la integridad del alias v3 quedó verificada nuevamente.
+
+Próxima acción: promoción integración→dev en una misión separada. No promover desde esta recertificación. UAT y preproducción siguen pendientes; `main` y ramas UX quedan fuera del alcance.
 ## Sprint INT-1S.6 — decisión de resultados rápidos (2026-10-15)
 
 **NO GO para `FAST RESULTS + ASYNC EXACT TOTAL`.** Con el total exacto excluido del camino diagnóstico, la primera página de “responsabilidad civil” mantuvo p95 4.210 ms y 10/10 timeouts SQL de Corpus; “falta de servicio” tuvo p95 4.255 ms y 10/10. No continuar con jobs/caches de total ni índices estructurales. INT-1S e INT-1R siguen BLOCKED; no promover `dev` ni iniciar UX-2.

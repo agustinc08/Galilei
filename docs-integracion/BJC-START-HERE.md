@@ -1,6 +1,6 @@
 # Galilei — inicio rápido
 
-**Actualizado:** 2026-10-14, Sprint INT-1. Dictamen: PARTIAL en integration/galilei-beta; ambas ramas funcionales están integradas y la navegación global está implementada. origin/dev permanece intacta hasta aprobar los gates de datos y certificación.
+**Actualizado:** 2026-10-18, INT-1R. Dictamen: PASS en `integration/galilei-beta`, lista para promoción separada a DEV. INT-1R no modificó `origin/dev`, `main` ni ramas UX; UAT institucional y preproducción siguen pendientes.
 
 ## Producto integrado
 
@@ -12,7 +12,7 @@ Search, Viewer, archivos descargables, OCR/formats y permisos usan sus contratos
 
 ## Estado de INT-1
 
-**PARTIAL en integration/galilei-beta.** Los tips de feature/jurisprudencia y feature/copernic están incorporados. Replay limpio 28/28, Prisma validate/generate/status, Search golden/verify, Viewer smoke, builds y E2E de navegación/lector/operador/workspace/ACL pasaron. La auditoría del DEV local observó 0 publicadas frente a la referencia de 6.014 y faltan manifests J7/J8; no se aplicó publicación y origin/dev no se actualizó. UAT, preproducción y producción siguen pendientes.
+**PASS local tras INT-1R.** Alias Search v3 activo y exacto (69.313/69.313); 6.014 Sentencias publicadas y 56 del subconjunto civil J9 permanecen en revisión. Prisma registra 31/31 migraciones; el replay de 31 migraciones se reutiliza por hash desde un clúster PostgreSQL 16 aislado ya probado. Backend/frontend tests, typechecks y builds pasan; la rama está lista para una promoción posterior. UAT, preproducción y producción siguen pendientes.
 
 ## Rutas principales
 

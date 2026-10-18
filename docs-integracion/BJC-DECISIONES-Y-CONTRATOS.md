@@ -6,7 +6,7 @@
 
 La implementación conserva el motor de frase por postings posicionales de shingles, verificación exacta, ventana/top-N y el fail-closed HTTP 503 sin fallback legacy. Matrices HTTP, ACL, publicación, sincronización, Viewer y calidad quedaron certificadas; la evidencia autoritativa es `_recovery-work/search-engine-integration1/` (no versionado). El verificador guarded postpromoción tuvo dos fallos de transporte por canal cerrado; el barrido directo paginado completo pasó con hash idéntico y clúster green. Esta limitación se mantiene explícita.
 
-**Límites de decisión:** INT-1S cerrado; INT-1R listo para recertificación final. DEV no promovido. UAT institucional, preproducción y producción siguen pendientes. Antes de producción se exige reserva de almacenamiento libre recomendada ≥50 GiB; el C: local tenía ~42,4 GiB al cierre. No realizar integración→dev como parte de esta publicación.
+**Límites de decisión:** INT-1S cerrado; INT-1R PASS y `READY_FOR_DEV_PROMOTION` en su propia recertificación. DEV no fue promovido por INT-1R; esa operación es separada. UAT institucional, preproducción y producción siguen pendientes. Antes de producción se exige reserva de almacenamiento libre recomendada ≥50 GiB; el C: local tiene ~42 GiB libres. No realizar integración→dev dentro de INT-1R.
 
 Los apartados siguientes preservan sin reescritura las decisiones y evidencia histórica de cada sprint; sus estados BLOCKED/PARTIAL describen el corte fechado que los originó y no sustituyen esta decisión vigente sobre Search 1.5.1.
 ## Integración INT-1 — Galilei

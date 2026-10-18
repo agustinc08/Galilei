@@ -35,21 +35,24 @@ test('J9 lector entra a Jurisprudencia, filtra sin controles de operador y manti
 
   const first = await request.get(`${apiBase}/public/busqueda?page=1&pageSize=300`);
   const firstPage = await first.json();
-  expect(firstPage.meta.total).toBeGreaterThan(300);
-  expect(firstPage.data).toHaveLength(300);
+  expect(firstPage.meta.total).toBeGreaterThan(100);
+  expect(firstPage.meta.pageSize).toBe(100);
+  expect(firstPage.data).toHaveLength(100);
   const second = await (await request.get(`${apiBase}/public/busqueda?page=2&pageSize=300`)).json();
   expect(second.meta.page).toBe(2);
-  expect(second.data).toHaveLength(300);
+  expect(second.data).toHaveLength(100);
   const last = await (await request.get(`${apiBase}/public/busqueda?page=${firstPage.meta.pageCount}&pageSize=300`)).json();
   expect(last.meta.page).toBe(firstPage.meta.pageCount);
   expect(last.data.length).toBeGreaterThan(0);
   const ids = [...firstPage.data, ...second.data, ...last.data].map((item: { sentenciaId: number }) => item.sentenciaId);
   expect(new Set(ids).size).toBe(ids.length);
+  const salaWithResults = firstPage.data.find((item: { sala?: string | null }) => item.sala)?.sala;
+  expect(salaWithResults).toBeTruthy();
 
   for (const params of [
     'expediente=CIV%20072119%2F2022',
     'caratula=AIZAMA',
-    'sala=Juzgado%20Civil%2064',
+    `sala=${encodeURIComponent(salaWithResults)}`,
     'tipoFallo=JURISPRUDENCIA',
     'fechaDesde=2026-10-08&fechaHasta=2026-10-08',
   ]) {

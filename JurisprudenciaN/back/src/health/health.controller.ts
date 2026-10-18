@@ -1,4 +1,4 @@
-import { Controller, Get, Optional, Res } from '@nestjs/common';
+import { Controller, Get, Inject, Optional, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
@@ -14,6 +14,7 @@ export class HealthController {
     private readonly prisma: PrismaService,
     private readonly documents: CorpusDocumentAccessService,
     @Optional()
+    @Inject(OpenSearchRuntimeService)
     private readonly searchRuntime?: OpenSearchRuntimeService | null,
   ) {}
 

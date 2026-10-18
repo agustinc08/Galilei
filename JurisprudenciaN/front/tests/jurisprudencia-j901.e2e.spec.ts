@@ -109,12 +109,15 @@ test('J9.0.1 operator valid PDF lifecycle is visible to readers then archived', 
   await expect(page.getByText('Sentencia publicada.')).toBeVisible();
   await page.screenshot({ path: resolve(artifactRoot, 'operator-published.png'), fullPage: true });
 
-  const publishedSearch = await request.get(`${apiBase}/public/busqueda?q=${marker}`);
-  const publishedBody = await publishedSearch.json();
-  expect(publishedBody.meta.total).toBe(1);
-  expect(publishedBody.data[0].esFalloCorpus).toBe(true);
-  expect(publishedBody.data[0].extractoFallo).toContain(marker);
-  publicSlug = publishedBody.data[0].slugPublico;
+  let publishedBody: { meta: { total: number }; data: Array<{ esFalloCorpus: boolean; extractoFallo: string | null; slugPublico: string }> };
+  await expect.poll(async () => {
+    const publishedSearch = await request.get(`${apiBase}/public/busqueda?q=${marker}`);
+    publishedBody = await publishedSearch.json();
+    return publishedBody.meta.total;
+  }, { timeout: 60_000, intervals: [250, 500, 1_000, 2_000] }).toBe(1);
+  expect(publishedBody!.data[0].esFalloCorpus).toBe(true);
+  expect(publishedBody!.data[0].extractoFallo).toContain(marker);
+  publicSlug = publishedBody!.data[0].slugPublico;
   evidence.statuses = { ...(evidence.statuses as object), publish: 'PASS', search: 'PASS', publicSlug };
 
   await page.evaluate(() => localStorage.clear());
@@ -145,13 +148,20 @@ test('J9.0.1 operator valid PDF lifecycle is visible to readers then archived', 
   );
   await page.getByRole('button', { name: 'Guardar cambios' }).click();
   expect((await editSave).status()).toBe(200);
-  const edited = await request.get(`${apiBase}/public/busqueda?q=Objeto%20editado`);
-  expect((await edited.json()).data.some((row: { expediente: string }) => row.expediente === expediente)).toBeTruthy();
+  const editedQuery = `Objeto editado ${marker}`;
+  await expect.poll(async () => {
+    const edited = await request.get(`${apiBase}/public/busqueda`, { params: { q: editedQuery } });
+    const body = await edited.json() as { data: Array<{ expediente: string }> };
+    return body.data.some((row) => row.expediente === expediente);
+  }, { timeout: 60_000, intervals: [250, 500, 1_000, 2_000] }).toBe(true);
   await page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Archivar' }).click();
   await expect(page.getByText('Fallo archivado.')).toBeVisible();
-  const afterArchive = await request.get(`${apiBase}/public/busqueda?q=${marker}`);
-  expect((await afterArchive.json()).meta.total).toBe(0);
+  await expect.poll(async () => {
+    const afterArchive = await request.get(`${apiBase}/public/busqueda`, { params: { q: marker } });
+    const body = await afterArchive.json() as { meta: { total: number } };
+    return body.meta.total;
+  }, { timeout: 60_000, intervals: [250, 500, 1_000, 2_000] }).toBe(0);
   evidence.statuses = { ...(evidence.statuses as object), edit: 'PASS', archive: 'PASS', afterArchive: 0 };
   evidence.sentenceId = sentenceId;
   evidence.publicSlug = publicSlug;

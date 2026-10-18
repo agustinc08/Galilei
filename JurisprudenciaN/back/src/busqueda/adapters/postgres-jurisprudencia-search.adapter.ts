@@ -15,6 +15,7 @@ import type {
 } from '../utils/search-ast';
 import { visitSearchLiterals } from '../utils/search-ast';
 import { normalizeSearchText } from '../utils/search-normalizer';
+import { sentenciaTienePdfReal } from '../../archivos/pdf-real.util';
 
 type SqlValue = string | string[] | number | number[] | boolean | Date | null;
 type Row = {
@@ -77,6 +78,20 @@ function normalizeSql(expression: string) {
 
 function escapeLike(value: string) {
   return value.replace(/[\\%_]/gu, '\\$&');
+}
+
+function buildPublicFalloExcerpt(text: string | null, query?: string) {
+  const value = String(text ?? '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+  if (!value) return null;
+  const needle = String(query ?? '')
+    .trim()
+    .toLocaleLowerCase('es');
+  const index = needle ? value.toLocaleLowerCase('es').indexOf(needle) : -1;
+  const start = index < 0 ? 0 : Math.max(0, index - 100);
+  const end = Math.min(value.length, start + 280);
+  return `${start > 0 ? '…' : ''}${value.slice(start, end)}${end < value.length ? '…' : ''}`;
 }
 
 function normalizeLegacyValue(value: string) {
@@ -801,6 +816,7 @@ export class PostgresJurisprudenciaSearchAdapter implements SearchSourceAdapter 
     const publicOnly = context.publicationPolicy === 'published-active-only';
     const response = await this.pool.query<{
       id: number;
+      slugPublico: string | null;
       numeroSentencia: string | null;
       tipoFallo: string | null;
       sala: string | null;
@@ -815,19 +831,24 @@ export class PostgresJurisprudenciaSearchAdapter implements SearchSourceAdapter 
       objeto: string | null;
       magistrados: string | null;
       caratula: string | null;
+      textoBusqueda: string | null;
       textoBusquedaNormalizado: string | null;
       sumariosSearchText: string | null;
       sumarioCount: string;
       publicado: boolean;
       activo: boolean;
       estadoCarga: string;
+      archivosPdf: Array<{ id: number; rutaArchivo: string | null }> | null;
     }>(
-      `SELECT t."id", t."numeroSentencia", t."tipoFallo", t."sala", t."fecha", t."expediente",
+      `SELECT t."id", t."slugPublico", t."numeroSentencia", t."tipoFallo", t."sala", t."fecha", t."expediente",
               t."tribunalOrigen", t."actor", t."actorPublico", t."demandado", t."demandadoPublico",
               t."anonimizado", t."objeto", t."magistrados", t."caratula",
+              t."textoBusqueda",
               t."textoBusquedaNormalizado", t."publicado", t."activo", t."estadoCarga",
               COALESCE(summary."searchText", '') AS "sumariosSearchText",
-              COALESCE(summary."sumarioCount", 0)::text AS "sumarioCount"
+              COALESCE(summary."sumarioCount", 0)::text AS "sumarioCount",
+              COALESCE((SELECT json_agg(json_build_object('id', file."id", 'rutaArchivo', file."rutaArchivo") ORDER BY file."createdAt" DESC)
+                          FROM "ArchivoPdf" file WHERE file."sentenciaId" = t."id"), '[]'::json) AS "archivosPdf"
          FROM "Sentencia" t
          LEFT JOIN LATERAL (
            SELECT string_agg(concat_ws(' ', s."tema", s."numeroSumario", s."resumenBusqueda", s."textoBusquedaNormalizado"), ' ') AS "searchText",
@@ -847,6 +868,12 @@ export class PostgresJurisprudenciaSearchAdapter implements SearchSourceAdapter 
       if (!negated) literals.push(literal);
     });
     const results = response.rows.map((row): SearchResult => {
+      const pdf = sentenciaTienePdfReal(row.archivosPdf ?? []);
+      const published = row.publicado && row.estadoCarga === 'PUBLICADA';
+      const hasNoPublishedSummary = Number(row.sumarioCount) === 0;
+      const legacyCorpus = Boolean(
+        publicOnly && published && hasNoPublishedSummary && row.textoBusqueda,
+      );
       const actor =
         publicOnly && row.anonimizado && row.actorPublico
           ? row.actorPublico
@@ -925,6 +952,7 @@ export class PostgresJurisprudenciaSearchAdapter implements SearchSourceAdapter 
         score: 0,
         metadata: {
           sentenciaId: row.id,
+          slugPublico: row.slugPublico,
           numeroSentencia: row.numeroSentencia,
           tipoFallo: row.tipoFallo,
           sala: row.sala,
@@ -935,10 +963,19 @@ export class PostgresJurisprudenciaSearchAdapter implements SearchSourceAdapter 
           objeto: row.objeto,
           magistrados: row.magistrados,
           caratula,
-          publicado: row.publicado && row.estadoCarga === 'PUBLICADA',
+          publicado: published,
           activo: row.activo,
           estadoCarga: row.estadoCarga,
           cantidadSumarios: Number(row.sumarioCount),
+          legacyCorpus,
+          extractoFallo:
+            publicOnly && published && row.activo && hasNoPublishedSummary
+              ? buildPublicFalloExcerpt(row.textoBusqueda, literals[0]?.value)
+              : null,
+          tienePdf: pdf.disponible,
+          pdfDisponible: pdf.disponible,
+          archivoPdfId: pdf.archivoPdfId,
+          cantidadPdfs: pdf.cantidad,
         },
         visibility: publicOnly ? 'PUBLIC' : context.visibility,
         document: null,

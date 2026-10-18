@@ -136,24 +136,28 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   const reviewerToken = (await reviewerLogin.json()).accessToken as string;
   const reviewerHeaders = { Authorization: `Bearer ${reviewerToken}` };
 
-  const restrictedSearchAllowed = await request.get(`${apiBase}/workspaces/${workspaceA}/search`, {
-    headers: operatorHeaders,
-    params: { q: restrictedToken },
-  });
-  expect(restrictedSearchAllowed.ok()).toBeTruthy();
-  expect((await restrictedSearchAllowed.json()).results.map((item: { sourceId: string }) => item.sourceId)).toContain(restrictedDocumentId);
+  await expect.poll(async () => {
+    const response = await request.get(`${apiBase}/workspaces/${workspaceA}/search`, {
+      headers: operatorHeaders,
+      params: { q: restrictedToken },
+    });
+    expect(response.ok()).toBeTruthy();
+    return (await response.json()).results.map((item: { sourceId: string }) => item.sourceId);
+  }, { timeout: 15_000 }).toContain(restrictedDocumentId);
   const restrictedSearchDenied = await request.get(`${apiBase}/workspaces/${workspaceA}/search`, {
     headers: reviewerHeaders,
     params: { q: restrictedToken },
   });
   expect(restrictedSearchDenied.ok()).toBeTruthy();
   expect((await restrictedSearchDenied.json()).total).toBe(0);
-  const sharedSearchAllowed = await request.get(`${apiBase}/workspaces/${workspaceA}/search`, {
-    headers: reviewerHeaders,
-    params: { q: sharedToken },
-  });
-  expect(sharedSearchAllowed.ok()).toBeTruthy();
-  expect((await sharedSearchAllowed.json()).results.map((item: { sourceId: string }) => item.sourceId)).toContain(sharedDocumentId);
+  await expect.poll(async () => {
+    const response = await request.get(`${apiBase}/workspaces/${workspaceA}/search`, {
+      headers: reviewerHeaders,
+      params: { q: sharedToken },
+    });
+    expect(response.ok()).toBeTruthy();
+    return (await response.json()).results.map((item: { sourceId: string }) => item.sourceId);
+  }, { timeout: 15_000 }).toContain(sharedDocumentId);
   const authorizedMetadata = await request.get(`${apiBase}/workspaces/${workspaceA}/documents/${restrictedDocumentId}`, { headers: operatorHeaders });
   expect(authorizedMetadata.ok()).toBeTruthy();
   expect((await authorizedMetadata.json()).file.href).toBe(`/api/workspaces/${workspaceA}/documents/${restrictedDocumentId}/file`);
@@ -193,7 +197,7 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   await page.getByRole('button', { name: new RegExp(`Administrar quién puede ver Restringida ${runId}`) }).click();
   const accessDialog = page.getByRole('dialog', { name: 'Personas autorizadas' });
   await expect(accessDialog).toBeVisible();
-  await expect(accessDialog.locator('input[type="checkbox"]')).toHaveCount(16);
+  await expect(accessDialog.locator('input[type="checkbox"]')).toHaveCount(syntheticUsers.users.length + 1);
   await page.setViewportSize({ width: 1366, height: 768 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   const accessRect = await accessDialog.evaluate((element) => ({ width: element.getBoundingClientRect().width, right: element.getBoundingClientRect().right }));
@@ -201,12 +205,12 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   await accessDialog.screenshot({ path: resolve(screenshots, 'restricted-user-selector.png') });
   await accessDialog.getByRole('button', { name: 'Cancelar' }).click();
 
-  // Removing and restoring a selected person takes effect immediately in Search,
-  // Viewer and file download checks.
+  // ACL changes propagate through the outbox; Search must reflect revocation
+  // after projection sync. Viewer and file authorization checks remain live.
   await page.getByRole('button', { name: new RegExp(`Administrar quién puede ver Restringida ${runId}`) }).click();
   const revokeDialog = page.getByRole('dialog', { name: 'Personas autorizadas' });
   // Search resolves the selected person by account identity without exposing IDs.
-  await expect(revokeDialog.getByText(/Personas seleccionadas: 16/)).toBeVisible();
+  await expect(revokeDialog.getByText('Personas seleccionadas: ' + (syntheticUsers.users.length + 1))).toBeVisible();
   const searchInput = revokeDialog.getByLabel('Buscar integrantes');
   await searchInput.fill(credentials.accounts.operator.email);
   await revokeDialog.getByRole('button', { name: 'Buscar', exact: true }).click();
@@ -215,8 +219,14 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   await operatorPersonLabel.locator('input').uncheck();
   await revokeDialog.getByRole('button', { name: 'Guardar acceso' }).click();
   await expect(page.getByRole('status')).toContainText('lista de personas autorizadas quedó actualizada.');
-  const revokedSearch = await request.get(`${apiBase}/workspaces/${workspaceA}/search`, { headers: operatorHeaders, params: { q: restrictedToken } });
-  expect((await revokedSearch.json()).total).toBe(0);
+  await expect.poll(async () => {
+    const response = await request.get(apiBase + '/workspaces/' + workspaceA + '/search', {
+      headers: operatorHeaders,
+      params: { q: restrictedToken },
+    });
+    expect(response.ok()).toBeTruthy();
+    return (await response.json()).total;
+  }, { timeout: 15_000 }).toBe(0);
   expect((await request.get(`${apiBase}/workspaces/${workspaceA}/documents/${restrictedDocumentId}`, { headers: operatorHeaders })).status()).toBe(404);
   expect((await request.get(`${apiBase}/workspaces/${workspaceA}/documents/${restrictedDocumentId}/file`, { headers: operatorHeaders })).status()).toBe(404);
   expect((await request.get(`${apiBase}/workspaces/${workspaceA}/documents/${restrictedDocumentId}/matches`, { headers: operatorHeaders, params: { q: restrictedToken } })).status()).toBe(404);
@@ -229,8 +239,14 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   await expect(operatorCandidate).toBeVisible();
   await operatorCandidate.locator('input').check();
   await restoreDialog.getByRole('button', { name: 'Guardar acceso' }).click();
-  const restoredSearch = await request.get(`${apiBase}/workspaces/${workspaceA}/search`, { headers: operatorHeaders, params: { q: restrictedToken } });
-  expect((await restoredSearch.json()).total).toBeGreaterThan(0);
+  await expect.poll(async () => {
+    const response = await request.get(apiBase + '/workspaces/' + workspaceA + '/search', {
+      headers: operatorHeaders,
+      params: { q: restrictedToken },
+    });
+    expect(response.ok()).toBeTruthy();
+    return (await response.json()).total;
+  }, { timeout: 15_000 }).toBeGreaterThan(0);
 
   // Move broadening and narrowing both require an explicit UI confirmation.
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
@@ -296,10 +312,22 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   expect((await request.get(`${apiBase}/workspaces/${workspaceA}/documents/${sharedDocumentId}`, { headers: reviewerHeaders })).status()).toBe(404);
   expect((await request.get(`${apiBase}/workspaces/${workspaceA}/documents/${sharedDocumentId}/matches`, { headers: reviewerHeaders, params: { q: sharedToken } })).status()).toBe(404);
   expect((await request.get(`${apiBase}/workspaces/${workspaceA}/documents/${sharedDocumentId}/file`, { headers: reviewerHeaders })).status()).toBe(404);
-  expect((await request.get(`${apiBase}/personal/search`, { headers: adminHeaders, params: { q: sharedToken } }).then((response) => response.json())).total).toBeGreaterThan(0);
+  await expect.poll(async () => {
+    const response = await request.get(apiBase + '/personal/search', {
+      headers: adminHeaders,
+      params: { q: sharedToken },
+    });
+    return (await response.json()).total;
+  }, { timeout: 15_000 }).toBeGreaterThan(0);
   expect((await request.get(`${apiBase}/personal/documents/${sharedDocumentId}`, { headers: adminHeaders })).ok()).toBeTruthy();
   expect((await request.get(`${apiBase}/personal/documents/${sharedDocumentId}/file`, { headers: adminHeaders })).ok()).toBeTruthy();
-  expect((await request.get(`${apiBase}/personal/search`, { headers: operatorHeaders, params: { q: sharedToken } }).then((response) => response.json())).total).toBe(0);
+  await expect.poll(async () => {
+    const response = await request.get(apiBase + '/personal/search', {
+      headers: operatorHeaders,
+      params: { q: sharedToken },
+    });
+    return (await response.json()).total;
+  }, { timeout: 15_000 }).toBe(0);
 
   // Personal documents remain global to the person while moving between two
   // dependencies and never enter the dependency or general search scopes.
@@ -343,9 +371,14 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   expect(personalPdfResult).toBeTruthy();
   manifest.documentIds.push(personalResult!.documentId, personalPdfResult!.documentId);
   saveManifest();
-  const ownerPersonalSearch = await request.get(`${apiBase}/personal/search`, { headers: operatorHeaders, params: { q: personalToken } });
-  expect(ownerPersonalSearch.ok()).toBeTruthy();
-  expect((await ownerPersonalSearch.json()).total).toBeGreaterThan(0);
+  await expect.poll(async () => {
+    const response = await request.get(apiBase + '/personal/search', {
+      headers: operatorHeaders,
+      params: { q: personalToken },
+    });
+    expect(response.ok()).toBeTruthy();
+    return (await response.json()).total;
+  }, { timeout: 15_000 }).toBeGreaterThan(0);
   expect((await request.get(`${apiBase}/personal/documents/${personalResult!.documentId}/matches`, { headers: operatorHeaders, params: { q: personalToken } })).ok()).toBeTruthy();
   const ownerPersonalFile = await request.get(`${apiBase}/personal/documents/${personalResult!.documentId}/file`, { headers: operatorHeaders });
   expect(ownerPersonalFile.ok()).toBeTruthy();
@@ -375,9 +408,21 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   await shareWarning.screenshot({ path: resolve(screenshots, 'access-change-warning.png') });
   await shareWarning.getByRole('button', { name: 'Compartir documento' }).click();
   await expect(page.getByRole('status')).toContainText(`El documento ahora está compartido con ${nameA}.`);
-  expect((await request.get(`${apiBase}/personal/search`, { headers: operatorHeaders, params: { q: personalToken } }).then((response) => response.json())).total).toBe(0);
-  const sharedPersonalSearch = await request.get(`${apiBase}/workspaces/${workspaceA}/search`, { headers: reviewerHeaders, params: { q: personalToken } });
-  expect((await sharedPersonalSearch.json()).results.map((item: { sourceId: string }) => item.sourceId)).toContain(personalResult!.documentId);
+  await expect.poll(async () => {
+    const response = await request.get(apiBase + '/personal/search', {
+      headers: operatorHeaders,
+      params: { q: personalToken },
+    });
+    return (await response.json()).total;
+  }, { timeout: 15_000 }).toBe(0);
+  await expect.poll(async () => {
+    const response = await request.get(apiBase + '/workspaces/' + workspaceA + '/search', {
+      headers: reviewerHeaders,
+      params: { q: personalToken },
+    });
+    expect(response.ok()).toBeTruthy();
+    return (await response.json()).results.map((item: { sourceId: string }) => item.sourceId);
+  }, { timeout: 15_000 }).toContain(personalResult!.documentId);
   expect((await request.get(`${apiBase}/personal/documents/${personalResult!.documentId}`, { headers: operatorHeaders })).status()).toBe(404);
   expect((await request.get(`${apiBase}/personal/documents/${personalResult!.documentId}/file`, { headers: operatorHeaders })).status()).toBe(404);
   expect((await request.get(`${apiBase}/workspaces/${workspaceA}/documents/${personalResult!.documentId}`, { headers: reviewerHeaders })).ok()).toBeTruthy();

@@ -36,6 +36,7 @@ export default defineConfig({
         FRONTEND_URLS: `http://127.0.0.1:${frontendPort}`,
         BJC_CORPUS_STORAGE_PATH: e2eStoragePath,
         OCR_ENABLED: 'true',
+        API_RATE_LIMIT_AUTH_MAX: process.env.BJC_PLAYWRIGHT_AUTH_MAX ?? '200',
       },
     },
     {

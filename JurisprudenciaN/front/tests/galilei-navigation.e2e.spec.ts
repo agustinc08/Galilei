@@ -10,7 +10,7 @@ test('Galilei keeps its three destinations visible across authenticated routes',
   const screenshotDir = resolve(process.cwd(), '../../_recovery-work/integration-int1/screenshots');
   mkdirSync(screenshotDir, { recursive: true });
   const responsiveViewports = [
-    [1366, 768], [1440, 900], [1536, 864], [1600, 900],
+    [390, 844], [1366, 768], [1440, 900], [1536, 864], [1600, 900],
     [1920, 1080], [1920, 1200], [2560, 1440],
   ] as const;
   async function captureResponsive(routeName: string) {
@@ -55,9 +55,9 @@ test('Galilei keeps its three destinations visible across authenticated routes',
   await expect(page.getByText(/\d[\d.,]* resultados/u).first()).toBeVisible();
   const realResult = page.locator('article').first();
   await expect(realResult).toBeVisible();
-  await expect(realResult.getByRole('link', { name: 'Ver fallo' })).toHaveAttribute(
+  await expect(realResult.locator('h2 a')).toHaveAttribute(
     'href',
-    /^\/fallos\//u,
+    /^\/consulta\/sentencia\/(?!undefined(?:\?|$))[^/?]+(?:\?.*)?$/u,
   );
   await captureResponsive('jurisprudencia');
 

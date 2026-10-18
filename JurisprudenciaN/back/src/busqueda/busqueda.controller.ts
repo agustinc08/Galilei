@@ -336,6 +336,7 @@ export class PublicBusquedaController {
   @Get('busqueda')
   @ApiOperation({ summary: 'Búsqueda pública simple' })
   async publica(@Query() query: PublicBusquedaQueryDto) {
+    const sortUsed = query.sortBy ?? (query.q?.trim() ? 'relevancia' : 'fecha');
     const federated = await this.busquedaService.federatedSearch(
       query.q,
       query.operador,
@@ -347,7 +348,7 @@ export class PublicBusquedaController {
         pageSize: Math.min(query.pageSize ?? 25, 100),
         filters: searchFilters(query),
         sort: {
-          field: query.sortBy ?? (query.q?.trim() ? 'relevancia' : 'fecha'),
+          field: sortUsed,
           order: query.sortOrder ?? 'desc',
         },
         sourceSystems: ['JURISPRUDENCIA'],
@@ -355,7 +356,10 @@ export class PublicBusquedaController {
       },
     );
     if (!federated) throw new ServiceUnavailableException();
-    return { ...toV2CompatibilityPage(federated), federated };
+    return {
+      ...toPublicConsultaPage(federated, sortUsed),
+      federated,
+    };
   }
 
   @Get('busqueda/sugerencias')
@@ -548,6 +552,84 @@ function toV2CompatibilityPage(
       expandedTerms: [],
       totalExact,
       hasMore,
+    },
+  };
+}
+
+function toPublicConsultaPage(
+  page: NonNullable<Awaited<ReturnType<BusquedaService['federatedSearch']>>>,
+  sortUsed: string,
+) {
+  const data = page.results.map((result) => {
+    if (
+      result.sourceSystem !== 'JURISPRUDENCIA' ||
+      result.sourceType !== 'SENTENCIA'
+    )
+      throw new ServiceUnavailableException();
+
+    const metadata = result.metadata;
+    const sentenciaId = Number(metadata.sentenciaId ?? result.sourceId);
+    if (!Number.isSafeInteger(sentenciaId) || sentenciaId <= 0)
+      throw new ServiceUnavailableException();
+    const stringField = (key: string) =>
+      typeof metadata[key] === 'string' ? metadata[key] : null;
+    const booleanField = (key: string) => metadata[key] === true;
+    const pdfDisponible = booleanField('pdfDisponible');
+    const archivoPdfId = Number(metadata.archivoPdfId);
+
+    return {
+      id: sentenciaId,
+      sentenciaId,
+      slugPublico: stringField('slugPublico'),
+      numeroSumario: stringField('numeroSumario'),
+      numeroSentencia: stringField('numeroSentencia'),
+      fecha: result.date,
+      sala: stringField('sala'),
+      magistrados: stringField('magistrados'),
+      tipoFallo: stringField('tipoFallo'),
+      expediente: stringField('expediente'),
+      tribunalOrigen: stringField('tribunalOrigen'),
+      caratula: stringField('caratula') ?? result.title,
+      actor: stringField('actor'),
+      demandado: stringField('demandado'),
+      tema: stringField('tema'),
+      textoSumario: result.snippet ?? '',
+      extractoFallo: stringField('extractoFallo'),
+      esFalloCorpus: booleanField('legacyCorpus'),
+      highlights: [],
+      tienePdf: pdfDisponible,
+      pdfDisponible,
+      archivoPdfId:
+        Number.isSafeInteger(archivoPdfId) && archivoPdfId > 0
+          ? archivoPdfId
+          : null,
+      pdfUrl:
+        stringField('slugPublico') && pdfDisponible
+          ? `/api/public/sentencias/${stringField('slugPublico')}/pdf`
+          : null,
+      score: result.score,
+      criterioPrincipal: result.matchedFields.join(', ') || null,
+      matchInfo: {
+        exactPhraseMatches: 0,
+        termMatches: result.matchedFields.length,
+        matchedFields: result.matchedFields,
+        directMatches: result.matchedFields.length,
+        synonymMatches: 0,
+      },
+      matchedFields: result.matchedFields,
+    };
+  });
+  return {
+    data,
+    meta: {
+      total: page.total,
+      page: page.page,
+      pageSize: page.pageSize,
+      pageCount: Math.ceil(page.total / page.pageSize),
+      totalExact: page.totalExact,
+      hasMore: page.hasMore,
+      sortUsed,
+      expandedTerms: [],
     },
   };
 }

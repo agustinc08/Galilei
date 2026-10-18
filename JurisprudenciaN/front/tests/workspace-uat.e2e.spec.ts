@@ -122,8 +122,8 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await editorActions.getByRole('button', { name: 'Reactivar', exact: true }).click();
   await expect(editorRole).toHaveValue('EDITOR');
   await expect(page.getByRole('status')).toContainText('Membresía guardada.', { timeout: 10_000 });
-  await addMember(page, credentials.accounts.reviewer.email, 'Editor');
-  await expect(page.getByLabel(`Permiso de ${credentials.accounts.reviewer.email}`)).toHaveValue('EDITOR');
+  await addMember(page, credentials.accounts.digesto.email, 'Editor');
+  await expect(page.getByLabel(`Permiso de ${credentials.accounts.digesto.email}`)).toHaveValue('EDITOR');
 
   // Folder creation, rename, breadcrumb and root/folder boundaries.
   const folderNameInput = page.getByLabel('Nombre de carpeta');
@@ -447,7 +447,29 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page).toHaveURL(/type=RTF/u);
 
   // Legacy OLE DOC is searchable, previewable and downloadable without Word automation.
-  const docQuery = '12345/2026';
+  const docQueries = ['12345/2026', '12345', '2026'];
+  const legacyDocFilename = 'sprint154a1-e2e-legacy.doc';
+  let docQuery = '';
+  await expect.poll(async () => {
+    for (const query of docQueries) {
+      const response = await page.request.get(
+        `${apiBase}/workspaces/${workspaceAId}/search`,
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+          params: { q: query, page: '1', pageSize: '20', type: 'DOC' },
+        },
+      );
+      if (!response.ok()) continue;
+      const body = await response.json() as {
+        results?: Array<{ metadata?: { filename?: string | null } }>;
+      };
+      if (body.results?.some((result) => result.metadata?.filename === legacyDocFilename)) {
+        docQuery = query;
+        return 1;
+      }
+    }
+    return 0;
+  }, { timeout: 60_000, intervals: [250, 500, 1_000, 2_000] }).toBeGreaterThan(0);
   await classicSearch.fill(docQuery);
   const docSearchResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
@@ -458,7 +480,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await page.getByLabel('Filtrar por tipo').selectOption('DOC');
   await page.getByRole('search').getByRole('button', { name: 'Buscar', exact: true }).click();
   expect((await docSearchResponse).status()).toBe(200);
-  const docResult = classicResults.getByRole('button', { name: /Vista previa de sprint154a1-e2e-legacy\.doc/iu });
+  const docResult = classicResults.getByRole('button', { name: `Vista previa de ${legacyDocFilename}` });
   await expect(docResult).toBeVisible({ timeout: 60_000 });
   await docResult.click();
   const docPreview = page.locator('pre[aria-label="Vista previa del texto extraído"]');
@@ -525,8 +547,8 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(workspaceSelect).toHaveValue(workspaceBId);
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
 
-  // A one-workspace editor opens directly into that space and has no membership controls.
-  await login(page, credentials.accounts.reviewer);
+  // Use an account not assigned to the separate ACL E2E workspace; a one-workspace editor opens directly into A.
+  await login(page, credentials.accounts.digesto);
   await page.goto('/spaces');
   await expect(page.getByRole('heading', { name: nameA, exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: '¿Dónde querés trabajar?', exact: true })).toHaveCount(0);
@@ -551,6 +573,19 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.getByLabel('Seleccionar documentos PDF, TXT, RTF, DOC, DOCX u ODT')).toHaveCount(0);
   await expect(page.getByLabel('Nueva carpeta')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Miembros y permisos' })).toHaveCount(0);
+  const readerToken = await page.evaluate(() => localStorage.getItem('jurisprudencia_token'));
+  expect(readerToken).toBeTruthy();
+  await expect.poll(async () => {
+    const response = await page.request.get(`${apiBase}/workspaces/${workspaceBId}/search`, {
+      headers: { Authorization: `Bearer ${readerToken}` },
+      params: { q: 'JORGE', page: '1', pageSize: '20' },
+    });
+    if (!response.ok()) return false;
+    const body = await response.json() as {
+      results?: Array<{ metadata?: { filename?: string | null } }>;
+    };
+    return body.results?.some((result) => result.metadata?.filename === 'sprint151-e2e-one.pdf') ?? false;
+  }, { timeout: 60_000, intervals: [250, 500, 1_000, 2_000] }).toBe(true);
   await page.getByLabel('Buscar documentos de la dependencia').fill('JORGE');
   await page.getByLabel('Buscar documentos de la dependencia').locator('xpath=..').getByRole('button', { name: 'Buscar', exact: true }).click();
   const readerContentResults = page.locator('[aria-label="Resultados por contenido"]');

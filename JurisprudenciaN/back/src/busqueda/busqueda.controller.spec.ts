@@ -35,6 +35,8 @@ function federatedPage() {
           publicado: true,
           activo: true,
           cantidadSumarios: 1,
+          legacyCorpus: true,
+          extractoFallo: 'El extracto público de prueba.',
         },
         visibility: 'PUBLIC',
         document: null,
@@ -302,7 +304,7 @@ describe('Search HTTP controllers in OpenSearch product mode', () => {
     const service = mockBusquedaService();
     const controller = new PublicBusquedaController(service);
 
-    await controller.publica({
+    const response = await controller.publica({
       q: 'responsabilidad',
     });
 
@@ -317,6 +319,33 @@ describe('Search HTTP controllers in OpenSearch product mode', () => {
         documentKinds: ['SENTENCIA'],
       }),
     ]);
+    expect(response.data).toEqual([
+      expect.objectContaining({
+        id: 8142,
+        sentenciaId: 8142,
+        caratula: 'A. G. c/ B. P.',
+        textoSumario: 'Daños resarcibles.',
+        esFalloCorpus: true,
+        extractoFallo: 'El extracto público de prueba.',
+        pdfDisponible: false,
+      }),
+    ]);
+    expect(response.data[0]).not.toHaveProperty('sentencia');
+    expect(response.meta).toMatchObject({ total: 1, page: 1, pageSize: 10 });
+  });
+
+  it('reports date ordering for an empty public search', async () => {
+    const service = mockBusquedaService();
+    const controller = new PublicBusquedaController(service);
+
+    const response = await controller.publica({});
+
+    expect(service.federatedSearch).toHaveBeenCalledWith(
+      undefined,
+      undefined,
+      expect.objectContaining({ sort: { field: 'fecha', order: 'desc' } }),
+    );
+    expect(response.meta.sortUsed).toBe('fecha');
   });
 
   it.each(['advanced', 'export', 'citation', 'simple', 'public'] as const)(

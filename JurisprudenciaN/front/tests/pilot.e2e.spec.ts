@@ -39,6 +39,10 @@ test('LECTOR ejecuta una búsqueda normal desde la interfaz y recibe resultados 
 });
 
 test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', async ({ page, request }) => {
+  test.skip(
+    !process.env.BJC_PLAYWRIGHT_STORAGE_PATH,
+    'La suite usa almacenamiento aislado sin los blobs Corpus existentes; este smoke se ejecuta aparte en almacenamiento Corpus de sólo lectura.',
+  );
   const login = await request.post(`${apiBase}/auth/login`, { data: credentials.accounts.reader });
   expect(login.ok()).toBeTruthy();
   const token = (await login.json()).accessToken as string;
@@ -46,8 +50,63 @@ test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', asy
   const collectionsResponse = await request.get(`${apiBase}/corpus/curation/digesto/collections`, { headers });
   expect(collectionsResponse.ok()).toBeTruthy();
   const collections = await collectionsResponse.json() as Array<{ id: string; name: string; _count: { memberships: number } }>;
-  const collection = collections.find((item) => item._count.memberships > 0);
-  expect(collection).toBeTruthy();
+  let selectedCollection: (typeof collections)[number] | undefined;
+  let selected: { sourceId: string; document: { href: string; mimeType: string | null } } | undefined;
+  let searchTerm = '';
+  for (const collection of collections.filter((item) => item._count.memberships > 0)) {
+    const collectionUrl = new URL(`${apiBase}/busqueda/avanzada`);
+    collectionUrl.searchParams.set('digestoCollectionId', collection.id);
+    collectionUrl.searchParams.set('page', '1');
+    collectionUrl.searchParams.set('pageSize', '50');
+    const collectionSearch = await request.get(collectionUrl.toString(), { headers });
+    if (!collectionSearch.ok()) continue;
+    const collectionBody = await collectionSearch.json() as {
+      federated?: { results?: Array<{ sourceId: string; title?: string; document?: { href?: string; mimeType?: string | null } }> };
+    };
+    for (const candidate of collectionBody.federated?.results ?? []) {
+      if (!candidate.document?.href || candidate.document.mimeType !== 'application/pdf') continue;
+      const fileResponse = await request.get(new URL(candidate.document.href, apiBase).toString(), {
+        headers: { ...headers, Range: 'bytes=0-31' },
+      });
+      if (fileResponse.status() !== 200 && fileResponse.status() !== 206) continue;
+      const bytes = await fileResponse.body();
+      if (!fileResponse.headers()['content-type']?.toLowerCase().includes('application/pdf')
+        || bytes.subarray(0, 5).toString('ascii') !== '%PDF-') continue;
+
+      const metadataResponse = await request.get(`${apiBase}/corpus/documents/${candidate.sourceId}`, {
+        headers,
+        params: { pageNumber: 1 },
+      });
+      if (!metadataResponse.ok()) continue;
+      const metadata = await metadataResponse.json() as { selectedPage?: { text?: string } };
+      const words = [...new Set(`${candidate.title ?? ''} ${metadata.selectedPage?.text ?? ''}`
+        .match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{5,}/gu) ?? [])]
+        .sort((left, right) => right.length - left.length)
+        .slice(0, 16);
+      for (const word of words) {
+        const termUrl = new URL(`${apiBase}/busqueda/avanzada`);
+        termUrl.searchParams.set('q', word);
+        termUrl.searchParams.set('digestoCollectionId', collection.id);
+        termUrl.searchParams.set('page', '1');
+        termUrl.searchParams.set('pageSize', '50');
+        const termResponse = await request.get(termUrl.toString(), { headers });
+        if (!termResponse.ok()) continue;
+        const termBody = await termResponse.json() as {
+          federated?: { results?: Array<{ sourceId: string }> };
+        };
+        if (termBody.federated?.results?.some((result) => result.sourceId === candidate.sourceId)) {
+          selectedCollection = collection;
+          selected = { sourceId: candidate.sourceId, document: { href: candidate.document.href, mimeType: candidate.document.mimeType } };
+          searchTerm = word;
+          break;
+        }
+      }
+      if (selected) break;
+    }
+    if (selected) break;
+  }
+  expect(selected, 'Debe existir en una colección un PDF Corpus real, indexado y descargable.').toBeTruthy();
+  expect(selectedCollection).toBeTruthy();
 
   await page.goto('/login');
   await page.getByLabel('Correo electrónico').fill(credentials.accounts.reader.email);
@@ -58,23 +117,23 @@ test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', asy
   await expect(page.getByRole('link', { name: 'Administración técnica' })).toHaveCount(0);
   await page.goto('/busqueda-avanzada');
 
-  await page.getByLabel('Colección Digesto').selectOption(collection!.id);
+  await page.getByLabel('Colección Digesto').selectOption(selectedCollection!.id);
+  await page.getByLabel('Buscar jurisprudencia').fill(searchTerm);
   const searchStarted = Date.now();
+  const searchResponse = page.waitForResponse((response) =>
+    response.url().includes('/api/busqueda/avanzada')
+      && response.request().method() === 'GET'
+      && new URL(response.url()).searchParams.get('q') === searchTerm,
+  );
   await page.getByRole('button', { name: 'Buscar', exact: true }).last().click();
-  const firstResult = page.getByRole('link', { name: 'Abrir documento' }).first();
+  const response = await searchResponse;
+  expect(response.ok()).toBeTruthy();
+  const documentId = selected!.sourceId;
+  const firstResult = page.locator(`a[href^="/corpus/${documentId}?"]`);
   await expect(firstResult).toBeVisible({ timeout: 60_000 });
   const searchRenderMs = Date.now() - searchStarted;
-  const resultHref = await firstResult.getAttribute('href');
-  const documentId = resultHref?.match(/\/corpus\/([^?]+)/)?.[1];
-  expect(documentId).toBeTruthy();
-  const metadata = await request.get(`${apiBase}/corpus/documents/${documentId}`, { headers, params: { pageNumber: 1 } });
-  const pageText = (await metadata.json()).selectedPage.text as string;
-  let searchTerm = '';
-  for (const candidate of [...new Set(pageText.match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{5,}/gu) ?? [])].slice(0, 12)) {
-    const matchCheck = await request.get(`${apiBase}/corpus/documents/${documentId}/matches`, { headers, params: { q: candidate } });
-    if (((await matchCheck.json()).total as number) > 0) { searchTerm = candidate; break; }
-  }
-  expect(searchTerm).toBeTruthy();
+  const matchCheck = await request.get(`${apiBase}/corpus/documents/${documentId}/matches`, { headers, params: { q: searchTerm } });
+  expect(((await matchCheck.json()).total as number)).toBeGreaterThan(0);
   const started = Date.now();
   await firstResult.click();
   await expect(page).toHaveURL(/\/corpus\//);
@@ -178,7 +237,7 @@ test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', asy
 test('API expone cabeceras de seguridad del piloto', async ({ request }) => {
   const response = await request.get(`${apiBase}/health`);
   expect(response.ok()).toBeTruthy();
-  expect((await response.json()).checks).toEqual({ api: 'ok', database: 'ok', storage: 'ok' });
+  expect((await response.json()).checks).toMatchObject({ api: 'ok', database: 'ok', storage: 'ok', search: 'ok' });
   expect((await request.get(`${apiBase}/health/live`)).ok()).toBeTruthy();
   expect(response.headers()['x-content-type-options']).toBe('nosniff');
   expect(response.headers()['x-frame-options']).toBe('SAMEORIGIN');
