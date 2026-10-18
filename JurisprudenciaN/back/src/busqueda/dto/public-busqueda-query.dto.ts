@@ -10,20 +10,42 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import {
-  BooleanQuery,
-} from '../../common/dto/pagination-query.dto';
+import { BooleanQuery } from '../../common/dto/pagination-query.dto';
 
 function toStringArray(value: unknown): string[] | undefined {
   if (value === undefined || value === null || value === '') {
     return undefined;
   }
 
+  const queryString = (item: unknown): string | undefined => {
+    if (typeof item === 'string') {
+      return item;
+    }
+
+    if (typeof item === 'number' && Number.isFinite(item)) {
+      return String(item);
+    }
+
+    if (typeof item === 'boolean') {
+      return String(item);
+    }
+
+    return undefined;
+  };
+
   if (Array.isArray(value)) {
-    return value.flatMap((item) => String(item).split(',')).map((item) => item.trim()).filter(Boolean);
+    return value
+      .flatMap((item) => queryString(item)?.split(',') ?? [])
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 
-  return String(value)
+  const normalized = queryString(value);
+  if (normalized === undefined) {
+    return undefined;
+  }
+
+  return normalized
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
@@ -151,7 +173,10 @@ export class PublicBusquedaQueryDto {
   @IsBoolean()
   soloConPdf?: boolean;
 
-  @ApiPropertyOptional({ enum: ['todos', 'conPdf', 'sinPdf'], example: 'todos' })
+  @ApiPropertyOptional({
+    enum: ['todos', 'conPdf', 'sinPdf'],
+    example: 'todos',
+  })
   @IsOptional()
   @IsIn(['todos', 'conPdf', 'sinPdf'])
   pdf?: 'todos' | 'conPdf' | 'sinPdf';
@@ -161,6 +186,18 @@ export class PublicBusquedaQueryDto {
   @BooleanQuery()
   @IsBoolean()
   tienePdf?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @BooleanQuery()
+  @IsBoolean()
+  soloConResumen?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @BooleanQuery()
+  @IsBoolean()
+  destacada?: boolean;
 
   @ApiPropertyOptional({
     example: 'sentencia,sumario,resena,referencias',

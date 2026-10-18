@@ -977,6 +977,21 @@ model CorpusDocumentPage {
   @@index([pageNumber])
 }
 
+model SearchIndexOutbox {
+  id            BigInt    @id @default(autoincrement())
+  documentKey   String
+  operation     String
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  leaseUntil    DateTime?
+  lastError     String?   @db.VarChar(120)
+  processedAt   DateTime?
+  failedAt      DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([processedAt, nextAttemptAt, id], map: "SearchIndexOutbox_pending_idx")
+}
+
 model CorpusOcrJob {
   id               String             @id @default(cuid())
   queueName        String             @default("default")

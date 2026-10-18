@@ -1,5 +1,22 @@
 # Estado actual — Buscador Jurídico Civil
 
+## Cierre SEARCH-ENGINE-INTEGRATION-1.5.1 — corte vigente (2026-10-18)
+
+**Resultado: PASS en `integration/galilei-beta`; INT-1S cerrado; INT-1R listo para recertificación final.** El contrato COPERNIC_PREFIX_EXACT_PHRASE y su evaluación OpenSearch están cerrados. OpenSearch 2.19.6 opera como índice derivado schema v3 en `galilei-search-active`, actualmente apuntando a `galilei-search-v003-20261017t232432555z-a6af18cb`; PostgreSQL continúa como fuente de verdad. **DEV no promovido; no habilita despliegue, UAT institucional ni preproducción**, que siguen pendientes.
+
+El barrido íntegro posterior al corte verificó 69.313/69.313 IDs, 0 faltantes/extras/duplicados y el mismo SHA-256 que la certificación prepromoción (`1e104fe4…2af73f`). Recuento: Corpus 17.077, Sumarios 25.103, Sentencias 27.133, publicadas 6.014. La promoción de alias fue una única operación atómica; el v1 (42.180 docs) se conserva como rollback técnico. El verificador guardado post-corte se cerró dos veces por transporte (`TaskCancelledException[channel closed]`); la comprobación directa completa independiente pasó y el clúster quedó `green`, 12 shards activos, 0 sin asignar. Outbox final 0 pendientes / 0 fallidos.
+
+HTTP y seguridad: Golden 325/325; frases 100/100 exactas (0 FP/FN/timeouts); prefijos 14/14; adversariales 22/22 (21 por HTTP + 1 en DSL producto); comodines 3/3; booleanos 7/7; filtros 16/16; combinaciones 5/5; ordenamientos 8/8; paginación sin repetidos ni faltantes. Names 16/16 por HTTP, 0 llamadas ILIKE y fail-closed 503. ACL 7/7 y filtraciones de resultados/conteos 0/0; publicación, transición y sync pasan. Viewer de Corpus y Sentencia entregó PDFs con firma válida, citation/export y SHA esperado. Calidad: backend 36 suites/223 tests pass (9 suites/21 tests omitidos), typecheck/build/lint dirigido/secret scan/diff-check y migraciones 31/31 PASS.
+
+Capacidad observada al cierre: índice v3 11,56 GiB; rebuild equivalente ~72,9 min. C: tenía 42,4 GiB libres al último chequeo, suficiente para un rebuild local equivalente; el margen recomendado para producción es ≥50 GiB y no está satisfecho aquí. Fail-closed conserva HTTP 503 sin fallback legacy. Evidencia detallada: `_recovery-work/search-engine-integration1/post-promotion-1_5_1.json` y artefactos hermanos ignorados.
+
+Siguiente paso: INT-1R FINAL RECERTIFICATION/UAT bajo su alcance. Esta misión autoriza publicar sólo `origin/integration/galilei-beta`; no actualizar `dev`, `main` ni ramas UX. Los estados anteriores de este documento son cortes históricos y quedan supersedidos únicamente en lo relativo al estado actual de Search.
+## Sprint INT-1S.6 — resultados sin conteo exacto (2026-10-15)
+
+**FAST_RESULTS_VIABLE: NO.** Se ejecutaron 1 warmup + 10 repeticiones de cada búsqueda sobre la ruta federada y el PostgreSQL DEV local, suprimiendo sólo el conteo total completo en una ruta diagnóstica temporal. “falta de servicio”: p50/p95/máx 4.125/4.255/4.255 ms; Corpus agotó el timeout SQL de 4 s en 10/10. “responsabilidad civil”: 4.145/4.210/4.210 ms y 10/10 timeouts Corpus. La interfaz no recibió una página Corpus utilizable en esas solicitudes parciales. Esto demuestra que sacar el total no basta: la generación/verificación/orden de la página todavía excede el presupuesto.
+
+Se retiró el código temporal; no hay cambios de producto, migraciones, escrituras de DB, builds, promoción ni push de INT-1S.6. INT-1S e INT-1R siguen BLOCKED; DEV NOT PROMOTED; UX-2 NOT STARTED. No implementar conteo asíncrono ni iniciar INT-1S.7. Próxima decisión requerida: evaluar cambio de motor Search o redefinición del contrato de producto, en un alcance separado. Evidencia local ignorada: `_recovery-work/integration-int1s6/`.
+
 ## Sprint INT-1 — estado integrado de Galilei (2026-10-14)
 
 **Dictamen: PARTIAL** en integration/galilei-beta. Los tips remotos de feature/jurisprudencia y feature/copernic están incorporados; workflow, Search/Viewer, documentos, OCR y ACL coexisten en código y esquema, con navegación superior para Jurisprudencia, Mi Sala / Juzgado y Mis documentos. Replay temporal desde cero: 28/28 migraciones; Prisma validate/generate/status PASS. La comparación raw registra proyecciones e índices SQL históricos fuera del datamodel Prisma e índices PostgreSQL con nombres truncados, sin borrado de objetos ni migration de reconciliación.
@@ -571,3 +588,76 @@ La integración PostgreSQL Workspace se ejecutó dos veces y falló en la expect
 La E2E final de Playwright pasó 1/1 y los tamaños 1366×768, 1440×900, 1536×864, 1600×900, 1920×1080, 1920×1200 y 2560×1440 no tuvieron overflow horizontal. Integración ACL 1/1; Source PostgreSQL 2/2; Workspace PostgreSQL 1/1 en seis corridas consecutivas tras aislar queue/storage de pruebas; Search golden 319/319; build/typecheck/lint focalizado y Search Verify PASS. Se agregó una regresión para rechazar un hijo compartido dentro de un padre restringido hasta que se amplíe primero el permiso del padre.
 
 El OCR `attemptCount=2` histórico ocurrió mientras un backend ya existente escuchaba 4001; la suite compartía la cola `default`. La prueba ahora usa una cola por corrida y storage aislado. Seis repeticiones pasaron con intento 1. Esto prueba determinismo bajo aislamiento; no reconstruye la intercalación histórica y no atribuye un defecto al worker de producción. La limpieza posterior dejó cero filas E2E y borró cuatro blobs sintéticos; baseline Search: 17.078 documentos, 17.098 archivos, 198.129 páginas, 17.685 ingestas, 18.799.500 tokens, stale 0, mismatch 0/100 y rebuild 0. Evidencia local: `_recovery-work/sprint1561/`.
+
+## INT-1S.4 — estado vigente de Search (2026-10-15)
+
+**Acelerador adaptativo por chunks REJECTED; INT-1S e INT-1R continúan BLOCKED.** La garantía formal de chunks con 2048/overlap 127 cubre frases normalizadas hasta 128 caracteres; para frases mayores, anchors literales de hasta 128 caracteres preservan candidatos y requieren verificación exacta completa. La prueba sintética cubrió límites y frases 129/301/1000. En el Corpus DEV, 2048 y 1024 produjeron el total histórico 202 para `falta de servicio`, pero `responsabilidad civil` agotó 4 s en ambas. 1024 redujo los bloques compartidos del plan de `falta` a 3.981 desde 33.211, pero elevó el almacenamiento temporal a 833,44 MiB y la preparación total observada a ~24,4 min; 512 no se intentó. Cero cambios de código Search, schema o migración; se eliminaron los objetos UNLOGGED y se verificó cero residuo. Los 13 cambios previos del worktree se conservaron; DEV no se promovió y UX-2 no se inició. Evidencia: `_recovery-work/integration-int1s4/final-summary.json`.
+
+Recomendación para decisión futura: INT-1S.5 — investigar postings dedicados de substring/posiciones de caracteres; esta misión no inicia esa implementación.
+
+## SEARCH-SEMANTICS-AUDIT-1 — 2026-10-15
+
+**Dictamen: SUBSTRING_UNCERTAIN.** El código actual de Corpus usa `ILIKE %literal%`, pero no hay requisito local que demuestre que la coincidencia parcial dentro de palabras sea intención de Biblioteca/Civil. La ayuda llama a las comillas «Frase exacta» sin explicar el comportamiento parcial. El PHP histórico de Jurisprudencia delimitaba términos simples con espacios y documentaba `%` como comodín; esto no demuestra el runtime de Copernic, que no está disponible para prueba. Golden 319/319 no tiene casos dependientes de subcadena. En un dump local de 2026-10-13, “responsabilidad civil” dio 5.372 resultados actuales y 5.364 con límites léxicos (8 current-only); “falta de servicio”, 202 y 194 (8 current-only). De 100 frases reproducidas por hash/cantidad, 91 conjuntos fueron idénticos y 9 cambiaron. Es comparación semántica offline, no benchmark del motor. No se cambió Search ni se accedió a DB; falta UAT de Biblioteca/Civil. Evidencia y pack: `_recovery-work/search-semantics-audit1/`. Mantener INT-1S e INT-1R esperando decisión humana; motor diferido, DEV no promovido y UX-2 no iniciado.
+## SEARCH-CONTRACT-CHANGE-1 — decisión y estado (2026-10-16)
+
+La validación funcional resolvió SUBSTRING_UNCERTAIN como SUBSTRING_ACCIDENTAL (confianza alta): TERM simple y PHRASE requieren unidades léxicas completas; los comodines explícitos existentes conservan prefijo/sufijo/contiene. Copernic tampoco encontraba CIVIL dentro de CIVILIZACIÓN. No se aplica stemming.
+
+La proyección DEV fue verificada: PostgreSQL 16.15 en 127.0.0.1:55432, DB buscador_juridico_civil_dev, rol bjc_dev; 28 migraciones, 17.078 documentos, 18.799.500 tokens, lista y sin discrepancias en la muestra de 100. El modelo de tokens no contiene posiciones. Prototipo FTS simple con puntuación conservada: 16/16 fixtures PASS; primer conteo live de frase lexical: 5.364 documentos. La medición de rendimiento/indexación, integración del adapter, Golden actualizada, ACL, paginación/Viewer y build permanecen pendientes. El backup previo a la evaluación estructural de DEV está en curso; no se ha aplicado migración ni alterado el adapter.
+
+## SEARCH-SEMANTICS-AUDIT-1 — cierre con validación humana y prototipo lexical (2026-10-16)
+
+La clasificación inicial `SUBSTRING_UNCERTAIN` queda resuelta por validación directa de la persona usuaria: `SUBSTRING_ACCIDENTAL`, confianza alta. El contrato acordado es TERM/PHRASE con unidades léxicas completas, sin stemming; los comodines explícitos mantienen sus modos. La persona informó que Copernic no encontraba `CIVIL` dentro de `CIVILIZACIÓN`; el runtime local de Copernic no estuvo disponible para reproducirlo.
+
+El FTS simple de un vector fue descartado por falsos negativos en documentos extensos (5.363/5.364 para “responsabilidad civil”; 149/194 para “falta de servicio”). Un prototipo híbrido FTS por ventanas recuperó esos dos totales y pasó 23/23 fixtures, pero su p95 combinado para “responsabilidad civil” fue 2.467 ms (sobre el gate de 2 s); “falta de servicio” fue 437 ms. La paridad de IDs/100 consultas y concurrencia no está certificada. Ningún adapter, Golden, schema o migración de producto fue modificado; los objetos FTS de prueba fueron temporales y revertidos. INT-1S sigue bloqueado por rendimiento. Artefactos: `_recovery-work/search-semantics-audit1/` y `_recovery-work/search-contract-change1/`.
+
+## SEARCH-SEMANTICS-AUDIT-2 — estado vigente (2026-10-16)
+
+**PARTIAL / WAITING HUMAN COPERNIC RUNTIME TEST.** Se reabrió la clasificación previa SUBSTRING_ACCIDENTAL / confianza alta porque una segunda fuente anónima recuerda lo contrario en TERM: CIVIL sí aparecía dentro de CIVILIZACIÓN y se resaltaba sólo CIVIL. H1 mantiene el recuerdo anterior: no aparecía; también recuerda TERM y PHRASE léxicos. H2 todavía no puede confirmar la semántica de PHRASE y no aporta semántica completa de comodines.
+
+La clasificación histórica vigente es SUBSTRING_UNCERTAIN por recuerdos humanos contradictorios. TERM=UNKNOWN; PHRASE=UNKNOWN y prueba directa PENDING; PREFIX/SUFFIX/CONTAINS=UNKNOWN. La suite Golden 319/319 no distingue la intención histórica: sus casos no dependen de coincidencias parciales internas. La inspección local no encontró runtime, índice/configuración ni captura Copernic para reproducirlo.
+
+La decisión de motor está DEFERRED. No ejecutar SEARCH-ENGINE-EVAL-2 ni PGroonga hasta contar con evidencia directa y clasificar TERM y PHRASE separadamente. Sin cambios de producto ni acceso a DB en esta auditoría; se preservó el worktree preexistente. Pack neutral y artefactos: _recovery-work/search-semantics-audit2/.
+
+## SEARCH-SEMANTICS-AUDIT-2 — estado final del contrato (2026-10-16)
+
+**CLOSED para el objetivo de producto:** COPERNIC_PREFIX_EXACT_PHRASE. TERM simple es PREFIX; PHRASE entre comillas es EXACT_LEXICAL_PHRASE. La incertidumbre semántica del target queda cerrada por documentación oficial y decisión explícita. Runtime histórico institucional no instalado/ejecutado localmente; no se afirma prueba directa. El estado intermedio SUBSTRING_UNCERTAIN y las memorias H1/H2 quedan preservados.
+
+H2 reportó frase exacta "responsabilidad civil" con ambas palabras resaltadas y ausencia de superresponsabilidad civilizado; es observación humana sin captura. Su posible recuerdo de infix RESPONSABILIDAD queda como conflicto de baja confianza, no como contrato. Fuentes oficiales: [Copernic Prefix Search](https://copernicsearch.freshdesk.com/en/support/solutions/articles/47001129478-prefix-search-how-it-works); [CDS 8 Quick Start Guide](https://copernic.com/wp-content/uploads/2024/01/CDS8_quick_start_guide.pdf); [Copernic Search Operators](https://copernicsearch.freshdesk.com/en/support/solutions/articles/47001112953-refine-search-with-search-operators); [Copernic Release History](https://copernic.com/en/desktop/release/). Alcance: _recovery-work/search-semantics-audit2/external-copernic-evidence.json.
+
+Search no se implementó y todavía difiere del target: plain TERM actual puede ser substring arbitraria; Corpus PHRASE admite secuencia literal sin límites léxicos, mientras el adapter moderno Jurisprudencia aplica límites por espacios. Golden sigue en 319 (0 explícitamente dependientes de partial-word), sin cambios. Motor DEFERRED y EVAL-2 no iniciado; benchmarks substring anteriores no comparan el contrato nuevo. INT-1S bloqueado por implementación/rendimiento, no por incertidumbre semántica; INT-1R espera Search; DEV no promovido; UX-2 no iniciado. Sin DB ni cambios de producto. Próximo sprint: `SEARCH-CONTRACT-COPERNIC-1`, con PostgreSQL primero bajo el contrato acordado.
+
+
+## SEARCH-CONTRACT-COPERNIC-1 — resultado vigente (2026-10-16)
+
+**PostgreSQL REJECTED; contrato semántico CLOSED; implementación Search BLOCKED.** Baseline PostgreSQL DEV local, sólo lectura: Corpus lógico 17.078, elegibles 17.077, proyección 17.078 documentos/18.799.500 tokens; J8 6.070 documentos únicos, 6.014 publicados activos y cohorte review 56 (36 identidad + 20 representación), sin BROKEN/UNKNOWN/UNRESOLVED.
+
+Candidato A trigram document-wide + regex: timeout de 2,1 s a los 2.114 ms para “responsabilidad civil”, sobre máximo 2 s. Candidato B token projection + regex y verificación de searchText: timeout a los 2.112 ms. Ambos REJECT_PERFORMANCE, sin igualdad de IDs certificada. Candidato C página/FTS NOT_RUN: 198.129 páginas / 408.693.253 bytes; 16.683 de 17.077 elegibles tienen página no vacía en la última extracción; 394 carecen de ella. No hay índice FTS/posicional de páginas y el intento FTS anterior perdió 1 y 45 IDs en las frases críticas; el híbrido completo llegó a 2.467 ms p95 para “responsabilidad civil”.
+
+No se implementó Search; Golden sigue 319 sin cambios; no hubo cambios de producto/schema, migraciones, escrituras DEV, backup, build ni pruebas finales de producto. Se limpiaron las rutas temporales del DB guard y su SHA volvió al estado preexistente. Próxima evaluación: SEARCH-ENGINE-EVAL-2 bajo el contrato nuevo. INT-1S BLOCKED BY ENGINE; INT-1R BLOCKED; DEV NOT PROMOTED; UX branch UNTOUCHED. Artefactos: `_recovery-work/search-contract-copernic1/`.
+
+## SEARCH-ENGINE-EVAL-2 — estado vigente (2026-10-16)
+
+Contrato de búsqueda: CLOSED (COPERNIC_PREFIX_EXACT_PHRASE). PostgreSQL search: REJECTED por rendimiento y falta de certificación exacta; PostgreSQL sigue como source of truth. OpenSearch 2.19.6: EVALUATION PASSED y ADOPT como motor candidato para integración. No está integrado ni habilitado en el producto.
+
+Evidencia sobre 17.077 documentos Search-eligible: indexación completa, missing/extra/duplicates = 0; 100/100 frases y 14/14 prefijos con igualdad exacta de IDs; Golden 319/319 y fixtures nuevas 12/12; critical combined p95 máximo 109,65 ms; ACL sin leaks; rebuild exacto. El índice medido ocupa 1,053 GB y reconstruyó en 4m44s.
+
+Quedan para el sprint de integración: autenticación/TLS, sync durable de contenido, estado de publicación y ACL, fail-closed, índices versionados/alias, supervisión y observabilidad. INT-1S: WAITING ENGINE INTEGRATION. INT-1R: BLOCKED. DEV: NOT PROMOTED. UX-PREP: CLOSED / UNTOUCHED. No hubo cambios de producto, writes DEV, commit ni push. Evidencia: _recovery-work/search-engine-eval2/.
+
+
+## SEARCH-ENGINE-INTEGRATION-1.1 — certificación final (2026-10-16)
+
+**DECISIÓN: BLOCKED.** OpenSearch 2.19.6 sigue operativo como índice derivado local; PostgreSQL conserva la autoridad. El rebuild versionado dejó el alias galilei-search-active en galilei-search-v001-20261016t162707813z-1dbe2406; el verificador final comparó 42.180/42.180 IDs (Corpus 17.077/17.077), con faltantes, extras y duplicados = 0. La recuperación ante caída y la carrera controlada de rebuild también pasaron: commit/outbox durables, 0 updates perdidos, replay de create/update, alias actualizado y backlog final 0.
+
+Golden: 325/325 (319 baseline + 6 casos); 100/100 sets exactos de frases y 14/14 prefijos; frases críticas con igualdad de IDs. La medición de 30 ejecuciones fue por adapter OpenSearch + hidratación PostgreSQL, no por el endpoint NestJS completo: “responsabilidad civil” p50/p95/max 202,79/220,07/301,44 ms; “falta de servicio” 96,60/103,92/107,46 ms; cero timeouts.
+
+El corte de rutas sigue parcial: hay fallback/ejecución legacy para algunos caminos y filtros/sorts avanzados. ACL y publicación dentro del engine, fail-closed de la API, ruta HTTP completa, suite mixta/concurrencia, handshake TLS/auth y replay de migración limpia siguen sin certificación. Por eso no hubo commit, push ni promoción a DEV. Rama integration/galilei-beta; HEAD local/remoto de integración permanece 325ceb4c3c8538d9b50a66c403b1b227cdc66ea6. La rama UX no fue editada. Auditoría: _recovery-work/search-engine-integration1/continuation-audit.json.
+
+## SEARCH-ENGINE-INTEGRATION-1.2 — auditoría de corte (2026-10-16)
+
+**BLOCKED; sin commit/push/promoción.** La verificación actual conserva 42.180/42.180 IDs exactos, alias `galilei-search-active`, schema v1, OpenSearch green y outbox 0/0. La suma representa Corpus 17.077 más 25.103 Sumarios activos; no representa todas las Sentencias públicas.
+
+El censo de sólo lectura sobre DEV encuentra 27.133 Sentencias activas, 6.014 publicadas y 21.119 no publicadas/en revisión. Las 6.014 publicadas no tienen Sumarios activos, mientras que los 25.103 Sumarios activos indexados no están publicados junto con su Sentencia. La prueba HTTP pública devolvió 2 resultados legacy publicados/activos y 0 OpenSearch para una consulta crítica; no hubo fuga de borradores en esas dos filas, pero sí falta de cobertura en la proyección. Al hacer OpenSearch inaccesible, `/api/public/busqueda` devuelve 503 controlado sin stack, aunque el controller también invoca el servicio legacy.
+
+Prueba parcial de publicación: una Sentencia activa no publicada seleccionada de DEV fue consultada por su número en el endpoint público; respuesta total 0 y candidato ausente (1 fixture, no matriz completa).
+
+Calidad ejecutada: `tsc --noEmit` PASS; build PASS; Jest con DEV guard PASS (32 suites/162 tests, 9 suites/21 tests omitidos). ESLint de 42 archivos Search reportó 806 errores y 0 warnings; el nuevo censo sí pasa lint y no hubo formateo masivo. Faltan cortes de rutas, filtros/sorts, ACL/publicación engine-side, sync de OCR/DOC/metadata, certificar Golden/frases/prefix por HTTP, concurrency/performance HTTP y Viewer/UTF-16 completos. No tocar origin/dev, main ni ramas UX.

@@ -58,6 +58,20 @@ function normalizeWithOffsets(source: string): NormalizedWithOffsets {
   let text = '';
   const offsets: Array<{ start: number; end: number }> = [];
   let index = 0;
+  const append = (value: string, start: number, end: number) => {
+    for (const point of value) {
+      const output = /[\p{L}\p{N}\s/.-]/u.test(point) ? point : ' ';
+      if (output === ' ') {
+        if (!text || text.endsWith(' ')) {
+          if (text.endsWith(' ')) offsets[offsets.length - 1].end = end;
+          continue;
+        }
+      }
+      text += output;
+      for (let unit = 0; unit < output.length; unit += 1)
+        offsets.push({ start, end });
+    }
+  };
   while (index < source.length) {
     const start = index;
     let cluster = String.fromCodePoint(source.codePointAt(index)!);
@@ -68,8 +82,7 @@ function normalizeWithOffsets(source: string): NormalizedWithOffsets {
         if (!/^\s$/u.test(next)) break;
         index += next.length;
       }
-      text += ' ';
-      offsets.push({ start, end: index });
+      append(' ', start, index);
       continue;
     }
     index += cluster.length;
@@ -79,11 +92,11 @@ function normalizeWithOffsets(source: string): NormalizedWithOffsets {
       cluster += next;
       index += next.length;
     }
-    const normalized = normalizeSpanishText(cluster);
-    text += normalized;
-    for (let unit = 0; unit < normalized.length; unit += 1) {
-      offsets.push({ start, end: index });
-    }
+    append(normalizeSpanishText(cluster), start, index);
+  }
+  if (text.endsWith(' ')) {
+    text = text.slice(0, -1);
+    offsets.pop();
   }
   return { text, offsets };
 }
@@ -93,7 +106,10 @@ function isWordCharacterAt(source: string, index: number) {
   const current = source.charCodeAt(index);
   const previous = source.charCodeAt(index - 1);
   const codePointIndex =
-    current >= 0xdc00 && current <= 0xdfff && previous >= 0xd800 && previous <= 0xdbff
+    current >= 0xdc00 &&
+    current <= 0xdfff &&
+    previous >= 0xd800 &&
+    previous <= 0xdbff
       ? index - 1
       : index;
   const codePoint = source.codePointAt(codePointIndex);
@@ -101,15 +117,6 @@ function isWordCharacterAt(source: string, index: number) {
     codePoint !== undefined &&
     /[\p{L}\p{N}]/u.test(String.fromCodePoint(codePoint))
   );
-}
-
-function previousCodePointStart(source: string, index: number) {
-  if (index < 2) return index - 1;
-  const current = source.charCodeAt(index - 1);
-  const previous = source.charCodeAt(index - 2);
-  return current >= 0xdc00 && current <= 0xdfff && previous >= 0xd800 && previous <= 0xdbff
-    ? index - 2
-    : index - 1;
 }
 
 function literalMatchesField(
@@ -120,12 +127,39 @@ function literalMatchesField(
   const value = normalizeSearchText(fields[literal.field]);
   const needle = normalizeSearchText(literal.value);
   if (!value || !needle) return false;
-  if (literal.type === 'phrase' || literal.matchMode === 'contains') {
-    return value.includes(needle);
+  if (literal.type === 'phrase') {
+    return containsExactLexicalSequence(value, needle);
   }
-  return literal.matchMode === 'prefix'
-    ? value.startsWith(needle)
-    : value.endsWith(needle);
+  const mode = effectiveTermMode(literal);
+  if (mode === 'contains') return value.includes(needle);
+  const tokens = value.match(/[\p{L}\p{N}]+/gu) ?? [];
+  return mode === 'prefix'
+    ? tokens.some((token) => token.startsWith(needle))
+    : tokens.some((token) => token.endsWith(needle));
+}
+
+function containsExactLexicalSequence(value: string, needle: string) {
+  let cursor = 0;
+  while (cursor <= value.length - needle.length) {
+    const foundAt = value.indexOf(needle, cursor);
+    if (foundAt < 0) return false;
+    const end = foundAt + needle.length;
+    if (
+      !isWordCharacterAt(value, foundAt - 1) &&
+      !isWordCharacterAt(value, end)
+    )
+      return true;
+    cursor = foundAt + 1;
+  }
+  return false;
+}
+
+function effectiveTermMode(
+  literal: Extract<SearchLiteralNode, { type: 'term' }>,
+) {
+  return literal.matchMode === 'contains' && !literal.sourceText.includes('%')
+    ? 'prefix'
+    : literal.matchMode;
 }
 
 function occurrencesInPage(
@@ -140,28 +174,21 @@ function occurrencesInPage(
   while (cursor <= normalized.text.length - needle.length) {
     const foundAt = normalized.text.indexOf(needle, cursor);
     if (foundAt < 0) break;
-    let start = normalized.offsets[foundAt]?.start;
-    let end = normalized.offsets[foundAt + needle.length - 1]?.end;
+    const start = normalized.offsets[foundAt]?.start;
+    const end = normalized.offsets[foundAt + needle.length - 1]?.end;
     if (start === undefined || end === undefined) break;
     const startBoundary = !isWordCharacterAt(page.text, start - 1);
     const endBoundary = !isWordCharacterAt(page.text, end);
+    const mode = literal.type === 'term' ? effectiveTermMode(literal) : 'exact';
     const boundaryMatches =
-      literal.type === 'phrase' || literal.matchMode === 'contains'
-        ? true
-        : literal.matchMode === 'prefix'
-          ? startBoundary
-          : endBoundary;
+      mode === 'exact'
+        ? startBoundary && endBoundary
+        : mode === 'contains'
+          ? true
+          : mode === 'prefix'
+            ? startBoundary
+            : endBoundary;
     if (boundaryMatches) {
-      if (literal.type === 'term' && literal.matchMode === 'prefix') {
-        while (isWordCharacterAt(page.text, end)) {
-          const codePoint = page.text.codePointAt(end);
-          end += codePoint !== undefined && codePoint > 0xffff ? 2 : 1;
-        }
-      } else if (literal.type === 'term' && literal.matchMode === 'suffix') {
-        while (isWordCharacterAt(page.text, start - 1)) {
-          start = previousCodePointStart(page.text, start);
-        }
-      }
       const contextStart = Math.max(0, start - 64);
       const contextEnd = Math.min(page.text.length, end + 96);
       const contextBefore = page.text.slice(contextStart, start);

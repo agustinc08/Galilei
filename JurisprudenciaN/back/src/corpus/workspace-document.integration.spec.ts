@@ -420,9 +420,9 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         ],
         folder.id,
       );
-      expect(scannedUpload.results[0].status).toBe('OCR_PROCESSING');
       const scannedDocumentId = scannedUpload.results[0].documentId;
       documentIds.push(scannedDocumentId);
+      expect(scannedUpload.results[0].status).toBe('OCR_PROCESSING');
       const queuedJob = await prisma.corpusOcrJob.findFirstOrThrow({
         where: { documentId: scannedDocumentId },
         select: { id: true, pageNumbers: true, fingerprint: true },

@@ -24,15 +24,38 @@ export type SearchContext = {
     types?: CorpusFileType[];
     expediente?: string;
     numeroSentencia?: string;
+    numeroSumario?: string;
     caratula?: string;
+    actor?: string;
+    demandado?: string;
+    objeto?: string;
+    magistrados?: string;
+    tema?: string;
     tribunalOrigen?: string;
     tipoFallo?: string;
+    anio?: number;
+    publicado?: boolean;
+    activo?: boolean;
+    exactPhrase?: string;
+    excludeTerms?: string[];
     instance?: string;
     digestoCollectionId?: string;
     digestoTopicId?: string;
     digestoTagId?: string;
+    soloConPdf?: boolean;
+    pdf?: 'todos' | 'conPdf' | 'sinPdf';
+    tienePdf?: boolean;
+    soloConResumen?: boolean;
+    destacada?: boolean;
+    buscarEn?: string[];
   };
   sourceSystems?: Array<'JURISPRUDENCIA' | 'DIGESTO' | 'CORPUS'>;
+  /** Restricts the logical document types after the engine has selected a source. */
+  documentKinds?: Array<'DOCUMENTO' | 'SUMARIO' | 'SENTENCIA'>;
+  sort?: {
+    field: 'relevancia' | 'fecha' | 'sala' | 'numeroSentencia';
+    order: 'asc' | 'desc';
+  };
   /** Set only by an authenticated workspace service after membership authorization. */
   documentScope?:
     | { kind: 'GENERAL' }
@@ -50,7 +73,7 @@ export type SearchContext = {
 export type SearchResult = {
   id: string;
   sourceSystem: 'JURISPRUDENCIA' | 'DIGESTO' | 'CORPUS';
-  sourceType: 'SUMARIO' | 'DOCUMENTO';
+  sourceType: 'SUMARIO' | 'SENTENCIA' | 'DOCUMENTO';
   sourceId: string;
   title: string | null;
   subtitle: string | null;
@@ -104,4 +127,5 @@ export interface SearchSourceAdapter {
     waiting: number;
     max: number;
   } | null;
+  close?(): Promise<void>;
 }

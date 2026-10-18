@@ -34,8 +34,9 @@ type SearchRow = {
   instance: string | null;
   caseNumber: string | null;
   visibility: string;
-  searchText: string;
-  extractedText: string;
+  searchText?: string;
+  extractedText?: string;
+  snippetText?: string | null;
   fileId: string | null;
   fileMimeType: string | null;
   checksum: string | null;
@@ -129,32 +130,34 @@ function buildBooleanCandidateCte(
       const normalizedValue = normalizeSearchText(node.value);
       const tokens = [...new Set(normalizedValue.split(/\s+/u).filter(Boolean))];
       if (node.type === 'phrase' && tokens.length > 0) {
-        const tokenCandidates = tokens.map((value, tokenIndex) => {
+        // Intersect every indexable phrase token. A single common-word anchor
+        // can leave most of the corpus to verify; retaining substring
+        // predicates keeps this candidate set a superset of ILIKE phrase
+        // matches (the complete phrase predicate below remains authoritative).
+        const selectiveTokenIndexes = tokens
+          .map((value, index) => ({ value, index }))
+          .filter(({ value }) => [...value].length >= 3)
+          .map(({ index }) => index);
+        const tokenIndexes = selectiveTokenIndexes.length > 0
+          ? selectiveTokenIndexes
+          : [tokens.reduce((best, value, index, candidates) =>
+              [...value].length > [...candidates[best]].length ? index : best, 0)];
+        const tokenCandidates = tokenIndexes.map((tokenIndex) => {
+          const value = tokens[tokenIndex];
           const name = nextName();
-          // The projection keeps punctuation accepted by searchText (for
-          // example "753987."). Admit those token variants here; exact phrase
-          // verification below rejects candidates that are not true matches.
-          // Anchoring the first/last token to the phrase boundary remains a
-          // superset of substring matches while avoiding unrelated infixes.
-          const tokenPattern = tokens.length > 1 && tokenIndex === 0
-            ? `%${escapeLike(value)}`
-            : tokens.length > 1 && tokenIndex === tokens.length - 1
-              ? `${escapeLike(value)}%`
-              : `%${escapeLike(value)}%`;
-          values.push(tokenPattern);
-          const tokenPredicate = tokens.length > 1 && tokenIndex === tokens.length - 1
-            ? `lower(token."token") LIKE $${values.length}`
-            : `token."token" ILIKE $${values.length}`;
+          values.push(`%${escapeLike(value)}%`);
           ctes.push(`${name} AS MATERIALIZED (
             SELECT token."documentId" AS "id"
               FROM "CorpusSearchToken" token
-             WHERE ${tokenPredicate} ESCAPE E'\\\\'
+             WHERE token."token" ILIKE $${values.length} ESCAPE E'\\\\'
           )`);
           return name;
         });
         const candidateName = nextName();
         ctes.push(`${candidateName} AS MATERIALIZED (
-          ${tokenCandidates.map((candidate) => `SELECT "id" FROM ${candidate}`).join(' INTERSECT ')}
+          SELECT DISTINCT "id" FROM (
+            ${tokenCandidates.map((candidate) => `SELECT "id" FROM ${candidate}`).join(' INTERSECT ')}
+          ) uniquePhraseCandidates
         )`);
         const eligibleCandidates = nextName();
         ctes.push(`${eligibleCandidates} AS MATERIALIZED (
@@ -281,6 +284,22 @@ function allowedVisibility(visibility: SearchContext['visibility']) {
 function snippet(text: string, literals: SearchLiteralNode[]) {
   const compact = (text ?? '').replace(/\s+/gu, ' ').trim();
   if (!compact) return null;
+  if (literals.length === 1 && literals[0].type === 'phrase') {
+    const rawLiteral = literals[0].value;
+    const normalizedLiteral = normalizeSearchText(rawLiteral);
+    if (
+      /^[\x20-\x7e]+$/u.test(rawLiteral) &&
+      rawLiteral.toLowerCase() === normalizedLiteral
+    ) {
+      const escaped = normalizedLiteral.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+      const directMatch = new RegExp(escaped, 'iu').exec(compact);
+      if (directMatch?.index !== undefined) {
+        const start = Math.max(0, directMatch.index - 90);
+        const end = Math.min(compact.length, directMatch.index + 190);
+        return `${start ? '…' : ''}${compact.slice(start, end)}${end < compact.length ? '…' : ''}`;
+      }
+    }
+  }
   const normalized = normalizeSearchText(compact);
   let position = -1;
   for (const literal of literals) {
@@ -350,6 +369,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
   async search(
     query: SearchQueryAst,
     context: SearchContext,
+    candidateDocumentIds?: string[],
   ): Promise<SearchResultPage> {
     const page = Math.max(1, Math.trunc(context.page ?? 1));
     const pageSize = Math.min(
@@ -358,12 +378,15 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     );
     if (context.sourceSystems && !context.sourceSystems.includes('CORPUS'))
       return { total: 0, page, pageSize, results: [] };
+    if (candidateDocumentIds && candidateDocumentIds.length === 0) {
+      return { total: 0, totalExact: true, hasMore: false, page, pageSize, results: [] };
+    }
     this.lastSearchProfile = null;
     const resultPageStartedAt = performance.now();
     let useTokenProjection = false;
     let readinessQueryCount = 0;
     let readinessMs = 0;
-    if (this.candidateStrategy === 'set-algebra-v2') {
+    if (this.candidateStrategy === 'set-algebra-v2' && !candidateDocumentIds) {
       readinessQueryCount = 1;
       const readinessStartedAt = performance.now();
       try {
@@ -525,19 +548,19 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const candidateScopePredicate = filterPredicate
       ? `(${scopePredicate}) AND (${filterPredicate})`
       : scopePredicate;
-    const shortTermWindow = useTokenProjection && query.root?.type === 'term' && !query.root.field &&
+    const shortTermWindow = !candidateDocumentIds && useTokenProjection && query.root?.type === 'term' && !query.root.field &&
       query.root.matchMode === 'contains' && [...normalizeSearchText(query.root.value)].length < 3;
-    const deferredSinglePhrase = useTokenProjection && query.root?.type === 'phrase';
+    const deferredSinglePhrase = !candidateDocumentIds && useTokenProjection && query.root?.type === 'phrase';
     const candidateValuesStart = values.length + 1;
     const candidateBuildStartedAt = performance.now();
-    const candidateCte = this.candidateStrategy === 'set-algebra-v2' && !shortTermWindow
+    const candidateCte = !candidateDocumentIds && this.candidateStrategy === 'set-algebra-v2' && !shortTermWindow
       ? buildBooleanCandidateCte(query, values, useTokenProjection, deferredSinglePhrase, candidateScopePredicate)
       : null;
     const candidateValuesEnd = candidateCte ? values.length : values.length - 1;
     const candidateBuildMs = performance.now() - candidateBuildStartedAt;
     const activeCandidateStrategy = this.candidateStrategy === 'predicate-v1'
       ? 'predicate-v1'
-      : useTokenProjection ? (shortTermWindow ? 'token-projection-short-window-v2' : deferredSinglePhrase ? 'token-projection-phrase-boundary-materialized-v5' : 'token-projection-v2') : 'document-text-fallback-v2';
+      : useTokenProjection ? (shortTermWindow ? 'token-projection-short-window-v2' : deferredSinglePhrase ? 'token-projection-phrase-setwise-exact-v9' : 'token-projection-v2') : 'document-text-fallback-v2';
     const boundedCandidatePage = this.candidateStrategy === 'set-algebra-v2';
     const predicates = [
       `d."visibility" = ANY($1::text[])`,
@@ -545,10 +568,14 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       scopePredicate,
       ...(filterPredicate ? [filterPredicate] : []),
     ];
+    if (candidateDocumentIds) {
+      values.push(candidateDocumentIds);
+      predicates.push(`d."id" = ANY($${values.length}::text[])`);
+    }
     if (shortTermWindow && query.root?.type === 'term') {
       values.push(pattern(query.root));
       predicates.push(`EXISTS (SELECT 1 FROM "CorpusSearchToken" token WHERE token."documentId" = d."id" AND token."token" ILIKE $${values.length} ESCAPE E'\\\\')`);
-    } else if (!candidateCte) predicates.push(`(${compileNode(query.root, values)})`);
+    } else if (!candidateCte && !candidateDocumentIds) predicates.push(`(${compileNode(query.root, values)})`);
     if (context.filters?.sala) {
       values.push(context.filters.sala);
       predicates.push(`d."chamber" = $${values.length}`);
@@ -573,7 +600,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     ];
     for (const [key, column] of structured) {
       const value = context.filters?.[key];
-      if (value) {
+      if (typeof value === 'string' && value) {
         values.push(`%${escapeLike(normalizeSearchText(value))}%`);
         predicates.push(
           `translate(lower(coalesce(${column},'')), 'áéíóúü', 'aeiouu') ILIKE $${values.length} ESCAPE E'\\\\'`,
@@ -593,6 +620,22 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       predicates.push(`EXISTS (SELECT 1 FROM "CorpusDocumentTag" dt WHERE dt."documentId" = d."id" AND dt."tagId" = $${values.length})`);
     }
     const exactPhraseVerification = deferredSinglePhrase ? compileNode(query.root, values) : null;
+    const phraseSnippetParam = deferredSinglePhrase && query.root?.type === 'phrase'
+      ? `$${values.push(normalizeSearchText(query.root.value))}`
+      : null;
+    const phraseSnippetSource = `btrim(regexp_replace(COALESCE(NULLIF(e."text", ''), d."searchText", ''), '[[:space:]]+', ' ', 'g'))`;
+    const phraseSnippetNormalized = `btrim(regexp_replace(translate(lower(${phraseSnippetSource}), 'áéíóúü', 'aeiouu'), '[^[:alnum:]ñ/.-]+', ' ', 'g'))`;
+    const phraseSnippetPosition = phraseSnippetParam ? `strpos(${phraseSnippetNormalized}, ${phraseSnippetParam})` : null;
+    const phraseSnippetStart = phraseSnippetPosition
+      ? `GREATEST(1, COALESCE(NULLIF(${phraseSnippetPosition}, 0), 1) - 90)`
+      : null;
+    const phraseSnippetProjection = phraseSnippetStart && phraseSnippetPosition
+      ? `CASE WHEN ${phraseSnippetSource} = '' THEN NULL ELSE
+           (CASE WHEN ${phraseSnippetPosition} > 90 THEN '…' ELSE '' END) ||
+           substring(${phraseSnippetSource} FROM ${phraseSnippetStart} FOR 280) ||
+           (CASE WHEN ${phraseSnippetStart} + 279 < char_length(${phraseSnippetSource}) THEN '…' ELSE '' END)
+         END`
+      : null;
     const where = predicates.join(' AND ');
     const queryFingerprints = [
       queryFingerprint(`${candidateCte ? 'CANDIDATE_SET_V2' : 'COUNT_V1'}|${where}`),
@@ -631,71 +674,36 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       if (boundedCandidatePage) {
         while (true) {
           const pageQueryStartedAt = performance.now();
-          const initialProbeLimit = Math.max(100, (offsetValue + pageSize + 1) * 4);
-          const initialProbe = `$${rowValues.length + 1}`;
           const pagePatternsParam = `$${values.length + 1}`;
           const candidateWindowCtes = deferredSinglePhrase
             ? `"phraseCandidateStats" AS MATERIALIZED (
-                 SELECT count(*)::integer AS "candidateCount",
-                        COALESCE(array_agg(d."id" ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id"), ARRAY[]::text[]) AS "candidateIds"
-                   FROM "corpusSearchCandidates" c JOIN "CorpusDocument" d ON d."id"=c."id"
+                 SELECT count(*)::integer AS "candidateCount"
+                   FROM "corpusSearchCandidates" c
+                   JOIN "CorpusDocument" d ON d."id" = c."id"
                   WHERE ${where}
                ),
-               "phraseWindowScan"("examined", "verifiedCount", "matchedIds", "windowSizes", "exactHitsByWindow") AS (
-                 SELECT LEAST(stats."candidateCount", ${initialProbe}::integer),
-                        batch."hitCount", batch."matchedIds",
-                        ARRAY[LEAST(stats."candidateCount", ${initialProbe}::integer)], ARRAY[batch."hitCount"]
-                   FROM "phraseCandidateStats" stats
-                   CROSS JOIN LATERAL (
-                     SELECT count(*)::integer AS "hitCount",
-                            COALESCE(array_agg(candidate."id" ORDER BY candidate."ordinal"), ARRAY[]::text[]) AS "matchedIds"
-                       FROM unnest(stats."candidateIds"[1:${initialProbe}::integer]) WITH ORDINALITY candidate("id", "ordinal")
-                       JOIN "CorpusDocument" d ON d."id"=candidate."id"
-                      WHERE ${exactPhraseVerification}
-                   ) batch
-                 UNION ALL
-                 SELECT LEAST(stats."candidateCount", scan."examined" * 2),
-                        scan."verifiedCount" + batch."hitCount",
-                        scan."matchedIds" || batch."matchedIds",
-                        scan."windowSizes" || LEAST(stats."candidateCount", scan."examined" * 2),
-                        scan."exactHitsByWindow" || (scan."verifiedCount" + batch."hitCount")
-                   FROM "phraseWindowScan" scan
-                   CROSS JOIN "phraseCandidateStats" stats
-                   CROSS JOIN LATERAL (
-                     SELECT count(*)::integer AS "hitCount",
-                            COALESCE(array_agg(candidate."id" ORDER BY candidate."ordinal"), ARRAY[]::text[]) AS "matchedIds"
-                       FROM unnest(stats."candidateIds"[scan."examined" + 1:LEAST(stats."candidateCount", scan."examined" * 2)]) WITH ORDINALITY candidate("id", "ordinal")
-                       JOIN "CorpusDocument" d ON d."id"=candidate."id"
-                        AND ${exactPhraseVerification}
-                   ) batch
-                  WHERE scan."verifiedCount" <= ${offset}::integer + ${limit}::integer
-                    AND scan."examined" < stats."candidateCount"
-               ),
-               "phraseFinal" AS MATERIALIZED (
-                 SELECT * FROM "phraseWindowScan" ORDER BY "examined" DESC LIMIT 1
-               ),
-               "candidateWindow" AS MATERIALIZED (
-                 SELECT d."id", d."decisionDate", d."updatedAt", matched."matchOrdinal" AS "ordinal"
-                   FROM "phraseFinal" final
-                   CROSS JOIN LATERAL unnest(final."matchedIds") WITH ORDINALITY matched("id", "matchOrdinal")
-                   JOIN "CorpusDocument" d ON d."id"=matched."id"
-                  ORDER BY matched."matchOrdinal"
-               ),
                "verifiedCandidates" AS MATERIALIZED (
-                 SELECT selected."id", selected."decisionDate", selected."updatedAt", selected."ordinal"
-                   FROM "candidateWindow" selected
+                 SELECT d."id", d."decisionDate", d."updatedAt"
+                   FROM "corpusSearchCandidates" c
+                   JOIN "CorpusDocument" d ON d."id" = c."id"
+                  WHERE ${where} AND ${exactPhraseVerification}
                ),
                "pageStats" AS MATERIALIZED (
-                 SELECT (final."verifiedCount" > ${offset}::integer + ${limit}::integer) AS "hasMore",
-                        final."verifiedCount"::text AS "total",
-                        (final."examined" >= stats."candidateCount") AS "totalExact",
-                        stats."candidateCount"::text AS "candidateCount", final."examined" AS "probeCount",
-                        final."windowSizes" AS "candidateWindowSizes", final."exactHitsByWindow"
-                   FROM "phraseFinal" final CROSS JOIN "phraseCandidateStats" stats
+                 SELECT (matches.total > ${offset}::integer + ${limit}::integer) AS "hasMore",
+                        matches.total::text AS "total",
+                        true AS "totalExact",
+                        stats."candidateCount"::text AS "candidateCount", stats."candidateCount" AS "probeCount",
+                        ARRAY[stats."candidateCount"] AS "candidateWindowSizes", ARRAY[matches.total] AS "exactHitsByWindow"
+                   FROM (SELECT count(*)::integer AS total FROM "verifiedCandidates") matches
+                   CROSS JOIN "phraseCandidateStats" stats
                ),
                "pagedCandidates" AS (
                  SELECT selected."id", selected."decisionDate", selected."updatedAt", selected."ordinal"
-                   FROM "verifiedCandidates" selected
+                   FROM (
+                     SELECT verified."id", verified."decisionDate", verified."updatedAt",
+                            row_number() OVER (ORDER BY verified."decisionDate" DESC NULLS LAST, verified."updatedAt" DESC, verified."id") AS "ordinal"
+                       FROM "verifiedCandidates" verified
+                   ) selected
                   ORDER BY selected."ordinal"
                   LIMIT (${limit} + 1) OFFSET ${offset}
                )`
@@ -717,18 +725,17 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
                   ORDER BY matches."decisionDate" DESC NULLS LAST, matches."updatedAt" DESC, matches."id"
                   LIMIT ${limit}
                )`;
-          const phraseValues: SqlValue[] = deferredSinglePhrase
-            ? [...rowValues, initialProbeLimit]
-            : rowValues;
+          const phraseValues: SqlValue[] = rowValues;
           try {
             const phraseSqlStartedAt = performance.now();
             rows = await this.pool.query<SearchRow>(
               `${candidateCte ? `${deferredSinglePhrase ? candidateCte.replace(/^WITH\s+/u, 'WITH RECURSIVE ') : candidateCte},` : 'WITH'} ${candidateWindowCtes}
                SELECT d."id", d."title", d."subtitle", d."decisionDate", d."documentType", d."jurisdiction",
-                      d."court", d."chamber", d."instance", d."caseNumber", d."visibility", d."searchText",
+                      d."court", d."chamber", d."instance", d."caseNumber", d."visibility",
+                      ${deferredSinglePhrase && phraseSnippetProjection ? `${phraseSnippetProjection} AS "snippetText"` : 'd."searchText"'} ,
                       stats."total", stats."hasMore", stats."totalExact", stats."candidateCount", stats."probeCount",
                       ${deferredSinglePhrase ? 'stats."candidateWindowSizes", stats."exactHitsByWindow",' : ''}
-                      COALESCE(e."text", '') AS "extractedText", f."id" AS "fileId", f."mimeType" AS "fileMimeType",
+                      ${deferredSinglePhrase ? '' : `COALESCE(e."text", '') AS "extractedText",`} f."id" AS "fileId", f."mimeType" AS "fileMimeType",
                       f."sha256" AS "checksum", f."originalFilename" AS "filename", src."code" AS "sourceCode",
                       ing."externalId", ing."sourceReference",
                       ARRAY(SELECT link."targetId" FROM "CorpusDocumentLink" link WHERE link."documentId"=d."id" AND link."targetDomain"='JURISPRUDENCIA') AS "linkedResultIds",
@@ -745,7 +752,8 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
               phraseValues,
             );
             pageQueryMs += performance.now() - pageQueryStartedAt;
-            if (deferredSinglePhrase) pageSnippetHydrationMs = performance.now() - phraseSqlStartedAt;
+            if (deferredSinglePhrase)
+              pageSnippetHydrationMs = performance.now() - phraseSqlStartedAt;
           } catch (error) {
           pageQueryMs += performance.now() - pageQueryStartedAt;
           failedQuery = 'PAGE';
@@ -815,7 +823,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         total = Number(count.rows[0]?.total ?? 0);
         queryCount = 2;
       }
-      if (workspaceScope && query.root?.type === 'term' && boundedCandidatePage) {
+      if (!candidateDocumentIds && workspaceScope && query.root?.type === 'term' && boundedCandidatePage) {
         const exactValues = [...values];
         const exactQueryPredicate = compileNode(query.root, exactValues);
         const candidateParameterTypeChecks = Array.from(
@@ -896,8 +904,16 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         ? (deferredSinglePhrase ? Boolean(rows.rows[0]?.totalExact) : (rows.rows.length === 0 ? page === 1 : !hasMore))
         : true);
     const mappingStartedAt = performance.now();
-    const mappedResults = hydratedRows.map(
-      (row): SearchResult => ({
+    const snippetGenerationMsByRow: number[] = [];
+    const snippetSourceCharsByRow: number[] = [];
+    const mappedResults = hydratedRows.map((row): SearchResult => {
+      const snippetSource = row.extractedText || row.searchText || '';
+      const snippetStartedAt = performance.now();
+      const resultSnippet =
+        row.snippetText ?? snippet(snippetSource, literals);
+      snippetGenerationMsByRow.push(performance.now() - snippetStartedAt);
+      snippetSourceCharsByRow.push(snippetSource.length);
+      return {
         id: `CORPUS:DOCUMENT:${row.id}`,
         sourceSystem: 'CORPUS',
         sourceType: 'DOCUMENTO',
@@ -905,7 +921,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         title: row.title,
         subtitle: row.subtitle,
         date: row.decisionDate?.toISOString() ?? null,
-        snippet: snippet(row.extractedText || row.searchText, literals),
+        snippet: resultSnippet,
         matchedFields: ['documentText'],
         score: 1,
         metadata: {
@@ -938,8 +954,8 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
             : `/api/corpus/documents/${row.id}/file`,
           mimeType: row.fileMimeType,
         },
-      }),
-    );
+      };
+    });
     responseMappingMs = performance.now() - mappingStartedAt;
     this.lastSearchProfile = {
       countMs, pageQueryMs: Math.round(pageQueryMs * 100) / 100, resultPageMs, ...(candidateCte ? { combinedCandidatePageMs: resultPageMs } : {}),
@@ -948,7 +964,13 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       stageTimings: {
         readinessMs, candidateBuildMs,
         candidateGenerationIntersectionsEligibilityExactCountPageAndSnippetSqlMs: pageSnippetHydrationMs,
-        responseMappingMs, totalAdapterMs: performance.now() - resultPageStartedAt,
+        responseMappingMs,
+        snippetGenerationMs: snippetGenerationMsByRow.reduce((sum, value) => sum + value, 0),
+        snippetGenerationMsByRow,
+        snippetSourceCharsByRow,
+        snippetSourceCharsTotal: snippetSourceCharsByRow.reduce((sum, value) => sum + value, 0),
+        snippetSourceCharsMax: Math.max(...snippetSourceCharsByRow, 0),
+        totalAdapterMs: performance.now() - resultPageStartedAt,
       },
     };
     return {

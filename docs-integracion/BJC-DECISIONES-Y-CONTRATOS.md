@@ -1,8 +1,17 @@
+# Decisiones y contratos vigentes
+
+## Registro vigente — decisión Search 1.5.1 (2026-10-18)
+
+**Decisión:** cerrar la integración OpenSearch en `integration/galilei-beta` con alias v3 activo. Search usa el contrato `COPERNIC_PREFIX_EXACT_PHRASE`; OpenSearch 2.19.6 es índice derivado y PostgreSQL es la fuente de verdad. El alias `galilei-search-active` apunta al índice schema v3 `galilei-search-v003-20261017t232432555z-a6af18cb`. Cobertura exacta postcorte 69.313 IDs; 0 faltantes/extras/duplicados; mismo SHA-256 antes y después del corte. V1 (42.180 docs) se retiene como rollback, entendiendo que es incompleto frente a v3.
+
+La implementación conserva el motor de frase por postings posicionales de shingles, verificación exacta, ventana/top-N y el fail-closed HTTP 503 sin fallback legacy. Matrices HTTP, ACL, publicación, sincronización, Viewer y calidad quedaron certificadas; la evidencia autoritativa es `_recovery-work/search-engine-integration1/` (no versionado). El verificador guarded postpromoción tuvo dos fallos de transporte por canal cerrado; el barrido directo paginado completo pasó con hash idéntico y clúster green. Esta limitación se mantiene explícita.
+
+**Límites de decisión:** INT-1S cerrado; INT-1R listo para recertificación final. DEV no promovido. UAT institucional, preproducción y producción siguen pendientes. Antes de producción se exige reserva de almacenamiento libre recomendada ≥50 GiB; el C: local tenía ~42,4 GiB al cierre. No realizar integración→dev como parte de esta publicación.
+
+Los apartados siguientes preservan sin reescritura las decisiones y evidencia histórica de cada sprint; sus estados BLOCKED/PARTIAL describen el corte fechado que los originó y no sustituyen esta decisión vigente sobre Search 1.5.1.
 ## Integración INT-1 — Galilei
 
 La interfaz normal expone Jurisprudencia, Mi Sala / Juzgado y Mis documentos. Copernic es nombre interno, no sección para usuarios. Jurisprudencia mantiene publicación institucional; la membresía de dependencia no concede permisos editoriales; documentos personales requieren owner; carpetas restringidas requieren grant efectivo. INT-1 es PARTIAL y origin/dev no debe cambiar hasta resolver el mismatch del snapshot J9 y obtener los manifests J7/J8. Los registros siguientes conservan sus cortes originales.
-
-# Decisiones y contratos vigentes
 
 > **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
 
@@ -290,3 +299,57 @@ La lista `GET /api/sentencias?publicado=false&activo=true&excluirRevision=true` 
 - Los grants apuntan a membresías activas del workspace. Sólo las personas ADMIN/EDITOR autorizadas pueden editar ACL; una persona creadora y ADMIN conservan acceso. Al desactivar/quitar membership, el grant deja de autorizar inmediatamente.
 - Personal→dependencia y Compartido→Personal son transiciones de audiencia; los endpoints requieren permiso y confirmación explícita. Los documentos con `SourceFile` vinculado no admiten estas transiciones personales.
 - Search y su conteo, árbol, metadata, snippets/matches, Viewer y download comparten el mismo límite; el acceso ajeno se oculta con 404. No hay caché de ACL con grants obsoletos. El contrato completo y las limitaciones externas están en `BJC-ESPACIOS-DOCUMENTALES.md` y `BJC-UX-ESPACIOS-DOCUMENTALES.md`.
+
+## Adenda SEARCH-CONTRACT-CHANGE-1 — decisión funcional (2026-10-16)
+
+**Clasificación final:** SUBSTRING_ACCIDENTAL, confianza alta, validada por la persona usuaria. La auditoría del 2026-10-15 queda como antecedente: su clasificación inicial fue SUBSTRING_UNCERTAIN; la validación humana posterior resolvió el punto sin reescribir esa evidencia.
+
+- Un término sin comodines busca una unidad léxica completa. civil no encuentra civilización; responsabilidad no encuentra irresponsabilidad, superresponsabilidad ni responsabilidades. No se aplica stemming, lematización ni expansión de sinónimos.
+- Una frase entre comillas busca la secuencia ordenada y contigua de unidades completas; “responsabilidad civil” no encuentra “superresponsabilidad civilizado”.
+- Se conservan los operadores explícitos admitidos por el parser: term% (prefijo), %term (sufijo) y %term% (contiene, ya aceptado por la gramática). El término simple no activa coincidencia parcial.
+- Permanecen la búsqueda sin distinción de mayúsculas, el pliegue de acentos vocálicos, la distinción ñ/n, números, normalización, gramática booleana, campos, filtros, ACL y totales exactos existentes.
+- La evidencia del Sprint 15.5 sigue describiendo su corte histórico. Sus 319 casos no dependían del substring simple; SEARCH-CONTRACT-CHANGE-1 agrega fixtures de negocio con la decisión humana.
+
+La semántica es el contrato funcional vigente. La implementación PostgreSQL lexical y su gate de rendimiento están en evaluación; esta adenda no certifica todavía el motor ni autoriza despliegue.
+
+## Decisión de contrato Search — SEARCH-SEMANTICS-AUDIT-2 final (2026-10-16)
+
+Se adopta para Galilei el objetivo COPERNIC_PREFIX_EXACT_PHRASE: **TERM simple = PREFIX; PHRASE entre comillas = EXACT_LEXICAL_PHRASE**. El término debe iniciar la unidad léxica; la frase requiere palabras completas, orden y contigüidad. No se agrega stemming, sinonimia ni lematización. La decisión se apoya en documentación oficial de Copernic y en la intención explícita “buscar como Copernic, rápido y sencillo”; no afirma ejecución local de la instalación histórica.
+
+La guía CDS 8 documenta prefijo, palabra/frase exacta y suffix no disponible en esa guía. Los comodines se documentan por separado y en materiales/versiones concretos; no hay equivalencia probada con la sintaxis porcentual de Galilei. [Copernic Prefix Search](https://copernicsearch.freshdesk.com/en/support/solutions/articles/47001129478-prefix-search-how-it-works); [CDS 8 Quick Start Guide](https://copernic.com/wp-content/uploads/2024/01/CDS8_quick_start_guide.pdf); [Copernic Search Operators](https://copernicsearch.freshdesk.com/en/support/solutions/articles/47001112953-refine-search-with-search-operators); [Copernic Release History](https://copernic.com/en/desktop/release/). Procedencia y alcance: _recovery-work/search-semantics-audit2/external-copernic-evidence.json.
+
+Se preservan SUBSTRING_UNCERTAIN y los recuerdos H1/H2 como historia. El posible recuerdo de H2 sobre infix RESPONSABILIDAD es conflictivo, de baja confianza y no adoptado, sin afirmar que H2 esté equivocado. El informe de frase exacta de H2 no incluye captura; runtime local directo: UNAVAILABLE.
+
+La decisión semántica cierra el objetivo, no la implementación. Search actual difiere por operador y fuente. term% se solapa con plain TERM y queda pendiente resolver alias; %term y %term% son extensiones Galilei. Motor DEFERRED. Próximo alcance SEARCH-CONTRACT-COPERNIC-1; PostgreSQL primero. Sin código, Golden, base, migraciones, benchmarks, commit ni push en esta auditoría.
+
+
+## SEARCH-CONTRACT-COPERNIC-1 — decisión de implementación (2026-10-16)
+
+Se mantiene cerrado el contrato `COPERNIC_PREFIX_EXACT_PHRASE`; la decisión semántica no se modifica por rendimiento. El experimento PostgreSQL-first queda **REJECTED** para la implementación actualmente evaluada. La base DEV se comprobó con el guard del proyecto: 127.0.0.1:55432, `buscador_juridico_civil_dev`, rol `bjc_dev`, PostgreSQL 16.15. La fase fue de sólo lectura.
+
+Los prototipos A y B superaron el límite duro de 2 s en la frase crítica: 2.114 ms y 2.112 ms, respectivamente, con timeout SQL de 2,1 s. Candidate C por página quedó NOT_RUN por la cobertura incompleta de páginas de última extracción (16.683/17.077 elegibles), ausencia de indexación posicional, índice trigram de páginas previamente descartado y pérdidas/latencia documentadas en el FTS anterior. No se seleccionó prototipo. Exactitud candidata, 100 frases, ACL, filtros, paginación, booleanos, Viewer y concurrencia no se certificaron porque el gate temprano falló.
+
+No se tocaron datos, adapter, schema, migraciones ni Golden; backup y builds/tests de integración no correspondían sin un candidato aceptado. La decisión siguiente es realizar `SEARCH-ENGINE-EVAL-2` con TERM=PREFIX y PHRASE=EXACT. La evaluación OpenSearch previa fue bajo semántica substring y no es comparable. INT-1S: BLOCKED BY ENGINE. INT-1R: BLOCKED. DEV: NOT PROMOTED.
+
+## SEARCH-ENGINE-EVAL-2 — decisión de motor (2026-10-16)
+
+ADOPT OpenSearch 2.19.6 como candidato de integración bajo COPERNIC_PREFIX_EXACT_PHRASE. Es una decisión de evaluación; no integra Search al producto ni declara el runtime listo para producción. PostgreSQL-first fue REJECTED: los candidatos A/B midieron 2.114,17 ms y 2.112,26 ms, sobre el gate de 2.000 ms y sin igualdad de IDs certificada. PostgreSQL permanece como source of truth.
+
+EVAL2 pasó 319 Golden existentes y 12 fixtures nuevas; 100 frases y 14 prefijos alcanzaron igualdad exacta de IDs. Las dos frases críticas dieron 5.364 y 194 resultados con IDs iguales a la referencia. Combined p95 fue 81,84 ms y 109,65 ms. ACL sintético: cero leaks de resultados/conteos y revocación efectiva. Paginación estable: 17.077 IDs sin faltantes ni duplicados. Rebuild desde el mismo export reprodujo exactamente el hash de IDs.
+
+Siguiente alcance: SEARCH-ENGINE-INTEGRATION-1. Antes de producción hacen falta seguridad TLS/auth, sincronización idempotente de cambios/ACL/publicación, supervisión, monitoreo y promoción de índices versionados. No hubo integración, migración, escritura en Corpus, commit ni push. Evidencia: _recovery-work/search-engine-eval2/decision.json.
+
+
+## SEARCH-ENGINE-INTEGRATION-1.1 — decisión de cierre (2026-10-16)
+
+OpenSearch 2.19.6 se conserva como motor de índice derivado en integración; PostgreSQL es source of truth. El rebuild/alias y el feed durable superaron la verificación exacta (42.180 IDs), el test de outage/retry y la carrera create/update durante rebuild. Golden 325/325, frase 100/100 y prefix 14/14 pasaron en engine/adapter.
+
+**No-go para cerrar, commit o push.** El controller no está completamente cortado al motor y todavía tiene rutas de búsqueda legacy; por tanto no se certifica ausencia de fallback ni fail-closed integral. Faltan pruebas completas de ACL/publicación dentro de OpenSearch con fixtures reales, contrato/filtros/paginación por HTTP, mixed/perf y concurrencia por ruta, TLS/auth runtime y replay de migración limpia. No promover DEV y no tocar UX hasta cerrar esos gates.
+
+## SEARCH-ENGINE-INTEGRATION-1.2 — decisión de corte (2026-10-16)
+
+**NO-GO para cerrar, commit o push.** OpenSearch mantiene el rol de índice derivado y PostgreSQL el de fuente de verdad. La evidencia HTTP confirma respuesta controlada 503 cuando OpenSearch no está disponible, pero no elimina la llamada legacy que los handlers inician en paralelo. La ruta pública con `responsabilidad civil` mostró dos Sentencias publicadas/activas desde PostgreSQL y cero resultados OpenSearch: son 6.014 Sentencias activas publicadas que no tienen Sumario activo/publicado en este DEV. El corte por Sumario no cubre todavía esa parte del contrato público. No se clasifica como fuga de borradores; los dos registros muestreados estaban publicados.
+
+Una prueba adicional con una Sentencia activa no publicada seleccionada desde DEV consultó la ruta pública por su número; el total fue 0 y el candidato no apareció. Esto cubre una sola fixture, no reemplaza la matriz completa de publicación ni su sincronización por outbox.
+
+No se modifica la rama UX, no se promueve DEV ni se publica un corte parcial. Mantener el estado BLOCKED hasta implementar un único camino de resultados OpenSearch con filtros/sorts y salida compatible, indexar/proyectar las Sentencias publicadas sin Sumario según el contrato vigente, y pasar las matrices HTTP/ACL/publicación/sync/performance/Viewer restantes.

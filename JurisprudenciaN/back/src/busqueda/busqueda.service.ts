@@ -1,8 +1,17 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { performance } from 'node:perf_hooks';
 import { PrismaService } from '../prisma/prisma.service';
-import { searchQueryTelemetry, type SearchQueryEvent } from '../prisma/search-query-telemetry';
+import {
+  searchQueryTelemetry,
+  type SearchQueryEvent,
+} from '../prisma/search-query-telemetry';
 import { sentenciaTienePdfReal } from '../archivos/pdf-real.util';
 import { InstitutosJuridicosService } from '../institutos-juridicos/institutos-juridicos.service';
 import { EventosConsultaService } from '../estadisticas/eventos-consulta.service';
@@ -10,10 +19,7 @@ import { RagService } from '../ia/rag.service';
 import { BusquedaAvanzadaQueryDto } from './dto/busqueda-avanzada-query.dto';
 import { ExportarBusquedaQueryDto } from './dto/exportar-busqueda-query.dto';
 import { PublicBusquedaQueryDto } from './dto/public-busqueda-query.dto';
-import {
-  buildHighlight,
-  type HighlightItem,
-} from './utils/search-highlights';
+import { buildHighlight, type HighlightItem } from './utils/search-highlights';
 import {
   evaluateSearchNode,
   type SearchFieldName,
@@ -21,7 +27,11 @@ import {
   type SearchMatchMode,
   type SearchNode,
 } from './utils/search-ast';
-import { parseSearchQuery, SearchQueryParseError, type ParsedSearchQuery } from './utils/search-parser';
+import {
+  parseSearchQuery,
+  SearchQueryParseError,
+  type ParsedSearchQuery,
+} from './utils/search-parser';
 import { normalizeSearchText } from './utils/search-normalizer';
 import { FederatedSearchService } from './federated-search.service';
 import type { SearchContext } from './adapters/search-source.adapter';
@@ -57,7 +67,12 @@ type SearchCandidate = Prisma.SentenciaGetPayload<{
       select: { referencia: true; textoOriginal: true };
     };
     referenciasDoctrinarias: {
-      select: { autor: true; titulo: true; fuente: true; textoReferencia: true };
+      select: {
+        autor: true;
+        titulo: true;
+        fuente: true;
+        textoReferencia: true;
+      };
     };
     _count: {
       select: { sumarios: true; archivosPdf: true };
@@ -78,7 +93,14 @@ type MatchInfo = {
 
 type SearchSuggestion = {
   value: string;
-  tipo: 'tema' | 'magistrado' | 'sala' | 'tipoFallo' | 'expediente' | 'caratula' | 'libre';
+  tipo:
+    | 'tema'
+    | 'magistrado'
+    | 'sala'
+    | 'tipoFallo'
+    | 'expediente'
+    | 'caratula'
+    | 'libre';
   total: number;
 };
 
@@ -177,7 +199,12 @@ type PublicSearchCandidate = Prisma.SumarioGetPayload<{
           select: { referencia: true; textoOriginal: true };
         };
         referenciasDoctrinarias: {
-          select: { autor: true; titulo: true; fuente: true; textoReferencia: true };
+          select: {
+            autor: true;
+            titulo: true;
+            fuente: true;
+            textoReferencia: true;
+          };
         };
       };
     };
@@ -247,9 +274,13 @@ type CachedList = {
 const SEARCH_CANDIDATE_MAX_OVERFETCH = 250;
 
 function buildDocumentExcerpt(text: string | null | undefined, query?: string) {
-  const value = String(text ?? '').replace(/\s+/gu, ' ').trim();
+  const value = String(text ?? '')
+    .replace(/\s+/gu, ' ')
+    .trim();
   if (!value) return null;
-  const needle = String(query ?? '').trim().toLocaleLowerCase('es');
+  const needle = String(query ?? '')
+    .trim()
+    .toLocaleLowerCase('es');
   const index = needle ? value.toLocaleLowerCase('es').indexOf(needle) : -1;
   const start = index < 0 ? 0 : Math.max(0, index - 100);
   const end = Math.min(value.length, start + 280);
@@ -268,7 +299,8 @@ export class BusquedaService {
     private readonly eventosConsultaService: EventosConsultaService,
     private readonly ragService: RagService,
     private readonly institutosJuridicosService: InstitutosJuridicosService,
-    @Optional() @Inject(FederatedSearchService)
+    @Optional()
+    @Inject(FederatedSearchService)
     private readonly federatedSearchService: FederatedSearchService | null = null,
   ) {}
 
@@ -300,7 +332,8 @@ export class BusquedaService {
     try {
       return parseSearchQuery(query, { defaultOperator: operador ?? 'AND' });
     } catch (error) {
-      if (error instanceof SearchQueryParseError) throw new BadRequestException(error.message);
+      if (error instanceof SearchQueryParseError)
+        throw new BadRequestException(error.message);
       throw error;
     }
   }
@@ -309,7 +342,10 @@ export class BusquedaService {
     const queryEvents: SearchQueryEvent[] = [];
     return searchQueryTelemetry.run(queryEvents, async () => {
       const expansionStarted = performance.now();
-      const expanded = await this.expandParsedQuery(query.q, this.parseQuery(query.q, query.operador));
+      const expanded = await this.expandParsedQuery(
+        query.q,
+        this.parseQuery(query.q, query.operador),
+      );
       const expansionMs = performance.now() - expansionStarted;
       const searchStarted = performance.now();
       const search = await this.buscarJurisprudencia(
@@ -335,9 +371,15 @@ export class BusquedaService {
         search.hasMore,
       );
 
-      const fingerprints = new Map<string, { count: number; durationMs: number }>();
+      const fingerprints = new Map<
+        string,
+        { count: number; durationMs: number }
+      >();
       for (const event of queryEvents) {
-        const current = fingerprints.get(event.fingerprint) ?? { count: 0, durationMs: 0 };
+        const current = fingerprints.get(event.fingerprint) ?? {
+          count: 0,
+          durationMs: 0,
+        };
         current.count += 1;
         current.durationMs += event.durationMs;
         fingerprints.set(event.fingerprint, current);
@@ -348,8 +390,16 @@ export class BusquedaService {
         ...(this.lastPerformProfile ?? {}),
         semanticBonusMs: roundProfile(semanticBonusMs),
         prismaQueries: queryEvents.length,
-        prismaQueryDurationMs: roundProfile(queryEvents.reduce((sum, event) => sum + event.durationMs, 0)),
-        queryFingerprints: [...fingerprints.entries()].map(([fingerprint, value]) => ({ fingerprint, ...value, durationMs: roundProfile(value.durationMs) })),
+        prismaQueryDurationMs: roundProfile(
+          queryEvents.reduce((sum, event) => sum + event.durationMs, 0),
+        ),
+        queryFingerprints: [...fingerprints.entries()].map(
+          ([fingerprint, value]) => ({
+            fingerprint,
+            ...value,
+            durationMs: roundProfile(value.durationMs),
+          }),
+        ),
       };
 
       this.eventosConsultaService.trackSafe({
@@ -359,7 +409,9 @@ export class BusquedaService {
           query: query.q ?? null,
           cantidadResultados: paginated.meta.total,
           sortUsed,
-          filtrosUsados: this.extractUsedFilters(query as unknown as Record<string, unknown>),
+          filtrosUsados: this.extractUsedFilters(
+            query as unknown as Record<string, unknown>,
+          ),
           page: paginated.meta.page,
           origen: 'avanzada',
           expandedTerms: expanded.expandedTerms,
@@ -374,7 +426,11 @@ export class BusquedaService {
     return this.lastAdvancedProfile;
   }
 
-  trackAdvancedV2(query: BusquedaAvanzadaQueryDto, usuarioId: number, cantidadResultados: number) {
+  trackAdvancedV2(
+    query: BusquedaAvanzadaQueryDto,
+    usuarioId: number,
+    cantidadResultados: number,
+  ) {
     this.eventosConsultaService.trackSafe({
       tipoEvento: 'search_internal',
       usuarioId,
@@ -382,7 +438,9 @@ export class BusquedaService {
         query: query.q ?? null,
         cantidadResultados,
         sortUsed: query.sortBy ?? 'relevancia',
-        filtrosUsados: this.extractUsedFilters(query as unknown as Record<string, unknown>),
+        filtrosUsados: this.extractUsedFilters(
+          query as unknown as Record<string, unknown>,
+        ),
         page: query.page ?? 1,
         origen: 'avanzada-v2',
         expandedTerms: [],
@@ -390,8 +448,23 @@ export class BusquedaService {
     });
   }
 
+  trackCitationV2(
+    query: string,
+    usuarioId: number,
+    cantidadResultados: number,
+  ) {
+    this.eventosConsultaService.trackSafe({
+      tipoEvento: 'search_internal_cita',
+      usuarioId,
+      metadata: { query, cantidadResultados, origen: 'cita-v2' },
+    });
+  }
+
   async simple(query?: string, usuarioId?: number) {
-    const expanded = await this.expandParsedQuery(query, this.parseQuery(query));
+    const expanded = await this.expandParsedQuery(
+      query,
+      this.parseQuery(query),
+    );
     const search = await this.buscarJurisprudencia(
       {
         q: query?.trim(),
@@ -433,7 +506,10 @@ export class BusquedaService {
 
   async publica(query: PublicBusquedaQueryDto) {
     const startedAt = Date.now();
-    const expanded = await this.expandParsedQuery(query.q, this.parseQuery(query.q, query.operador));
+    const expanded = await this.expandParsedQuery(
+      query.q,
+      this.parseQuery(query.q, query.operador),
+    );
     const search = await this.buscarJurisprudencia(
       query,
       expanded.parsed,
@@ -462,7 +538,9 @@ export class BusquedaService {
         query: query.q ?? null,
         cantidadResultados: paginated.meta.total,
         sortUsed,
-        filtrosUsados: this.extractUsedFilters(query as unknown as Record<string, unknown>),
+        filtrosUsados: this.extractUsedFilters(
+          query as unknown as Record<string, unknown>,
+        ),
         page: paginated.meta.page,
         origen: 'consulta',
         durationMs: Date.now() - startedAt,
@@ -473,15 +551,18 @@ export class BusquedaService {
     return {
       ...paginated,
       meta: {
-      ...paginated.meta,
-      tiempoMs: Date.now() - startedAt,
-    },
-  };
-}
+        ...paginated.meta,
+        tiempoMs: Date.now() - startedAt,
+      },
+    };
+  }
 
   async exportar(query: ExportarBusquedaQueryDto) {
     const formato = query.formato ?? 'csv';
-    const expanded = await this.expandParsedQuery(query.q, this.parseQuery(query.q, query.operador));
+    const expanded = await this.expandParsedQuery(
+      query.q,
+      this.parseQuery(query.q, query.operador),
+    );
     const { results, sortUsed } = await this.buscarJurisprudencia(
       query,
       expanded.parsed,
@@ -516,17 +597,27 @@ export class BusquedaService {
     try {
       const [temas, magistrados, salas, tiposFallo, expedientes, caratulas] =
         await Promise.all([
-        this.getTemaSuggestions(value),
-        this.getSplitFieldSuggestions('magistrados', value, 'magistrado'),
-        this.getSimpleFieldSuggestions('sala', value, 'sala'),
-        this.getSimpleFieldSuggestions('tipoFallo', value, 'tipoFallo'),
-        this.getSimpleFieldSuggestions('expediente', value, 'expediente'),
-        this.getSimpleFieldSuggestions('caratula', value, 'caratula'),
-      ]);
+          this.getTemaSuggestions(value),
+          this.getSplitFieldSuggestions('magistrados', value, 'magistrado'),
+          this.getSimpleFieldSuggestions('sala', value, 'sala'),
+          this.getSimpleFieldSuggestions('tipoFallo', value, 'tipoFallo'),
+          this.getSimpleFieldSuggestions('expediente', value, 'expediente'),
+          this.getSimpleFieldSuggestions('caratula', value, 'caratula'),
+        ]);
 
       return {
-        data: [...temas, ...magistrados, ...salas, ...tiposFallo, ...expedientes, ...caratulas]
-          .sort((left, right) => right.total - left.total || left.value.localeCompare(right.value))
+        data: [
+          ...temas,
+          ...magistrados,
+          ...salas,
+          ...tiposFallo,
+          ...expedientes,
+          ...caratulas,
+        ]
+          .sort(
+            (left, right) =>
+              right.total - left.total || left.value.localeCompare(right.value),
+          )
           .slice(0, 15),
       };
     } catch {
@@ -549,7 +640,10 @@ export class BusquedaService {
 
       return {
         data: [...temas, ...salas, ...tiposFallo]
-          .sort((left, right) => right.total - left.total || left.value.localeCompare(right.value))
+          .sort(
+            (left, right) =>
+              right.total - left.total || left.value.localeCompare(right.value),
+          )
           .slice(0, 12),
       };
     } catch {
@@ -562,55 +656,82 @@ export class BusquedaService {
   }
 
   async sugerenciasMagistrados(q?: string) {
-    return { data: await this.getSplitFieldSuggestions('magistrados', q, 'magistrado') };
+    return {
+      data: await this.getSplitFieldSuggestions('magistrados', q, 'magistrado'),
+    };
   }
 
   async sugerenciasSalas(q?: string, publico = false) {
-    return { data: await this.getSimpleFieldSuggestions('sala', q, 'sala', publico) };
+    return {
+      data: await this.getSimpleFieldSuggestions('sala', q, 'sala', publico),
+    };
   }
 
   async sugerenciasTiposFallo(q?: string, publico = false) {
-    return { data: await this.getSimpleFieldSuggestions('tipoFallo', q, 'tipoFallo', publico) };
+    return {
+      data: await this.getSimpleFieldSuggestions(
+        'tipoFallo',
+        q,
+        'tipoFallo',
+        publico,
+      ),
+    };
   }
 
   async sugerenciasExpedientes(q?: string) {
-    return { data: await this.getSimpleFieldSuggestions('expediente', q, 'expediente') };
+    return {
+      data: await this.getSimpleFieldSuggestions('expediente', q, 'expediente'),
+    };
   }
 
   async sugerenciasCaratulas(q?: string) {
-    return { data: await this.getSimpleFieldSuggestions('caratula', q, 'caratula') };
+    return {
+      data: await this.getSimpleFieldSuggestions('caratula', q, 'caratula'),
+    };
   }
 
   async temas(publico = false) {
-    return this.getCachedList(`temas-${publico ? 'publico' : 'interno'}`, async () => {
-      const rows = await this.prisma.sumario.findMany({
-        where: {
-          tema: { not: null },
-          ...(publico ? { publicado: true, activo: true, sentencia: { publicado: true, activo: true } } : {}),
-        },
-        select: { tema: true },
-        distinct: ['tema'],
-        orderBy: { tema: 'asc' },
-        take: 100,
-      });
-      return rows.map((item) => item.tema).filter(Boolean) as string[];
-    });
+    return this.getCachedList(
+      `temas-${publico ? 'publico' : 'interno'}`,
+      async () => {
+        const rows = await this.prisma.sumario.findMany({
+          where: {
+            tema: { not: null },
+            ...(publico
+              ? {
+                  publicado: true,
+                  activo: true,
+                  sentencia: { publicado: true, activo: true },
+                }
+              : {}),
+          },
+          select: { tema: true },
+          distinct: ['tema'],
+          orderBy: { tema: 'asc' },
+          take: 100,
+        });
+        return rows.map((item) => item.tema).filter(Boolean) as string[];
+      },
+    );
   }
 
   async salas(publico = false) {
-    return this.getCachedList(`salas-${publico ? 'publico' : 'interno'}`, async () => {
-      const rows = await this.prisma.sentencia.findMany({
-        where: {
-          sala: { not: null },
-          ...(publico ? { publicado: true, activo: true } : {}),
-        },
-        select: { sala: true },
-        distinct: ['sala'],
-        orderBy: { sala: 'asc' },
-        take: 100,
-      });
-      return rows.map((item) => item.sala).filter(Boolean) as string[];
-    });
+    return this.getCachedList(
+      `salas-${publico ? 'publico' : 'interno'}`,
+      async () => {
+        const rows = await this.prisma.sentencia.findMany({
+          where: {
+            sala: { not: null },
+            ...(publico ? { publicado: true, activo: true } : {}),
+          },
+          select: { sala: true },
+          distinct: ['sala'],
+          orderBy: { sala: 'asc' },
+          take: 100,
+        });
+        return rows.map((item) => item.sala).filter(Boolean) as string[];
+      },
+    );
   }
 
   async tiposFallo(publico = false) {
@@ -634,7 +755,10 @@ export class BusquedaService {
 
   async buscarPorCita(q?: string, usuarioId?: number) {
     const value = q?.trim() ?? '';
-    const expanded = await this.expandParsedQuery(value, this.parseQuery(value));
+    const expanded = await this.expandParsedQuery(
+      value,
+      this.parseQuery(value),
+    );
     const { results } = await this.buscarJurisprudencia(
       {
         q: value,
@@ -650,7 +774,11 @@ export class BusquedaService {
     this.eventosConsultaService.trackSafe({
       tipoEvento: 'search_internal_cita',
       usuarioId,
-      metadata: { query: value, cantidadResultados: results.length, origen: 'cita' },
+      metadata: {
+        query: value,
+        cantidadResultados: results.length,
+        origen: 'cita',
+      },
     });
 
     return { data: results.slice(0, 20) };
@@ -718,7 +846,10 @@ export class BusquedaService {
     });
 
     return this.aggregateSuggestions(
-      rows.map((item) => String(item[field] ?? '')),
+      rows.map((item) => {
+        const value = item[field];
+        return typeof value === 'string' ? value : '';
+      }),
       tipo,
       value,
     );
@@ -785,18 +916,25 @@ export class BusquedaService {
     }
 
     return [...counter.values()]
-      .sort((left, right) => right.total - left.total || left.value.localeCompare(right.value))
+      .sort(
+        (left, right) =>
+          right.total - left.total || left.value.localeCompare(right.value),
+      )
       .slice(0, 15);
   }
 
-  private async expandParsedQuery(raw: string | undefined, parsed: ParsedSearchQuery) {
+  private async expandParsedQuery(
+    raw: string | undefined,
+    parsed: ParsedSearchQuery,
+  ) {
     const baseTerms = [
       ...(raw?.trim() ? [raw.trim()] : []),
       ...parsed.terms,
       ...parsed.exactPhrases,
       ...Object.values(parsed.fieldTerms).flat(),
     ];
-    const expandedTerms = await this.institutosJuridicosService.expandTerms(baseTerms);
+    const expandedTerms =
+      await this.institutosJuridicosService.expandTerms(baseTerms);
 
     if (!expandedTerms.length) {
       return { parsed, expandedTerms: [] as string[] };
@@ -852,25 +990,23 @@ export class BusquedaService {
     alreadyPaginated?: boolean;
   }> {
     if (options.publico) {
-      return this.performPublicSearch(
-        query as PublicBusquedaQueryDto,
-        parsed,
-        expandedTerms,
-      );
+      return this.performPublicSearch(query, parsed, expandedTerms);
     }
 
-    return this.performSearch(
-      query as Partial<BusquedaAvanzadaQueryDto>,
-      parsed,
-      expandedTerms,
-      'internal',
-    );
+    return this.performSearch(query, parsed, expandedTerms, 'internal');
   }
 
   private resolvePdfFilter(
-    query: Pick<Partial<BusquedaAvanzadaQueryDto>, 'pdf' | 'soloConPdf' | 'tienePdf'>,
+    query: Pick<
+      Partial<BusquedaAvanzadaQueryDto>,
+      'pdf' | 'soloConPdf' | 'tienePdf'
+    >,
   ): PdfFilter {
-    if (query.pdf === 'conPdf' || query.soloConPdf === true || query.tienePdf === true) {
+    if (
+      query.pdf === 'conPdf' ||
+      query.soloConPdf === true ||
+      query.tienePdf === true
+    ) {
       return 'conPdf';
     }
 
@@ -948,15 +1084,16 @@ export class BusquedaService {
     );
   }
 
-  private normalizeQueryParams<T extends Partial<BusquedaAvanzadaQueryDto> | PublicBusquedaQueryDto>(
-    query: T,
-  ): T {
+  private normalizeQueryParams<
+    T extends Partial<BusquedaAvanzadaQueryDto> | PublicBusquedaQueryDto,
+  >(query: T): T {
     const cleaned = { ...query } as T & Record<string, unknown>;
 
     for (const [key, value] of Object.entries(cleaned)) {
       if (typeof value === 'string') {
         const trimmed = value.trim();
-        cleaned[key] = trimmed === '' || trimmed === 'todos' ? undefined : trimmed;
+        cleaned[key] =
+          trimmed === '' || trimmed === 'todos' ? undefined : trimmed;
       }
     }
 
@@ -975,12 +1112,24 @@ export class BusquedaService {
     return cleaned;
   }
 
-  private normalizedIncludes(source: string | null | undefined, expected: unknown) {
+  private normalizedIncludes(
+    source: string | null | undefined,
+    expected: unknown,
+  ) {
     if (expected === undefined || expected === null || expected === '') {
       return true;
     }
+    if (
+      typeof expected !== 'string' &&
+      typeof expected !== 'number' &&
+      typeof expected !== 'boolean'
+    ) {
+      return true;
+    }
 
-    return normalizeSearchText(source).includes(normalizeSearchText(String(expected)));
+    return normalizeSearchText(source).includes(
+      normalizeSearchText(String(expected)),
+    );
   }
 
   private matchesExplicitSentenciaFilters(
@@ -1001,7 +1150,10 @@ export class BusquedaService {
     query: Partial<BusquedaAvanzadaQueryDto>,
   ) {
     return (
-      this.normalizedIncludes(sentencia.numeroSentencia, query.numeroSentencia) &&
+      this.normalizedIncludes(
+        sentencia.numeroSentencia,
+        query.numeroSentencia,
+      ) &&
       this.normalizedIncludes(sentencia.expediente, query.expediente) &&
       this.normalizedIncludes(sentencia.caratula, query.caratula) &&
       this.normalizedIncludes(sentencia.actor, query.actor) &&
@@ -1021,7 +1173,9 @@ export class BusquedaService {
   ) {
     if (
       query.tema &&
-      !sumarios.some((sumario) => this.normalizedIncludes(sumario.tema, query.tema))
+      !sumarios.some((sumario) =>
+        this.normalizedIncludes(sumario.tema, query.tema),
+      )
     ) {
       return false;
     }
@@ -1065,10 +1219,9 @@ export class BusquedaService {
         referencia.inciso,
         referencia.textoReferencia,
       ]),
-      ...(sentencia.referenciasJurisprudenciales ?? []).flatMap((referencia) => [
-        referencia.referencia,
-        referencia.textoOriginal,
-      ]),
+      ...(sentencia.referenciasJurisprudenciales ?? []).flatMap(
+        (referencia) => [referencia.referencia, referencia.textoOriginal],
+      ),
       ...(sentencia.referenciasDoctrinarias ?? []).flatMap((referencia) => [
         referencia.autor,
         referencia.titulo,
@@ -1084,11 +1237,12 @@ export class BusquedaService {
     expandedTerms: string[],
   ) {
     const queryForSearch = this.normalizeQueryParams(query);
-    const hasTextSearch = Boolean(queryForSearch.q?.trim() || queryForSearch.fraseExacta?.trim());
-    const sortUsed = (query.sortBy ??
-      (hasTextSearch ? 'relevancia' : 'fecha')) as PublicSortKey;
+    const hasTextSearch = Boolean(
+      queryForSearch.q?.trim() || queryForSearch.fraseExacta?.trim(),
+    );
+    const sortUsed = query.sortBy ?? (hasTextSearch ? 'relevancia' : 'fecha');
     const search = await this.performSearch(
-      queryForSearch as Partial<BusquedaAvanzadaQueryDto>,
+      queryForSearch,
       parsed,
       expandedTerms,
       'public',
@@ -1096,7 +1250,11 @@ export class BusquedaService {
     const results = this.toPublicResults(search.results);
 
     return {
-      results: this.sortPublicResults(results, sortUsed, query.sortOrder ?? 'desc'),
+      results: this.sortPublicResults(
+        results,
+        sortUsed,
+        query.sortOrder ?? 'desc',
+      ),
       sortUsed,
       total: search.total,
       totalExact: search.totalExact,
@@ -1109,20 +1267,24 @@ export class BusquedaService {
     return results.flatMap((result) => {
       const sumarios = result.sumariosRelevantes.length
         ? result.sumariosRelevantes
-        : [{
-            id: result.sentencia.id,
-            numeroSumario: null,
-            tema: null,
-            texto: result.sentencia.legacyCorpus
-              ? result.highlights.find((item) => item.campo === 'extracto del fallo')?.texto ?? ''
-              : result.resumenBreve ?? '',
-            resumenBusqueda: null,
-            publicado: true,
-            activo: true,
-            sentenciaId: result.sentencia.id,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }];
+        : [
+            {
+              id: result.sentencia.id,
+              numeroSumario: null,
+              tema: null,
+              texto: result.sentencia.legacyCorpus
+                ? (result.highlights.find(
+                    (item) => item.campo === 'extracto del fallo',
+                  )?.texto ?? '')
+                : (result.resumenBreve ?? ''),
+              resumenBusqueda: null,
+              publicado: true,
+              activo: true,
+              sentenciaId: result.sentencia.id,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ];
 
       return sumarios.map((sumario) => ({
         id: sumario.id,
@@ -1147,9 +1309,10 @@ export class BusquedaService {
         tienePdf: result.sentencia.pdfDisponible,
         pdfDisponible: result.sentencia.pdfDisponible,
         archivoPdfId: result.sentencia.archivoPdfId,
-        pdfUrl: result.sentencia.slugPublico && result.sentencia.pdfDisponible
-          ? `/api/public/sentencias/${result.sentencia.slugPublico}/pdf`
-          : null,
+        pdfUrl:
+          result.sentencia.slugPublico && result.sentencia.pdfDisponible
+            ? `/api/public/sentencias/${result.sentencia.slugPublico}/pdf`
+            : null,
         score: result.score,
         criterioPrincipal: result.criterioPrincipal,
         matchInfo: result.matchInfo,
@@ -1167,24 +1330,42 @@ export class BusquedaService {
     const startedAt = Date.now();
     const whereBuildStarted = performance.now();
     const queryForSearch = this.normalizeQueryParams(query);
-    const hasTextSearch = Boolean(queryForSearch.q || queryForSearch.fraseExacta);
-    const where = this.buildCandidateWhere(queryForSearch, parsed, mode, !hasTextSearch);
+    const hasTextSearch = Boolean(
+      queryForSearch.q || queryForSearch.fraseExacta,
+    );
+    const where = this.buildCandidateWhere(
+      queryForSearch,
+      parsed,
+      mode,
+      !hasTextSearch,
+    );
     const whereBuildMs = performance.now() - whereBuildStarted;
-    const sortUsed = (queryForSearch.sortBy ??
-      (hasTextSearch ? 'relevancia' : 'fecha')) as SortKey;
+    const sortUsed =
+      queryForSearch.sortBy ?? (hasTextSearch ? 'relevancia' : 'fecha');
     const page = Math.max(1, Number(queryForSearch.page ?? 1));
-    const pageSize = Math.min(Math.max(1, Number(queryForSearch.pageSize ?? 10)), 300);
+    const pageSize = Math.min(
+      Math.max(1, Number(queryForSearch.pageSize ?? 10)),
+      300,
+    );
     const candidateLimit = hasTextSearch
-      ? Math.min(Math.max(page * pageSize + pageSize * 2, pageSize * 3, 50), SEARCH_CANDIDATE_MAX_OVERFETCH)
+      ? Math.min(
+          Math.max(page * pageSize + pageSize * 2, pageSize * 3, 50),
+          SEARCH_CANDIDATE_MAX_OVERFETCH,
+        )
       : pageSize;
     const candidateGenerationStarted = performance.now();
     const candidateIds = hasTextSearch
       ? await this.findCandidateIds(queryForSearch, parsed, mode)
       : undefined;
-    const candidateGenerationMs = performance.now() - candidateGenerationStarted;
-    const orderBy = sortUsed === 'fecha'
-      ? [{ fecha: queryForSearch.sortOrder ?? 'desc' }, { id: 'desc' as const }]
-      : [{ id: 'desc' as const }];
+    const candidateGenerationMs =
+      performance.now() - candidateGenerationStarted;
+    const orderBy =
+      sortUsed === 'fecha'
+        ? [
+            { fecha: queryForSearch.sortOrder ?? 'desc' },
+            { id: 'desc' as const },
+          ]
+        : [{ id: 'desc' as const }];
     const sumarioIncludeWhere = this.buildSumarioIncludeWhere(
       queryForSearch,
       parsed,
@@ -1198,64 +1379,76 @@ export class BusquedaService {
     let hasMore = false;
     const candidateQueryStarted = performance.now();
     if (candidateIds) {
-      const selected = candidateIds.length === 0
-        ? []
-        : await this.prisma.sentencia.findMany({
-            where: { AND: [where, { id: { in: candidateIds } }] },
-            select: { id: true },
-            orderBy,
-            take: candidateLimit + 1,
-          });
+      const selected =
+        candidateIds.length === 0
+          ? []
+          : await this.prisma.sentencia.findMany({
+              where: { AND: [where, { id: { in: candidateIds } }] },
+              select: { id: true },
+              orderBy,
+              take: candidateLimit + 1,
+            });
       hasMore = selected.length > candidateLimit;
       candidateIdRows = selected.slice(0, candidateLimit);
     }
-    const selectedIds = candidateIds ? candidateIdRows.map((row) => row.id) : undefined;
-    const candidateQuery = selectedIds?.length === 0
-      ? Promise.resolve([] as SearchCandidate[])
-      : this.prisma.sentencia.findMany({
-        where: selectedIds
-          ? { AND: [where, { id: { in: selectedIds } }] }
-          : where,
-        orderBy,
-        skip: hasTextSearch ? undefined : (page - 1) * pageSize,
-        take: selectedIds ? selectedIds.length : candidateLimit,
-        include: {
-          _count: {
-            select: { sumarios: true, archivosPdf: true },
-          },
-          archivosPdf: {
-            select: { id: true, rutaArchivo: true },
-            orderBy: { createdAt: 'desc' },
-          },
-          referenciasNormativas: {
-            select: {
-              tipoNorma: true,
-              numeroNorma: true,
-              articulo: true,
-              inciso: true,
-              textoReferencia: true,
+    const selectedIds = candidateIds
+      ? candidateIdRows.map((row) => row.id)
+      : undefined;
+    const candidateQuery =
+      selectedIds?.length === 0
+        ? Promise.resolve([] as SearchCandidate[])
+        : this.prisma.sentencia.findMany({
+            where: selectedIds
+              ? { AND: [where, { id: { in: selectedIds } }] }
+              : where,
+            orderBy,
+            skip: hasTextSearch ? undefined : (page - 1) * pageSize,
+            take: selectedIds ? selectedIds.length : candidateLimit,
+            include: {
+              _count: {
+                select: { sumarios: true, archivosPdf: true },
+              },
+              archivosPdf: {
+                select: { id: true, rutaArchivo: true },
+                orderBy: { createdAt: 'desc' },
+              },
+              referenciasNormativas: {
+                select: {
+                  tipoNorma: true,
+                  numeroNorma: true,
+                  articulo: true,
+                  inciso: true,
+                  textoReferencia: true,
+                },
+              },
+              referenciasJurisprudenciales: {
+                select: { referencia: true, textoOriginal: true },
+              },
+              referenciasDoctrinarias: {
+                select: {
+                  autor: true,
+                  titulo: true,
+                  fuente: true,
+                  textoReferencia: true,
+                },
+              },
+              sumarios: {
+                where: sumarioIncludeWhere,
+                orderBy: { id: 'asc' },
+                take: mode === 'public' ? 5 : 20,
+              },
             },
-          },
-          referenciasJurisprudenciales: {
-            select: { referencia: true, textoOriginal: true },
-          },
-          referenciasDoctrinarias: {
-            select: { autor: true, titulo: true, fuente: true, textoReferencia: true },
-          },
-          sumarios: {
-            where: sumarioIncludeWhere,
-            orderBy: { id: 'asc' },
-            take: mode === 'public' ? 5 : 20,
-          },
-        },
-      });
+          });
     if (hasTextSearch) {
       // Text searches already report the bounded scored-candidate count below;
       // the exact count was unused and duplicated the most expensive predicate.
       candidates = await candidateQuery;
     } else {
       const countStarted = performance.now();
-      const [total, rows] = await Promise.all([this.prisma.sentencia.count({ where }), candidateQuery]);
+      const [total, rows] = await Promise.all([
+        this.prisma.sentencia.count({ where }),
+        candidateQuery,
+      ]);
       totalCandidates = total;
       countMs = performance.now() - countStarted;
       candidates = rows;
@@ -1271,7 +1464,6 @@ export class BusquedaService {
           parsed,
           expandedTerms,
           mode,
-          sortUsed,
         ),
       )
       .filter((item): item is ScoredResult => item !== null);
@@ -1283,7 +1475,7 @@ export class BusquedaService {
     );
     const scoringMs = performance.now() - scoringStarted;
 
-      this.lastPerformProfile = {
+    this.lastPerformProfile = {
       whereBuildMs: roundProfile(whereBuildMs),
       candidateGenerationMs: roundProfile(candidateGenerationMs),
       candidateIdRows: candidateIdRows.length,
@@ -1348,12 +1540,18 @@ export class BusquedaService {
     }
     if (includeText && query.fraseExacta?.trim()) {
       andClauses.push({
-        OR: this.buildTextTermWhere(normalizeSearchText(query.fraseExacta), mode),
+        OR: this.buildTextTermWhere(
+          normalizeSearchText(query.fraseExacta),
+          mode,
+        ),
       });
     }
-    for (const excluded of includeText ? query.excluir ?? [] : []) {
+    for (const excluded of includeText ? (query.excluir ?? []) : []) {
       const normalized = normalizeSearchText(excluded);
-      if (normalized) andClauses.push({ NOT: { OR: this.buildTextTermWhere(normalized, mode) } });
+      if (normalized)
+        andClauses.push({
+          NOT: { OR: this.buildTextTermWhere(normalized, mode) },
+        });
     }
 
     return {
@@ -1361,7 +1559,10 @@ export class BusquedaService {
       ...(query.publicado !== undefined && { publicado: query.publicado }),
       ...(query.activo !== undefined && { activo: query.activo }),
       ...(query.numeroSentencia && {
-        numeroSentencia: { contains: query.numeroSentencia, mode: 'insensitive' },
+        numeroSentencia: {
+          contains: query.numeroSentencia,
+          mode: 'insensitive',
+        },
       }),
       ...(query.expediente && {
         expediente: { contains: query.expediente, mode: 'insensitive' },
@@ -1381,7 +1582,9 @@ export class BusquedaService {
       ...(query.magistrados && {
         magistrados: { contains: query.magistrados, mode: 'insensitive' },
       }),
-      ...(query.sala && { sala: { contains: query.sala, mode: 'insensitive' } }),
+      ...(query.sala && {
+        sala: { contains: query.sala, mode: 'insensitive' },
+      }),
       ...(query.tipoFallo && {
         tipoFallo: { contains: query.tipoFallo, mode: 'insensitive' },
       }),
@@ -1451,11 +1654,12 @@ export class BusquedaService {
       });
     }
     const rootNodes = [...(root ? [root] : []), ...extraNodes];
-    const candidateRoot: SearchNode | null = rootNodes.length === 0
-      ? null
-      : rootNodes.length === 1
-        ? rootNodes[0]
-        : { type: 'and', operands: rootNodes };
+    const candidateRoot: SearchNode | null =
+      rootNodes.length === 0
+        ? null
+        : rootNodes.length === 1
+          ? rootNodes[0]
+          : { type: 'and', operands: rootNodes };
 
     const eligibleSentence = (alias: string) => Prisma.sql`
       ${Prisma.raw(`${alias}."activo"`)} = TRUE
@@ -1466,27 +1670,37 @@ export class BusquedaService {
     const escapeLike = (value: string) => value.replace(/[\\%_]/gu, '\\$&');
 
     const fieldColumns: Partial<Record<SearchFieldName, string>> = {
-      sala: 't."sala"', tipoFallo: 't."tipoFallo"', tribunalOrigen: 't."tribunalOrigen"',
-      expediente: 't."expediente"', caratula: 't."caratula"', actor: 't."actor"',
-      demandado: 't."demandado"', objeto: 't."objeto"', magistrados: 't."magistrados"',
+      sala: 't."sala"',
+      tipoFallo: 't."tipoFallo"',
+      tribunalOrigen: 't."tribunalOrigen"',
+      expediente: 't."expediente"',
+      caratula: 't."caratula"',
+      actor: 't."actor"',
+      demandado: 't."demandado"',
+      objeto: 't."objeto"',
+      magistrados: 't."magistrados"',
       numeroSentencia: 't."numeroSentencia"',
     };
 
     const literalCandidates = (literal: SearchLiteralNode): Prisma.Sql => {
       const needle = literal.normalizedValue;
-      const rawNeedle = literal.type === 'phrase' ? literal.value : literal.value;
+      const rawNeedle =
+        literal.type === 'phrase' ? literal.value : literal.value;
       const normalizedPattern = `%${needle}%`;
-      const rawPattern = literal.type === 'term' && literal.matchMode === 'prefix'
-        ? `${escapeLike(rawNeedle)}%`
-        : literal.type === 'term' && literal.matchMode === 'suffix'
-          ? `%${escapeLike(rawNeedle)}`
-          : `%${escapeLike(rawNeedle)}%`;
-      const summaryVisibility = mode === 'public'
-        ? Prisma.sql`AND s."publicado" = TRUE AND s."activo" = TRUE`
-        : Prisma.sql`AND s."activo" = TRUE`;
+      const rawPattern =
+        literal.type === 'term' && literal.matchMode === 'prefix'
+          ? `${escapeLike(rawNeedle)}%`
+          : literal.type === 'term' && literal.matchMode === 'suffix'
+            ? `%${escapeLike(rawNeedle)}`
+            : `%${escapeLike(rawNeedle)}%`;
+      const summaryVisibility =
+        mode === 'public'
+          ? Prisma.sql`AND s."publicado" = TRUE AND s."activo" = TRUE`
+          : Prisma.sql`AND s."activo" = TRUE`;
 
       if (literal.field === 'tema' || literal.field === 'numeroSumario') {
-        const column = literal.field === 'tema' ? 's."tema"' : 's."numeroSumario"';
+        const column =
+          literal.field === 'tema' ? 's."tema"' : 's."numeroSumario"';
         return Prisma.sql`SELECT s."sentenciaId" AS "id"
           FROM "Sumario" s
           WHERE s."activo" = TRUE ${mode === 'public' ? Prisma.sql`AND s."publicado" = TRUE` : Prisma.empty}
@@ -1495,33 +1709,49 @@ export class BusquedaService {
 
       if (literal.field) {
         const column = fieldColumns[literal.field];
-        if (!column) return Prisma.sql`SELECT t."id" AS "id" FROM "Sentencia" t WHERE FALSE`;
-        const expression = literal.field === 'actor' && mode === 'public'
-          ? `CASE WHEN t."anonimizado" AND t."actorPublico" IS NOT NULL THEN t."actorPublico" ELSE t."actor" END`
-          : literal.field === 'demandado' && mode === 'public'
-            ? `CASE WHEN t."anonimizado" AND t."demandadoPublico" IS NOT NULL THEN t."demandadoPublico" ELSE t."demandado" END`
-            : column;
+        if (!column)
+          return Prisma.sql`SELECT t."id" AS "id" FROM "Sentencia" t WHERE FALSE`;
+        const expression =
+          literal.field === 'actor' && mode === 'public'
+            ? `CASE WHEN t."anonimizado" AND t."actorPublico" IS NOT NULL THEN t."actorPublico" ELSE t."actor" END`
+            : literal.field === 'demandado' && mode === 'public'
+              ? `CASE WHEN t."anonimizado" AND t."demandadoPublico" IS NOT NULL THEN t."demandadoPublico" ELSE t."demandado" END`
+              : column;
         return Prisma.sql`SELECT t."id" AS "id" FROM "Sentencia" t
           WHERE ${eligibleSentence('t')} AND ${Prisma.raw(normalizeSql(expression))} LIKE ${normalizedPattern}`;
       }
 
-      const sentenceExpressions = mode === 'public'
-        ? [
-            't."numeroSentencia"', 't."expediente"', 't."caratula"',
-            'CASE WHEN t."anonimizado" AND t."actorPublico" IS NOT NULL THEN t."actorPublico" ELSE t."actor" END',
-            'CASE WHEN t."anonimizado" AND t."demandadoPublico" IS NOT NULL THEN t."demandadoPublico" ELSE t."demandado" END',
-            't."objeto"', 't."magistrados"', 't."sala"', 't."tipoFallo"', 't."tribunalOrigen"',
-            'CASE WHEN t."resumenPublicado" THEN t."resumenIa" ELSE NULL END',
-            'CASE WHEN t."resenaPublicada" THEN t."resena" ELSE NULL END',
-          ]
-        : ['t."textoBusquedaNormalizado"'];
-      const sentenceTextPredicate = mode === 'public'
-        ? sentenceExpressions.map((expression) => Prisma.sql`
+      const sentenceExpressions =
+        mode === 'public'
+          ? [
+              't."numeroSentencia"',
+              't."expediente"',
+              't."caratula"',
+              'CASE WHEN t."anonimizado" AND t."actorPublico" IS NOT NULL THEN t."actorPublico" ELSE t."actor" END',
+              'CASE WHEN t."anonimizado" AND t."demandadoPublico" IS NOT NULL THEN t."demandadoPublico" ELSE t."demandado" END',
+              't."objeto"',
+              't."magistrados"',
+              't."sala"',
+              't."tipoFallo"',
+              't."tribunalOrigen"',
+              'CASE WHEN t."resumenPublicado" THEN t."resumenIa" ELSE NULL END',
+              'CASE WHEN t."resenaPublicada" THEN t."resena" ELSE NULL END',
+            ]
+          : ['t."textoBusquedaNormalizado"'];
+      const sentenceTextPredicate =
+        mode === 'public'
+          ? sentenceExpressions.map(
+              (expression) => Prisma.sql`
             ${Prisma.raw(normalizeSql(expression))} LIKE ${normalizedPattern}
-          `)
-        : [Prisma.sql`t."textoBusquedaNormalizado" LIKE ${normalizedPattern}`];
+          `,
+            )
+          : [
+              Prisma.sql`t."textoBusquedaNormalizado" LIKE ${normalizedPattern}`,
+            ];
       if (mode !== 'public') {
-        sentenceTextPredicate.push(Prisma.sql`t."textoBusqueda" ILIKE ${rawPattern} ESCAPE E'\\\\'`);
+        sentenceTextPredicate.push(
+          Prisma.sql`t."textoBusqueda" ILIKE ${rawPattern} ESCAPE E'\\\\'`,
+        );
       }
       const sumarioPredicates = Prisma.sql`(
         s."textoBusquedaNormalizado" LIKE ${normalizedPattern}
@@ -1571,15 +1801,18 @@ export class BusquedaService {
     `;
     const combine = (node: SearchNode | null): Prisma.Sql => {
       if (!node) return universe();
-      if (node.type === 'term' || node.type === 'phrase') return literalCandidates(node);
+      if (node.type === 'term' || node.type === 'phrase')
+        return literalCandidates(node);
       if (node.type === 'not') {
         return Prisma.sql`SELECT "id" FROM (${universe()}) AS "visibleUniverse"
           EXCEPT SELECT "id" FROM (${combine(node.operand)}) AS "excludedCandidates"`;
       }
       const operator = node.type === 'and' ? 'INTERSECT' : 'UNION';
-      const operands = node.operands.map((operand, index) => Prisma.sql`
+      const operands = node.operands.map(
+        (operand, index) => Prisma.sql`
         SELECT "id" FROM (${combine(operand)}) AS ${Prisma.raw(`"candidateOperand${index}"`)}
-      `);
+      `,
+      );
       if (!operands.length) return universe();
       return Prisma.sql`(${Prisma.join(operands, ` ${operator} `)})`;
     };
@@ -1590,7 +1823,10 @@ export class BusquedaService {
     return result.map((row) => row.id);
   }
 
-  private buildSearchNodeWhere(node: SearchNode, mode: SearchMode): Prisma.SentenciaWhereInput {
+  private buildSearchNodeWhere(
+    node: SearchNode,
+    mode: SearchMode,
+  ): Prisma.SentenciaWhereInput {
     switch (node.type) {
       case 'term':
       case 'phrase':
@@ -1598,9 +1834,17 @@ export class BusquedaService {
       case 'not':
         return { NOT: this.buildSearchNodeWhere(node.operand, mode) };
       case 'and':
-        return { AND: node.operands.map((operand) => this.buildSearchNodeWhere(operand, mode)) };
+        return {
+          AND: node.operands.map((operand) =>
+            this.buildSearchNodeWhere(operand, mode),
+          ),
+        };
       case 'or':
-        return { OR: node.operands.map((operand) => this.buildSearchNodeWhere(operand, mode)) };
+        return {
+          OR: node.operands.map((operand) =>
+            this.buildSearchNodeWhere(operand, mode),
+          ),
+        };
     }
   }
 
@@ -1620,17 +1864,32 @@ export class BusquedaService {
     }
 
     const matchMode = literal.type === 'term' ? literal.matchMode : 'contains';
-    const operation = matchMode === 'prefix'
-      ? 'startsWith'
-      : matchMode === 'suffix'
-        ? 'endsWith'
-        : 'contains';
+    const operation =
+      matchMode === 'prefix'
+        ? 'startsWith'
+        : matchMode === 'suffix'
+          ? 'endsWith'
+          : 'contains';
     const filter = { [operation]: literal.value, mode: 'insensitive' as const };
     switch (literal.field) {
       case 'tema':
-        return { sumarios: { some: { tema: filter, ...(mode === 'public' && { publicado: true, activo: true }) } } };
+        return {
+          sumarios: {
+            some: {
+              tema: filter,
+              ...(mode === 'public' && { publicado: true, activo: true }),
+            },
+          },
+        };
       case 'numeroSumario':
-        return { sumarios: { some: { numeroSumario: filter, ...(mode === 'public' && { publicado: true, activo: true }) } } };
+        return {
+          sumarios: {
+            some: {
+              numeroSumario: filter,
+              ...(mode === 'public' && { publicado: true, activo: true }),
+            },
+          },
+        };
       case 'sala':
         return { sala: filter };
       case 'tipoFallo':
@@ -1662,11 +1921,12 @@ export class BusquedaService {
   ): Prisma.SentenciaWhereInput[] {
     // The normalized text columns keep accent-insensitive search. Raw text is also
     // searched so an existing precomputed value that collapsed ñ cannot decide a match.
-    const rawOperation = matchMode === 'prefix'
-      ? 'startsWith'
-      : matchMode === 'suffix'
-        ? 'endsWith'
-        : 'contains';
+    const rawOperation =
+      matchMode === 'prefix'
+        ? 'startsWith'
+        : matchMode === 'suffix'
+          ? 'endsWith'
+          : 'contains';
     const rawFilter = { [rawOperation]: rawTerm, mode: 'insensitive' as const };
     return [
       { textoBusquedaNormalizado: { contains: term } },
@@ -1701,10 +1961,7 @@ export class BusquedaService {
       {
         referenciasJurisprudenciales: {
           some: {
-            OR: [
-              { referencia: rawFilter },
-              { textoOriginal: rawFilter },
-            ],
+            OR: [{ referencia: rawFilter }, { textoOriginal: rawFilter }],
           },
         },
       },
@@ -1820,7 +2077,10 @@ export class BusquedaService {
         },
       });
     }
-    if (parsed.fieldTerms.tema?.length || parsed.fieldTerms.numeroSumario?.length) {
+    if (
+      parsed.fieldTerms.tema?.length ||
+      parsed.fieldTerms.numeroSumario?.length
+    ) {
       clauses.push({
         sumarios: {
           some: {
@@ -1845,17 +2105,27 @@ export class BusquedaService {
     return clauses.length ? { AND: clauses } : {};
   }
 
-  private matchesLiteral(value: string | null | undefined, literal: SearchLiteralNode) {
+  private matchesLiteral(
+    value: string | null | undefined,
+    literal: SearchLiteralNode,
+  ) {
     const source = normalizeSearchText(value);
     const term = literal.normalizedValue;
     if (!source || !term) return false;
-    if (literal.type === 'phrase' || literal.matchMode === 'contains') return source.includes(term);
+    if (literal.type === 'phrase' || literal.matchMode === 'contains')
+      return source.includes(term);
 
     const escaped = term.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
     if (literal.matchMode === 'prefix') {
-      return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}[\\p{L}\\p{N}]*`, 'u').test(source);
+      return new RegExp(
+        `(?:^|[^\\p{L}\\p{N}])${escaped}[\\p{L}\\p{N}]*`,
+        'u',
+      ).test(source);
     }
-    return new RegExp(`(?:^|[^\\p{L}\\p{N}])[\\p{L}\\p{N}]*${escaped}(?:$|[^\\p{L}\\p{N}])`, 'u').test(source);
+    return new RegExp(
+      `(?:^|[^\\p{L}\\p{N}])[\\p{L}\\p{N}]*${escaped}(?:$|[^\\p{L}\\p{N}])`,
+      'u',
+    ).test(source);
   }
 
   private valuesForSearchField(
@@ -1864,26 +2134,40 @@ export class BusquedaService {
     sumarios: SearchCandidate['sumarios'],
     mode: SearchMode,
   ): Array<string | null | undefined> {
-    const actor = mode === 'public' && sentencia.anonimizado && sentencia.actorPublico
-      ? sentencia.actorPublico
-      : sentencia.actor;
-    const demandado = mode === 'public' && sentencia.anonimizado && sentencia.demandadoPublico
-      ? sentencia.demandadoPublico
-      : sentencia.demandado;
+    const actor =
+      mode === 'public' && sentencia.anonimizado && sentencia.actorPublico
+        ? sentencia.actorPublico
+        : sentencia.actor;
+    const demandado =
+      mode === 'public' && sentencia.anonimizado && sentencia.demandadoPublico
+        ? sentencia.demandadoPublico
+        : sentencia.demandado;
 
     switch (field) {
-      case 'tema': return sumarios.map((sumario) => sumario.tema);
-      case 'numeroSumario': return sumarios.map((sumario) => sumario.numeroSumario);
-      case 'sala': return [sentencia.sala];
-      case 'tipoFallo': return [sentencia.tipoFallo];
-      case 'tribunalOrigen': return [sentencia.tribunalOrigen];
-      case 'expediente': return [sentencia.expediente];
-      case 'caratula': return [sentencia.caratula, actor, demandado];
-      case 'actor': return [actor];
-      case 'demandado': return [demandado];
-      case 'objeto': return [sentencia.objeto];
-      case 'magistrados': return [sentencia.magistrados];
-      case 'numeroSentencia': return [sentencia.numeroSentencia];
+      case 'tema':
+        return sumarios.map((sumario) => sumario.tema);
+      case 'numeroSumario':
+        return sumarios.map((sumario) => sumario.numeroSumario);
+      case 'sala':
+        return [sentencia.sala];
+      case 'tipoFallo':
+        return [sentencia.tipoFallo];
+      case 'tribunalOrigen':
+        return [sentencia.tribunalOrigen];
+      case 'expediente':
+        return [sentencia.expediente];
+      case 'caratula':
+        return [sentencia.caratula, actor, demandado];
+      case 'actor':
+        return [actor];
+      case 'demandado':
+        return [demandado];
+      case 'objeto':
+        return [sentencia.objeto];
+      case 'magistrados':
+        return [sentencia.magistrados];
+      case 'numeroSentencia':
+        return [sentencia.numeroSentencia];
     }
   }
 
@@ -1908,7 +2192,6 @@ export class BusquedaService {
     parsed: ParsedSearchQuery,
     expandedTerms: string[],
     mode: SearchMode,
-    sortUsed: SortKey,
   ): ScoredResult | null {
     const areas = new Set(query.buscarEn?.length ? query.buscarEn : ['todo']);
     const sumarios = sentencia.sumarios.filter((sumario) =>
@@ -1931,18 +2214,17 @@ export class BusquedaService {
       ...(query.fraseExacta ? [query.fraseExacta] : []),
     ];
     const searchTerms = parsed.terms.filter(
-      (term) =>
-        !Object.values(parsed.fieldTerms)
-          .flat()
-          .includes(term),
+      (term) => !Object.values(parsed.fieldTerms).flat().includes(term),
     );
 
-    const actorPublico = sentencia.anonimizado && sentencia.actorPublico
-      ? sentencia.actorPublico
-      : sentencia.actor;
-    const demandadoPublico = sentencia.anonimizado && sentencia.demandadoPublico
-      ? sentencia.demandadoPublico
-      : sentencia.demandado;
+    const actorPublico =
+      sentencia.anonimizado && sentencia.actorPublico
+        ? sentencia.actorPublico
+        : sentencia.actor;
+    const demandadoPublico =
+      sentencia.anonimizado && sentencia.demandadoPublico
+        ? sentencia.demandadoPublico
+        : sentencia.demandado;
     const safePublicSentenceText = [
       mode === 'public' && sentencia.publicado && sentencia.activo
         ? sentencia.textoBusqueda
@@ -1959,33 +2241,46 @@ export class BusquedaService {
       sentencia.tribunalOrigen,
       sentencia.resumenPublicado ? sentencia.resumenIa : null,
       sentencia.resenaPublicada ? sentencia.resena : null,
-    ].filter(Boolean).join(' ');
+    ]
+      .filter(Boolean)
+      .join(' ');
     const referenceText = this.buildReferenceText(sentencia);
     const haystack = normalizeSearchText(
       areas.has('sentencia') || areas.has('todo')
         ? mode === 'public'
           ? safePublicSentenceText
-          : [sentencia.textoBusquedaNormalizado, sentencia.textoBusqueda].filter(Boolean).join(' ')
+          : [sentencia.textoBusquedaNormalizado, sentencia.textoBusqueda]
+              .filter(Boolean)
+              .join(' ')
         : '',
       areas.has('sumario') || areas.has('todo')
-        ? sumarios.flatMap((sumario) => [
-            sumario.textoBusquedaNormalizado,
-            sumario.textoBusqueda,
-            sumario.tema,
-            sumario.texto,
-            sumario.numeroSumario,
-          ]).join(' ')
+        ? sumarios
+            .flatMap((sumario) => [
+              sumario.textoBusquedaNormalizado,
+              sumario.textoBusqueda,
+              sumario.tema,
+              sumario.texto,
+              sumario.numeroSumario,
+            ])
+            .join(' ')
         : '',
       areas.has('referencias') || areas.has('todo') ? referenceText : '',
       mode === 'public' && !sentencia.resumenPublicado
         ? ''
-        : areas.has('resumen') ? sentencia.resumenIa : '',
+        : areas.has('resumen')
+          ? sentencia.resumenIa
+          : '',
       mode === 'public' && !sentencia.resenaPublicada
         ? ''
-        : areas.has('resena') || areas.has('reseña') ? sentencia.resena : '',
+        : areas.has('resena') || areas.has('reseña')
+          ? sentencia.resena
+          : '',
     );
 
-    if (!this.matchesSearchAst(parsed.root, sentencia, sumarios, haystack, mode)) return null;
+    if (
+      !this.matchesSearchAst(parsed.root, sentencia, sumarios, haystack, mode)
+    )
+      return null;
 
     for (const excluded of query.excluir ?? []) {
       const normalizedExcluded = normalizeSearchText(excluded);
@@ -2000,7 +2295,9 @@ export class BusquedaService {
     let directMatches = 0;
     let synonymMatches = 0;
     const matchedFields = new Set<string>();
-    const expandedSet = new Set(expandedTerms.map((term) => normalizeSearchText(term)));
+    const expandedSet = new Set(
+      expandedTerms.map((term) => normalizeSearchText(term)),
+    );
 
     const addIfMatch = (
       source: string | null | undefined,
@@ -2016,7 +2313,9 @@ export class BusquedaService {
 
       if (normalizedSource.includes(normalizedTerm)) {
         const isExpanded = expandedSet.has(normalizedTerm);
-        score += isExpanded ? Math.round(weight * SCORE_WEIGHTS.synonymMatchPenalty) : weight;
+        score += isExpanded
+          ? Math.round(weight * SCORE_WEIGHTS.synonymMatchPenalty)
+          : weight;
         if (isExpanded) {
           synonymMatches += 1;
         } else {
@@ -2033,31 +2332,111 @@ export class BusquedaService {
     for (const phrase of exactPhrases) {
       let matched = false;
       matched =
-        addIfMatch(sentencia.numeroSentencia, phrase, SCORE_WEIGHTS.exactNumeroExpediente, 'numeroSentencia') ||
-        addIfMatch(sentencia.expediente, phrase, SCORE_WEIGHTS.exactNumeroExpediente, 'expediente') ||
+        addIfMatch(
+          sentencia.numeroSentencia,
+          phrase,
+          SCORE_WEIGHTS.exactNumeroExpediente,
+          'numeroSentencia',
+        ) ||
+        addIfMatch(
+          sentencia.expediente,
+          phrase,
+          SCORE_WEIGHTS.exactNumeroExpediente,
+          'expediente',
+        ) ||
         sumarios.some((sumario) =>
-          addIfMatch(sumario.numeroSumario, phrase, SCORE_WEIGHTS.exactNumeroExpediente, 'numeroSumario'),
+          addIfMatch(
+            sumario.numeroSumario,
+            phrase,
+            SCORE_WEIGHTS.exactNumeroExpediente,
+            'numeroSumario',
+          ),
         ) ||
         sumarios.some((sumario) =>
           addIfMatch(sumario.tema, phrase, SCORE_WEIGHTS.exactTema, 'tema'),
         ) ||
-        addIfMatch(sentencia.resumenIa, phrase, SCORE_WEIGHTS.exactResumen, 'resumen') ||
-        addIfMatch(sentencia.resena, phrase, SCORE_WEIGHTS.exactResena, 'resena') ||
-        sumarios.some((sumario) =>
-          addIfMatch(sumario.textoBusqueda, phrase, SCORE_WEIGHTS.exactSumario, 'sumario'),
+        addIfMatch(
+          sentencia.resumenIa,
+          phrase,
+          SCORE_WEIGHTS.exactResumen,
+          'resumen',
         ) ||
-        addIfMatch(sentencia.caratula, phrase, SCORE_WEIGHTS.exactCampoPrincipal, 'caratula') ||
-        addIfMatch(sentencia.actor, phrase, SCORE_WEIGHTS.exactCampoPrincipal, 'actor') ||
-        addIfMatch(sentencia.demandado, phrase, SCORE_WEIGHTS.exactCampoPrincipal, 'demandado') ||
-        addIfMatch(sentencia.objeto, phrase, SCORE_WEIGHTS.exactCampoPrincipal, 'objeto') ||
-        addIfMatch(sentencia.magistrados, phrase, SCORE_WEIGHTS.exactCampoPrincipal, 'magistrados') ||
-        addIfMatch(sentencia.sala, phrase, SCORE_WEIGHTS.termSecundario, 'sala') ||
-        addIfMatch(sentencia.tipoFallo, phrase, SCORE_WEIGHTS.termSecundario, 'tipoFallo') ||
-        addIfMatch(sentencia.tribunalOrigen, phrase, SCORE_WEIGHTS.termSecundario, 'tribunalOrigen') ||
+        addIfMatch(
+          sentencia.resena,
+          phrase,
+          SCORE_WEIGHTS.exactResena,
+          'resena',
+        ) ||
+        sumarios.some((sumario) =>
+          addIfMatch(
+            sumario.textoBusqueda,
+            phrase,
+            SCORE_WEIGHTS.exactSumario,
+            'sumario',
+          ),
+        ) ||
+        addIfMatch(
+          sentencia.caratula,
+          phrase,
+          SCORE_WEIGHTS.exactCampoPrincipal,
+          'caratula',
+        ) ||
+        addIfMatch(
+          sentencia.actor,
+          phrase,
+          SCORE_WEIGHTS.exactCampoPrincipal,
+          'actor',
+        ) ||
+        addIfMatch(
+          sentencia.demandado,
+          phrase,
+          SCORE_WEIGHTS.exactCampoPrincipal,
+          'demandado',
+        ) ||
+        addIfMatch(
+          sentencia.objeto,
+          phrase,
+          SCORE_WEIGHTS.exactCampoPrincipal,
+          'objeto',
+        ) ||
+        addIfMatch(
+          sentencia.magistrados,
+          phrase,
+          SCORE_WEIGHTS.exactCampoPrincipal,
+          'magistrados',
+        ) ||
+        addIfMatch(
+          sentencia.sala,
+          phrase,
+          SCORE_WEIGHTS.termSecundario,
+          'sala',
+        ) ||
+        addIfMatch(
+          sentencia.tipoFallo,
+          phrase,
+          SCORE_WEIGHTS.termSecundario,
+          'tipoFallo',
+        ) ||
+        addIfMatch(
+          sentencia.tribunalOrigen,
+          phrase,
+          SCORE_WEIGHTS.termSecundario,
+          'tribunalOrigen',
+        ) ||
         (mode === 'public' && sentencia.publicado && sentencia.activo
-          ? addIfMatch(sentencia.textoBusqueda, phrase, SCORE_WEIGHTS.exactSumario, 'fallo')
+          ? addIfMatch(
+              sentencia.textoBusqueda,
+              phrase,
+              SCORE_WEIGHTS.exactSumario,
+              'fallo',
+            )
           : false) ||
-        addIfMatch(referenceText, phrase, SCORE_WEIGHTS.termSecundario, 'referencias');
+        addIfMatch(
+          referenceText,
+          phrase,
+          SCORE_WEIGHTS.termSecundario,
+          'referencias',
+        );
 
       if (matched) exactPhraseMatches += 1;
     }
@@ -2078,7 +2457,12 @@ export class BusquedaService {
             'expediente',
           ) ||
           sumarios.some((sumario) =>
-            addIfMatch(sumario.numeroSumario, term, SCORE_WEIGHTS.termNumeroExpediente, 'numeroSumario'),
+            addIfMatch(
+              sumario.numeroSumario,
+              term,
+              SCORE_WEIGHTS.termNumeroExpediente,
+              'numeroSumario',
+            ),
           ) ||
           sumarios.some((sumario) =>
             addIfMatch(sumario.tema, term, SCORE_WEIGHTS.termTema, 'tema'),
@@ -2089,22 +2473,82 @@ export class BusquedaService {
             SCORE_WEIGHTS.termResumen,
             'resumen',
           ) ||
-          addIfMatch(sentencia.resena, term, SCORE_WEIGHTS.termResena, 'resena') ||
-          sumarios.some((sumario) =>
-            addIfMatch(sumario.textoBusqueda, term, SCORE_WEIGHTS.termSumario, 'sumario'),
+          addIfMatch(
+            sentencia.resena,
+            term,
+            SCORE_WEIGHTS.termResena,
+            'resena',
           ) ||
-          addIfMatch(sentencia.actor, term, SCORE_WEIGHTS.termActorDemandadoCaratula, 'actor') ||
-          addIfMatch(sentencia.demandado, term, SCORE_WEIGHTS.termActorDemandadoCaratula, 'demandado') ||
-          addIfMatch(sentencia.objeto, term, SCORE_WEIGHTS.termObjeto, 'objeto') ||
-          addIfMatch(sentencia.magistrados, term, SCORE_WEIGHTS.termMagistrados, 'magistrados') ||
-          addIfMatch(sentencia.caratula, term, SCORE_WEIGHTS.termActorDemandadoCaratula, 'caratula') ||
-          addIfMatch(sentencia.sala, term, SCORE_WEIGHTS.termSecundario, 'sala') ||
-          addIfMatch(sentencia.tipoFallo, term, SCORE_WEIGHTS.termSecundario, 'tipoFallo') ||
-          addIfMatch(sentencia.tribunalOrigen, term, SCORE_WEIGHTS.termSecundario, 'tribunalOrigen') ||
+          sumarios.some((sumario) =>
+            addIfMatch(
+              sumario.textoBusqueda,
+              term,
+              SCORE_WEIGHTS.termSumario,
+              'sumario',
+            ),
+          ) ||
+          addIfMatch(
+            sentencia.actor,
+            term,
+            SCORE_WEIGHTS.termActorDemandadoCaratula,
+            'actor',
+          ) ||
+          addIfMatch(
+            sentencia.demandado,
+            term,
+            SCORE_WEIGHTS.termActorDemandadoCaratula,
+            'demandado',
+          ) ||
+          addIfMatch(
+            sentencia.objeto,
+            term,
+            SCORE_WEIGHTS.termObjeto,
+            'objeto',
+          ) ||
+          addIfMatch(
+            sentencia.magistrados,
+            term,
+            SCORE_WEIGHTS.termMagistrados,
+            'magistrados',
+          ) ||
+          addIfMatch(
+            sentencia.caratula,
+            term,
+            SCORE_WEIGHTS.termActorDemandadoCaratula,
+            'caratula',
+          ) ||
+          addIfMatch(
+            sentencia.sala,
+            term,
+            SCORE_WEIGHTS.termSecundario,
+            'sala',
+          ) ||
+          addIfMatch(
+            sentencia.tipoFallo,
+            term,
+            SCORE_WEIGHTS.termSecundario,
+            'tipoFallo',
+          ) ||
+          addIfMatch(
+            sentencia.tribunalOrigen,
+            term,
+            SCORE_WEIGHTS.termSecundario,
+            'tribunalOrigen',
+          ) ||
           (mode === 'public' && sentencia.publicado && sentencia.activo
-            ? addIfMatch(sentencia.textoBusqueda, term, SCORE_WEIGHTS.termSumario, 'fallo')
+            ? addIfMatch(
+                sentencia.textoBusqueda,
+                term,
+                SCORE_WEIGHTS.termSumario,
+                'fallo',
+              )
             : false) ||
-          addIfMatch(referenceText, term, SCORE_WEIGHTS.termSecundario, 'referencias');
+          addIfMatch(
+            referenceText,
+            term,
+            SCORE_WEIGHTS.termSecundario,
+            'referencias',
+          );
 
         return termMatched;
       });
@@ -2153,7 +2597,14 @@ export class BusquedaService {
       score += SCORE_WEIGHTS.destacadaBonus;
     }
     const pdfFilter = this.resolvePdfFilter(query);
-    if (!this.matchesPdfFilter(sentencia.id, sentencia.tienePdf, sentencia.archivosPdf, pdfFilter)) {
+    if (
+      !this.matchesPdfFilter(
+        sentencia.id,
+        sentencia.tienePdf,
+        sentencia.archivosPdf,
+        pdfFilter,
+      )
+    ) {
       return null;
     }
     const pdfReal = sentenciaTienePdfReal(sentencia.archivosPdf);
@@ -2172,10 +2623,19 @@ export class BusquedaService {
       score = 0;
     }
 
-    const highlights = this.buildHighlights(sentencia, sumarios, highlightsTerms);
-    const resumenBreve = sentencia.resumenIa?.slice(0, 260) ?? sentencia.resena?.slice(0, 260) ?? null;
+    const highlights = this.buildHighlights(
+      sentencia,
+      sumarios,
+      highlightsTerms,
+    );
+    const resumenBreve =
+      sentencia.resumenIa?.slice(0, 260) ??
+      sentencia.resena?.slice(0, 260) ??
+      null;
     const criterioPrincipal = this.resolveCriterioPrincipal(matchedFields);
-    const publicParts = [actorPublico, demandadoPublico].filter(Boolean).join(' c/ ');
+    const publicParts = [actorPublico, demandadoPublico]
+      .filter(Boolean)
+      .join(' c/ ');
     const caratulaPublica =
       mode === 'public' && sentencia.anonimizado
         ? publicParts || sentencia.caratula
@@ -2184,7 +2644,12 @@ export class BusquedaService {
     return {
       sentencia: {
         id: sentencia.id,
-        legacyCorpus: Boolean(mode === 'public' && sentencia.publicado && sumarios.length === 0 && sentencia.textoBusqueda),
+        legacyCorpus: Boolean(
+          mode === 'public' &&
+          sentencia.publicado &&
+          sumarios.length === 0 &&
+          sentencia.textoBusqueda,
+        ),
         slugPublico: sentencia.slugPublico,
         caratula: caratulaPublica,
         numeroSentencia: sentencia.numeroSentencia,
@@ -2204,9 +2669,13 @@ export class BusquedaService {
         pdfDisponible: pdfReal.disponible,
         archivoPdfId: pdfReal.archivoPdfId,
         resumenPublicado: sentencia.resumenPublicado,
-        extractoFallo: mode === 'public' && sentencia.publicado && sentencia.activo && sumarios.length === 0
-          ? buildDocumentExcerpt(sentencia.textoBusqueda, highlightsTerms[0])
-          : null,
+        extractoFallo:
+          mode === 'public' &&
+          sentencia.publicado &&
+          sentencia.activo &&
+          sumarios.length === 0
+            ? buildDocumentExcerpt(sentencia.textoBusqueda, highlightsTerms[0])
+            : null,
       },
       cantidadSumarios: sentencia._count.sumarios,
       cantidadPdfs: pdfReal.cantidad,
@@ -2274,12 +2743,14 @@ export class BusquedaService {
     ];
     const exactPhrases = parsed.exactPhrases;
     const excludedTerms = [...parsed.excludedTerms, ...parsed.excludedPhrases];
-    const actorPublico = sentencia.anonimizado && sentencia.actorPublico
-      ? sentencia.actorPublico
-      : sentencia.actor;
-    const demandadoPublico = sentencia.anonimizado && sentencia.demandadoPublico
-      ? sentencia.demandadoPublico
-      : sentencia.demandado;
+    const actorPublico =
+      sentencia.anonimizado && sentencia.actorPublico
+        ? sentencia.actorPublico
+        : sentencia.actor;
+    const demandadoPublico =
+      sentencia.anonimizado && sentencia.demandadoPublico
+        ? sentencia.demandadoPublico
+        : sentencia.demandado;
 
     if (
       !this.matchesExplicitSentenciaFilters(sentencia, query) ||
@@ -2318,7 +2789,9 @@ export class BusquedaService {
     let termMatches = 0;
     let exactPhraseMatches = 0;
     const matchedFields = new Set<string>();
-    const expandedSet = new Set(expandedTerms.map((term) => normalizeSearchText(term)));
+    const expandedSet = new Set(
+      expandedTerms.map((term) => normalizeSearchText(term)),
+    );
 
     const addIfMatch = (
       source: string | null | undefined,
@@ -2334,7 +2807,9 @@ export class BusquedaService {
 
       if (normalizedSource.includes(normalizedTerm)) {
         const isExpanded = expandedSet.has(normalizedTerm);
-        score += isExpanded ? Math.round(weight * SCORE_WEIGHTS.synonymMatchPenalty) : weight;
+        score += isExpanded
+          ? Math.round(weight * SCORE_WEIGHTS.synonymMatchPenalty)
+          : weight;
         if (isExpanded) {
           synonymMatches += 1;
         } else {
@@ -2369,7 +2844,12 @@ export class BusquedaService {
           'numeroSumario',
         ) ||
         addIfMatch(candidate.tema, phrase, SCORE_WEIGHTS.exactTema, 'tema') ||
-        addIfMatch(sentencia.caratula, phrase, SCORE_WEIGHTS.exactCampoPrincipal, 'caratula') ||
+        addIfMatch(
+          sentencia.caratula,
+          phrase,
+          SCORE_WEIGHTS.exactCampoPrincipal,
+          'caratula',
+        ) ||
         addIfMatch(
           sentencia.resumenPublicado ? sentencia.resumenIa : '',
           phrase,
@@ -2382,12 +2862,42 @@ export class BusquedaService {
           SCORE_WEIGHTS.exactResena,
           'resena',
         ) ||
-        addIfMatch(candidate.texto, phrase, SCORE_WEIGHTS.exactSumario, 'sumario') ||
-        addIfMatch(sentencia.magistrados, phrase, SCORE_WEIGHTS.exactCampoPrincipal, 'magistrados') ||
-        addIfMatch(sentencia.sala, phrase, SCORE_WEIGHTS.termSecundario, 'sala') ||
-        addIfMatch(sentencia.tipoFallo, phrase, SCORE_WEIGHTS.termSecundario, 'tipoFallo') ||
-        addIfMatch(sentencia.tribunalOrigen, phrase, SCORE_WEIGHTS.termSecundario, 'tribunalOrigen') ||
-        addIfMatch(this.buildReferenceText(sentencia), phrase, SCORE_WEIGHTS.termSecundario, 'referencias');
+        addIfMatch(
+          candidate.texto,
+          phrase,
+          SCORE_WEIGHTS.exactSumario,
+          'sumario',
+        ) ||
+        addIfMatch(
+          sentencia.magistrados,
+          phrase,
+          SCORE_WEIGHTS.exactCampoPrincipal,
+          'magistrados',
+        ) ||
+        addIfMatch(
+          sentencia.sala,
+          phrase,
+          SCORE_WEIGHTS.termSecundario,
+          'sala',
+        ) ||
+        addIfMatch(
+          sentencia.tipoFallo,
+          phrase,
+          SCORE_WEIGHTS.termSecundario,
+          'tipoFallo',
+        ) ||
+        addIfMatch(
+          sentencia.tribunalOrigen,
+          phrase,
+          SCORE_WEIGHTS.termSecundario,
+          'tribunalOrigen',
+        ) ||
+        addIfMatch(
+          this.buildReferenceText(sentencia),
+          phrase,
+          SCORE_WEIGHTS.termSecundario,
+          'referencias',
+        );
 
       if (!matched) {
         return null;
@@ -2428,8 +2938,18 @@ export class BusquedaService {
           SCORE_WEIGHTS.termResena,
           'resena',
         ) ||
-        addIfMatch(candidate.texto, term, SCORE_WEIGHTS.termSumario, 'sumario') ||
-        addIfMatch(actorPublico, term, SCORE_WEIGHTS.termActorDemandadoCaratula, 'actor') ||
+        addIfMatch(
+          candidate.texto,
+          term,
+          SCORE_WEIGHTS.termSumario,
+          'sumario',
+        ) ||
+        addIfMatch(
+          actorPublico,
+          term,
+          SCORE_WEIGHTS.termActorDemandadoCaratula,
+          'actor',
+        ) ||
         addIfMatch(
           demandadoPublico,
           term,
@@ -2442,11 +2962,36 @@ export class BusquedaService {
           SCORE_WEIGHTS.termMagistrados,
           'magistrados',
         ) ||
-        addIfMatch(sentencia.caratula, term, SCORE_WEIGHTS.termActorDemandadoCaratula, 'caratula') ||
-        addIfMatch(sentencia.sala, term, SCORE_WEIGHTS.termSecundario, 'sala') ||
-        addIfMatch(sentencia.tipoFallo, term, SCORE_WEIGHTS.termSecundario, 'tipoFallo') ||
-        addIfMatch(sentencia.tribunalOrigen, term, SCORE_WEIGHTS.termSecundario, 'tribunalOrigen') ||
-        addIfMatch(this.buildReferenceText(sentencia), term, SCORE_WEIGHTS.termSecundario, 'referencias');
+        addIfMatch(
+          sentencia.caratula,
+          term,
+          SCORE_WEIGHTS.termActorDemandadoCaratula,
+          'caratula',
+        ) ||
+        addIfMatch(
+          sentencia.sala,
+          term,
+          SCORE_WEIGHTS.termSecundario,
+          'sala',
+        ) ||
+        addIfMatch(
+          sentencia.tipoFallo,
+          term,
+          SCORE_WEIGHTS.termSecundario,
+          'tipoFallo',
+        ) ||
+        addIfMatch(
+          sentencia.tribunalOrigen,
+          term,
+          SCORE_WEIGHTS.termSecundario,
+          'tribunalOrigen',
+        ) ||
+        addIfMatch(
+          this.buildReferenceText(sentencia),
+          term,
+          SCORE_WEIGHTS.termSecundario,
+          'referencias',
+        );
 
       if (matched) {
         termMatches += 1;
@@ -2503,15 +3048,24 @@ export class BusquedaService {
     }
 
     const pdfFilter = this.resolvePdfFilter(query);
-    if (!this.matchesPdfFilter(sentencia.id, sentencia.tienePdf, sentencia.archivosPdf, pdfFilter)) {
+    if (
+      !this.matchesPdfFilter(
+        sentencia.id,
+        sentencia.tienePdf,
+        sentencia.archivosPdf,
+        pdfFilter,
+      )
+    ) {
       return null;
     }
     const pdfReal = sentenciaTienePdfReal(sentencia.archivosPdf);
 
     if (sentencia.publicado) score += SCORE_WEIGHTS.publicadaBonus;
-    if (pdfReal.disponible && pdfFilter !== 'todos') score += SCORE_WEIGHTS.pdfBonus;
+    if (pdfReal.disponible && pdfFilter !== 'todos')
+      score += SCORE_WEIGHTS.pdfBonus;
     if (sentencia.resenaPublicada) score += SCORE_WEIGHTS.resenaPublicadaBonus;
-    if ((candidate.sentencia as { destacada?: boolean }).destacada) score += SCORE_WEIGHTS.destacadaBonus;
+    if ((candidate.sentencia as { destacada?: boolean }).destacada)
+      score += SCORE_WEIGHTS.destacadaBonus;
 
     const highlights = this.buildPublicHighlights(candidate, searchTerms);
     const criterioPrincipal = this.resolveCriterioPrincipal(matchedFields);
@@ -2537,9 +3091,10 @@ export class BusquedaService {
       tienePdf: pdfReal.disponible,
       pdfDisponible: pdfReal.disponible,
       archivoPdfId: pdfReal.archivoPdfId,
-      pdfUrl: sentencia.slugPublico && pdfReal.disponible
-        ? `/api/public/sentencias/${sentencia.slugPublico}/pdf`
-        : null,
+      pdfUrl:
+        sentencia.slugPublico && pdfReal.disponible
+          ? `/api/public/sentencias/${sentencia.slugPublico}/pdf`
+          : null,
       score,
       criterioPrincipal,
       matchedFields: [...matchedFields],
@@ -2553,10 +3108,9 @@ export class BusquedaService {
     };
   }
 
-  private async applySemanticBonus<T extends { score: number; matchInfo: MatchInfo }>(
-    results: T[],
-    q?: string,
-  ): Promise<T[]> {
+  private async applySemanticBonus<
+    T extends { score: number; matchInfo: MatchInfo },
+  >(results: T[], q?: string): Promise<T[]> {
     const query = q?.trim();
     if (!query || !results.length) {
       return results.map((result) => ({
@@ -2572,7 +3126,7 @@ export class BusquedaService {
 
     const similares = await Promise.race([
       this.ragService.buscarFallosSimilares(query, 30),
-      new Promise<[]>(resolve => setTimeout(() => resolve([]), 2500)),
+      new Promise<[]>((resolve) => setTimeout(() => resolve([]), 2500)),
     ]).catch(() => []);
 
     if (!similares.length) {
@@ -2597,7 +3151,9 @@ export class BusquedaService {
         'sentencia' in result
           ? (result as T & { sentencia: { id: number } }).sentencia.id
           : (result as T & { sentenciaId?: number }).sentenciaId;
-      const semanticScore = sentenciaId ? scoreBySentencia.get(sentenciaId) ?? 0 : 0;
+      const semanticScore = sentenciaId
+        ? (scoreBySentencia.get(sentenciaId) ?? 0)
+        : 0;
       const bonus = Math.round(semanticScore * 25);
       const finalScore = result.score + bonus;
 
@@ -2637,16 +3193,42 @@ export class BusquedaService {
 
     pushHighlight(buildHighlight('tema', candidate.tema, searchTerms));
     pushHighlight(buildHighlight('sumario', candidate.texto, searchTerms));
-    pushHighlight(buildHighlight('numeroSentencia', candidate.sentencia.numeroSentencia, searchTerms));
-    pushHighlight(buildHighlight('expediente', candidate.sentencia.expediente, searchTerms));
-    pushHighlight(buildHighlight('magistrados', candidate.sentencia.magistrados, searchTerms));
-    pushHighlight(buildHighlight('sala', candidate.sentencia.sala, searchTerms));
-    pushHighlight(buildHighlight('tipoFallo', candidate.sentencia.tipoFallo, searchTerms));
-    pushHighlight(buildHighlight('tribunalOrigen', candidate.sentencia.tribunalOrigen, searchTerms));
+    pushHighlight(
+      buildHighlight(
+        'numeroSentencia',
+        candidate.sentencia.numeroSentencia,
+        searchTerms,
+      ),
+    );
+    pushHighlight(
+      buildHighlight('expediente', candidate.sentencia.expediente, searchTerms),
+    );
+    pushHighlight(
+      buildHighlight(
+        'magistrados',
+        candidate.sentencia.magistrados,
+        searchTerms,
+      ),
+    );
+    pushHighlight(
+      buildHighlight('sala', candidate.sentencia.sala, searchTerms),
+    );
+    pushHighlight(
+      buildHighlight('tipoFallo', candidate.sentencia.tipoFallo, searchTerms),
+    );
+    pushHighlight(
+      buildHighlight(
+        'tribunalOrigen',
+        candidate.sentencia.tribunalOrigen,
+        searchTerms,
+      ),
+    );
     pushHighlight(
       buildHighlight(
         'resumen',
-        candidate.sentencia.resumenPublicado ? candidate.sentencia.resumenIa : '',
+        candidate.sentencia.resumenPublicado
+          ? candidate.sentencia.resumenIa
+          : '',
         searchTerms,
       ),
     );
@@ -2657,7 +3239,9 @@ export class BusquedaService {
         searchTerms,
       ),
     );
-    pushHighlight(buildHighlight('caratula', candidate.sentencia.caratula, searchTerms));
+    pushHighlight(
+      buildHighlight('caratula', candidate.sentencia.caratula, searchTerms),
+    );
 
     return highlights.slice(0, 3);
   }
@@ -2685,16 +3269,28 @@ export class BusquedaService {
 
     pushHighlight(buildHighlight('resumen', sentencia.resumenIa, searchTerms));
     pushHighlight(buildHighlight('resena', sentencia.resena, searchTerms));
-    pushHighlight(buildHighlight('numeroSentencia', sentencia.numeroSentencia, searchTerms));
-    pushHighlight(buildHighlight('expediente', sentencia.expediente, searchTerms));
+    pushHighlight(
+      buildHighlight('numeroSentencia', sentencia.numeroSentencia, searchTerms),
+    );
+    pushHighlight(
+      buildHighlight('expediente', sentencia.expediente, searchTerms),
+    );
     pushHighlight(buildHighlight('caratula', sentencia.caratula, searchTerms));
     pushHighlight(buildHighlight('objeto', sentencia.objeto, searchTerms));
     pushHighlight(buildHighlight('actor', sentencia.actor, searchTerms));
-    pushHighlight(buildHighlight('demandado', sentencia.demandado, searchTerms));
-    pushHighlight(buildHighlight('magistrados', sentencia.magistrados, searchTerms));
+    pushHighlight(
+      buildHighlight('demandado', sentencia.demandado, searchTerms),
+    );
+    pushHighlight(
+      buildHighlight('magistrados', sentencia.magistrados, searchTerms),
+    );
     pushHighlight(buildHighlight('sala', sentencia.sala, searchTerms));
-    pushHighlight(buildHighlight('tipoFallo', sentencia.tipoFallo, searchTerms));
-    pushHighlight(buildHighlight('tribunalOrigen', sentencia.tribunalOrigen, searchTerms));
+    pushHighlight(
+      buildHighlight('tipoFallo', sentencia.tipoFallo, searchTerms),
+    );
+    pushHighlight(
+      buildHighlight('tribunalOrigen', sentencia.tribunalOrigen, searchTerms),
+    );
 
     for (const sumario of sumarios) {
       if (highlights.length >= 4) {
@@ -2760,8 +3356,9 @@ export class BusquedaService {
       }
       if (effectiveSort === 'sala') {
         return (
-          (left.sentencia.sala ?? '').localeCompare(right.sentencia.sala ?? '') *
-          direction
+          (left.sentencia.sala ?? '').localeCompare(
+            right.sentencia.sala ?? '',
+          ) * direction
         );
       }
       if (effectiveSort === 'numeroSentencia') {
@@ -2804,8 +3401,9 @@ export class BusquedaService {
       }
       if (sortBy === 'numeroSentencia') {
         return (
-          (left.numeroSentencia ?? '').localeCompare(right.numeroSentencia ?? '') *
-          direction
+          (left.numeroSentencia ?? '').localeCompare(
+            right.numeroSentencia ?? '',
+          ) * direction
         );
       }
 

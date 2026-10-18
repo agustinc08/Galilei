@@ -62,19 +62,22 @@ describe('findDocumentMatches', () => {
     expect(result.exactTotalKnown).toBe(false);
   });
 
-  it.each([1, 10, 100])('reports exact navigation counts for %i matches', (count) => {
-    const result = findDocumentMatches(
-      [{ pageNumber: 1, text: 'fallo '.repeat(count) }],
-      'fallo',
-    );
-    expect(result).toMatchObject({
-      total: count,
-      returned: count,
-      exactTotalKnown: true,
-      truncated: false,
-    });
-    expect(result.matches).toHaveLength(count);
-  });
+  it.each([1, 10, 100])(
+    'reports exact navigation counts for %i matches',
+    (count) => {
+      const result = findDocumentMatches(
+        [{ pageNumber: 1, text: 'fallo '.repeat(count) }],
+        'fallo',
+      );
+      expect(result).toMatchObject({
+        total: count,
+        returned: count,
+        exactTotalKnown: true,
+        truncated: false,
+      });
+      expect(result.matches).toHaveLength(count);
+    },
+  );
 
   it('returns original-text spans with vowel accent folding and keeps ñ distinct', () => {
     const result = findDocumentMatches(
@@ -100,28 +103,28 @@ describe('findDocumentMatches', () => {
     ).toHaveLength(0);
   });
 
-  it('maps prefix and suffix matches to the full original token, including UTF-16 text before it', () => {
+  it('maps prefix and suffix matches to the queried span, including UTF-16 text before it', () => {
     const page = [{ pageNumber: 1, text: '📚 Daño y responsabilidad.' }];
     const prefix = findDocumentMatches(page, 'respons%');
     const suffix = findDocumentMatches(page, '%bilidad');
 
     expect(prefix.matches[0]).toMatchObject({
       start: '📚 Daño y '.length,
-      end: '📚 Daño y responsabilidad'.length,
-      text: 'responsabilidad',
+      end: '📚 Daño y respons'.length,
+      text: 'respons',
       term: 'respons',
       kind: 'TERM',
     });
     expect(suffix.matches[0]).toMatchObject({
-      start: '📚 Daño y '.length,
+      start: '📚 Daño y responsabilidad'.length - 'bilidad'.length,
       end: '📚 Daño y responsabilidad'.length,
-      text: 'responsabilidad',
+      text: 'bilidad',
       term: 'bilidad',
       kind: 'TERM',
     });
   });
 
-  it('marks an adjacent phrase as one exact span and rejects separated or punctuated words', () => {
+  it('marks exact lexical phrases with normalized punctuation and rejects separated or embedded words', () => {
     const query = '"daño moral"';
     const exact = findDocumentMatches(
       [{ pageNumber: 2, text: 'Daño moral reconocido.' }],
@@ -146,6 +149,19 @@ describe('findDocumentMatches', () => {
     expect(
       findDocumentMatches([{ pageNumber: 1, text: 'Daño, moral.' }], query)
         .matches,
+    ).toEqual([
+      expect.objectContaining({
+        start: 0,
+        end: 11,
+        text: 'Daño, moral',
+        kind: 'PHRASE',
+      }),
+    ]);
+    expect(
+      findDocumentMatches(
+        [{ pageNumber: 1, text: 'superresponsabilidad civilizado' }],
+        '"responsabilidad civil"',
+      ).matches,
     ).toHaveLength(0);
     expect(
       findDocumentMatches([{ pageNumber: 1, text: 'Daño\nmoral.' }], query)
@@ -168,6 +184,21 @@ describe('findDocumentMatches', () => {
         text: 'Daño   moral',
         kind: 'PHRASE',
       }),
+    ]);
+  });
+
+  it('uses token-prefix and exact quoted-word spans instead of infix matching', () => {
+    const page = [{ pageNumber: 1, text: 'civilización incivil anticivil' }];
+    const prefix = findDocumentMatches(page, 'civil');
+    const quotedWord = findDocumentMatches(page, '"civil"');
+    const explicitContains = findDocumentMatches(page, '%vil%');
+
+    expect(prefix.matches.map((match) => match.text)).toEqual(['civil']);
+    expect(quotedWord.matches).toHaveLength(0);
+    expect(explicitContains.matches.map((match) => match.text)).toEqual([
+      'vil',
+      'vil',
+      'vil',
     ]);
   });
 

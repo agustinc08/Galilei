@@ -46,12 +46,19 @@ test('Galilei keeps its three destinations visible across authenticated routes',
   await expect(navigation.getByRole('link', { name: /Mis documentos/u })).toBeVisible();
   await expect(navigation.getByRole('link', { name: /Copernic|Workspace/u })).toHaveCount(0);
 
-  await page.goto('/consulta');
+  await page.goto('/consulta?q=responsabilidad%20civil');
   await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { name: 'Jurisprudencia', exact: true })).toBeVisible();
-  await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();
+  const search = page.getByLabel('Buscar jurisprudencia');
+  await expect(search).toHaveValue('responsabilidad civil');
   await expect(page.getByText('Buscando fallos…')).toHaveCount(0, { timeout: 30_000 });
-  await expect(page.getByRole('status')).toContainText(/No encontramos fallos|No hay resultados/u);
+  await expect(page.getByText(/\d[\d.,]* resultados/u).first()).toBeVisible();
+  const realResult = page.locator('article').first();
+  await expect(realResult).toBeVisible();
+  await expect(realResult.getByRole('link', { name: 'Ver fallo' })).toHaveAttribute(
+    'href',
+    /^\/fallos\//u,
+  );
   await captureResponsive('jurisprudencia');
 
   await page.goto('/spaces');

@@ -55,13 +55,99 @@ const actions = {
   'int1-temp-create': 'node scripts/dev/int1-temp-db.cjs create',
   'int1-temp-drop': 'node scripts/dev/int1-temp-db.cjs drop',
   'int1-temp-inspect': 'node scripts/dev/int1-temp-db.cjs inspect',
+  'opensearch-status':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts status',
+  'opensearch-verify':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts verify',
+  'opensearch-rebuild':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts rebuild',
+  'opensearch-candidate':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts candidate',
+  'opensearch-sync-once':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts sync-once',
+  'opensearch-retry-failed':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts retry-failed',
+  'opensearch-cleanup':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts cleanup',
+  'opensearch-certify':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-contract-check.ts',
+  'opensearch-http-smoke':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-http-smoke.ts',
+  'int151-critical-reference':
+    'pnpm.cmd exec ts-node scripts/dev/int151-critical-reference.ts',
+  'int151-names-http': 'pnpm.cmd exec ts-node scripts/dev/int151-names-http.ts',
+  'int151-http-semantics':
+    'pnpm.cmd exec ts-node scripts/dev/int151-http-semantics.ts',
+  'int151-http-matrix':
+    'pnpm.cmd exec ts-node scripts/dev/int151-http-matrix.ts',
+  'int151-http-sort-pagination':
+    'pnpm.cmd exec ts-node scripts/dev/int151-http-sort-pagination.ts',
+  'int151-http-adversarial':
+    'pnpm.cmd exec ts-node scripts/dev/int151-http-adversarial.ts',
+  'int151-publication-http':
+    'pnpm.cmd exec ts-node scripts/dev/int151-publication-http.ts',
+  'int151-publication-leak-http':
+    'pnpm.cmd exec ts-node scripts/dev/int151-publication-leak-http.ts',
+  'int151-http-performance':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-http-performance.ts',
+  'int151-viewer-http':
+    'pnpm.cmd exec ts-node scripts/dev/int151-viewer-http.ts',
+  'int151-corpus-viewer-http':
+    'pnpm.cmd exec ts-node scripts/dev/int151-corpus-viewer-http.ts',
+  'int151-utf16-http': 'pnpm.cmd exec ts-node scripts/dev/int151-utf16-http.ts',
+  'int151-sync-matrix-http':
+    'pnpm.cmd exec ts-node scripts/dev/int151-sync-matrix-http.ts',
+  'int151-rebuild-race-concise':
+    'pnpm.cmd exec ts-node scripts/dev/int151-rebuild-race-concise.ts',
+  'int151-fail-closed-body-http':
+    'pnpm.cmd exec ts-node scripts/dev/int151-fail-closed-body-http.ts',
+  'int151-backfill-scopes':
+    'pnpm.cmd exec ts-node scripts/dev/int151-backfill-scope-sequences.ts',
+  'opensearch-performance':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-contract-check.ts --performance-only',
+  'int141-workspace-audit': 'node scripts/dev/int141-workspace-audit.cjs',
+  'int141-candidate-benchmark':
+    'pnpm.cmd exec ts-node scripts/dev/int141-candidate-benchmark.ts',
+  'int141-candidate-parity':
+    'pnpm.cmd exec ts-node scripts/dev/int141-candidate-parity.ts',
+  'int141-critical-exactness':
+    'pnpm.cmd exec ts-node scripts/dev/int141-critical-exactness.ts',
+  'int141-sort-diagnose':
+    'pnpm.cmd exec ts-node scripts/dev/int141-sort-diagnose.ts',
+  'int141-workspace-name-proof':
+    'pnpm.cmd exec ts-node scripts/dev/int141-workspace-name-proof.ts',
+  'opensearch-fixture-golden':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-fixture-golden.ts',
+  'opensearch-outage-prepare':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-outage-certify.ts prepare',
+  'opensearch-outage-recover':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-outage-certify.ts recover',
+  'opensearch-race-prepare':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-race-certify.ts prepare',
+  'opensearch-race-mutate':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-race-certify.ts mutate',
+  'opensearch-race-verify':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-race-certify.ts verify',
+  'int12-search-census':
+    'pnpm.cmd exec ts-node scripts/dev/search-integration-census.ts',
+  test: 'pnpm.cmd test --runInBand',
   'int1-storage-audit': 'node scripts/dev/int1-storage-audit.cjs',
+  'int1-orphan-private-upload-audit':
+    'node scripts/dev/int1-cleanup-orphan-private-upload.cjs audit',
+  'int1-orphan-private-upload-cleanup':
+    'node scripts/dev/int1-cleanup-orphan-private-upload.cjs cleanup',
+  'int1s-search-diagnostics': 'node scripts/dev/int1s-search-diagnostics.cjs',
+  'int1s-phrase-stability':
+    'pnpm.cmd exec ts-node scripts/dev/int1s-phrase-stability.ts',
   'int1-temp-migrate': 'pnpm.cmd exec prisma migrate deploy',
   'int1-temp-status': 'pnpm.cmd exec prisma migrate status',
   'int1-temp-validate': 'pnpm.cmd exec prisma validate',
   'int1-temp-generate': 'pnpm.cmd exec prisma generate',
-  'int1-temp-diff': 'pnpm.cmd exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code',
+  'int1-temp-diff':
+    'pnpm.cmd exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code',
   'int1-dev-backup': 'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts',
+  'int1-final-backup':
+    'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts --final',
   typecheck: 'pnpm.cmd exec tsc --noEmit',
   'schema-verify': 'node scripts/dev/verify-search-schema.cjs',
   'fixture-import':
@@ -79,14 +165,12 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/sprint122-semantic-parity.ts',
   'sprint122-field-parity':
     'pnpm.cmd exec ts-node scripts/dev/sprint122-semantic-parity.ts --family=FIELD',
-  'sprint122-backup':
-    'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts',
+  'sprint122-backup': 'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts',
   'sprint122-final-backup':
     'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts --final',
   'sprint123-final-backup':
     'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts --final',
-  'sprint122-explain':
-    'pnpm.cmd exec ts-node scripts/dev/sprint122-explain.ts',
+  'sprint122-explain': 'pnpm.cmd exec ts-node scripts/dev/sprint122-explain.ts',
   'sprint122-migration-schema':
     'pnpm.cmd exec ts-node scripts/dev/sprint122-migration-schema-smoke.ts',
   'sprint122-concurrency':
@@ -109,6 +193,18 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/sprint123-search-path-comparison.ts',
   'sprint123-explain':
     'pnpm.cmd exec ts-node scripts/dev/sprint123-search-explain.ts',
+  'search-contract-prototype':
+    'node ../../_recovery-work/search-contract-change1/hybrid-fts-prototype.cjs',
+  'search-contract-fts-fixtures':
+    'node ../../_recovery-work/search-contract-change1/fts-fixtures.cjs',
+  'search-contract-query-manifest':
+    'node ../../_recovery-work/search-contract-change1/fts-prototype.cjs --queries-only',
+  'search-contract-fts-diagnostic':
+    'node ../../_recovery-work/search-contract-change1/fts-diagnostic.cjs',
+  'search-contract-fts-inspect':
+    'node ../../_recovery-work/search-contract-change1/fts-inspect.cjs',
+  'search-contract-activity':
+    'node ../../_recovery-work/search-contract-change1/activity.cjs',
   'sprint123-concurrency':
     'pnpm.cmd exec ts-node scripts/dev/sprint121-concurrency.ts',
   'sprint123-parity':
@@ -170,7 +266,7 @@ const actions = {
   'sprint15-postgres-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=120000 --testPathPatterns=workspace-document.integration.spec.ts',
   'sprint1561-postgres-tests':
-    'pnpm.cmd exec jest --runInBand --testTimeout=180000 --testPathPatterns=workspace-document.integration.spec.ts',
+    'pnpm.cmd exec jest --runInBand --testTimeout=300000 --testPathPatterns=workspace-document.integration.spec.ts',
   'sprint1561-acl-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=180000 --testPathPatterns=sprint1561-personal-acl.integration.spec.ts',
   'sprint1561-e2e-users':
@@ -187,8 +283,7 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/sprint152-search-smoke.ts',
   'sprint152-backup-before':
     'pnpm.cmd exec ts-node scripts/dev/sprint122-backup.ts',
-  'sprint15-full-tests':
-    'pnpm.cmd exec jest --runInBand --testTimeout=300000',
+  'sprint15-full-tests': 'pnpm.cmd exec jest --runInBand --testTimeout=300000',
   'sprint155-golden':
     'set SPRINT155_POSTGRES_TEST=1&& pnpm.cmd exec jest --runInBand --testTimeout=300000 --testPathPatterns=sprint155-search-golden.integration.spec.ts',
   'sprint155-baseline':
@@ -237,31 +332,51 @@ const actions = {
   'sprint9-postgres-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=120000 --testPathPatterns=corpus-curation.integration.spec.ts',
   'corpus-package': 'pnpm.cmd exec ts-node scripts/dev/corpus-package.ts',
-  'civil-pilot-verify': 'pnpm.cmd exec ts-node scripts/sources/civil/verify-pilot.ts',
-  'civil-current-verify': 'pnpm.cmd exec ts-node scripts/sources/civil/verify-current-feed.ts',
-  'civil-coverage-summary': 'pnpm.cmd exec ts-node scripts/sources/civil/coverage-summary.ts',
-  'civil-quantification-snapshot': 'pnpm.cmd exec ts-node scripts/sources/civil/quantification-corpus-snapshot.ts',
+  'civil-pilot-verify':
+    'pnpm.cmd exec ts-node scripts/sources/civil/verify-pilot.ts',
+  'civil-current-verify':
+    'pnpm.cmd exec ts-node scripts/sources/civil/verify-current-feed.ts',
+  'civil-coverage-summary':
+    'pnpm.cmd exec ts-node scripts/sources/civil/coverage-summary.ts',
+  'civil-quantification-snapshot':
+    'pnpm.cmd exec ts-node scripts/sources/civil/quantification-corpus-snapshot.ts',
   'sprint148-audit': 'node scripts/dev/sprint148-live-audit.cjs',
   'sprint-j1-audit': 'node scripts/dev/sprint-j1-audit.cjs',
-  'j7-corpus-quality-audit': 'node scripts/dev/jurisprudencia-corpus-quality-audit.cjs',
-  'j7-quality-repair-dry-run': 'node scripts/dev/jurisprudencia-quality-repair-dry-run.cjs',
-  'sprint-j712-historical-sala-readonly': 'node scripts/dev/sprint-j712-historical-sala-run.cjs',
-  'sprint-j713-historical-sala-review-pack': 'node scripts/dev/sprint-j713-historical-sala-review-pack.cjs',
-  'sprint-j8-civil-certification': 'node scripts/dev/sprint-j8-civil-certification.cjs',
+  'j7-corpus-quality-audit':
+    'node scripts/dev/jurisprudencia-corpus-quality-audit.cjs',
+  'j7-quality-repair-dry-run':
+    'node scripts/dev/jurisprudencia-quality-repair-dry-run.cjs',
+  'sprint-j712-historical-sala-readonly':
+    'node scripts/dev/sprint-j712-historical-sala-run.cjs',
+  'sprint-j713-historical-sala-review-pack':
+    'node scripts/dev/sprint-j713-historical-sala-review-pack.cjs',
+  'sprint-j8-civil-certification':
+    'node scripts/dev/sprint-j8-civil-certification.cjs',
   'sprint-j9-readonly-audit': 'node scripts/dev/sprint-j9-readonly-audit.cjs',
-  'sprint-j911-readonly-audit': 'node scripts/dev/sprint-j911-readonly-audit.cjs',
-  'sprint-j901-eligibility': 'node scripts/dev/sprint-j901-publication-eligibility.cjs',
-  'sprint-j901-find-synthetic': 'node scripts/dev/sprint-j901-find-synthetic.cjs',
+  'sprint-j911-readonly-audit':
+    'node scripts/dev/sprint-j911-readonly-audit.cjs',
+  'sprint-j901-eligibility':
+    'node scripts/dev/sprint-j901-publication-eligibility.cjs',
+  'sprint-j901-find-synthetic':
+    'node scripts/dev/sprint-j901-find-synthetic.cjs',
   'sprint-j901-api-benchmark': 'node scripts/dev/sprint-j901-api-benchmark.cjs',
-  'sprint-j901-publication-dry-run': 'node scripts/dev/sprint-j901-publication-backfill.cjs --dry-run',
-  'sprint-j901-publication-apply': 'node scripts/dev/sprint-j901-publication-backfill.cjs --apply',
-  'sprint-j901-demote-collisions': 'node scripts/dev/sprint-j901-demote-collisions.cjs --apply',
-  'sprint-j901-cleanup': 'node scripts/dev/sprint-j901-cleanup-batch.cjs --apply',
-  'sprint-j9-postgres-tests': 'pnpm.cmd exec jest --runInBand --testTimeout=120000 --runTestsByPath src/sentencias/sentencias.workflow.integration.spec.ts',
-  'sprint-j5-readonly': 'node scripts/dev/jurisprudencia-candidate-recovery.cjs',
+  'sprint-j901-publication-dry-run':
+    'node scripts/dev/sprint-j901-publication-backfill.cjs --dry-run',
+  'sprint-j901-publication-apply':
+    'node scripts/dev/sprint-j901-publication-backfill.cjs --apply',
+  'sprint-j901-demote-collisions':
+    'node scripts/dev/sprint-j901-demote-collisions.cjs --apply',
+  'sprint-j901-cleanup':
+    'node scripts/dev/sprint-j901-cleanup-batch.cjs --apply',
+  'sprint-j9-postgres-tests':
+    'pnpm.cmd exec jest --runInBand --testTimeout=120000 --runTestsByPath src/sentencias/sentencias.workflow.integration.spec.ts',
+  'sprint-j5-readonly':
+    'node scripts/dev/jurisprudencia-candidate-recovery.cjs',
   'sprint-j6-readonly': 'node scripts/dev/jurisprudencia-primary-identity.cjs',
-  'sprint-j5-restore-projection-marker': 'node scripts/dev/sprint-j5-restore-projection-marker.cjs',
-  'sprint-j2-first-instance-audit': 'node scripts/dev/sprint-j2-first-instance-audit.cjs',
+  'sprint-j5-restore-projection-marker':
+    'node scripts/dev/sprint-j5-restore-projection-marker.cjs',
+  'sprint-j2-first-instance-audit':
+    'node scripts/dev/sprint-j2-first-instance-audit.cjs',
   'sprint-j1-backup': 'pnpm.cmd exec ts-node scripts/dev/backup-dev-db.ts',
   'sprint-j1-write-dry-run': 'node scripts/dev/sprint-j1-apply.cjs',
   'sprint-j1-apply': 'node scripts/dev/sprint-j1-apply.cjs',
@@ -286,29 +401,46 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/sprint10-ocr-ground-truth.ts',
   'sprint10-postgres-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=120000 --testPathPatterns=sprint10-pilot.integration.spec.ts',
-  'sprint11-search-profile': 'pnpm.cmd exec ts-node scripts/dev/sprint11-search-profile.ts',
+  'sprint11-search-profile':
+    'pnpm.cmd exec ts-node scripts/dev/sprint11-search-profile.ts',
   'sprint11-db-audit': 'pnpm.cmd exec ts-node scripts/dev/sprint11-db-audit.ts',
   'sprint11-explain': 'pnpm.cmd exec ts-node scripts/dev/sprint11-explain.ts',
-  'sprint11-backup-verify': 'pnpm.cmd exec ts-node scripts/dev/sprint11-backup-verify.ts',
-  'sprint11-concurrency': 'pnpm.cmd exec ts-node scripts/dev/sprint11-concurrency.ts',
+  'sprint11-backup-verify':
+    'pnpm.cmd exec ts-node scripts/dev/sprint11-backup-verify.ts',
+  'sprint11-concurrency':
+    'pnpm.cmd exec ts-node scripts/dev/sprint11-concurrency.ts',
   'sprint11-ocr-eval': 'pnpm.cmd exec ts-node scripts/dev/sprint11-ocr-eval.ts',
-  'sprint11-viewer-audit': 'pnpm.cmd exec ts-node scripts/dev/sprint11-viewer-audit.ts',
-  'sprint11-demo-prepare': 'pnpm.cmd exec ts-node scripts/dev/sprint11-demo-prepare.ts',
-  'sprint12-search-baseline': 'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts baseline',
-  'sprint12-search-after': 'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts after',
+  'sprint11-viewer-audit':
+    'pnpm.cmd exec ts-node scripts/dev/sprint11-viewer-audit.ts',
+  'sprint11-demo-prepare':
+    'pnpm.cmd exec ts-node scripts/dev/sprint11-demo-prepare.ts',
+  'sprint12-search-baseline':
+    'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts baseline',
+  'sprint12-search-after':
+    'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts after',
   'sprint12-explain': 'pnpm.cmd exec ts-node scripts/dev/sprint12-explain.ts',
-  'sprint12-explain-after': 'pnpm.cmd exec ts-node scripts/dev/sprint12-explain.ts after',
-  'sprint12-backup-verify': 'pnpm.cmd exec ts-node scripts/dev/sprint12-backup-verify.ts',
-  'sprint12-db-preflight': 'pnpm.cmd exec ts-node scripts/dev/sprint12-db-preflight.ts',
-  'sprint12-concurrency': 'pnpm.cmd exec ts-node scripts/dev/sprint12-concurrency.ts',
-  'sprint121-db-probe': 'pnpm.cmd exec ts-node scripts/dev/sprint121-db-probe.ts',
+  'sprint12-explain-after':
+    'pnpm.cmd exec ts-node scripts/dev/sprint12-explain.ts after',
+  'sprint12-backup-verify':
+    'pnpm.cmd exec ts-node scripts/dev/sprint12-backup-verify.ts',
+  'sprint12-db-preflight':
+    'pnpm.cmd exec ts-node scripts/dev/sprint12-db-preflight.ts',
+  'sprint12-concurrency':
+    'pnpm.cmd exec ts-node scripts/dev/sprint12-concurrency.ts',
+  'sprint121-db-probe':
+    'pnpm.cmd exec ts-node scripts/dev/sprint121-db-probe.ts',
   'sprint121-explain': 'pnpm.cmd exec ts-node scripts/dev/sprint121-explain.ts',
-  'sprint121-corpus-benchmark': 'pnpm.cmd exec ts-node scripts/dev/sprint121-corpus-benchmark.ts',
+  'sprint121-corpus-benchmark':
+    'pnpm.cmd exec ts-node scripts/dev/sprint121-corpus-benchmark.ts',
   'sprint121-backup': 'pnpm.cmd exec ts-node scripts/dev/sprint121-backup.ts',
-  'sprint121-parity': 'pnpm.cmd exec ts-node scripts/dev/benchmark-search-adapters.ts',
-  'sprint121-concurrency': 'pnpm.cmd exec ts-node scripts/dev/sprint121-concurrency.ts',
-  'sprint121-legacy-explain': 'pnpm.cmd exec ts-node scripts/dev/sprint121-legacy-explain.ts',
-  'sprint121-search-after': 'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts after',
+  'sprint121-parity':
+    'pnpm.cmd exec ts-node scripts/dev/benchmark-search-adapters.ts',
+  'sprint121-concurrency':
+    'pnpm.cmd exec ts-node scripts/dev/sprint121-concurrency.ts',
+  'sprint121-legacy-explain':
+    'pnpm.cmd exec ts-node scripts/dev/sprint121-legacy-explain.ts',
+  'sprint121-search-after':
+    'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts after',
   'institutional-classify':
     'pnpm.cmd exec ts-node scripts/dev/classify-institutional-documents.ts',
   'institutional-classification-evaluate':
@@ -339,14 +471,24 @@ if (!commandLine) {
 
 const int1TempDatabase = process.argv[3] ?? '';
 if (action.startsWith('int1-temp-')) {
-  if (!/^buscador_juridico_civil_int1_tmp_\d{8}_[a-f0-9]{8}$/u.test(int1TempDatabase)) {
-    console.error('DEV_DB_GUARD=ABORT; INT-1 temporary database name is not allowlisted.');
+  if (
+    !/^buscador_juridico_civil_int1s?_tmp_\d{8}_[a-f0-9]{8}$/u.test(
+      int1TempDatabase,
+    )
+  ) {
+    console.error(
+      'DEV_DB_GUARD=ABORT; INT-1 temporary database name is not allowlisted.',
+    );
     process.exit(2);
   }
 }
 
 let childDatabaseUrl = rawUrl;
-if (action.startsWith('int1-temp-') && action !== 'int1-temp-create' && action !== 'int1-temp-drop') {
+if (
+  action.startsWith('int1-temp-') &&
+  action !== 'int1-temp-create' &&
+  action !== 'int1-temp-drop'
+) {
   const tempUrl = new URL(rawUrl);
   tempUrl.pathname = `/${int1TempDatabase}`;
   childDatabaseUrl = tempUrl.toString();
@@ -354,62 +496,221 @@ if (action.startsWith('int1-temp-') && action !== 'int1-temp-create' && action !
 
 const childEnv = {
   ...process.env,
+  OPENSEARCH_CANDIDATE_INDEX:
+    action === 'opensearch-http-smoke'
+      ? (process.argv[3] ?? '')
+      : process.env.OPENSEARCH_CANDIDATE_INDEX,
   DATABASE_URL: childDatabaseUrl,
   BJC_INT1_TEMP_DB: action.startsWith('int1-temp-') ? int1TempDatabase : '',
-  BJC_SPRINT_INT1: action === 'int1-dev-backup' ? 'true' : '',
+  BJC_SPRINT_INT1:
+    action === 'int1-dev-backup' || action === 'int1-final-backup'
+      ? 'true'
+      : '',
   DOTENV_CONFIG_PATH: envFile,
   SEARCH_SPIKE_SQLITE_PATH: path.resolve(
     __dirname,
     '../../../_legacy-audit-work/extracted/jurisprudencia/jurisp_6/db/jurisprudencia_db.sqlite',
   ),
   SEARCH_POSTGRES_TEST:
-    action === 'postgres-tests' || action === 'postgres-parity' || action === 'sprint122-parity' || action === 'sprint123-parity' ? '1' : '',
+    action === 'postgres-tests' ||
+    action === 'postgres-parity' ||
+    action === 'sprint122-parity' ||
+    action === 'sprint123-parity'
+      ? '1'
+      : '',
   CORPUS_POSTGRES_TEST: action === 'corpus-tests' ? '1' : '',
   CORPUS_PACKAGE_POSTGRES_TEST: action === 'corpus-package-tests' ? '1' : '',
   SPRINT9_POSTGRES_TEST: action === 'sprint9-postgres-tests' ? '1' : '',
   SPRINT10_POSTGRES_TEST: action === 'sprint10-postgres-tests' ? '1' : '',
   SPRINT_J9_POSTGRES_TEST: action === 'sprint-j9-postgres-tests' ? '1' : '',
-  SPRINT15_POSTGRES_TEST: action === 'sprint15-postgres-tests' || action === 'sprint15-full-tests' || action === 'sprint1511-postgres-tests' || action.startsWith('sprint1561-') ? '1' : '',
+  SPRINT15_POSTGRES_TEST:
+    action === 'sprint15-postgres-tests' ||
+    action === 'sprint15-full-tests' ||
+    action === 'sprint1511-postgres-tests' ||
+    action.startsWith('sprint1561-')
+      ? '1'
+      : '',
   SPRINT1561_POSTGRES_TEST: action.startsWith('sprint1561-') ? '1' : '',
-  BJC_OCR_QUEUE_NAME: action === 'sprint1561-postgres-tests'
-    ? `sprint1561-${process.pid}-${Date.now()}`
-    : action === 'sprint1561-default-queue-repro'
-      ? 'default'
-      : process.env.BJC_OCR_QUEUE_NAME,
+  BJC_OCR_QUEUE_NAME:
+    action === 'sprint1561-postgres-tests'
+      ? `sprint1561-${process.pid}-${Date.now()}`
+      : action === 'sprint1561-default-queue-repro'
+        ? 'default'
+        : process.env.BJC_OCR_QUEUE_NAME,
   SPRINT152_SOURCE_TEST: action === 'sprint152-source-tests' ? '1' : '',
-  BJC_SPRINT1511_PHASE: action === 'sprint1511-postgres-tests' || action === 'sprint15-full-tests' ? 'after' : process.env.BJC_SPRINT1511_PHASE,
-  BJC_SEARCH_PROFILE: action === 'sprint11-search-profile' || action.startsWith('sprint121-search-') || action.startsWith('sprint122-search-') || action.startsWith('sprint123-search-') || action.startsWith('sprint148-search-') || action.startsWith('sprint149-search-') || action.startsWith('sprint1491-search-') || action.startsWith('sprint1492-search-') || action === 'sprint121-concurrency' || action === 'sprint122-concurrency' || action === 'sprint123-concurrency' || action === 'sprint149-concurrency' || action === 'sprint1492-concurrency' ? 'true' : '',
-  BJC_SEARCH_STATEMENT_TIMEOUT_MS: action === 'sprint1492-parity' || action === 'sprint1561-postgres-tests' ? '4500' : process.env.BJC_SEARCH_STATEMENT_TIMEOUT_MS,
-  BJC_SEARCH_BENCHMARK_ROOT: action.startsWith('sprint1492-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint1492') : action.startsWith('sprint1491-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint1491') : action.startsWith('sprint121-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint121/performance') : action.startsWith('sprint122-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint122/performance') : action.startsWith('sprint123-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint123/performance') : action.startsWith('sprint148-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint148/performance') : action.startsWith('sprint149-search-') ? path.resolve(__dirname, '../../../_recovery-work/sprint149/performance') : '',
+  BJC_SPRINT1511_PHASE:
+    action === 'sprint1511-postgres-tests' || action === 'sprint15-full-tests'
+      ? 'after'
+      : process.env.BJC_SPRINT1511_PHASE,
+  BJC_SEARCH_PROFILE:
+    action === 'sprint11-search-profile' ||
+    action.startsWith('sprint121-search-') ||
+    action.startsWith('sprint122-search-') ||
+    action.startsWith('sprint123-search-') ||
+    action.startsWith('sprint148-search-') ||
+    action.startsWith('sprint149-search-') ||
+    action.startsWith('sprint1491-search-') ||
+    action.startsWith('sprint1492-search-') ||
+    action === 'sprint121-concurrency' ||
+    action === 'sprint122-concurrency' ||
+    action === 'sprint123-concurrency' ||
+    action === 'sprint149-concurrency' ||
+    action === 'sprint1492-concurrency'
+      ? 'true'
+      : '',
+  BJC_SEARCH_STATEMENT_TIMEOUT_MS:
+    action === 'sprint1492-parity' || action === 'sprint1561-postgres-tests'
+      ? '4500'
+      : process.env.BJC_SEARCH_STATEMENT_TIMEOUT_MS,
+  BJC_SEARCH_BENCHMARK_ROOT: action.startsWith('sprint1492-search-')
+    ? path.resolve(__dirname, '../../../_recovery-work/sprint1492')
+    : action.startsWith('sprint1491-search-')
+      ? path.resolve(__dirname, '../../../_recovery-work/sprint1491')
+      : action.startsWith('sprint121-search-')
+        ? path.resolve(
+            __dirname,
+            '../../../_recovery-work/sprint121/performance',
+          )
+        : action.startsWith('sprint122-search-')
+          ? path.resolve(
+              __dirname,
+              '../../../_recovery-work/sprint122/performance',
+            )
+          : action.startsWith('sprint123-search-')
+            ? path.resolve(
+                __dirname,
+                '../../../_recovery-work/sprint123/performance',
+              )
+            : action.startsWith('sprint148-search-')
+              ? path.resolve(
+                  __dirname,
+                  '../../../_recovery-work/sprint148/performance',
+                )
+              : action.startsWith('sprint149-search-')
+                ? path.resolve(
+                    __dirname,
+                    '../../../_recovery-work/sprint149/performance',
+                  )
+                : '',
   BJC_SPRINT122: action.startsWith('sprint122-') ? 'true' : '',
   BJC_SPRINT123: action.startsWith('sprint123-') ? 'true' : '',
-  BJC_SPRINT148: action.startsWith('sprint148-search-') || action === 'sprint148-explain' ? 'true' : '',
+  BJC_SPRINT148:
+    action.startsWith('sprint148-search-') || action === 'sprint148-explain'
+      ? 'true'
+      : '',
   BJC_SPRINT149: action.startsWith('sprint149-') ? 'true' : '',
   BJC_SPRINT1491: action.startsWith('sprint1491-') ? 'true' : '',
   BJC_SPRINT1492: action.startsWith('sprint1492-') ? 'true' : '',
   BJC_SPRINT152: action.startsWith('sprint152-') ? 'true' : '',
-  BJC_SPRINT_PROFILE_ROOT: action.startsWith('sprint1492-profile-') ? path.resolve(__dirname, '../../../_recovery-work/sprint1492') : '',
-  BJC_SPRINT_PROFILE_SKIP_DIRECT: action.startsWith('sprint1492-profile-') ? 'true' : '',
-  NODE_OPTIONS: action === 'sprint15-postgres-tests' || action === 'sprint15-full-tests' || action === 'sprint1511-postgres-tests' || action.startsWith('sprint1561-') || action === 'sprint152-source-tests' ? '--experimental-vm-modules' : action === 'sprint122-concurrency' ? '--trace-warnings' : process.env.NODE_OPTIONS,
-  BJC_BENCHMARK_OUTPUT_ROOT: action === 'sprint121-parity' ? 'sprint121' : action === 'sprint122-parity' ? 'sprint122' : action === 'sprint123-parity' ? 'sprint123' : action === 'sprint148-parity' ? 'sprint148' : action === 'sprint149-parity' ? 'sprint149' : action === 'sprint1492-parity' ? 'sprint1492' : '',
-  BJC_BENCHMARK_OUTPUT_PATH: action === 'sprint121-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint121/parity/benchmark.json') : action === 'sprint122-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint122/parity/benchmark.json') : action === 'sprint123-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint123/parity/benchmark.json') : action === 'sprint148-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint148/parity/benchmark.json') : action === 'sprint149-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint149/parity/benchmark.json') : action === 'sprint1492-parity' ? path.resolve(__dirname, '../../../_recovery-work/sprint1492/parity/benchmark.json') : '',
-  BJC_CONCURRENCY_WAVES: action === 'sprint149-concurrency' || action === 'sprint1492-concurrency' ? '1,5,10' : process.env.BJC_CONCURRENCY_WAVES,
-  BJC_CONCURRENCY_REQUESTS_PER_USER: action === 'sprint149-concurrency' || action === 'sprint1492-concurrency' ? '1' : process.env.BJC_CONCURRENCY_REQUESTS_PER_USER,
-  BJC_CONCURRENCY_SEARCH_QUERY: action === 'sprint149-concurrency' || action === 'sprint1492-concurrency' ? '"responsabilidad civil"' : process.env.BJC_CONCURRENCY_SEARCH_QUERY,
+  BJC_SPRINT_PROFILE_ROOT: action.startsWith('sprint1492-profile-')
+    ? path.resolve(__dirname, '../../../_recovery-work/sprint1492')
+    : '',
+  BJC_SPRINT_PROFILE_SKIP_DIRECT: action.startsWith('sprint1492-profile-')
+    ? 'true'
+    : '',
+  NODE_OPTIONS:
+    action === 'sprint15-postgres-tests' ||
+    action === 'sprint15-full-tests' ||
+    action === 'sprint1511-postgres-tests' ||
+    action.startsWith('sprint1561-') ||
+    action === 'sprint152-source-tests'
+      ? '--experimental-vm-modules'
+      : action === 'sprint122-concurrency'
+        ? '--trace-warnings'
+        : process.env.NODE_OPTIONS,
+  BJC_BENCHMARK_OUTPUT_ROOT:
+    action === 'sprint121-parity'
+      ? 'sprint121'
+      : action === 'sprint122-parity'
+        ? 'sprint122'
+        : action === 'sprint123-parity'
+          ? 'sprint123'
+          : action === 'sprint148-parity'
+            ? 'sprint148'
+            : action === 'sprint149-parity'
+              ? 'sprint149'
+              : action === 'sprint1492-parity'
+                ? 'sprint1492'
+                : '',
+  BJC_BENCHMARK_OUTPUT_PATH:
+    action === 'sprint121-parity'
+      ? path.resolve(
+          __dirname,
+          '../../../_recovery-work/sprint121/parity/benchmark.json',
+        )
+      : action === 'sprint122-parity'
+        ? path.resolve(
+            __dirname,
+            '../../../_recovery-work/sprint122/parity/benchmark.json',
+          )
+        : action === 'sprint123-parity'
+          ? path.resolve(
+              __dirname,
+              '../../../_recovery-work/sprint123/parity/benchmark.json',
+            )
+          : action === 'sprint148-parity'
+            ? path.resolve(
+                __dirname,
+                '../../../_recovery-work/sprint148/parity/benchmark.json',
+              )
+            : action === 'sprint149-parity'
+              ? path.resolve(
+                  __dirname,
+                  '../../../_recovery-work/sprint149/parity/benchmark.json',
+                )
+              : action === 'sprint1492-parity'
+                ? path.resolve(
+                    __dirname,
+                    '../../../_recovery-work/sprint1492/parity/benchmark.json',
+                  )
+                : '',
+  BJC_CONCURRENCY_WAVES:
+    action === 'sprint149-concurrency' || action === 'sprint1492-concurrency'
+      ? '1,5,10'
+      : process.env.BJC_CONCURRENCY_WAVES,
+  BJC_CONCURRENCY_REQUESTS_PER_USER:
+    action === 'sprint149-concurrency' || action === 'sprint1492-concurrency'
+      ? '1'
+      : process.env.BJC_CONCURRENCY_REQUESTS_PER_USER,
+  BJC_CONCURRENCY_SEARCH_QUERY:
+    action === 'sprint149-concurrency' || action === 'sprint1492-concurrency'
+      ? '"responsabilidad civil"'
+      : process.env.BJC_CONCURRENCY_SEARCH_QUERY,
   BJC_CORPUS_PACKAGE_ARGS:
     action === 'corpus-package' ? JSON.stringify(process.argv.slice(3)) : '',
-  BJC_SPRINT148_MODE: action === 'sprint148-audit' ? (process.argv[3] || 'dry-run') : '',
-  BJC_SPRINT_J1_MODE: action === 'sprint-j1-apply' ? 'apply' : action === 'sprint-j1-write-dry-run' ? 'dry-run' : '',
-  BJC_DEV_BACKUP_DIR: action === 'sprint-j1-backup'
-    ? path.resolve(__dirname, '../../../_recovery-work/jurisprudencia-j1/backups')
-    : process.env.BJC_DEV_BACKUP_DIR,
-  BJC_DEV_BACKUP_LABEL: action === 'sprint-j1-backup' ? 'sprint-j1-prewrite' : process.env.BJC_DEV_BACKUP_LABEL,
-  BJC_SPRINT148_INGEST_MODE: action === 'sprint148-ingest-preflight' ? 'preflight' : '',
-  BJC_CORPUS_STORAGE_PATH: action === 'sprint148-ingest'
-    ? path.resolve(__dirname, '../../../_dev-corpus-storage')
-    : action === 'sprint151-ui-tests'
-      ? path.resolve(__dirname, '../../../_dev-corpus-storage-test/sprint151-ui')
-      : process.env.BJC_CORPUS_STORAGE_PATH,
+  BJC_SPRINT148_MODE:
+    action === 'sprint148-audit' ? process.argv[3] || 'dry-run' : '',
+  BJC_SPRINT_J1_MODE:
+    action === 'sprint-j1-apply'
+      ? 'apply'
+      : action === 'sprint-j1-write-dry-run'
+        ? 'dry-run'
+        : '',
+  BJC_DEV_BACKUP_DIR:
+    action === 'sprint-j1-backup'
+      ? path.resolve(
+          __dirname,
+          '../../../_recovery-work/jurisprudencia-j1/backups',
+        )
+      : process.env.BJC_DEV_BACKUP_DIR,
+  BJC_DEV_BACKUP_LABEL:
+    action === 'sprint-j1-backup'
+      ? 'sprint-j1-prewrite'
+      : process.env.BJC_DEV_BACKUP_LABEL,
+  BJC_INT1_ORPHAN_DOCUMENT_ID: action.startsWith('int1-orphan-private-upload-')
+    ? process.argv[3] || ''
+    : '',
+  BJC_SPRINT148_INGEST_MODE:
+    action === 'sprint148-ingest-preflight' ? 'preflight' : '',
+  BJC_CORPUS_STORAGE_PATH:
+    action === 'sprint148-ingest'
+      ? path.resolve(__dirname, '../../../_dev-corpus-storage')
+      : action === 'sprint151-ui-tests'
+        ? path.resolve(
+            __dirname,
+            '../../../_dev-corpus-storage-test/sprint151-ui',
+          )
+        : process.env.BJC_CORPUS_STORAGE_PATH,
   BJC_INSTITUTIONAL_ARGS: action.startsWith('institutional-')
     ? JSON.stringify(process.argv.slice(3))
     : '',

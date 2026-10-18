@@ -3,7 +3,7 @@ const { Client } = require('pg');
 
 const databaseName = process.env.BJC_INT1_TEMP_DB ?? '';
 const action = process.argv[2];
-const safeName = /^buscador_juridico_civil_int1_tmp_\d{8}_[a-f0-9]{8}$/u;
+const safeName = /^buscador_juridico_civil_int1s?_tmp_\d{8}_[a-f0-9]{8}$/u;
 
 if (!safeName.test(databaseName) || !['create', 'drop', 'inspect'].includes(action)) {
   console.error('INT1_TEMP_DB=ABORT; invalid guarded action or database name.');

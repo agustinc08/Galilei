@@ -55,9 +55,22 @@ async function main() {
       if (Number(linkCount.rows[0].count) !== 1 || Number(workspaceCount.rows[0].count) !== 0) throw new Error(`SYNTHETIC_DOCUMENT_SHARED_OR_PRIVATE:${sentenceId}`);
       const archivos = await client.query('SELECT id,"nombreArchivo" FROM "ArchivoPdf" WHERE "sentenciaId"=$1', [sentenceId]);
       if (archivos.rows.some(file => file.nombreArchivo !== `${row.sha256}.pdf`) || (row.legacyFilename === null && archivos.rowCount !== 0) || (row.legacyFilename && (archivos.rowCount !== 1 || archivos.rows[0].nombreArchivo !== row.legacyFilename))) throw new Error(`SYNTHETIC_LEGACY_FILE_IDENTITY_MISMATCH:${sentenceId}:${JSON.stringify(archivos.rows)}`);
-      const abs = path.resolve(root, '_dev-corpus-storage', row.storageKey);
-      const storageRoot = path.resolve(root, '_dev-corpus-storage');
-      if (!abs.startsWith(`${storageRoot}${path.sep}`) || !fs.existsSync(abs) || sha256(abs) !== row.sha256) throw new Error(`SYNTHETIC_BLOB_HASH_OR_PATH_MISMATCH:${sentenceId}`);
+      const storageRoots = [
+        path.resolve(root, '_dev-corpus-storage'),
+        path.resolve(root, '_dev-corpus-storage-test', 'sprint1561-e2e'),
+      ];
+      const matchingBlobs = storageRoots
+        .map((storageRoot) => ({
+          storageRoot,
+          absolutePath: path.resolve(storageRoot, row.storageKey),
+        }))
+        .filter(({ storageRoot, absolutePath }) =>
+          absolutePath.startsWith(`${storageRoot}${path.sep}`) &&
+          fs.existsSync(absolutePath) &&
+          sha256(absolutePath) === row.sha256,
+        );
+      if (matchingBlobs.length !== 1) throw new Error(`SYNTHETIC_BLOB_HASH_OR_PATH_MISMATCH:${sentenceId}`);
+      const { absolutePath: abs } = matchingBlobs[0];
       physicalCandidates.set(row.storageKey, { absolutePath: abs, sha256: row.sha256 });
       await client.query('DELETE FROM "CorpusDocumentLink" WHERE "targetDomain"=\'JURISPRUDENCIA\' AND "targetType"=\'SENTENCIA\' AND "targetId"=$1', [String(sentenceId)]);
       const deletedSentence = await client.query('DELETE FROM "Sentencia" WHERE id=$1 AND "legacyId" IS NULL', [sentenceId]);

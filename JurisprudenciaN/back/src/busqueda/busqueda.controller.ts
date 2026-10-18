@@ -1,4 +1,11 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  PayloadTooLargeException,
+  Res,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ROLES } from '../auth/constants';
@@ -11,10 +18,18 @@ import { BusquedaAvanzadaQueryDto } from './dto/busqueda-avanzada-query.dto';
 import { ExportarBusquedaQueryDto } from './dto/exportar-busqueda-query.dto';
 import { PublicBusquedaQueryDto } from './dto/public-busqueda-query.dto';
 import { SugerenciasQueryDto } from './dto/sugerencias-query.dto';
+import type { SearchResult } from './adapters/search-source.adapter';
 
 @ApiTags('busqueda')
 @ApiBearerAuth()
-@Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.LECTOR, ROLES.REVISOR, ROLES.JURISPRUDENCIA, ROLES.DIGESTO)
+@Roles(
+  ROLES.ADMIN,
+  ROLES.OPERADOR,
+  ROLES.LECTOR,
+  ROLES.REVISOR,
+  ROLES.JURISPRUDENCIA,
+  ROLES.DIGESTO,
+)
 @Controller('busqueda')
 export class BusquedaController {
   constructor(private readonly busquedaService: BusquedaService) {}
@@ -26,49 +41,68 @@ export class BusquedaController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const startedAt = performance.now();
-    const legacyStartedAt = performance.now();
-    // A collection filter is explicitly Corpus-only in the federated source
-    // list, and the UI uses only `federated` results for that view. Avoid
-    // running the unrelated, much more expensive legacy Jurisprudencia query.
-    const corpusOnlyFilter = Boolean(query.digestoCollectionId || query.digestoTopicId || query.digestoTagId);
-    const useV2HotPath = corpusOnlyFilter || supportsV2AdvancedQuery(query);
-    const legacyPromise = corpusOnlyFilter
-      ? Promise.resolve({ result: emptyLegacyPage(query), elapsedMs: 0 })
-      : useV2HotPath
-        ? Promise.resolve({ result: null, elapsedMs: 0 })
-        : this.busquedaService.avanzada(query, user.id).then((result) => ({
-          result,
-          elapsedMs: performance.now() - legacyStartedAt,
-        }));
+    const corpusOnlyFilter = Boolean(
+      query.digestoCollectionId || query.digestoTopicId || query.digestoTagId,
+    );
     const federatedStartedAt = performance.now();
-    const federatedPromise = this.busquedaService.federatedSearch(query.q, query.operador, {
-        visibility: user.rol.nombre === ROLES.ADMIN ? 'ADMIN' : 'INTERNAL', dialect: 'modern', publicationPolicy: 'legacy-active-only',
-        page: query.page ?? 1, pageSize: query.pageSize ?? 10,
+    const federated = await this.busquedaService.federatedSearch(
+      query.q,
+      query.operador,
+      {
+        visibility: user.rol.nombre === ROLES.ADMIN ? 'ADMIN' : 'INTERNAL',
+        dialect: 'modern',
+        publicationPolicy: 'legacy-active-only',
+        page: query.page ?? 1,
+        pageSize: query.pageSize ?? 10,
         filters: searchFilters(query),
-        ...(corpusOnlyFilter ? { sourceSystems: ['CORPUS'] as Array<'CORPUS'> } : {}),
-      }).then((result) => ({ result, elapsedMs: performance.now() - federatedStartedAt }));
-    const [{ result: legacy, elapsedMs: legacyMs }, { result: federated, elapsedMs: federatedMs }] = await Promise.all([legacyPromise, federatedPromise]);
-    const v2Page = useV2HotPath && federated ? toV2CompatibilityPage(federated) : null;
-    if (v2Page) this.busquedaService.trackAdvancedV2(query, user.id, v2Page.meta.total);
-    const response = { ...(v2Page ?? legacy), federated };
-    if (process.env.BJC_SEARCH_PROFILE === 'true' && process.env.NODE_ENV !== 'production') {
-      const engine = useV2HotPath ? 'v2' : 'hybrid';
+        sort: {
+          field: query.sortBy ?? (query.q?.trim() ? 'relevancia' : 'fecha'),
+          order: query.sortOrder ?? 'desc',
+        },
+        ...(corpusOnlyFilter
+          ? { sourceSystems: ['CORPUS'] as Array<'CORPUS'> }
+          : {
+              sourceSystems: ['JURISPRUDENCIA'] as Array<'JURISPRUDENCIA'>,
+              documentKinds: ['SENTENCIA'] as Array<'SENTENCIA'>,
+            }),
+      },
+    );
+    if (!federated) throw new ServiceUnavailableException();
+    const federatedMs = performance.now() - federatedStartedAt;
+    const page = corpusOnlyFilter
+      ? emptyLegacyPage(query)
+      : toV2CompatibilityPage(federated);
+    this.busquedaService.trackAdvancedV2(query, user.id, page.meta.total);
+    const response = { ...page, federated };
+    if (
+      process.env.BJC_SEARCH_PROFILE === 'true' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
       return {
         ...response,
         performance: {
-          engine,
-          enginesBySource: Object.fromEntries((federated?.sources ?? []).map((source) => [source.source, useV2HotPath ? 'v2' : 'legacy+v2'])),
-          legacyMs,
+          engine: 'opensearch',
+          enginesBySource: Object.fromEntries(
+            (federated.sources ?? []).map((source) => [
+              source.source,
+              'opensearch',
+            ]),
+          ),
+          legacyMs: 0,
           federatedMs,
           totalMs: performance.now() - startedAt,
-          adapters: federated?.sources ?? [],
-          adapterProfiles: federated?.adapterProfiles ?? {},
-          poolDiagnostics: federated?.poolDiagnostics ?? {},
-          parserMs: federated?.parserMs ?? null,
-          legacyProfile: corpusOnlyFilter ? null : this.busquedaService.getLastAdvancedProfile(),
-          mergeAndRankingMs: federated
-            ? Math.max(0, federated.durationMs - Math.max(0, ...federated.sources.map((source) => source.latencyMs)))
-            : null,
+          adapters: federated.sources ?? [],
+          adapterProfiles: federated.adapterProfiles ?? {},
+          poolDiagnostics: federated.poolDiagnostics ?? {},
+          parserMs: federated.parserMs ?? null,
+          mergeAndRankingMs: Math.max(
+            0,
+            federated.durationMs -
+              Math.max(
+                0,
+                ...federated.sources.map((source) => source.latencyMs),
+              ),
+          ),
         },
       };
     }
@@ -76,7 +110,9 @@ export class BusquedaController {
   }
 
   @Get('interpretar')
-  @ApiOperation({ summary: 'Explica la gramática de búsqueda en entornos no productivos' })
+  @ApiOperation({
+    summary: 'Explica la gramática de búsqueda en entornos no productivos',
+  })
   interpretar(
     @Query('q') query: string,
     @Query('operador') operador: 'AND' | 'OR',
@@ -89,13 +125,87 @@ export class BusquedaController {
   @ApiOperation({ summary: 'Exporta resultados de la busqueda administrativa' })
   async exportar(
     @Query() query: ExportarBusquedaQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) response: Response,
   ) {
     const formato = query.formato ?? 'csv';
-    const data = await this.busquedaService.exportar(query);
+    const corpusOnlyFilter = Boolean(
+      query.digestoCollectionId || query.digestoTopicId || query.digestoTagId,
+    );
+    const pageSize = 500;
+    const maxExportRows = 30000;
+    const results: SearchResult[] = [];
+    let expectedTotal: number | undefined;
+    for (let page = 1; ; page += 1) {
+      const federated = await this.busquedaService.federatedSearch(
+        query.q,
+        query.operador,
+        {
+          visibility: user.rol.nombre === ROLES.ADMIN ? 'ADMIN' : 'INTERNAL',
+          dialect: 'modern',
+          publicationPolicy: 'legacy-active-only',
+          page,
+          pageSize,
+          filters: searchFilters(query),
+          sort: {
+            field: query.sortBy ?? (query.q?.trim() ? 'relevancia' : 'fecha'),
+            order: query.sortOrder ?? 'desc',
+          },
+          sourceSystems: corpusOnlyFilter ? ['CORPUS'] : ['JURISPRUDENCIA'],
+          ...(!corpusOnlyFilter
+            ? { documentKinds: ['SENTENCIA'] as Array<'SENTENCIA'> }
+            : {}),
+        },
+      );
+      if (!federated) throw new ServiceUnavailableException();
+      if (expectedTotal === undefined) expectedTotal = federated.total;
+      if (federated.total !== expectedTotal || federated.partial)
+        throw new ServiceUnavailableException(
+          'El resultado cambió durante la exportación. Reintentá la búsqueda.',
+        );
+      if (expectedTotal > maxExportRows)
+        throw new PayloadTooLargeException(
+          `La exportación excede el límite seguro de ${maxExportRows} resultados.`,
+        );
+      results.push(...federated.results);
+      if (results.length >= expectedTotal) break;
+      if (!federated.hasMore || federated.results.length === 0)
+        throw new ServiceUnavailableException(
+          'No se pudo completar la exportación de todos los resultados.',
+        );
+    }
+    const data = corpusOnlyFilter
+      ? results
+      : toV2CompatibilityPage({
+          page: 1,
+          pageSize: Math.max(expectedTotal ?? 0, 1),
+          total: expectedTotal ?? 0,
+          hasMore: false,
+          partial: false,
+          deduplicated: 0,
+          truncated: false,
+          totalExact: true,
+          sources: [],
+          durationMs: 0,
+          parserMs: 0,
+          results,
+        }).data;
+    const exportPage = {
+      data,
+      meta: {
+        total: expectedTotal ?? 0,
+        page: 1,
+        pageSize: Math.max(expectedTotal ?? 0, 1),
+        pageCount: expectedTotal ? 1 : 0,
+        totalExact: true,
+        hasMore: false,
+        sortUsed: query.sortBy ?? 'relevancia',
+        expandedTerms: [],
+      },
+    };
 
     if (formato === 'json') {
-      return data;
+      return exportPage;
     }
 
     response.setHeader(
@@ -109,7 +219,7 @@ export class BusquedaController {
       `attachment; filename="busqueda-avanzada.${formato}"`,
     );
 
-    return data;
+    return formato === 'csv' ? toExportCsv(data) : toExportTxt(data);
   }
 
   @Get('simple')
@@ -118,13 +228,21 @@ export class BusquedaController {
     @Query('query') query: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const [legacy, federated] = await Promise.all([
-      this.busquedaService.simple(query, user.id),
-      this.busquedaService.federatedSearch(query, undefined, {
-        visibility: user.rol.nombre === ROLES.ADMIN ? 'ADMIN' : 'INTERNAL', dialect: 'modern', publicationPolicy: 'published-active-only', page: 1, pageSize: 10,
-      }),
-    ]);
-    return { ...legacy, federated };
+    const federated = await this.busquedaService.federatedSearch(
+      query,
+      undefined,
+      {
+        visibility: user.rol.nombre === ROLES.ADMIN ? 'ADMIN' : 'INTERNAL',
+        dialect: 'modern',
+        publicationPolicy: 'legacy-active-only',
+        page: 1,
+        pageSize: 10,
+        sourceSystems: ['JURISPRUDENCIA'],
+        documentKinds: ['SENTENCIA'],
+      },
+    );
+    if (!federated) throw new ServiceUnavailableException();
+    return toV2CompatibilityPage(federated);
   }
 
   @Get('sugerencias')
@@ -189,8 +307,23 @@ export class BusquedaController {
 
   @Get('cita')
   @ApiOperation({ summary: 'Búsqueda por cita o referencia' })
-  cita(@Query('q') q: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.busquedaService.buscarPorCita(q, user.id);
+  async cita(@Query('q') q: string, @CurrentUser() user: AuthenticatedUser) {
+    const federated = await this.busquedaService.federatedSearch(q, undefined, {
+      visibility: user.rol.nombre === ROLES.ADMIN ? 'ADMIN' : 'INTERNAL',
+      dialect: 'modern',
+      publicationPolicy: 'legacy-active-only',
+      page: 1,
+      pageSize: 20,
+      sourceSystems: ['JURISPRUDENCIA'],
+      documentKinds: ['SENTENCIA'],
+    });
+    if (!federated) throw new ServiceUnavailableException();
+    this.busquedaService.trackCitationV2(
+      q?.trim() ?? '',
+      user.id,
+      federated.results.length,
+    );
+    return { data: toV2CompatibilityPage(federated).data.slice(0, 20) };
   }
 }
 
@@ -203,15 +336,26 @@ export class PublicBusquedaController {
   @Get('busqueda')
   @ApiOperation({ summary: 'Búsqueda pública simple' })
   async publica(@Query() query: PublicBusquedaQueryDto) {
-    const [legacy, federated] = await Promise.all([
-      this.busquedaService.publica(query),
-      this.busquedaService.federatedSearch(query.q, query.operador, {
-        visibility: 'PUBLIC', dialect: 'modern', publicationPolicy: 'published-active-only',
-        page: query.page ?? 1, pageSize: Math.min(query.pageSize ?? 25, 100),
+    const federated = await this.busquedaService.federatedSearch(
+      query.q,
+      query.operador,
+      {
+        visibility: 'PUBLIC',
+        dialect: 'modern',
+        publicationPolicy: 'published-active-only',
+        page: query.page ?? 1,
+        pageSize: Math.min(query.pageSize ?? 25, 100),
         filters: searchFilters(query),
-      }),
-    ]);
-    return { ...legacy, federated };
+        sort: {
+          field: query.sortBy ?? (query.q?.trim() ? 'relevancia' : 'fecha'),
+          order: query.sortOrder ?? 'desc',
+        },
+        sourceSystems: ['JURISPRUDENCIA'],
+        documentKinds: ['SENTENCIA'],
+      },
+    );
+    if (!federated) throw new ServiceUnavailableException();
+    return { ...toV2CompatibilityPage(federated), federated };
   }
 
   @Get('busqueda/sugerencias')
@@ -239,24 +383,77 @@ export class PublicBusquedaController {
   }
 }
 
-function asDateString(value?: Date) { return value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString().slice(0, 10) : undefined; }
+function asDateString(value?: Date) {
+  return value instanceof Date && !Number.isNaN(value.getTime())
+    ? value.toISOString().slice(0, 10)
+    : undefined;
+}
 function dayAfter(value?: Date) {
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return undefined;
+  if (!(value instanceof Date) || Number.isNaN(value.getTime()))
+    return undefined;
   const end = new Date(value);
   end.setUTCDate(end.getUTCDate() + 1);
   return end.toISOString().slice(0, 10);
 }
 function searchFilters(query: {
-  sala?: string; fechaDesde?: Date; fechaHasta?: Date; expediente?: string; numeroSentencia?: string;
-  caratula?: string; tribunalOrigen?: string; tipoFallo?: string; digestoCollectionId?: string; digestoTopicId?: string; digestoTagId?: string;
+  sala?: string;
+  fechaDesde?: Date;
+  fechaHasta?: Date;
+  fraseExacta?: string;
+  excluir?: string[];
+  expediente?: string;
+  numeroSentencia?: string;
+  numeroSumario?: string;
+  caratula?: string;
+  actor?: string;
+  demandado?: string;
+  objeto?: string;
+  magistrados?: string;
+  tribunalOrigen?: string;
+  tipoFallo?: string;
+  tema?: string;
+  anio?: number;
+  publicado?: boolean;
+  activo?: boolean;
+  digestoCollectionId?: string;
+  digestoTopicId?: string;
+  digestoTagId?: string;
+  soloConPdf?: boolean;
+  pdf?: 'todos' | 'conPdf' | 'sinPdf';
+  tienePdf?: boolean;
+  soloConResumen?: boolean;
+  destacada?: boolean;
+  buscarEn?: string[];
 }) {
   return {
-    sala: query.sala, fechaDesde: asDateString(query.fechaDesde), fechaHastaExclusive: dayAfter(query.fechaHasta),
-    expediente: query.expediente, numeroSentencia: query.numeroSentencia, caratula: query.caratula,
-    tribunalOrigen: query.tribunalOrigen, tipoFallo: query.tipoFallo,
+    exactPhrase: query.fraseExacta,
+    excludeTerms: query.excluir,
+    sala: query.sala,
+    fechaDesde: asDateString(query.fechaDesde),
+    fechaHastaExclusive: dayAfter(query.fechaHasta),
+    expediente: query.expediente,
+    numeroSentencia: query.numeroSentencia,
+    numeroSumario: query.numeroSumario,
+    caratula: query.caratula,
+    actor: query.actor,
+    demandado: query.demandado,
+    objeto: query.objeto,
+    magistrados: query.magistrados,
+    tribunalOrigen: query.tribunalOrigen,
+    tipoFallo: query.tipoFallo,
+    tema: query.tema,
+    anio: query.anio,
+    publicado: query.publicado,
+    activo: query.activo,
     digestoCollectionId: query.digestoCollectionId,
     digestoTopicId: query.digestoTopicId,
     digestoTagId: query.digestoTagId,
+    soloConPdf: query.soloConPdf,
+    pdf: query.pdf,
+    tienePdf: query.tienePdf,
+    soloConResumen: query.soloConResumen,
+    destacada: query.destacada,
+    buscarEn: query.buscarEn,
   };
 }
 
@@ -276,66 +473,64 @@ function emptyLegacyPage(query: BusquedaAvanzadaQueryDto) {
   };
 }
 
-function supportsV2AdvancedQuery(query: BusquedaAvanzadaQueryDto) {
-  const unsupportedValues = [
-    query.fraseExacta, query.excluir?.length, query.numeroSumario, query.actor,
-    query.demandado, query.objeto, query.magistrados, query.tema, query.anio,
-    query.publicado, query.activo, query.soloConPdf, query.pdf, query.tienePdf,
-    query.soloConResumen, query.destacada,
-  ];
-  const unsupportedSearchFields = query.buscarEn?.length &&
-    !(query.buscarEn.length === 1 && query.buscarEn[0] === 'todo');
-  return Boolean(query.q?.trim()) &&
-    !unsupportedValues.some((value) => value !== undefined && value !== 'todos') &&
-    !unsupportedSearchFields &&
-    (!query.sortBy || query.sortBy === 'relevancia') &&
-    (!query.sortOrder || query.sortOrder === 'desc');
-}
-
-function toV2CompatibilityPage(page: NonNullable<Awaited<ReturnType<BusquedaService['federatedSearch']>>>) {
+function toV2CompatibilityPage(
+  page: NonNullable<Awaited<ReturnType<BusquedaService['federatedSearch']>>>,
+) {
   const seenSentencias = new Set<number>();
-  const data = (page?.results ?? []).filter((result) => {
-    if (result.sourceSystem !== 'JURISPRUDENCIA') return false;
-    const sentenciaId = Number(result.metadata.sentenciaId ?? result.sourceId);
-    if (!Number.isSafeInteger(sentenciaId) || seenSentencias.has(sentenciaId)) return false;
-    seenSentencias.add(sentenciaId);
-    return true;
-  }).map((result) => {
-    const metadata = result.metadata;
-    const sentenciaId = Number(metadata.sentenciaId ?? result.sourceId);
-    const stringField = (key: string) => typeof metadata[key] === 'string' ? metadata[key] as string : undefined;
-    const snippet = result.snippet ?? '';
-    return {
-      sentencia: {
-        id: sentenciaId,
-        caratula: stringField('caratula') ?? result.title ?? undefined,
-        numeroSentencia: stringField('numeroSentencia'),
-        tipoFallo: stringField('tipoFallo'),
-        sala: stringField('sala'),
-        fecha: result.date ?? undefined,
-        expediente: stringField('expediente'),
-        actor: stringField('actor'),
-        demandado: stringField('demandado'),
-        objeto: stringField('objeto'),
-        magistrados: stringField('magistrados'),
-        publicado: metadata.publicado === true,
-        activo: metadata.activo === true,
-        destacada: false,
-        tienePdf: false,
-      },
-      cantidadSumarios: 1,
-      cantidadPdfs: 0,
-      resumenBreve: snippet || null,
-      relevancia: result.score,
-      score: result.score,
-      criterioPrincipal: result.matchedFields.join(', ') || null,
-      fragmentos: snippet ? [snippet] : [],
-      highlights: [],
-      matchInfo: { exactPhraseMatches: 0, termMatches: result.matchedFields.length, matchedFields: result.matchedFields, directMatches: result.matchedFields.length, synonymMatches: 0 },
-      matchedFields: result.matchedFields,
-      sumariosRelevantes: [],
-    };
-  });
+  const data = (page?.results ?? [])
+    .filter((result) => {
+      if (result.sourceSystem !== 'JURISPRUDENCIA') return false;
+      const sentenciaId = Number(
+        result.metadata.sentenciaId ?? result.sourceId,
+      );
+      if (!Number.isSafeInteger(sentenciaId) || seenSentencias.has(sentenciaId))
+        return false;
+      seenSentencias.add(sentenciaId);
+      return true;
+    })
+    .map((result) => {
+      const metadata = result.metadata;
+      const sentenciaId = Number(metadata.sentenciaId ?? result.sourceId);
+      const stringField = (key: string) =>
+        typeof metadata[key] === 'string' ? metadata[key] : undefined;
+      const snippet = result.snippet ?? '';
+      return {
+        sentencia: {
+          id: sentenciaId,
+          caratula: stringField('caratula') ?? result.title ?? undefined,
+          numeroSentencia: stringField('numeroSentencia'),
+          tipoFallo: stringField('tipoFallo'),
+          sala: stringField('sala'),
+          fecha: result.date ?? undefined,
+          expediente: stringField('expediente'),
+          actor: stringField('actor'),
+          demandado: stringField('demandado'),
+          objeto: stringField('objeto'),
+          magistrados: stringField('magistrados'),
+          publicado: metadata.publicado === true,
+          activo: metadata.activo === true,
+          destacada: false,
+          tienePdf: false,
+        },
+        cantidadSumarios: Number(metadata.cantidadSumarios ?? 0),
+        cantidadPdfs: 0,
+        resumenBreve: snippet || null,
+        relevancia: result.score,
+        score: result.score,
+        criterioPrincipal: result.matchedFields.join(', ') || null,
+        fragmentos: snippet ? [snippet] : [],
+        highlights: [],
+        matchInfo: {
+          exactPhraseMatches: 0,
+          termMatches: result.matchedFields.length,
+          matchedFields: result.matchedFields,
+          directMatches: result.matchedFields.length,
+          synonymMatches: 0,
+        },
+        matchedFields: result.matchedFields,
+        sumariosRelevantes: [],
+      };
+    });
   const pageSize = page?.pageSize ?? 10;
   const total = page?.total ?? 0;
   const totalExact = page?.totalExact ?? true;
@@ -346,11 +541,110 @@ function toV2CompatibilityPage(page: NonNullable<Awaited<ReturnType<BusquedaServ
       total,
       page: page?.page ?? 1,
       pageSize,
-      pageCount: totalExact ? Math.ceil(total / pageSize) : (page?.page ?? 1) + (hasMore ? 1 : 0),
+      pageCount: totalExact
+        ? Math.ceil(total / pageSize)
+        : (page?.page ?? 1) + (hasMore ? 1 : 0),
       sortUsed: 'relevancia',
       expandedTerms: [],
       totalExact,
       hasMore,
     },
   };
+}
+
+function toExportCsv(rows: unknown[]) {
+  const header = [
+    'id',
+    'caratula',
+    'numeroSentencia',
+    'sala',
+    'tipoFallo',
+    'fecha',
+    'expediente',
+    'resumenBreve',
+    'score',
+    'cantidadSumarios',
+    'cantidadPdfs',
+  ];
+  const lines = rows.map((value) => {
+    const row = value as ExportableSearchResult;
+    const sentencia = row.sentencia ?? {};
+    const metadata = row.metadata ?? {};
+    const date = sentencia.fecha ?? row.date;
+    const fields = [
+      displayValue(sentencia.id ?? row.sourceId ?? row.id),
+      displayValue(sentencia.caratula ?? row.title),
+      displayValue(
+        sentencia.numeroSentencia ?? metadata.numeroSentencia ?? row.subtitle,
+      ),
+      displayValue(sentencia.sala ?? metadata.sala ?? row.chamber),
+      displayValue(
+        sentencia.tipoFallo ?? metadata.tipoFallo ?? row.documentType,
+      ),
+      date instanceof Date ? date.toISOString() : displayValue(date),
+      displayValue(
+        sentencia.expediente ?? metadata.expediente ?? row.caseNumber,
+      ),
+      displayValue(row.resumenBreve ?? row.snippet),
+      displayValue(row.score ?? row.relevancia),
+      displayValue(row.cantidadSumarios ?? metadata.cantidadSumarios, '0'),
+      displayValue(row.cantidadPdfs, '0'),
+    ];
+    return fields.map((field) => `"${field.replace(/"/g, '""')}"`).join(',');
+  });
+  return [header.join(','), ...lines].join('\n');
+}
+
+function toExportTxt(rows: unknown[]) {
+  return rows
+    .map((value) => {
+      const row = value as ExportableSearchResult;
+      const sentencia = row.sentencia ?? {};
+      const metadata = row.metadata ?? {};
+      const date = sentencia.fecha ?? row.date;
+      const fecha =
+        date instanceof Date ? date.toISOString() : displayValue(date, '-');
+      return [
+        `Sentencia #${displayValue(sentencia.id ?? row.sourceId ?? row.id, '-')}`,
+        displayValue(sentencia.caratula ?? row.title, 'Sin caratula'),
+        `Sala: ${displayValue(sentencia.sala ?? metadata.sala ?? row.chamber, '-')}`,
+        `Fecha: ${fecha}`,
+        `Expediente: ${displayValue(sentencia.expediente ?? metadata.expediente ?? row.caseNumber, '-')}`,
+        `Score: ${displayValue(row.score ?? row.relevancia, '-')}`,
+        `Resumen: ${displayValue(row.resumenBreve ?? row.snippet, '-')}`,
+      ].join('\n');
+    })
+    .join('\n\n');
+}
+
+type ExportableSearchResult = {
+  id?: string | number;
+  sourceId?: string;
+  title?: string | null;
+  subtitle?: string | null;
+  chamber?: string | null;
+  documentType?: string;
+  caseNumber?: string | null;
+  date?: string | null;
+  snippet?: string | null;
+  score?: number;
+  relevancia?: number;
+  resumenBreve?: string | null;
+  cantidadSumarios?: number;
+  cantidadPdfs?: number;
+  sentencia?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+};
+
+function displayValue(value: unknown, fallback = ''): string {
+  if (value === null || value === undefined) return fallback;
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    return String(value);
+  }
+  if (value instanceof Date) return value.toISOString();
+  return JSON.stringify(value) ?? fallback;
 }
