@@ -59,3 +59,11 @@ Vault / service account owner:
 Usuarios concurrentes / corpus autorizado:
 Ventana / rollback owner:
 ```
+
+## Estado de PREPROD-UAT-PREP-1 (2026-10-18)
+
+**Solicitud pendiente; no existe target provisionado o autorizado en la PC principal.** Completar esta planilla y adjuntar ticket/aprobación antes de entregar secretos por vault. No compartir passwords ni connection strings en el ticket.
+
+Agregar confirmación explícita de: PostgreSQL 16 con `sslmode=verify-full`, certificado/cadena confiable y host FQDN coincidente; DB nueva `buscador_juridico_civil_preprod`, rol de mínimo privilegio y puerto distinto de las instancias DEV locales; OpenSearch HTTPS autenticado con aislamiento de cluster/rol, alias `galilei-preprod-search-active` y prefijo `galilei-preprod-search`; storage absoluto y persistente, separado; API sólo loopback detrás de proxy/TLS; DNS HTTPS privado; servicio Node compatible con lockfiles; backup DB+storage y restore drill aislado, capacidad, RPO/RTO, monitoreo, owner y ventana.
+
+Con los datos entregados, el deploy script verificará un backup/manifest nuevo antes de migrar. Ningún dato de esta solicitud habilita producción, ni permite reutilizar DEV como sustituto.

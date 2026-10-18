@@ -7,6 +7,7 @@
     "build": "next build",
     "test:e2e": "playwright test",
     "start": "next start -H 0.0.0.0 -p 4001",
+    "start:preprod": "next start -H 127.0.0.1 -p 4002",
     "lint": "eslint",
     "lint:ux": "eslint ux-qa tests/ux-*.spec.cjs",
     "qa:ux": "node --test ux-qa/self-test.cjs && node ux-qa/run.cjs public",
@@ -14,7 +15,9 @@
     "qa:ux:public": "node ux-qa/run.cjs public",
     "qa:ux:responsive": "node ux-qa/run.cjs responsive",
     "qa:ux:viewer": "node ux-qa/run.cjs viewer",
-    "qa:ux:auth": "node ux-qa/auth-preflight.cjs && node ux-qa/run.cjs auth"
+    "qa:ux:auth": "node ux-qa/auth-preflight.cjs && node ux-qa/run.cjs auth",
+    "preprod:env:check": "node scripts/preprod-build-env.cjs",
+    "preprod:env:test": "node --test scripts/preprod-build-env.test.cjs"
   },
   "dependencies": {
     "next": "16.2.4",

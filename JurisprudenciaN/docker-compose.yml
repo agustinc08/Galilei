@@ -1,14 +1,14 @@
 services:
   postgres:
     image: postgres:16
-    container_name: jurisprudencia_postgres
+    container_name: jurisprudencia_postgres_local
     restart: unless-stopped
     environment:
-      POSTGRES_DB: jurisprudencia_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: "${JURISPRUDENCIA_DB_NAME:-jurisprudencia_db}"
+      POSTGRES_USER: "${JURISPRUDENCIA_DB_USER:-jurisprudencia_local}"
+      POSTGRES_PASSWORD: "${JURISPRUDENCIA_DB_PASSWORD:?Set JURISPRUDENCIA_DB_PASSWORD for this disposable local database}"
     ports:
-      - "5432:5432"
+      - "127.0.0.1:55433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

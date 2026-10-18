@@ -1,6 +1,6 @@
 # Instrucciones del proyecto
 
-> **Contexto vigente (2026-10-18):** INT-1R pasó y la promoción separada fue verificada: `origin/dev` y `origin/integration/galilei-beta` apuntan a `111bc5c86faff0bf946ef5e199b4463fe8217d5a`. `feature/ux-reconcile` parte de ese DEV y contiene trabajo UX todavía separado; no promover UX a DEV en esta misión. `main` y las ramas UX de entrada permanecen intactas. UAT institucional y preproducción siguen pendientes. Los estados PARTIAL/NOT PROMOTED posteriores conservan su alcance y fecha históricos; para el estado vigente consultar `docs-integracion/BJC-ESTADO-ACTUAL.md` y `BJC-ROADMAP.md`.
+> **Contexto vigente (2026-10-18):** `origin/dev=af8f51d6f5e5be48e0167c5890328acd3c80c2c4`; UX-PROMOTE-DEV fue verificado; `origin/main=83947656420a9d6f6c3cfb12b353eb7f2c293a28` sigue intacta; `origin/integration/galilei-beta=111bc5c86faff0bf946ef5e199b4463fe8217d5a` conserva el corte INT-1R. La preparación PREPROD/UAT se realiza en `feature/preprod-uat-prep`, basada exactamente en `origin/dev`; no desplegar, no cambiar `dev`, `main` ni `integration`. No hay host PREPROD ni UAT institucional provisionados. Los estados PARTIAL/NOT PROMOTED mantienen su alcance y fecha históricos; el estado vigente se registra en `docs-integracion/BJC-ESTADO-ACTUAL.md` y `BJC-ROADMAP.md`.
 
 
 ## Versionado Git

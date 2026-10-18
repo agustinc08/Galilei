@@ -1,5 +1,17 @@
 # Decisiones y contratos vigentes
 
+## PREPROD-UAT-PREP-1 — límites y decisión vigente (2026-10-18)
+
+`origin/dev` está en `af8f51d6f5e5be48e0167c5890328acd3c80c2c4`; UX fue promovida y revisada. `main` no cambió. `integration/galilei-beta` conserva `111bc5c86faff0bf946ef5e199b4463fe8217d5a` como corte INT-1R. La preparación corre en `feature/preprod-uat-prep` y no autoriza cambios en otras ramas ni despliegue.
+
+No hay preproducción provisionada ni UAT institucional iniciada. El diseño exige DB, credenciales, storage, alias/prefijo físico OpenSearch, JWT, logs y URLs segregados; API/Frontend detrás de proxy/TLS; DB y OpenSearch sin exposición pública. La configuración debe fallar cerrada ante DB DEV/loopback, OpenSearch sin TLS/auth o alias/prefijo DEV, frontend `localhost`, Search engine distinto de OpenSearch, CORS inseguro o bind API no loopback.
+
+OpenSearch v3 permanece derivado de PostgreSQL. DEV conserva `galilei-search-active`; preprod usará alias `galilei-preprod-search-active` y prefijo físico `galilei-preprod-search`, idealmente con clúster y rol separados. Ese esquema de nombres evita que el worker/rebuild preprod escriba el alias o índices físicos DEV; credenciales con privilegio sólo sobre su patrón. No cambia gramática, ranking ni semántica.
+
+El inicio del backend puede escribir al recuperar escaneos de fuentes/documentos y leases OCR pendientes, y puede drenar outbox Search si existe alias activo. No ejecuta migraciones ni rebuild global automático. Apagado Nest usa hooks; un OCR en curso no tiene drain probado y recupera por lease; mantener OCR deshabilitado inicialmente y validar stop/restart aislado antes de habilitarlo.
+
+Actualícese el estado sólo con evidencia: no marcar preprod READY por builds locales; no marcar restore probado por `pg_restore --list`; no abrir UAT hasta host, datos/ACL, cuentas, backup+restore y smoke real aprobados.
+
 ## Registro vigente — decisión Search 1.5.1 (2026-10-18)
 
 **Decisión:** cerrar la integración OpenSearch en `integration/galilei-beta` con alias v3 activo. Search usa el contrato `COPERNIC_PREFIX_EXACT_PHRASE`; OpenSearch 2.19.6 es índice derivado y PostgreSQL es la fuente de verdad. El alias `galilei-search-active` apunta al índice schema v3 `galilei-search-v003-20261017t232432555z-a6af18cb`. Cobertura exacta postcorte 69.313 IDs; 0 faltantes/extras/duplicados; mismo SHA-256 antes y después del corte. V1 (42.180 docs) se retiene como rollback, entendiendo que es incompleto frente a v3.

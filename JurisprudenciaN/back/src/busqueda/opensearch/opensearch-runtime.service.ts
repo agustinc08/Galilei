@@ -17,6 +17,7 @@ export class OpenSearchRuntimeService {
     this.client,
     this.repository,
     this.config.alias,
+    this.config.indexPrefix,
   );
   readonly syncWorker = new OpenSearchSyncWorker(this.repository, this.index);
 

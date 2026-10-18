@@ -43,3 +43,11 @@
 - [ ] Owner funcional acepta el piloto; acta, evidencia y release manifest almacenados según retención acordada.
 
 **Estado general:** BLOCKED hasta tener host y políticas aprobadas. Este checklist no autoriza producción ni red compartida.
+
+## Resultado PREPROD-UAT-PREP-1 (2026-10-18)
+
+Estado general confirmado: **BLOCKED / INFRA NOT PROVISIONED**. No se ejecutó checklist en un host real. Builds y tests locales no cambian este estado. Las casillas que requieren ambiente quedan abiertas hasta que infraestructura entregue el formulario del doc 140 y exista autorización verificable.
+
+Verificaciones previas disponibles: rama de preparación basada en `origin/dev=af8f51d6f5e5be48e0167c5890328acd3c80c2c4`; PostgreSQL 16 DEV en `127.0.0.1:55432` tiene 31/31 migraciones (sólo lectura) y queda expresamente excluido de preprod. Docker/Podman no están disponibles; no se ejecutó compose. La máquina tampoco es target institucional y no tiene espacio libre suficiente para asumir el índice v3 (~13.2 GiB) más corpus, DB y restore según sizing final.
+
+Gate inicial propuesto para cerrar este checklist: infraestructura responde doc 140, presenta owner y autorización, entrega host/DB/storage/DNS/TLS/OpenSearch aislados y capacidad; luego ejecutar deploy/restore/smoke exclusivamente en esos targets.

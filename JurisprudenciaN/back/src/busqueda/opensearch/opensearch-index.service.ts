@@ -12,8 +12,6 @@ import {
   projectSentenciaSearchDocument,
 } from './opensearch-search-document';
 
-const INDEX_PREFIX = `galilei-search-v${String(SEARCH_INDEX_SCHEMA_VERSION).padStart(3, '0')}-`;
-const MANAGED_INDEX_PREFIX = 'galilei-search-v';
 const BULK_LIMIT_BYTES = 4 * 1024 * 1024;
 
 type SearchHitsResponse = {
@@ -32,6 +30,7 @@ export class OpenSearchIndexService {
     private readonly client: Client,
     private readonly repository: OpenSearchDocumentRepository,
     readonly alias: string,
+    private readonly indexPrefix = 'galilei-search',
   ) {}
 
   async rebuild() {
@@ -39,7 +38,8 @@ export class OpenSearchIndexService {
     const startWatermark = await this.repository.withMutationBarrier(
       (_client, watermark) => Promise.resolve(watermark),
     );
-    const physicalIndex = `${INDEX_PREFIX}${new Date().toISOString().replace(/[-:.]/gu, '').toLowerCase()}-${randomUUID().slice(0, 8)}`;
+    const managedIndexPrefix = `${this.indexPrefix}-v`;
+    const physicalIndex = `${managedIndexPrefix}${String(SEARCH_INDEX_SCHEMA_VERSION).padStart(3, '0')}-${new Date().toISOString().replace(/[-:.]/gu, '').toLowerCase()}-${randomUUID().slice(0, 8)}`;
     let indexCreated = false;
     let promoted = false;
     let indexedCorpus = 0;
@@ -262,14 +262,15 @@ export class OpenSearchIndexService {
   async cleanupOldIndexes(retentionDays = 7, keepPrevious = 1) {
     const active = await this.activePhysicalIndex();
     const response = await this.client.cat.indices({
-      index: `${MANAGED_INDEX_PREFIX}*`,
+      index: `${this.indexPrefix}-v*`,
       format: 'json',
     });
     const rows = bodyOf<Array<{ index?: string; creation?: string }>>(response);
     const owned = rows
       .filter(
         (row) =>
-          row.index?.startsWith(MANAGED_INDEX_PREFIX) && row.index !== active,
+          row.index?.startsWith(`${this.indexPrefix}-v`) &&
+          row.index !== active,
       )
       .map((row) => ({
         index: row.index!,
@@ -568,8 +569,12 @@ export class OpenSearchIndexService {
     try {
       const response = await this.client.indices.getAlias({ name: this.alias });
       const body = bodyOf<Record<string, unknown>>(response);
+      const physicalIndexPattern = new RegExp(
+        `^${escapeRegExp(`${this.indexPrefix}-v`)}\\d{3}-`,
+        'u',
+      );
       const targets = Object.keys(body).filter((name) =>
-        /^galilei-search-v\d{3}-/u.test(name),
+        physicalIndexPattern.test(name),
       );
       if (targets.length > 1)
         throw new Error('SEARCH_ALIAS_HAS_MULTIPLE_PHYSICAL_INDEXES');
@@ -615,4 +620,8 @@ function parseIndexDate(index: string) {
   return new Date(
     `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}T${stamp.slice(9, 11)}:${stamp.slice(11, 13)}:${stamp.slice(13, 15)}.${stamp.slice(15, 18)}Z`,
   );
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }

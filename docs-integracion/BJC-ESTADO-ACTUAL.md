@@ -1,5 +1,15 @@
 # Estado actual — Buscador Jurídico Civil
 
+## PREPROD-UAT-PREP-1 — estado vigente (2026-10-18)
+
+`origin/dev` y la rama de preparación parten de `af8f51d6f5e5be48e0167c5890328acd3c80c2c4`. UX quedó promovida y revisada; `main` permanece en `83947656420a9d6f6c3cfb12b353eb7f2c293a28`; `integration/galilei-beta` conserva el SHA certificado anterior `111bc5c86faff0bf946ef5e199b4463fe8217d5a`. La rama de esta misión es `feature/preprod-uat-prep`; todavía no se publicó ni se integró.
+
+**Preproducción no provisionada; UAT institucional no iniciada.** No hay host, DNS, TLS, storage ni base preprod autorizados en el equipo/repo. En la PC sólo se identificaron PostgreSQL DEV en `127.0.0.1:55432` y OpenSearch local en `127.0.0.1:9200`; no se usan como sustitutos. No se tocó producción ni se escribieron datos en DB/OpenSearch durante esta preparación.
+
+Verificación local read-only: PostgreSQL client tools 16.15; el guard `prisma-migrate-status` confirmó 31 migraciones y schema DEV al día. La prueba aislada desde cero se reutiliza por hash desde la certificación INT-1R; no se creó una base temporal nueva. El alias DEV `galilei-search-active` está verde en OpenSearch 2.19.6, schema v3, 69.313 documentos; tamaño observado v3 14.158.744.471 bytes (13,19 GiB). Storage DEV `_dev-corpus-storage`: 17.098 archivos / 3.667.203.473 bytes; `back/uploads`: 11.747 archivos / 2.402.132.093 bytes. C: tenía 40,84 GiB libres, por debajo de la reserva de 50 GiB recomendada como mínimo operativo; no es sizing de preprod.
+
+En `feature/preprod-uat-prep` se agregan guardas fail-closed para alias/prefijo físico OpenSearch exclusivos, bind loopback del API, API URL HTTPS exacta del frontend, commit limpio identificable, apagado de Swagger en runtime production, shutdown hooks, y credenciales/puerto seguros en el Compose local heredado. No cambian Search semantics, ACL, schema ni migraciones. Docker/Podman no están instalados; no se construyeron imágenes ni se ejecutó Compose. Builds limpios, restore preprod y smoke de red real quedan sujetos a los gates detallados en docs 134, 136, 141 y 143.
+
 ## INT-1R — recertificación final (2026-10-18)
 
 **Resultado vigente: INT-1R PASS y promoción separada verificada.** `origin/dev == origin/integration/galilei-beta == 111bc5c86faff0bf946ef5e199b4463fe8217d5a`; ése es el SHA certificado. `main` permanece sin cambios. La reconciliación de UX corre aparte en `feature/ux-reconcile`, sin promoción a DEV. UAT institucional y preproducción siguen pendientes. INT-1S y la integración OpenSearch continúan cerrados; OpenSearch 2.19.6 es índice derivado schema v3 y PostgreSQL sigue como fuente de verdad. `galilei-search-active` apunta únicamente a `galilei-search-v003-20261017t232432555z-a6af18cb`.

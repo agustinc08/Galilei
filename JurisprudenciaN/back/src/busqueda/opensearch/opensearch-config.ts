@@ -4,6 +4,7 @@ import { Client } from '@opensearch-project/opensearch';
 export type OpenSearchConfig = {
   node: string;
   alias: string;
+  indexPrefix: string;
   requestTimeoutMs: number;
   maxRetries: number;
   allowInsecureLocal: boolean;
@@ -75,6 +76,15 @@ export function readOpenSearchConfig(
   ) {
     throw new Error('OPENSEARCH_INDEX_ALIAS_INVALID');
   }
+  const indexPrefix = (env.OPENSEARCH_INDEX_PREFIX ?? 'galilei-search').trim();
+  if (
+    !/^[a-z0-9][a-z0-9._-]{2,60}$/u.test(indexPrefix) ||
+    indexPrefix.startsWith('.') ||
+    indexPrefix.endsWith('.') ||
+    indexPrefix.endsWith('-')
+  ) {
+    throw new Error('OPENSEARCH_INDEX_PREFIX_INVALID');
+  }
 
   let ca: Buffer | undefined;
   const caPath = env.OPENSEARCH_CA_PATH?.trim();
@@ -89,6 +99,7 @@ export function readOpenSearchConfig(
   return {
     node: endpoint.origin,
     alias,
+    indexPrefix,
     requestTimeoutMs,
     maxRetries,
     allowInsecureLocal,

@@ -96,3 +96,13 @@ Mínimo operativo: readiness/API, DB, storage, respuestas 5xx, slow Search sin p
 Release inicial sugerido: `BJC PREPROD RC1`. Registrar version/date, backend/frontend build IDs, commit SHA si disponible, count/status de migraciones y versión/estado de projection. Guardar el acceptance report resultante. Ante regresión de servicio, usar deployment anterior sólo si es compatible; una migración aplicada requiere fix-forward o restore aprobado a DB de reemplazo aislada. No prometer downgrade automático.
 
 Digesto export/crosswalk sigue PENDING hasta recibir paquete institucional autorizado; no consultar endpoint remoto. CIJ/CSJN public mass automated download continúa NO GO.
+
+## Adenda PREPROD-UAT-PREP-1 (2026-10-18)
+
+Los scripts y guards son preparación revisada; **no se ejecutaron** contra infraestructura institucional. `deploy-preprod.ps1` ahora comprueba source SHA y checkout limpio, alinea `FRONTEND_URL` con el origin preprod, valida el destino de bundle Next antes de conectar DB, y verifica backup/manifest/hash antes de migraciones. El backend exige Search OpenSearch, alias/prefijo preprod, DB con `sslmode=verify-full`, API loopback, CORS HTTPS, storage separado, rate limit habilitado y una réplica.
+
+`front/scripts/preprod-build-env.cjs` cuenta con tests sintéticos y bloquea API URL HTTP/loopback/origen divergente. El backend configura shutdown hooks y oculta Swagger en producción. `opensearch-index.service.ts` usa el prefijo físico configurado, con default compatible para DEV. Se requiere validar builds/tests en checkout limpio antes de publicar esta rama.
+
+No hay contenedor preprod de aplicación y Docker/Podman no están instalados. El compose heredado `JurisprudenciaN/docker-compose.yml` fue corregido para exigir password por variable y bind loopback en puerto 55433; no se inició ni construyó. El compose DEV separado usa 55432 y no debe correrse junto al PostgreSQL nativo DEV.
+
+El despliegue automático mantiene acciones deliberadas de alto impacto (migraciones, arranque de servicios, smoke con cuenta aprobada) y requiere owner/infra, backup real y acceso al vault; no es un comando para correr en este workspace ni una autorización a ejecutar producción.

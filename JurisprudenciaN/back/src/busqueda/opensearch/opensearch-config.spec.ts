@@ -7,10 +7,10 @@ const local = {
 
 describe('OpenSearch runtime config security', () => {
   it('allows explicitly enabled loopback HTTP only outside production', () => {
-    expect(
-      readOpenSearchConfig({ ...local, NODE_ENV: 'development' })
-        .allowInsecureLocal,
-    ).toBe(true);
+    const config = readOpenSearchConfig({ ...local, NODE_ENV: 'development' });
+    expect(config.allowInsecureLocal).toBe(true);
+    expect(config.alias).toBe('galilei-search-active');
+    expect(config.indexPrefix).toBe('galilei-search');
   });
 
   it('rejects loopback HTTP without the explicit development flag', () => {
@@ -79,5 +79,29 @@ describe('OpenSearch runtime config security', () => {
         NODE_ENV: 'development',
       }).allowInsecureLocal,
     ).toBe(true);
+  });
+
+  it('accepts a validated environment-specific alias and physical-index prefix', () => {
+    const config = readOpenSearchConfig({
+      OPENSEARCH_NODE: 'https://preprod-search.internal:9200',
+      OPENSEARCH_USERNAME: 'preprod-search-user',
+      OPENSEARCH_PASSWORD: 'synthetic-test-only',
+      OPENSEARCH_INDEX_ALIAS: 'galilei-preprod-search-active',
+      OPENSEARCH_INDEX_PREFIX: 'galilei-preprod-search',
+      BJC_DEPLOYMENT_ENV: 'preprod',
+      NODE_ENV: 'production',
+    });
+    expect(config.alias).toBe('galilei-preprod-search-active');
+    expect(config.indexPrefix).toBe('galilei-preprod-search');
+  });
+
+  it('rejects invalid physical-index prefixes', () => {
+    expect(() =>
+      readOpenSearchConfig({
+        ...local,
+        OPENSEARCH_INDEX_PREFIX: 'Galilei DEV',
+        NODE_ENV: 'development',
+      }),
+    ).toThrow('OPENSEARCH_INDEX_PREFIX_INVALID');
   });
 });

@@ -1,5 +1,20 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Corte vigente — preparación de preproducción/UAT (2026-10-18)
+
+| Alcance | Estado | Evidencia / siguiente paso |
+|---|---|---|
+| DEV + UX | PROMOTED + REVIEWED | `origin/dev=af8f51d6f5e5be48e0167c5890328acd3c80c2c4`; UX ya está en DEV. `main` intacta. |
+| INT-1R | PASS | SHA certificado `111bc5c86faff0bf946ef5e199b4463fe8217d5a` permanece en `integration/galilei-beta`; no se mueve en esta misión. |
+| PREPROD-UAT-PREP-1 | IN PROGRESS ON BRANCH | `feature/preprod-uat-prep`, creada desde el SHA exacto de DEV. Sólo readiness, configuración, documentación y UAT plan. |
+| Host / DB / storage preprod | NOT PROVISIONED | No se identificó destino institucional autorizado. Solicitar host, PostgreSQL 16, volumen, OpenSearch, TLS, DNS/proxy, firewall y owners (doc 140). |
+| Fresh migration replay | CERTIFIED BY EXISTING SHA EVIDENCE | 31/31; hashes coinciden con la prueba aislada INT-1R. No repetir sobre DEV ni crear DB sin destino temporal autorizado. |
+| Backup / restore preprod | NOT PROVEN | El backup script sólo verifica archivo/hash; restore real debe probarse en DB/storage de reemplazo aislados antes del deploy. |
+| UAT institucional | PLAN ONLY / NOT STARTED | Sin host, perfiles reales, corpus aprobado ni cuentas. No invitar usuarios ni emitir credenciales. |
+| Capacidad local | BELOW RESERVE | C: 40,84 GiB libres vs ≥50 GiB recomendado; v3 actual 13,19 GiB, además de DB/storage/backups. No dimensiona el host UAT. |
+
+Siguiente gate: finalizar revisión/build de la rama; luego infraestructura provisiona y entrega identidad/owner/ventana. Sólo entonces ejecutar el runbook 136 con guard de DB, restore drill y service manager aprobado. No desplegar producción ni iniciar UAT real.
+
 ## Corte vigente — Search DEV y reconciliación UX separada (2026-10-18)
 
 | Alcance | Estado | Evidencia / siguiente paso |

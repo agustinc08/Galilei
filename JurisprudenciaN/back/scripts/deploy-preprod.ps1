@@ -20,7 +20,8 @@ $requiredEnvironment = @(
   'NODE_ENV','BJC_DEPLOYMENT_ENV','BJC_PREPROD_DATABASE_APPROVED','BJC_PREPROD_DB_HOST','BJC_PREPROD_DB_PORT',
   'BJC_PREPROD_DB_NAME','BJC_PREPROD_DB_USER','DATABASE_URL','JWT_SECRET','BJC_CORPUS_STORAGE_PATH','FRONTEND_URL',
   'BJC_PREPROD_API_ORIGIN','BJC_PREPROD_FRONTEND_ORIGIN','BJC_PREPROD_SMOKE_EMAIL','BJC_PREPROD_SMOKE_PASSWORD',
-  'BJC_PREPROD_SMOKE_DOCUMENT_ID','BJC_RELEASE_ID','BJC_BACKEND_BUILD_ID','BJC_FRONTEND_BUILD_ID','BJC_PREPROD_REPORT_PATH'
+  'BJC_PREPROD_SMOKE_DOCUMENT_ID','BJC_RELEASE_ID','BJC_BACKEND_BUILD_ID','BJC_FRONTEND_BUILD_ID','BJC_PREPROD_REPORT_PATH',
+  'GIT_COMMIT_SHA','NEXT_PUBLIC_API_URL'
 )
 foreach ($key in $requiredEnvironment) {
   if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($key))) { throw "Missing required process environment variable: $key" }
@@ -28,6 +29,18 @@ foreach ($key in $requiredEnvironment) {
 if ($env:NODE_ENV -ne 'production' -or $env:BJC_DEPLOYMENT_ENV -ne 'preprod' -or $env:BJC_PREPROD_DATABASE_APPROVED -ne 'true') {
   throw 'Deployment stopped: explicit production-runtime/preprod/DB approval markers are required.'
 }
+if ($env:GIT_COMMIT_SHA -notmatch '^[0-9a-fA-F]{40}$') { throw 'GIT_COMMIT_SHA must be the approved full 40-hex source commit.' }
+$sourceCommit = (& git -C $projectRoot rev-parse HEAD 2>$null)
+if ($LASTEXITCODE -ne 0 -or $sourceCommit.Trim() -ne $env:GIT_COMMIT_SHA.ToLowerInvariant()) {
+  throw 'Checked-out source SHA does not match GIT_COMMIT_SHA; refusing to deploy an unidentified build.'
+}
+$sourceStatus = & git -C $projectRoot status --porcelain
+if ($LASTEXITCODE -ne 0 -or $sourceStatus) { throw 'Deployment source worktree must be clean.' }
+if ($env:FRONTEND_URL.TrimEnd('/') -ne $env:BJC_PREPROD_FRONTEND_ORIGIN.TrimEnd('/')) {
+  throw 'BJC_PREPROD_FRONTEND_ORIGIN must match FRONTEND_URL used by the backend CORS allowlist.'
+}
+Push-Location $frontRoot
+try { Invoke-Checked 'Validate frontend preproduction API target' { node scripts/preprod-build-env.cjs } } finally { Pop-Location }
 if ($env:BJC_PREPROD_DB_NAME -eq 'buscador_juridico_civil_dev' -or $env:BJC_PREPROD_DB_USER -eq 'bjc_dev' -or $env:BJC_PREPROD_DB_HOST -in @('localhost','127.0.0.1','::1')) {
   throw 'Deployment stopped: the configured database is not an isolated preproduction target.'
 }

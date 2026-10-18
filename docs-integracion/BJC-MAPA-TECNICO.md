@@ -164,3 +164,9 @@ J9.0.1 agrega un backfill DEV de workflow legacy, que sólo crea/enlaza `Sentenc
 - Search mantiene la ACL antes de recuperar contenido. Los matches OCR navegan al texto/página, pero el Viewer no crea cajas visuales sin geometría certificada.
 
 Configuración, límites y recuperación están documentados en `BJC-PROCESAMIENTO-DOCUMENTAL.md`. La implementación permanece local-only y no activa OCR en producción por defecto.
+
+## Topología de despliegue PREPROD preparada (2026-10-18)
+
+La rama `feature/preprod-uat-prep` deriva de `origin/dev=af8f51d6f5e5be48e0167c5890328acd3c80c2c4`. Topología objetivo —todavía DISEÑADA, no provisionada—: navegador institucional → reverse proxy/TLS privado → frontend y API; API escuchando sólo en `127.0.0.1`; backend Nest → PostgreSQL 16 con TLS `verify-full`, storage durable y OpenSearch HTTPS autenticado; outbox Postgres alimenta el índice OpenSearch de prefijo `galilei-preprod-search` y alias `galilei-preprod-search-active`.
+
+No hay PREPROD host, DB, endpoint Search, proxy, storage ni UAT en este equipo. PostgreSQL DEV `127.0.0.1:55432`, OpenSearch DEV `127.0.0.1:9200` y `_dev-corpus-storage` son excluidos. Docker/Podman no están instalados. No ejecutar los composes como si fueran despliegue preprod. Consultar runbooks 134/136/140/141/143/144.
