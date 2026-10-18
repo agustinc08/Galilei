@@ -12,6 +12,7 @@ export function StatusMessage({
 }) {
   return (
     <div
+      role={variant === 'error' ? 'alert' : 'status'}
       className={cn(
         styles.statusMessage,
         variant === 'error'

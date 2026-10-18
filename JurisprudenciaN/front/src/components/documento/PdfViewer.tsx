@@ -185,7 +185,7 @@ export function PdfViewer({
         <div className={`${styles.viewerFrameWrap} ${styles.viewerEmptyState}`}>
           <EmptyState
             title="No se pudo mostrar el PDF"
-            description={error ?? 'El documento no esta disponible en este momento.'}
+            description={error ?? 'El documento no está disponible en este momento.'}
           />
         </div>
       </>
@@ -209,7 +209,7 @@ export function PdfViewer({
           <label className={styles.compactControl}>
             Zoom
             <select value={zoom} onChange={(event) => setZoom(event.target.value)}>
-              <option value="auto">Auto</option>
+              <option value="auto">Ajustar</option>
               <option value="100">100%</option>
               <option value="125">125%</option>
               <option value="150">150%</option>

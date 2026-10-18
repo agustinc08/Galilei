@@ -1,24 +1,24 @@
-.page { display: grid; gap: 1rem; }
+.page { display: grid; min-width: 0; gap: clamp(.8rem, 1.4vw, 1rem); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .75rem; background: #fff; border: 1px solid #dfe5ec; border-radius: .65rem; }
 .toolbar button, .matchNav button, .matches button { border: 1px solid #cbd5e1; border-radius: .4rem; padding: .45rem .7rem; background: #f8fafc; color: #1f2937; cursor: pointer; }
 .toolbar form { display: flex; gap: .35rem; flex: 1 1 18rem; }
 .toolbar input { min-width: 4rem; padding: .45rem; border: 1px solid #cbd5e1; border-radius: .35rem; }
 .toolbar form input { flex: 1; }
-.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem); gap: 1rem; align-items: start; }
-.pdfPanel { min-height: 72vh; background: #e5e7eb; border-radius: .6rem; overflow: hidden; }
-.pdfPanel iframe { width: 100%; height: 78vh; border: 0; background: #fff; }
-.pdfDocument { width: 100%; min-height: 72vh; overflow: auto; padding: .75rem; }
+.layout { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem); gap: clamp(.75rem, 1.4vw, 1rem); align-items: start; }
+.pdfPanel { min-width: 0; height: min(72vh, 820px); min-height: min(440px, 60vh); background: #e5eaf0; border-radius: .65rem; overflow: hidden; }
+.pdfPanel iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+.pdfDocument { width: 100%; height: 100%; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: .75rem; }
 .mappingFallback { margin: 0 auto .75rem; max-width: 72rem; padding: .55rem .7rem; border: 1px solid #fbbf24; border-radius: .4rem; background: #fffbeb; color: #78350f; font-size: .82rem; }
 .mappingFallback span { display: block; margin-top: .3rem; overflow-wrap: anywhere; }
 .pdfDocument :global(.react-pdf__Page) { margin: 0 auto; box-shadow: 0 2px 12px #0f172a26; }
 .pdfDocument :global(.react-pdf__Page__canvas) { max-width: 100%; height: auto !important; }
 .pdfDocument :global(.react-pdf__Page__textContent) { user-select: text; }
 .pdfDocument :global(.bjc-pdf-match) { background: #fde68a; color: #1f2937; }
-.pdfDocument :global(.bjc-pdf-match-current) { background: #fb923c; color: #111827; outline: 2px solid #c2410c; border-radius: 2px; }
-.sidePanel { display: grid; gap: 1rem; max-height: 78vh; overflow: auto; }
+.pdfDocument :global(.bjc-pdf-match-current) { background: #f6c86c; color: #3d2d08; outline: 2px solid #9a6700; border-radius: 2px; }
+.sidePanel { display: grid; min-width: 0; gap: 1rem; max-height: min(72vh, 820px); overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .sidePanel h2 { margin: 0 0 .65rem; font-size: 1rem; }
 .matchNav { display: flex; justify-content: space-between; align-items: center; gap: .4rem; }
-.matches { padding-left: 1.25rem; display: grid; gap: .5rem; max-height: 36vh; overflow: auto; }
+.matches { padding-left: 1.25rem; display: grid; gap: .5rem; max-height: min(34vh, 400px); overflow: auto; overscroll-behavior: contain; }
 .matches p { margin: .3rem 0; font-size: .86rem; color: #475569; }
 .metadata { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: .35rem .5rem; font-size: .88rem; }
 .metadata dt { color: #64748b; }
@@ -36,4 +36,18 @@
 .history { display: grid; gap: .4rem; padding-left: 1.3rem; }
 .history li { display: grid; gap: .2rem; }
 .history span { color: #475569; font-size: .88rem; }
-@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .sidePanel { max-height: none; } .pdfPanel iframe { height: 68vh; } .pdfDocument { min-height: 60vh; } }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .sidePanel { max-height: none; overflow: visible; }
+  .pdfPanel { height: min(68vh, 700px); min-height: min(420px, 54vh); }
+  .pdfDocument { height: 100%; min-height: 0; }
+}
+
+@media (max-width: 600px) {
+  .toolbar { gap: .5rem; }
+  .toolbar form { flex-basis: 100%; }
+  .toolbar button, .matchNav button, .matches button { min-height: 2.6rem; }
+  .pdfPanel { height: min(62vh, 620px); min-height: min(380px, 48vh); }
+  .pdfDocument { padding: .45rem; }
+  .sidePanel { gap: .75rem; }
+}

@@ -1,5 +1,7 @@
 # UX de espacios documentales — contrato de Sprint 15.6
 
+> **Reconciliación UX (2026-10-18):** Los cambios en `feature/ux-reconcile` se basan en el DEV certificado `111bc5c86faff0bf946ef5e199b4463fe8217d5a` y preservan las rutas `/personal` y `/spaces/manage` y la ACL vigente. Verificación autenticada con fixtures sintéticos: owner personal, contenido compartido para integrantes autorizados, acceso restringido por grant y excepción de creador/administración. La UI explica que los documentos compartidos se ven según autorización; UAT institucional sigue pendiente. Este branch no está promovido a DEV.
+
 > **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
 
 

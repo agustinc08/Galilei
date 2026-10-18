@@ -272,6 +272,7 @@ export default function PrivateSpacesPage() {
   const [restrictedCandidates, setRestrictedCandidates] = useState<MemberCandidate[]>([]);
   const [selectedRestrictedUsers, setSelectedRestrictedUsers] = useState<number[]>([]);
   const [manageAccessFolderId, setManageAccessFolderId] = useState("");
+  const accessDialogTriggerRef = useRef<HTMLElement | null>(null);
   const [managedAccessUsers, setManagedAccessUsers] = useState<number[]>([]);
   const [managedAccessPeople, setManagedAccessPeople] = useState<FolderAccessPerson[]>([]);
   const [renamingFolderId, setRenamingFolderId] = useState("");
@@ -314,6 +315,14 @@ export default function PrivateSpacesPage() {
       ? "INHERIT"
       : newFolderScope;
   const folderForAccessModal = folders.find((folder) => folder.id === manageAccessFolderId);
+  useEffect(() => {
+    if (!manageAccessFolderId) return;
+    document.getElementById("folder-access-search")?.focus();
+    return () => {
+      const trigger = accessDialogTriggerRef.current;
+      if (trigger?.isConnected) trigger.focus();
+    };
+  }, [manageAccessFolderId]);
   const childFolders = useMemo(
     () => folders.filter((folder) => folder.parentId === (folderId || null)),
     [folders, folderId],
@@ -420,7 +429,7 @@ export default function PrivateSpacesPage() {
           setError(
             friendlyError(
               cause,
-              "No se pudieron cargar los espacios documentales.",
+              "No se pudieron cargar las dependencias.",
             ),
           );
       })
@@ -660,6 +669,8 @@ export default function PrivateSpacesPage() {
 
   async function openFolderAccess(folder: Folder) {
     if (!workspaceId) return;
+    accessDialogTriggerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setBusy(true);
     setError("");
     try {
@@ -1023,8 +1034,8 @@ export default function PrivateSpacesPage() {
   return (
     <div className={styles.page}>
       <PageHeader
-        title="Mi espacio"
-        description="Documentos privados de tus dependencias. La búsqueda queda dentro del espacio seleccionado."
+        title="Mi Sala / Juzgado"
+        description="Buscá documentos compartidos de las dependencias a las que tenés acceso. La visibilidad depende de las autorizaciones de cada carpeta."
       />
       {error && (
         <p role="alert" className={styles.inlineError}>
@@ -1642,7 +1653,7 @@ export default function PrivateSpacesPage() {
           {selectedWorkspace?.role === "ADMIN" && (
             <Card>
               <div>
-                <p className={styles.eyebrow}>Copernic 2.0</p>
+                <p className={styles.eyebrow}>Origen de documentos</p>
                 <h2>Fuentes documentales</h2>
                 <p className={styles.muted}>
                   Galilei usa la identidad del backend para leer carpetas UNC.
@@ -1927,7 +1938,7 @@ export default function PrivateSpacesPage() {
           <div className={styles.workspaceHeader}>
             <div>
               <p className={styles.eyebrow}>Administración global</p>
-              <h2>Espacios documentales</h2>
+              <h2>Dependencias</h2>
               <p className={styles.muted}>
                 Acá se administran las dependencias; el acceso a documentos
                 sigue dependiendo de la membresía de cada espacio.
@@ -2033,7 +2044,7 @@ export default function PrivateSpacesPage() {
             </div>
           ) : (
             <p className={styles.emptyState}>
-              Todavía no hay espacios documentales registrados.
+              Todavía no hay dependencias registradas.
             </p>
           )}
         </Card>
@@ -2047,6 +2058,30 @@ export default function PrivateSpacesPage() {
               aria-modal="true"
               aria-labelledby="folder-access-title"
               aria-describedby="folder-access-description"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setManageAccessFolderId("");
+                  setManagedAccessPeople([]);
+                  return;
+                }
+                if (event.key !== "Tab") return;
+                const focusable = Array.from(
+                  event.currentTarget.querySelectorAll<HTMLElement>(
+                    'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+                  ),
+                );
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                  event.preventDefault();
+                  last?.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                  event.preventDefault();
+                  first?.focus();
+                }
+              }}
             >
               <h2 id="folder-access-title">Personas autorizadas</h2>
               <p id="folder-access-description">

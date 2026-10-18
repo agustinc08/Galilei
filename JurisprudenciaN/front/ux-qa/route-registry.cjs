@@ -20,18 +20,17 @@ const publicRoutes = [
   },
 ];
 
-const futureRoutes = [
+const authenticatedRoutes = [
   { id: 'GALILEI_HOME', route: '/galilei' },
   { id: 'MY_DOCUMENTS', route: '/personal' },
   { id: 'SPACE_MANAGE', route: '/spaces/manage' },
 ].map((route) => ({
   ...route,
   requiresAuth: true,
-  roleScenario: 'FUTURE_AUTH',
+  roleScenario: 'AUTHENTICATED',
   screenshots: false,
   responsive: true,
-  futureOnly: true,
-  expectedAvailability: 'DEFERRED_UNTIL_RECONCILE',
+  expectedAvailability: 'PRESENT_AUTHENTICATED',
 }));
 
 const authScenarios = [
@@ -45,4 +44,4 @@ const authScenarios = [
   'ADMIN_OPERATOR',
 ].map((id) => ({ id, status: 'DEFERRED_AUTH', credentials: 'ENV_ONLY' }));
 
-module.exports = { publicRoutes, futureRoutes, authScenarios };
+module.exports = { publicRoutes, authenticatedRoutes, authScenarios };

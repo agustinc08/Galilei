@@ -46,7 +46,7 @@ export function useCatalogos(skipAuth = false) {
         setState((current) => ({
           ...current,
           isLoading: false,
-          error: error instanceof Error ? error.message : 'No se pudieron cargar los catalogos.',
+          error: error instanceof Error ? error.message : 'No se pudieron cargar los catálogos.',
         }));
       }
     };

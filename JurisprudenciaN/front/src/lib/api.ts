@@ -117,7 +117,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         Array.isArray(payload.message) &&
         payload.message[0]) ||
       (typeof payload === 'string' && payload) ||
-      'Ocurrio un error inesperado';
+      'Ocurrió un error inesperado';
 
     throw new ApiError(message, response.status, payload);
   }

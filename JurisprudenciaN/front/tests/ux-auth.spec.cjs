@@ -1,18 +1,18 @@
 'use strict';
 
 const { test } = require('../ux-qa/fixtures-playwright.cjs');
-const { authScenarios, futureRoutes } = require('../ux-qa/route-registry.cjs');
+const { authScenarios, authenticatedRoutes } = require('../ux-qa/route-registry.cjs');
 
-test.describe('future authenticated scenarios @auth @future', () => {
+test.describe('authenticated scenarios @auth', () => {
   for (const scenario of authScenarios) {
     test(`${scenario.id} is defined and deferred @auth`, async () => {
-      test.skip(true, `DEFERRED_AUTH: ${scenario.id} awaits the reconciled authenticated routes and approved local auth fixture.`);
+      test.skip(true, `This mock-only suite does not assert backend ACL. Authenticated UI and ACL behavior is exercised by the existing Sprint 15.6.1 E2E fixture.`);
     });
   }
 
-  for (const route of futureRoutes) {
-    test(`${route.id} ${route.route} DEFERRED_ROUTE_NOT_PRESENT @auth`, async () => {
-      test.skip(true, `DEFERRED_ROUTE_NOT_PRESENT: ${route.route} is not available in the current UX branch.`);
+  for (const route of authenticatedRoutes) {
+    test(`${route.id} ${route.route} is present and protected @auth`, async () => {
+      test.skip(true, `The route is present and protected; authenticated navigation is exercised by the Sprint 15.6.1 E2E fixture: ${route.route}.`);
     });
   }
 });

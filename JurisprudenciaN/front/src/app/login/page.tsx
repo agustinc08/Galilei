@@ -27,7 +27,13 @@ export default function LoginPage() {
   );
 
   if (!mounted) {
-    return null;
+    return (
+      <main className={styles.authCenter}>
+        <section className={styles.authCard} aria-busy="true">
+          <LoadingSpinner label="Preparando acceso..." />
+        </section>
+      </main>
+    );
   }
 
   if (isLoading || isAuthenticated) {
@@ -59,8 +65,7 @@ export default function LoginPage() {
       <section className={styles.authCard}>
         <div className={styles.authCardHeader}>
           <h1>Ingresar</h1>
-          <p>Ingresá a Galilei para consultar jurisprudencia y tus documentos autorizados.</p>
-          <p>Ingresá con las credenciales asignadas a tu perfil.</p>
+          <p>Ingresá a Galilei con las credenciales asignadas a tu perfil.</p>
         </div>
 
         <form className={styles.authForm} onSubmit={handleSubmit}>
@@ -78,7 +83,6 @@ export default function LoginPage() {
             label="Correo electrónico"
             type="email"
             value={email}
-            placeholder="admin@jurisprudencia.local"
             autoComplete="email"
             onChange={(event) => setEmail(event.target.value)}
           />
@@ -86,17 +90,14 @@ export default function LoginPage() {
             label="Contraseña"
             type="password"
             value={password}
-            placeholder="Admin12345"
             autoComplete="current-password"
             onChange={(event) => setPassword(event.target.value)}
           />
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Ingresando...' : 'Ingresar'}
           </Button>
-          <Link href="/consulta">
-            <Button type="button" variant="secondary">
-              Ir a consulta pública
-            </Button>
+          <Link className={styles.authLink} href="/consulta">
+            Ir a consulta pública
           </Link>
         </form>
       </section>

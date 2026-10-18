@@ -332,3 +332,90 @@
   .workflowNav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workflowNav a { justify-content: center; text-align: center; }
 }
+
+.filtersGrid,
+.formGrid,
+.summaryGrid {
+  min-width: 0;
+}
+
+.listItem {
+  min-width: 0;
+  padding: 15px;
+  border-color: var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.035);
+}
+
+.listItem > strong {
+  color: #173b5b;
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.listItem p,
+.mutedText {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.badgeRow {
+  min-width: 0;
+}
+
+.badge {
+  max-width: 100%;
+  min-height: 26px;
+  padding: 2px 9px;
+  border: 1px solid #d6e5f2;
+  border-radius: 999px;
+  color: #1f5d99;
+  background: #f0f6fc;
+  font-size: 12px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.inlineActions {
+  align-items: center;
+}
+
+.inlineActions > a {
+  display: inline-flex;
+  max-width: 100%;
+}
+
+.metricCard,
+.accordionItem {
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.codeBlock {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .columns,
+  .twoColumn {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inlineActions > a,
+  .inlineActions > button {
+    flex: 1 1 130px;
+  }
+
+  .inlineActions > a > button,
+  .inlineActions > button {
+    width: 100%;
+  }
+
+  .accordionHeader,
+  .accordionBody {
+    padding-inline: 14px;
+  }
+}

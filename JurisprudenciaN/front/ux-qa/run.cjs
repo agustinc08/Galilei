@@ -75,7 +75,7 @@ async function main() {
       const frontPort = await freePort();
       baseURL = `http://127.0.0.1:${frontPort}`;
       const nextCli = path.join(frontDir, 'node_modules', 'next', 'dist', 'bin', 'next');
-      previewProcess = spawn(process.execPath, [nextCli, 'dev', '--hostname', '127.0.0.1', '--port', String(frontPort)], {
+      previewProcess = spawn(process.execPath, [nextCli, 'dev', '--webpack', '--hostname', '127.0.0.1', '--port', String(frontPort)], {
         cwd: frontDir,
         env: { ...process.env, NEXT_PUBLIC_API_URL: mockOrigin },
         stdio: 'inherit',

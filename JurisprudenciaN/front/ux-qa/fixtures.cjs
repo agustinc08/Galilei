@@ -95,11 +95,22 @@ function fixtureForRequest(request) {
   const method = request.method();
 
   if (method === 'GET' && pathname === '/public/busqueda/temas') return json(200, { data: ['Responsabilidad civil', 'Daños y perjuicios'] });
+  if (method === 'GET' && pathname === '/public/sentencias/recientes') return json(200, { data: [] });
   if (method === 'GET' && pathname === '/catalogos/salas') return json(200, { data: [{ id: 1, nombre: 'I' }] });
   if (method === 'GET' && pathname === '/catalogos/tipos-fallo') return json(200, { data: [{ id: 1, nombre: 'Sentencia definitiva' }] });
   if (method === 'GET' && pathname === '/catalogos/tribunales-origen') return json(200, { data: [{ id: 1, nombre: 'Cámara Civil' }] });
   if (method === 'GET' && pathname === '/public/busqueda/sugerencias') return json(200, { data: [{ value: 'responsabilidad civil', tipo: 'tema', total: 4 }] });
   if (method === 'GET' && pathname === '/public/busqueda') {
+    const query = url.searchParams.get('q') || '';
+    if (query === 'UX_QA_SERVICE_UNAVAILABLE') {
+      return json(503, { message: 'OpenSearchException: internal fixture diagnostic' });
+    }
+    if (query === 'UX_QA_NO_RESULTS') {
+      return json(200, {
+        data: [],
+        meta: { total: 0, page: 1, pageSize: 2, pageCount: 0, totalExact: true, hasMore: false, sortUsed: 'fixture', tiempoMs: 1 },
+      });
+    }
     const page = Math.min(2, Math.max(1, Number(url.searchParams.get('page') || 1)));
     return json(200, {
       data: pages[page - 1],

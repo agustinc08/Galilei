@@ -2,7 +2,9 @@
   display: flex;
   flex-direction: column;
   height: calc(100vh - var(--document-viewer-offset, 0px));
-  min-height: 560px;
+  height: calc(100dvh - var(--document-viewer-offset, 0px));
+  min-height: max(0px, min(480px, calc(100vh - var(--document-viewer-offset, 0px))));
+  min-height: max(0px, min(480px, calc(100dvh - var(--document-viewer-offset, 0px))));
   overflow: hidden;
   background: #edf4fb;
 }
@@ -28,9 +30,10 @@
 
 .topbarTitle h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: clamp(19px, 1.7vw, 24px);
   color: #0f3558;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .topbarTitle p {
@@ -49,6 +52,7 @@
   flex: 1 1 auto;
   display: grid;
   grid-template-columns: clamp(300px, 24vw, 360px) minmax(0, 1fr);
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
@@ -125,7 +129,7 @@
   height: 100%;
   min-height: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   background: #ffffff;
   box-shadow: 0 8px 22px rgba(16, 24, 40, 0.16);
 }
@@ -302,7 +306,7 @@
 
 @media (max-width: 960px) {
   .shell {
-    min-height: 100vh;
+    min-height: 0;
   }
 
   .body,
@@ -350,7 +354,7 @@
   }
 
   .body {
-    grid-template-rows: auto minmax(360px, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .sidePanel {
@@ -363,6 +367,16 @@
   }
 
   .compactControl {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto minmax(72px, 96px);
+  }
+
+  .viewerToolbar {
+    justify-content: flex-start;
+    padding: 9px 10px;
+  }
+
+  .topbarActions a,
+  .topbarActions button {
+    flex: 1 1 130px;
   }
 }

@@ -15,7 +15,7 @@ export default function HomePage() {
         <header className={styles.brandBlock}>
           <span className={styles.kicker}>Galilei</span>
           <h1>¿Qué querés consultar?</h1>
-          <p>Jurisprudencia, documentos de tu dependencia y tus archivos personales.</p>
+          <p>Jurisprudencia, documentos compartidos de tu dependencia y tus archivos privados.</p>
         </header>
         <nav className={styles.cards} aria-label="Secciones de Galilei">
           {destinations.map((destination) => (

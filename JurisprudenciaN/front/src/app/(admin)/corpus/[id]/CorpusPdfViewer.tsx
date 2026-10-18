@@ -100,10 +100,10 @@ export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, 
 
   return <div className={styles.pdfDocument} ref={setContainer}>
     {unresolvedActive && active && <p className={styles.mappingFallback} role="status" aria-live="polite">
-      Coincidencia encontrada en el texto indexado, pero no pudo ubicarse visualmente con precisión en esta página. La navegación sigue disponible.
+      Encontramos la coincidencia en el texto del documento, pero no pudimos señalarla en la página. Podés continuar desde la lista de coincidencias.
       {(active.context || active.text) && <span> Contexto: {active.context || active.text}</span>}
     </p>}
-    <Document file={file} loading={<p>Cargando PDF…</p>} error={<p>No se pudo renderizar el PDF. Podés usar la descarga y el contexto lateral.</p>} onLoadSuccess={({ numPages }) => onLoadSuccess(numPages)}>
+    <Document file={file} loading={<p>Cargando PDF…</p>} error={<p>No se pudo mostrar el PDF. Podés descargarlo y consultar la información del documento.</p>} onLoadSuccess={({ numPages }) => onLoadSuccess(numPages)}>
       <Page
         key={`${page}-${activeMatch}`}
         pageNumber={page}

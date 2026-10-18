@@ -1,5 +1,7 @@
 # UX de Jurisprudencia — J9.1
 
+> **Reconciliación UX (2026-10-18):** Los cambios de polish/copy, responsive y accesibilidad se validan en `feature/ux-reconcile`, basado en el DEV certificado `111bc5c86faff0bf946ef5e199b4463fe8217d5a`. No cambian la semántica de Search, el Viewer ni el contrato de publicación. Search y Viewer público tienen harness sintético de 63 escenarios PASS; UAT institucional continúa pendiente. Este branch UX aún no está promovido.
+
 > **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
 
 

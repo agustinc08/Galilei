@@ -1,6 +1,6 @@
 # Galilei — inicio rápido
 
-**Actualizado:** 2026-10-18, INT-1R. Dictamen: PASS en `integration/galilei-beta`, lista para promoción separada a DEV. INT-1R no modificó `origin/dev`, `main` ni ramas UX; UAT institucional y preproducción siguen pendientes.
+**Actualizado:** 2026-10-18, posterior a INT-1R y a la promoción separada verificada. `origin/dev` e `origin/integration/galilei-beta` coinciden en `111bc5c86faff0bf946ef5e199b4463fe8217d5a`; `main` y las ramas UX de entrada permanecen intactas. La reconciliación UX actual vive en `feature/ux-reconcile` y no está promovida. UAT institucional y preproducción siguen pendientes.
 
 ## Producto integrado
 
@@ -12,7 +12,7 @@ Search, Viewer, archivos descargables, OCR/formats y permisos usan sus contratos
 
 ## Estado de INT-1
 
-**PASS local tras INT-1R.** Alias Search v3 activo y exacto (69.313/69.313); 6.014 Sentencias publicadas y 56 del subconjunto civil J9 permanecen en revisión. Prisma registra 31/31 migraciones; el replay de 31 migraciones se reutiliza por hash desde un clúster PostgreSQL 16 aislado ya probado. Backend/frontend tests, typechecks y builds pasan; la rama está lista para una promoción posterior. UAT, preproducción y producción siguen pendientes.
+**INT-1R PASS; promoción separada verificada.** Alias Search v3 activo y exacto (69.313/69.313); 6.014 Sentencias publicadas y 56 del subconjunto civil J9 permanecen en revisión. Prisma registra 31/31 migraciones; el replay de 31 migraciones se reutiliza por hash desde un clúster PostgreSQL 16 aislado ya probado. `dev == integration` en el SHA certificado indicado arriba. UX-RECONCILE-1 pasó en `feature/ux-reconcile`: typecheck/build/lint, harness público 63/63 y E2E autenticada; no está promovida. UAT, preproducción y producción siguen pendientes.
 
 ## Rutas principales
 

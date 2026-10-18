@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const viewports = require('./viewports.cjs');
-const { publicRoutes, futureRoutes, authScenarios } = require('./route-registry.cjs');
+const { publicRoutes, authenticatedRoutes, authScenarios } = require('./route-registry.cjs');
 const { classifyConsoleMessage, classifyRequestFailure } = require('./classifiers.cjs');
 const { fixtureForRequest, pdfBuffer } = require('./fixtures.cjs');
 
@@ -13,9 +13,10 @@ test('the responsive matrix contains the nine requested unique viewports', () =>
   ]);
 });
 
-test('current public and future routes have explicit availability', () => {
+test('public and authenticated routes have explicit availability', () => {
   assert.deepEqual(publicRoutes.map((route) => route.route), ['/', '/login', '/consulta', '/fallos/ux-qa-001']);
-  assert.ok(futureRoutes.every((route) => route.expectedAvailability === 'DEFERRED_UNTIL_RECONCILE'));
+  assert.deepEqual(authenticatedRoutes.map((route) => route.route), ['/galilei', '/personal', '/spaces/manage']);
+  assert.ok(authenticatedRoutes.every((route) => route.expectedAvailability === 'PRESENT_AUTHENTICATED'));
   assert.deepEqual(authScenarios.map((scenario) => scenario.id), [
     'ONE_DEPENDENCY', 'MULTI_DEPENDENCY', 'PERSONAL_OWNER', 'SHARED_MEMBER',
     'SHARED_NON_MEMBER', 'RESTRICTED_ALLOWED', 'RESTRICTED_DENIED', 'ADMIN_OPERATOR',
@@ -25,6 +26,7 @@ test('current public and future routes have explicit availability', () => {
 test('console and network classifiers separate React warnings, Next tooling, and expected blob aborts', () => {
   assert.equal(classifyConsoleMessage('warning', 'Warning: React state update'), 'REACT_WARNING');
   assert.equal(classifyConsoleMessage('error', 'Next.js Dev Tools portal'), 'NEXT_DEV_TOOLING');
+  assert.equal(classifyConsoleMessage('error', 'Failed to load resource: the server responded with a status of 503 (Service Unavailable)'), 'EXPECTED_SYNTHETIC_SERVICE_UNAVAILABLE');
   assert.equal(classifyRequestFailure('blob:http://local/doc', 'net::ERR_ABORTED'), 'EXPECTED_BLOB_ABORT');
   assert.equal(classifyRequestFailure('https://api.invalid/search', 'net::ERR_CONNECTION_REFUSED'), 'NETWORK_FAILURE');
 });

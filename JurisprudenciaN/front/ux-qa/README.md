@@ -5,7 +5,7 @@ This is a reusable browser smoke harness for the Galilei / BJC frontend. It exer
 ## Preconditions
 
 - Install the frontend's existing dependencies with the repository's pnpm workspace workflow. Playwright is already a development dependency; this harness adds no package.
-- By default the runner starts a temporary Next.js preview and a synthetic API fixture on dynamically assigned loopback ports, then stops only those processes it started.
+- By default the runner starts a temporary Next.js Webpack preview and a synthetic API fixture on dynamically assigned loopback ports, then stops only those processes it started. Webpack is selected because the local Windows Turbopack preview panics while compiling routes.
 - To reuse an existing preview, set `UX_QA_BASE_URL` to its loopback URL. The test config rejects non-loopback URLs.
 - Browser API calls are intercepted and answered by synthetic fixtures. For an existing app, keep its server-side `NEXT_PUBLIC_API_URL` local and isolated; do not point it at production or institutional services.
 - Chromium must be installed for the existing Playwright version.
@@ -37,9 +37,9 @@ npm run qa:ux
 
 The existing `test:e2e` command retains its separate DB-backed configuration and is not used by this harness. No CI workflow is changed.
 
-## Current and future routes
+## Public and authenticated routes
 
-Current public routes are `/`, `/login`, `/consulta`, and `/fallos/ux-qa-001` (the last uses a synthetic fixture). Future routes `/galilei`, `/personal`, and `/spaces/manage` are registered as `DEFERRED_ROUTE_NOT_PRESENT` until UX-RECONCILE adds them. Auth scenario descriptors cover one or multiple dependencies, personal ownership, shared membership and non-membership, restricted access outcomes, and an admin operator. A future UI result may be labelled `ACL_UI_PASS`; this harness never certifies `ACL_SECURITY_PASS`.
+Current public routes are `/`, `/login`, `/consulta`, and `/fallos/ux-qa-001` (the last uses a synthetic fixture). Authenticated routes `/galilei`, `/personal`, and `/spaces/manage` are present. The auth descriptors cover one or multiple dependencies, personal ownership, shared membership and non-membership, restricted access outcomes, and an admin operator. DB-backed authenticated UI and ACL scenarios are exercised by the existing Sprint 15.6.1 E2E fixture; this mock harness never certifies `ACL_SECURITY_PASS`.
 
 ## Reports and interpretation
 

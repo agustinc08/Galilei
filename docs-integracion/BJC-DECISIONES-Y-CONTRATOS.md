@@ -6,7 +6,9 @@
 
 La implementación conserva el motor de frase por postings posicionales de shingles, verificación exacta, ventana/top-N y el fail-closed HTTP 503 sin fallback legacy. Matrices HTTP, ACL, publicación, sincronización, Viewer y calidad quedaron certificadas; la evidencia autoritativa es `_recovery-work/search-engine-integration1/` (no versionado). El verificador guarded postpromoción tuvo dos fallos de transporte por canal cerrado; el barrido directo paginado completo pasó con hash idéntico y clúster green. Esta limitación se mantiene explícita.
 
-**Límites de decisión:** INT-1S cerrado; INT-1R PASS y `READY_FOR_DEV_PROMOTION` en su propia recertificación. DEV no fue promovido por INT-1R; esa operación es separada. UAT institucional, preproducción y producción siguen pendientes. Antes de producción se exige reserva de almacenamiento libre recomendada ≥50 GiB; el C: local tiene ~42 GiB libres. No realizar integración→dev dentro de INT-1R.
+**Estado vigente (2026-10-18):** INT-1S cerrado; INT-1R PASS. La promoción posterior, separada de INT-1R, fue verificada read-only: `origin/dev == origin/integration/galilei-beta == 111bc5c86faff0bf946ef5e199b4463fe8217d5a`. La promoción se trató como desviación procedimental, sin rollback ni force push. No se promovió UX. UAT institucional, preproducción y producción siguen pendientes. Antes de producción se exige reserva de almacenamiento libre recomendada ≥50 GiB; el C: local tenía ~42 GiB libres al último control. Los límites de INT-1R siguen aplicando: no autorizaron cambios adicionales en dev.
+
+**UX-RECONCILE-1 (2026-10-18):** reconciliación visual/copy frontend separada, basada en el SHA certificado; harness público y E2E autenticada PASS, con cero cambios de backend/Search/Prisma/DB. El resultado queda en `feature/ux-reconcile` para revisión, sin promoción a DEV. La evidencia local ignorada está en `_recovery-work/ux-reconcile1/`.
 
 Los apartados siguientes preservan sin reescritura las decisiones y evidencia histórica de cada sprint; sus estados BLOCKED/PARTIAL describen el corte fechado que los originó y no sustituyen esta decisión vigente sobre Search 1.5.1.
 ## Integración INT-1 — Galilei

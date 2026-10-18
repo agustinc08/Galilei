@@ -26,6 +26,14 @@ const test = base.extend({
       }
     });
     await page.route('**/api/**', async (route) => {
+      const requestUrl = new URL(route.request().url());
+      if (
+        route.request().method() === 'GET' &&
+        requestUrl.pathname.endsWith('/public/busqueda') &&
+        requestUrl.searchParams.get('q') === 'UX_QA_LOADING'
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      }
       const fixture = fixtureForRequest(route.request());
       if (fixture.fallback) diagnostics.fixtureMisses.push({ method: route.request().method(), url: route.request().url() });
       await route.fulfill({

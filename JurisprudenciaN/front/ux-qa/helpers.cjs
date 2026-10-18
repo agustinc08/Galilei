@@ -65,6 +65,13 @@ async function captureScenario(page, testInfo, scenario) {
   const filename = `${scenario.id}__${viewportName(viewport)}.png`;
   fs.mkdirSync(screenshotDir, { recursive: true });
   const fullPath = path.join(screenshotDir, filename);
+  await page.evaluate(() => {
+    if (document.getElementById('ux-qa-hide-nextjs-portal')) return;
+    const style = document.createElement('style');
+    style.id = 'ux-qa-hide-nextjs-portal';
+    style.textContent = 'nextjs-portal { display: none !important; }';
+    document.head.appendChild(style);
+  });
   await page.screenshot({ path: fullPath, animations: 'disabled' });
 
   const diagnostics = page.__uxQaDiagnostics || { console: [], pageErrors: [], networkErrors: [], fixtureMisses: [] };
@@ -89,7 +96,10 @@ async function captureScenario(page, testInfo, scenario) {
     screenshotPath: path.relative(require('./paths.cjs').runDir, fullPath).replace(/\\/gu, '/'),
     durationMs: scenario.durationMs ?? null,
     pdfRenderStatus: scenario.pdfRenderStatus || null,
-    notes: scenario.notes || [],
+    notes: [
+      ...(scenario.notes || []),
+      ...(layout.nextDevToolbarPresent ? ['The Next.js development portal was hidden in the product screenshot.'] : []),
+    ],
   };
   testInfo.annotations.push({ type: 'ux-qa-scenario', description: JSON.stringify(record) });
   return record;

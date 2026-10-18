@@ -1,6 +1,6 @@
 # Instrucciones del proyecto
 
-> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+> **Contexto vigente (2026-10-18):** INT-1R pasó y la promoción separada fue verificada: `origin/dev` y `origin/integration/galilei-beta` apuntan a `111bc5c86faff0bf946ef5e199b4463fe8217d5a`. `feature/ux-reconcile` parte de ese DEV y contiene trabajo UX todavía separado; no promover UX a DEV en esta misión. `main` y las ramas UX de entrada permanecen intactas. UAT institucional y preproducción siguen pendientes. Los estados PARTIAL/NOT PROMOTED posteriores conservan su alcance y fecha históricos; para el estado vigente consultar `docs-integracion/BJC-ESTADO-ACTUAL.md` y `BJC-ROADMAP.md`.
 
 
 ## Versionado Git

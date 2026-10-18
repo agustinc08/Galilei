@@ -5,7 +5,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { runDir } = require('./paths.cjs');
 const viewports = require('./viewports.cjs');
-const { publicRoutes, futureRoutes, authScenarios } = require('./route-registry.cjs');
+const { publicRoutes, authenticatedRoutes, authScenarios } = require('./route-registry.cjs');
 
 function gitValue(args) {
   try { return execFileSync('git', args, { cwd: path.resolve(__dirname, '../../..'), encoding: 'utf8' }).trim(); }
@@ -30,10 +30,8 @@ class UxQaReporter {
     this.tests.push({ title: test.title, status: result.status, durationMs: result.duration });
     if (!testRecords.length && (result.status === 'failed' || result.status === 'timedOut')) {
       this.records.push({ scenarioId: test.title, title: test.title, route: null, viewport: null, status: 'FAIL', notes: [result.error?.message || 'Scenario failed before diagnostics were captured.'] });
-    } else if (!testRecords.length && /DEFERRED_ROUTE_NOT_PRESENT/u.test(test.title)) {
-      this.records.push({ scenarioId: test.title, title: test.title, route: null, viewport: null, status: 'DEFERRED_ROUTE_NOT_PRESENT', notes: ['Route is intentionally absent from the current UX branch.'] });
     } else if (!testRecords.length && /@auth/u.test(test.titlePath().join(' '))) {
-      this.records.push({ scenarioId: test.title, title: test.title, route: null, viewport: null, status: 'DEFERRED_AUTH', notes: ['Defined for future authenticated route; skipped in current UX branch.'] });
+      this.records.push({ scenarioId: test.title, title: test.title, route: null, viewport: null, status: 'AUTH_E2E_RUN_SEPARATELY', notes: ['Mock-only public harness; authenticated ACL behavior is covered by the DB-backed UX E2E.'] });
     }
   }
 
@@ -54,7 +52,7 @@ class UxQaReporter {
       routeRegistry: publicRoutes,
       scenarios: this.records,
       tests: this.tests,
-      counts: { total: this.records.length, pass: counts.PASS || 0, fail: counts.FAIL || 0, deferred: Object.entries(counts).filter(([status]) => status.startsWith('DEFERRED')).reduce((sum, [, count]) => sum + count, 0), byStatus: counts },
+      counts: { total: this.records.length, pass: counts.PASS || 0, fail: counts.FAIL || 0, deferred: Object.entries(counts).filter(([status]) => status.startsWith('DEFERRED') || status === 'AUTH_E2E_RUN_SEPARATELY').reduce((sum, [, count]) => sum + count, 0), byStatus: counts },
       consoleErrors: this.records.flatMap((record) => record.consoleErrors || []),
       reactWarnings: this.records.flatMap((record) => record.reactWarnings || []),
       pageErrors: this.records.flatMap((record) => record.pageErrors || []),
@@ -62,7 +60,7 @@ class UxQaReporter {
       fixtureMisses: this.records.flatMap((record) => record.fixtureMisses || []),
       overflows: this.records.filter((record) => record.horizontalOverflow && !record.horizontalOverflow.passes),
       screenshots: this.records.map((record) => record.screenshotPath).filter(Boolean),
-      futureRoutes: futureRoutes.map((route) => ({ ...route, status: 'DEFERRED_ROUTE_NOT_PRESENT' })),
+      authenticatedRoutes: authenticatedRoutes.map((route) => ({ ...route, status: 'PRESENT_AUTHENTICATED' })),
       authenticatedScenarios: authScenarios,
       playwrightStatus: result.status,
     };
@@ -85,9 +83,9 @@ class UxQaReporter {
       '',
       ...(failures.length ? failures : ['- None']),
       '',
-      '## Deferred routes',
+      '## Authenticated routes',
       '',
-      ...report.futureRoutes.map((route) => `- ${route.route}: ${route.status}`),
+      ...report.authenticatedRoutes.map((route) => `- ${route.route}: ${route.status}`),
       '',
     ].join('\n');
     fs.writeFileSync(path.join(runDir, 'qa-summary.md'), summary, 'utf8');

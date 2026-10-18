@@ -25,7 +25,10 @@ test.describe('public entry routes @public @responsive', () => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const homeResponse = await page.goto('/');
       expect(homeResponse?.status()).toBe(200);
-      await expect(page.getByRole('heading', { name: /Jurisprudencia y documentos en un mismo lugar/ })).toBeVisible();
+      await expect(page.getByRole('heading', { name: '¿Qué querés consultar?' })).toBeVisible();
+      await expect(page.getByRole('link', { name: /Jurisprudencia.*Buscar fallos publicados/u })).toHaveAttribute('href', '/consulta');
+      await expect(page.getByRole('link', { name: /Mi Sala \/ Juzgado.*Documentos compartidos/u })).toHaveAttribute('href', '/spaces');
+      await expect(page.getByRole('link', { name: /Mis documentos.*Tus archivos privados/u })).toHaveAttribute('href', '/personal');
       await expect(page.getByRole('main')).toBeVisible();
       await captureAndCheck(page, testInfo, { id: 'home', route: '/' });
 
@@ -66,7 +69,7 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const response = await page.goto('/consulta');
       expect(response?.status()).toBe(200);
-      const searchInput = page.getByLabel('Buscar en jurisprudencia y documentos');
+      const searchInput = page.getByLabel('Buscar jurisprudencia');
       await expect(searchInput).toBeVisible();
       await expect(page.getByText('4 resultados', { exact: true })).toBeVisible();
       await expect(page.getByRole('main')).toBeVisible();
@@ -75,12 +78,7 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
 
       await searchInput.fill('responsabilidad civil');
       await searchInput.press('Escape');
-      const searchButton = page.getByRole('button', { name: 'Buscar', exact: true });
-      await searchButton.focus();
-      await page.keyboard.press('Shift+Tab');
-      await page.keyboard.press('Tab');
-      await expect(searchButton).toBeFocused();
-      await page.keyboard.press('Enter');
+      await searchInput.press('Enter');
       await expect(page).toHaveURL(/q=responsabilidad(?:\+|%20)civil/u);
       await expect(page.getByText('4 resultados', { exact: true })).toBeVisible();
 
@@ -89,31 +87,31 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await page.getByLabel('Frase exacta').fill('daños');
       await captureAndCheck(page, testInfo, { id: 'search-filters', route: '/consulta' });
 
-      const helpButton = page.getByRole('button', { name: 'Ayuda', exact: true });
+      const helpButton = page.getByRole('button', { name: 'Consejos de búsqueda', exact: true });
       const dialogResult = await exerciseDialog(page, helpButton, 'Ayuda de búsqueda', async () => {
         await captureAndCheck(page, testInfo, { id: 'search-help', route: '/consulta' });
       });
       expect(dialogResult).toEqual({ exists: true, role: 'dialog', ariaModal: 'true', focusEnters: true, escapeCloses: true, focusReturns: true });
 
-      await page.getByRole('button', { name: 'Limpiar', exact: true }).click();
+      await page.getByRole('button', { name: 'Limpiar filtros', exact: true }).first().click();
       await expect(page).toHaveURL(/\/consulta$/u);
-      await expect(page.getByLabel('Buscar en jurisprudencia y documentos')).toHaveValue('');
+      await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('');
       await expect(page.getByRole('button', { name: 'Siguiente', exact: true })).toBeEnabled();
       await page.getByRole('button', { name: 'Siguiente', exact: true }).click();
       await expect(page.getByText(/página 2 de 2/u)).toBeVisible();
       await page.getByRole('button', { name: 'Anterior', exact: true }).click();
       await expect(page.getByText(/página 1 de 2/u)).toBeVisible();
 
-      const selectResult = page.getByRole('button', { name: 'Seleccionar', exact: true }).first();
+      const selectResult = page.getByRole('button', { name: 'Seleccionar para imprimir', exact: true }).first();
       await selectResult.focus();
       await page.keyboard.press('Space');
-      const selectedResult = page.getByRole('button', { name: 'Seleccionado', exact: true }).first();
+      const selectedResult = page.getByRole('button', { name: 'Quitar de impresión', exact: true }).first();
       await expect(selectedResult).toBeVisible();
       await selectedResult.focus();
       await page.keyboard.press('Space');
 
       await page.getByRole('link', { name: 'Ver fallo', exact: true }).first().click();
-      await expect(page).toHaveURL(/\/fallos\/ux-qa-001$/u);
+      await expect(page).toHaveURL(/\/fallos\/ux-qa-001(?:\?|$)/u);
       await expect(page.getByRole('heading', { name: /Pérez c\/ Gutiérrez/u })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Ocultar panel', exact: true })).toBeVisible();
       await expect(page.getByLabel('Página')).toBeVisible();
@@ -149,9 +147,9 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await expect(page.getByRole('button', { name: 'Mostrar panel', exact: true })).toBeVisible();
       await captureAndCheck(page, testInfo, { id: 'viewer-panel-closed', route: '/fallos/ux-qa-001' });
       await page.getByRole('button', { name: 'Mostrar panel', exact: true }).click();
-      await page.getByRole('link', { name: 'Volver a consulta', exact: true }).click();
-      await expect(page).toHaveURL(/\/consulta$/u);
-      await expect(page.getByLabel('Buscar en jurisprudencia y documentos')).toBeVisible();
+      await page.getByRole('link', { name: 'Volver a resultados', exact: true }).click();
+      await expect.poll(() => new URL(page.url()).pathname).toBe('/consulta');
+      await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();
 
       const diagnostics = page.__uxQaDiagnostics;
       expect(diagnostics.pageErrors).toEqual([]);
@@ -161,4 +159,31 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       expect(diagnostics.console.filter((item) => item.classification === 'REACT_WARNING')).toEqual([]);
     });
   }
+});
+
+test.describe('Search user-facing states @public @state', () => {
+  test('loading and zero-results states remain clear and recoverable', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/consulta?q=UX_QA_LOADING');
+    await expect(page.getByText('Buscando fallos…')).toBeVisible();
+    await expect(page.getByText('4 resultados', { exact: true })).toBeVisible();
+
+    const emptyResponse = await page.goto('/consulta?q=UX_QA_NO_RESULTS');
+    expect(emptyResponse?.status()).toBe(200);
+    await expect(page.getByText('No encontramos fallos con estos criterios.')).toBeVisible();
+    await expect(page.getByText('Modificá la búsqueda o quitá los filtros para probar de nuevo.')).toBeVisible();
+    await expect(page.getByRole('status').getByRole('button', { name: 'Limpiar filtros', exact: true })).toBeVisible();
+    await captureAndCheck(page, testInfo, { id: 'search-no-results', route: '/consulta?q=UX_QA_NO_RESULTS' });
+  });
+
+  test('fail-closed 503 uses controlled copy and hides backend diagnostics', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const response = await page.goto('/consulta?q=UX_QA_SERVICE_UNAVAILABLE');
+    expect(response?.status()).toBe(200);
+    const serviceError = page.locator('[role="alert"]').filter({ hasText: 'No se pudo completar la consulta' });
+    await expect(serviceError).toContainText('No se pudo completar la consulta');
+    await expect(serviceError).toContainText('No pudimos completar la búsqueda. Intentá nuevamente.');
+    await expect(page.getByText(/OpenSearchException|internal fixture diagnostic/u)).toHaveCount(0);
+    await captureAndCheck(page, testInfo, { id: 'search-service-unavailable', route: '/consulta?q=UX_QA_SERVICE_UNAVAILABLE' });
+  });
 });

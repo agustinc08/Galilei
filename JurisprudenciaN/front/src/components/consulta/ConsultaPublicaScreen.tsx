@@ -138,7 +138,7 @@ function ConsultaPublicaScreenContent() {
         setResult(response);
       } catch {
         if (!active) return;
-        setError('No pudimos completar la búsqueda. Intenta nuevamente.');
+        setError('No pudimos completar la búsqueda. Intentá nuevamente.');
       } finally {
         if (active) {
           setIsLoading(false);

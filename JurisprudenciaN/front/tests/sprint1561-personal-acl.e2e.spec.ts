@@ -15,7 +15,9 @@ const nameA = `Sala E2E ${runId}`;
 const nameB = `Juzgado E2E ${runId}`;
 const codeA = `S1561E2E_A_${runId}`;
 const codeB = `S1561E2E_B_${runId}`;
-const screenshots = resolve(process.cwd(), '../../_recovery-work/sprint1561/screenshots');
+const uxRunRoot = resolve(process.cwd(), '../../_recovery-work/ux-reconcile1/runs/authenticated');
+const screenshots = resolve(uxRunRoot, 'screenshots');
+const responsiveManifestPath = resolve(uxRunRoot, 'responsive-results.json');
 const manifestPath = resolve(process.cwd(), '../../_recovery-work/sprint1561/e2e-manifest.json');
 const fixturePdf = readFileSync(resolve(process.cwd(), '../back/scripts/dev/fixtures/corpus/fallo-fixture.pdf'));
 
@@ -25,6 +27,7 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   test.setTimeout(300_000);
   page.setDefaultTimeout(12_000);
   mkdirSync(screenshots, { recursive: true });
+  mkdirSync(uxRunRoot, { recursive: true });
   const manifest: E2EManifest = {
     workspaceIds: [],
     workspaceCodes: [codeA, codeB],
@@ -135,6 +138,10 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   expect(reviewerLogin.ok()).toBeTruthy();
   const reviewerToken = (await reviewerLogin.json()).accessToken as string;
   const reviewerHeaders = { Authorization: `Bearer ${reviewerToken}` };
+  const sharedNonMemberLogin = await request.post(`${apiBase}/auth/login`, { data: credentials.accounts.reader });
+  expect(sharedNonMemberLogin.ok()).toBeTruthy();
+  const sharedNonMemberToken = (await sharedNonMemberLogin.json()).accessToken as string;
+  const sharedNonMemberHeaders = { Authorization: `Bearer ${sharedNonMemberToken}` };
 
   await expect.poll(async () => {
     const response = await request.get(`${apiBase}/workspaces/${workspaceA}/search`, {
@@ -194,16 +201,24 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   await expect(restrictedContentsCard).toContainText(restrictedName);
   await restrictedContentsCard.screenshot({ path: resolve(screenshots, 'restricted-folder.png') });
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
-  await page.getByRole('button', { name: new RegExp(`Administrar quién puede ver Restringida ${runId}`) }).click();
+  const accessDialogTrigger = page.getByRole('button', { name: new RegExp(`Administrar quién puede ver Restringida ${runId}`) });
+  await accessDialogTrigger.click();
   const accessDialog = page.getByRole('dialog', { name: 'Personas autorizadas' });
   await expect(accessDialog).toBeVisible();
+  expect(await accessDialog.evaluate((dialog) => dialog.contains(document.activeElement))).toBe(true);
+  await expect(page.getByLabel('Buscar integrantes')).toBeFocused();
   await expect(accessDialog.locator('input[type="checkbox"]')).toHaveCount(syntheticUsers.users.length + 1);
+  for (const [width, height] of [[1366, 768], [390, 844], [430, 932]] as const) {
+    await page.setViewportSize({ width, height });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2), `restricted dialog page overflow at ${width}x${height}`).toBe(true);
+    const accessRect = await accessDialog.evaluate((element) => ({ width: element.getBoundingClientRect().width, right: element.getBoundingClientRect().right }));
+    expect(accessRect.right).toBeLessThanOrEqual(width + 2);
+    await accessDialog.screenshot({ path: resolve(screenshots, `restricted-user-selector__${width}x${height}.png`) });
+  }
   await page.setViewportSize({ width: 1366, height: 768 });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  const accessRect = await accessDialog.evaluate((element) => ({ width: element.getBoundingClientRect().width, right: element.getBoundingClientRect().right }));
-  expect(accessRect.right).toBeLessThanOrEqual(1366);
-  await accessDialog.screenshot({ path: resolve(screenshots, 'restricted-user-selector.png') });
-  await accessDialog.getByRole('button', { name: 'Cancelar' }).click();
+  await page.keyboard.press('Escape');
+  await expect(accessDialog).toBeHidden();
+  await expect(accessDialogTrigger).toBeFocused();
 
   // ACL changes propagate through the outbox; Search must reflect revocation
   // after projection sync. Viewer and file authorization checks remain live.
@@ -247,6 +262,41 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
     expect(response.ok()).toBeTruthy();
     return (await response.json()).total;
   }, { timeout: 15_000 }).toBeGreaterThan(0);
+
+  // A one-dependency reader enters directly, sees shared documents, and does
+  // not learn the name of a restricted folder for which they have no grant.
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await page.goto('/login');
+  await page.getByLabel('Correo electrónico').fill(credentials.accounts.reviewer.email);
+  await page.getByLabel('Contraseña').fill(credentials.accounts.reviewer.password);
+  await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
+  await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
+  await expect(page.getByRole('heading', { name: 'Mi Sala / Juzgado' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Dependencia' })).toHaveCount(0);
+  await expect(page.getByText('Tu dependencia se abrió automáticamente.')).toBeVisible();
+  await page.getByRole('button', { name: new RegExp(`Compartida ${runId}`) }).first().click();
+  await expect(page.getByText(sharedName, { exact: false })).toBeVisible();
+  await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
+  await expect(page.getByRole('button', { name: new RegExp(`Restringida ${runId}`) })).toBeHidden();
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await page.goto('/login');
+  await page.getByLabel('Correo electrónico').fill(credentials.accounts.reader.email);
+  await page.getByLabel('Contraseña').fill(credentials.accounts.reader.password);
+  await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
+  await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
+  await expect(page.getByRole('heading', { name: 'Todavía no tenés una dependencia asignada' })).toBeVisible();
+  await expect(page.getByText(sharedName, { exact: false })).toHaveCount(0);
+  expect((await request.get(`${apiBase}/workspaces/${workspaceA}/search`, { headers: sharedNonMemberHeaders, params: { q: sharedToken } })).status()).toBe(404);
+  expect((await request.get(`${apiBase}/workspaces/${workspaceA}/documents/${sharedDocumentId}`, { headers: sharedNonMemberHeaders })).status()).toBe(404);
+  expect((await request.get(`${apiBase}/workspaces/${workspaceA}/documents/${sharedDocumentId}/file`, { headers: sharedNonMemberHeaders })).status()).toBe(404);
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await page.goto('/login');
+  await page.getByLabel('Correo electrónico').fill(credentials.accounts.admin.email);
+  await page.getByLabel('Contraseña').fill(credentials.accounts.admin.password);
+  await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
 
   // Move broadening and narrowing both require an explicit UI confirmation.
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
@@ -431,14 +481,106 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
 
   const viewports = [
     [1366, 768], [1440, 900], [1536, 864], [1600, 900],
-    [1920, 1080], [1920, 1200], [2560, 1440],
+    [1920, 1080], [1920, 1200], [2560, 1440], [390, 844], [430, 932],
   ] as const;
-  for (const [width, height] of viewports) {
-    await page.setViewportSize({ width, height });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `no horizontal overflow at ${width}x${height}`).toBe(true);
-    if (width === 1366 && height === 768) await page.screenshot({ path: resolve(screenshots, 'my-documents-1366.png'), fullPage: false });
-    if (width === 1920 && height === 1080) await page.screenshot({ path: resolve(screenshots, 'my-documents-1920.png'), fullPage: false });
+  const responsiveResults: Array<Record<string, unknown>> = [];
+  const browserDiagnostics = {
+    consoleErrors: [] as string[],
+    pageErrors: [] as string[],
+    httpFailures: [] as Array<{ url: string; status: number }>,
+    requestFailures: [] as Array<{ url: string; error: string }>,
+    expectedNavigationAborts: [] as Array<{ url: string; classification: string }>,
+  };
+  const onConsole = (message: import('@playwright/test').ConsoleMessage) => {
+    if (message.type() === 'error') browserDiagnostics.consoleErrors.push(message.text());
+  };
+  const onPageError = (error: Error) => browserDiagnostics.pageErrors.push(error.message);
+  const onResponse = (response: import('@playwright/test').Response) => {
+    if (response.status() >= 400) browserDiagnostics.httpFailures.push({ url: response.url(), status: response.status() });
+  };
+  const onRequestFailed = (request: import('@playwright/test').Request) => {
+    const error = request.failure()?.errorText ?? 'request failed';
+    if (error === 'net::ERR_ABORTED' && new URL(request.url()).searchParams.has('_rsc')) {
+      browserDiagnostics.expectedNavigationAborts.push({ url: request.url(), classification: 'NEXT_RSC_PREFETCH_CANCELLED_DURING_NAVIGATION' });
+      return;
+    }
+    browserDiagnostics.requestFailures.push({ url: request.url(), error });
+  };
+  page.on('console', onConsole);
+  page.on('pageerror', onPageError);
+  page.on('response', onResponse);
+  page.on('requestfailed', onRequestFailed);
+
+  async function certifyResponsiveRoute(routeId: string, route: string, waitForReady: () => Promise<void>) {
+    for (const [width, height] of viewports) {
+      await page.setViewportSize({ width, height });
+      const response = await page.goto(route);
+      expect(response?.status(), `${routeId} HTTP status at ${width}x${height}`).toBe(200);
+      await page.waitForLoadState('networkidle');
+      await waitForReady();
+      const layout = await page.evaluate(() => {
+        const root = document.documentElement;
+        const body = document.body;
+        const verticalScroll = Array.from(document.querySelectorAll('*')).filter((element) => {
+          if (element === root || element === body) return false;
+          const style = getComputedStyle(element);
+          if (!/(auto|scroll)/u.test(style.overflowY) || element.scrollHeight <= element.clientHeight + 2) return false;
+          const classes = typeof element.className === 'string' ? element.className : '';
+          return !/(sidebar|sidePanel|viewerFrameWrap|scrollArea|resultsScroll)/iu.test(classes)
+            && !element.hasAttribute('data-ux-qa-allow-scroll');
+        }).slice(0, 20).map((element) => ({
+          tag: element.tagName.toLowerCase(),
+          className: typeof element.className === 'string' ? element.className : '',
+          clientHeight: element.clientHeight,
+          scrollHeight: element.scrollHeight,
+        }));
+        return {
+          viewport: { width: innerWidth, height: innerHeight },
+          clientWidth: root.clientWidth,
+          scrollWidth: root.scrollWidth,
+          bodyScrollHeight: body.scrollHeight,
+          documentScrollHeight: root.scrollHeight,
+          verticalScroll,
+          mainCount: document.querySelectorAll('main').length,
+          navCount: document.querySelectorAll('nav').length,
+          reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+        };
+      });
+      expect(layout.scrollWidth, `${routeId} horizontal overflow at ${width}x${height}`).toBeLessThanOrEqual(layout.clientWidth + 2);
+      expect(layout.verticalScroll, `${routeId} unexpected nested vertical scroll at ${width}x${height}`).toEqual([]);
+      expect(layout.reducedMotion, `${routeId} reduced motion at ${width}x${height}`).toBe(true);
+      expect(await page.locator('button').evaluateAll((buttons) => buttons
+        .filter((button) => !(button.getAttribute('aria-label') || button.textContent || '').trim()).length), `${routeId} unnamed buttons`).toBe(0);
+      const screenshotPath = resolve(screenshots, `${routeId}__${width}x${height}.png`);
+      await page.screenshot({ path: screenshotPath, fullPage: false, animations: 'disabled' });
+      responsiveResults.push({ routeId, route, httpStatus: response?.status(), ...layout, screenshot: screenshotPath });
+      writeFileSync(responsiveManifestPath, `${JSON.stringify({ generatedAt: new Date().toISOString(), routes: responsiveResults }, null, 2)}\n`, 'utf8');
+    }
   }
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.screenshot({ path: resolve(screenshots, 'multi-dependency-personal.png'), fullPage: false });
+
+  await certifyResponsiveRoute('personal-owner', '/personal', async () => {
+    await expect(page.getByRole('heading', { name: 'Mis documentos' })).toBeVisible();
+    await expect(page.getByText('Sólo vos podés verlos.')).toBeVisible();
+    await expect(page.getByText(personalPdfName, { exact: false })).toBeVisible();
+  });
+  await certifyResponsiveRoute('galilei', '/galilei', async () => {
+    await expect(page.getByRole('heading', { name: '¿Qué querés consultar?' })).toBeVisible();
+  });
+  await certifyResponsiveRoute('spaces-manage-multi-dependency', `/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`, async () => {
+    await expect(page.getByRole('heading', { name: 'Mi Sala / Juzgado' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Dependencia' })).toBeVisible();
+    const dependencySelector = page.getByRole('combobox', { name: 'Dependencia' });
+    await expect(dependencySelector.getByRole('option', { name: nameA })).toBeAttached();
+    await expect(dependencySelector.getByRole('option', { name: nameB })).toBeAttached();
+  });
+  page.off('console', onConsole);
+  page.off('pageerror', onPageError);
+  page.off('response', onResponse);
+  page.off('requestfailed', onRequestFailed);
+  expect(browserDiagnostics.consoleErrors, 'authenticated responsive console errors').toEqual([]);
+  expect(browserDiagnostics.pageErrors, 'authenticated responsive page errors').toEqual([]);
+  expect(browserDiagnostics.httpFailures, 'authenticated responsive HTTP errors').toEqual([]);
+  expect(browserDiagnostics.requestFailures, 'authenticated responsive network failures').toEqual([]);
+  writeFileSync(resolve(uxRunRoot, 'browser-health.json'), `${JSON.stringify(browserDiagnostics, null, 2)}\n`, 'utf8');
+  writeFileSync(resolve(uxRunRoot, 'responsive-results.json'), `${JSON.stringify({ generatedAt: new Date().toISOString(), routes: responsiveResults }, null, 2)}\n`, 'utf8');
 });

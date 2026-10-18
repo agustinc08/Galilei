@@ -322,7 +322,7 @@ export default function CargaRapidaPage() {
     <div className={styles.section}>
       <PageHeader
         title="Carga rápida"
-        description="Alta simple de sentencia y sumario, con catalogos y flujo corto para el equipo de Jurisprudencia."
+        description="Alta simple de sentencia y sumario, con catálogos y flujo corto para el equipo de Jurisprudencia."
         actions={
           <div className={styles.inlineActions}>
             <Link href="/sentencias/nueva-completa"><Button variant="secondary">Carga completa</Button></Link>
@@ -375,7 +375,7 @@ export default function CargaRapidaPage() {
           </Card>
 
           {isLoadingCatalogos ? (
-            <LoadingSpinner label="Cargando catalogos..." />
+            <LoadingSpinner label="Cargando catálogos..." />
           ) : (
             <div className={styles.twoColumn}>
               <div className={styles.panelStack}>
