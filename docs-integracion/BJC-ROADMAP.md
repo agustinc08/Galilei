@@ -6,7 +6,7 @@
 |---|---|---|
 | DEV + UX | PROMOTED + REVIEWED | `origin/dev=af8f51d6f5e5be48e0167c5890328acd3c80c2c4`; UX ya está en DEV. `main` intacta. |
 | INT-1R | PASS | SHA certificado `111bc5c86faff0bf946ef5e199b4463fe8217d5a` permanece en `integration/galilei-beta`; no se mueve en esta misión. |
-| PREPROD-UAT-PREP-1 | IN PROGRESS ON BRANCH | `feature/preprod-uat-prep`, creada desde el SHA exacto de DEV. Sólo readiness, configuración, documentación y UAT plan. |
+| PREPROD-UAT-PREP-1 | PACKAGE PREPARED; INFRA BLOCKED | `feature/preprod-uat-prep`, publicada como rama aislada desde el SHA exacto de DEV; sin merge. Sólo readiness, configuración, documentación y UAT plan. |
 | Host / DB / storage preprod | NOT PROVISIONED | No se identificó destino institucional autorizado. Solicitar host, PostgreSQL 16, volumen, OpenSearch, TLS, DNS/proxy, firewall y owners (doc 140). |
 | Fresh migration replay | CERTIFIED BY EXISTING SHA EVIDENCE | 31/31; hashes coinciden con la prueba aislada INT-1R. No repetir sobre DEV ni crear DB sin destino temporal autorizado. |
 | Backup / restore preprod | NOT PROVEN | El backup script sólo verifica archivo/hash; restore real debe probarse en DB/storage de reemplazo aislados antes del deploy. |
