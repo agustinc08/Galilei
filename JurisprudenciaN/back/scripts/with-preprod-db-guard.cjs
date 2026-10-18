@@ -6,11 +6,11 @@ const { spawn, spawnSync } = require('node:child_process');
 
 const action = process.argv[2];
 const allowedActions = new Set([
-  'check', 'target-verify', 'migrate-status', 'migrate-deploy', 'db-report',
+  'check', 'target-verify', 'backup-plan', 'migrate-status', 'migrate-deploy', 'db-report',
   'projection-rebuild', 'projection-verify', 'projection-repair',
 ]);
 if (!allowedActions.has(action)) {
-  console.error('Usage: node scripts/with-preprod-db-guard.cjs <check|target-verify|migrate-status|migrate-deploy|db-report|projection-rebuild|projection-verify|projection-repair>');
+  console.error('Usage: node scripts/with-preprod-db-guard.cjs <check|target-verify|backup-plan|migrate-status|migrate-deploy|db-report|projection-rebuild|projection-verify|projection-repair>');
   process.exit(2);
 }
 
@@ -32,7 +32,19 @@ if (action === 'check') {
 }
 
 const backDirectory = path.resolve(__dirname, '..');
-const guardedEnv = { ...process.env, BJC_PREPROD_GUARD_VALIDATED: 'true' };
+let prismaCliUrl;
+try {
+  const { getApprovedDatabaseConfig } = require('../dist/src/config/approved-database-config.js');
+  prismaCliUrl = getApprovedDatabaseConfig(process.env, 'preprod').prismaCliUrl;
+} catch (error) {
+  console.error(`PREPROD_DB_GUARD=ABORT; ${error instanceof Error ? error.message : 'invalid connection config'}`);
+  process.exit(2);
+}
+const guardedEnv = {
+  ...process.env,
+  DATABASE_URL: prismaCliUrl,
+  BJC_PREPROD_GUARD_VALIDATED: 'true',
+};
 const targetCheck = spawnSync(process.execPath, [path.resolve(__dirname, 'preprod-target-verify.cjs')], {
   cwd: backDirectory,
   env: guardedEnv,
@@ -45,6 +57,25 @@ if (targetCheck.error) {
 }
 if (targetCheck.status !== 0) process.exit(targetCheck.status ?? 1);
 if (action === 'target-verify') process.exit(0);
+if (action === 'backup-plan') {
+  const plan = spawnSync(process.execPath, [
+    path.resolve(__dirname, 'preprod-pg-dump-plan.cjs'),
+    ...process.argv.slice(3),
+  ], {
+    cwd: backDirectory,
+    env: guardedEnv,
+    encoding: 'utf8',
+    stdio: ['inherit', 'pipe', 'pipe'],
+    shell: false,
+  });
+  if (plan.stdout) process.stdout.write(plan.stdout);
+  if (plan.stderr) process.stderr.write(plan.stderr);
+  if (plan.error) {
+    console.error(`Preproduction backup plan failed to start: ${plan.error.message}`);
+    process.exit(1);
+  }
+  process.exit(plan.status ?? 1);
+}
 
 if (action === 'db-report' || action.startsWith('projection-')) {
   const script = action === 'db-report' ? 'preprod-db-report.cjs' : 'preprod-search-projection.cjs';

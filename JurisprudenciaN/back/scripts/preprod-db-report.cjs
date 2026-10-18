@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Read-only preproduction inventory. Must be launched through with-preprod-db-guard.cjs.
-const { Client } = require('pg');
+const { createCanonicalPreprodClient, assertPreprodServerIdentity } = require('./preprod-db-client.cjs');
 
 if (process.env.BJC_PREPROD_GUARD_VALIDATED !== 'true') {
   console.error('PREPROD_DB_REPORT=ABORT; use scripts/with-preprod-db-guard.cjs db-report.');
@@ -8,14 +8,7 @@ if (process.env.BJC_PREPROD_GUARD_VALIDATED !== 'true') {
 }
 
 async function main() {
-  const config = {
-    host: process.env.BJC_PREPROD_DB_HOST,
-    port: Number(process.env.BJC_PREPROD_DB_PORT),
-    database: process.env.BJC_PREPROD_DB_NAME,
-    user: process.env.BJC_PREPROD_DB_USER,
-    connectionString: process.env.DATABASE_URL,
-  };
-  const client = new Client(config);
+  const { database, client } = createCanonicalPreprodClient();
   try {
     await client.connect();
     const identity = (await client.query(`
@@ -23,10 +16,7 @@ async function main() {
              inet_server_addr()::text AS address, inet_server_port() AS port,
              pg_postmaster_start_time() AS server_started_at
     `)).rows[0];
-    if (identity.database !== config.database || identity.role !== config.user || Number(identity.port) !== config.port ||
-        !identity.address || /^(127\.|::ffff:127\.|::1(?:\/|$)|::(?:\/|$)|0\.0\.0\.0)/iu.test(identity.address)) {
-      throw new Error('La identidad PostgreSQL efectiva no coincide con la identidad preprod aprobada.');
-    }
+    assertPreprodServerIdentity(identity, database);
 
     const report = await client.query(`
       SELECT
@@ -49,7 +39,7 @@ async function main() {
     `);
     console.log(JSON.stringify({
       environment: 'preprod',
-      target: { host: config.host, serverAddress: identity.address, port: Number(config.port), database: identity.database, role: identity.role },
+      target: { host: database.host, serverAddress: identity.address, port: database.port, database: identity.database, role: identity.role },
       serverStartedAt: identity.server_started_at,
       generatedAt: new Date().toISOString(),
       ...report.rows[0],

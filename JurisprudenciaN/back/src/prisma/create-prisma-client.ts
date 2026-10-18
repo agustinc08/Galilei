@@ -1,18 +1,25 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
+import { getApprovedDatabaseConfig } from '../config/approved-database-config';
+import { validateRuntimeEnvironment } from '../config/runtime-preflight';
 
 let currentPrismaPool: Pool | null = null;
 
 export function getPrismaClientOptions() {
-  const databaseUrl = process.env.DATABASE_URL;
-
-  if (!databaseUrl?.trim()) {
-    throw new Error('DATABASE_URL no esta definida en el .env');
+  const environment = validateRuntimeEnvironment(process.env);
+  let pool: Pool;
+  if (environment === 'development') {
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl?.trim()) {
+      throw new Error('DATABASE_URL no esta definida en el .env');
+    }
+    const verifiedUrl = assertDevelopmentDatabaseUrl(databaseUrl.trim());
+    pool = new Pool({ connectionString: verifiedUrl });
+  } else {
+    const database = getApprovedDatabaseConfig(process.env, environment);
+    pool = new Pool(database.pgConfig);
   }
-
-  const verifiedUrl = assertDevelopmentDatabaseUrl(databaseUrl.trim());
-  const pool = new Pool({ connectionString: verifiedUrl });
   currentPrismaPool = pool;
   const adapter = new PrismaPg(pool, { disposeExternalPool: true });
 

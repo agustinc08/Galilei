@@ -6,7 +6,7 @@ $outputPath = [IO.Path]::GetFullPath($OutputDirectory)
 $storagePath = [IO.Path]::GetFullPath($env:BJC_CORPUS_STORAGE_PATH)
 $pgPassFile = [Environment]::GetEnvironmentVariable('PGPASSFILE')
 
-foreach ($key in @('NODE_ENV','BJC_DEPLOYMENT_ENV','BJC_PREPROD_DATABASE_APPROVED','BJC_PREPROD_DB_HOST','BJC_PREPROD_DB_PORT','BJC_PREPROD_DB_NAME','BJC_PREPROD_DB_USER','DATABASE_URL','BJC_CORPUS_STORAGE_PATH')) {
+foreach ($key in @('NODE_ENV','BJC_DEPLOYMENT_ENV','BJC_PREPROD_DATABASE_APPROVED','BJC_PREPROD_DB_HOST','BJC_PREPROD_DB_PORT','BJC_PREPROD_DB_NAME','BJC_PREPROD_DB_USER','BJC_PREPROD_DB_CA_PATH','BJC_DEV_CORPUS_STORAGE_PATH','DATABASE_URL','BJC_CORPUS_STORAGE_PATH')) {
   if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($key))) { throw "Missing required process environment variable: $key" }
 }
 if ($env:NODE_ENV -ne 'production' -or $env:BJC_DEPLOYMENT_ENV -ne 'preprod' -or $env:BJC_PREPROD_DATABASE_APPROVED -ne 'true') {
@@ -44,8 +44,24 @@ $databaseFile = Join-Path $outputPath "bjc-preprod-$stamp.dump"
 $storageFile = Join-Path $outputPath "bjc-preprod-storage-$stamp.tar.gz"
 $manifestFile = Join-Path $outputPath 'backup-manifest.json'
 
-$env:PGPASSFILE = $pgPassFile
-& $pgDump.Source --no-password --host $env:BJC_PREPROD_DB_HOST --port $env:BJC_PREPROD_DB_PORT --username $env:BJC_PREPROD_DB_USER --format=custom --no-owner --file $databaseFile $env:BJC_PREPROD_DB_NAME
+$planLines = & node (Join-Path $backRoot 'scripts\with-preprod-db-guard.cjs') backup-plan $databaseFile
+if ($LASTEXITCODE -ne 0) { throw 'Canonical PostgreSQL backup plan validation failed.' }
+$planLine = $planLines | Where-Object { $_ -match '^\{' } | Select-Object -Last 1
+if (-not $planLine) { throw 'Canonical PostgreSQL backup plan JSON is missing.' }
+$plan = $planLine | ConvertFrom-Json
+if ($plan.target.database -ne $env:BJC_PREPROD_DB_NAME -or $plan.target.host -ne $env:BJC_PREPROD_DB_HOST -or
+    [int]$plan.target.port -ne [int]$env:BJC_PREPROD_DB_PORT -or $plan.target.user -ne $env:BJC_PREPROD_DB_USER -or
+    $plan.target.tlsMode -ne 'verify-full') {
+  throw 'Backup plan target does not match the validated preproduction identity and TLS policy.'
+}
+foreach ($key in $plan.clearLibpqVariables) {
+  Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue
+}
+$env:PGPASSFILE = $plan.environment.PGPASSFILE
+$env:PGSSLMODE = $plan.environment.PGSSLMODE
+$env:PGSSLROOTCERT = $plan.environment.PGSSLROOTCERT
+$pgDumpArguments = @($plan.args)
+& $pgDump.Source @pgDumpArguments
 if ($LASTEXITCODE -ne 0) { throw 'pg_dump failed; do not deploy.' }
 & $pgRestore.Source --list $databaseFile | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'pg_restore archive verification failed; do not deploy.' }
@@ -62,7 +78,7 @@ $storageHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $storageFile).Hash.T
 $manifest = [ordered]@{
   generatedAt = (Get-Date).ToUniversalTime().ToString('o')
   verification = 'PASS'
-  target = [ordered]@{ database = $env:BJC_PREPROD_DB_NAME; host = $env:BJC_PREPROD_DB_HOST; port = [int]$env:BJC_PREPROD_DB_PORT; role = $env:BJC_PREPROD_DB_USER }
+  target = [ordered]@{ database = $plan.target.database; host = $plan.target.host; port = [int]$plan.target.port; role = $plan.target.user; tlsMode = $plan.target.tlsMode }
   databaseBackup = [ordered]@{ path = $databaseFile; sha256 = $databaseHash; format = 'pg_dump custom; pg_restore --list PASS' }
   storageBackup = [ordered]@{ path = $storageFile; sha256 = $storageHash; format = 'tar.gz; archive listing PASS' }
 }

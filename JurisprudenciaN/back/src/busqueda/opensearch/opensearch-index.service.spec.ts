@@ -4,13 +4,14 @@ import { OpenSearchIndexService } from './opensearch-index.service';
 
 describe('OpenSearchIndexService managed aliases', () => {
   it('recognizes a physical index under the isolated preproduction prefix', async () => {
+    const getAlias = jest.fn().mockResolvedValue({
+      body: {
+        'galilei-preprod-search-v003-20261018t123456789z-ab12cd34': {},
+      },
+    });
     const client = {
       indices: {
-        getAlias: jest.fn().mockResolvedValue({
-          body: {
-            'galilei-preprod-search-v003-20261018t123456789z-ab12cd34': {},
-          },
-        }),
+        getAlias,
       },
     } as unknown as Client;
     const repository = {} as OpenSearchDocumentRepository;
@@ -22,7 +23,7 @@ describe('OpenSearchIndexService managed aliases', () => {
     );
 
     await expect(service.hasActiveIndex()).resolves.toBe(true);
-    expect(client.indices.getAlias).toHaveBeenCalledWith({
+    expect(getAlias).toHaveBeenCalledWith({
       name: 'galilei-preprod-search-active',
     });
   });

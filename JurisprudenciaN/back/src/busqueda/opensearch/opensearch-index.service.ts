@@ -11,6 +11,10 @@ import {
   projectJurisprudenciaSearchDocument,
   projectSentenciaSearchDocument,
 } from './opensearch-search-document';
+import {
+  buildAtomicAliasSwapActions,
+  resolveManagedAliasTarget,
+} from './opensearch-alias-safety';
 
 const BULK_LIMIT_BYTES = 4 * 1024 * 1024;
 
@@ -558,29 +562,34 @@ export class OpenSearchIndexService {
   }
 
   private async swapAlias(index: string) {
-    const old = await this.activePhysicalIndex();
-    const actions: Array<Record<string, unknown>> = [];
-    if (old) actions.push({ remove: { index: old, alias: this.alias } });
-    actions.push({ add: { index, alias: this.alias, is_write_index: true } });
+    const current = await this.aliasTargets();
+    const actions = buildAtomicAliasSwapActions(
+      current,
+      index,
+      this.alias,
+      this.indexPrefix,
+    );
     await this.client.indices.updateAliases({ body: { actions } });
+    const promotedTargets = await this.aliasTargets();
+    if (promotedTargets.length !== 1 || promotedTargets[0] !== index) {
+      throw new Error('SEARCH_ALIAS_PROMOTION_POSTCONDITION_FAILED');
+    }
   }
 
   private async activePhysicalIndex(): Promise<string | null> {
+    return resolveManagedAliasTarget(
+      await this.aliasTargets(),
+      this.indexPrefix,
+    );
+  }
+
+  private async aliasTargets(): Promise<string[]> {
     try {
       const response = await this.client.indices.getAlias({ name: this.alias });
       const body = bodyOf<Record<string, unknown>>(response);
-      const physicalIndexPattern = new RegExp(
-        `^${escapeRegExp(`${this.indexPrefix}-v`)}\\d{3}-`,
-        'u',
-      );
-      const targets = Object.keys(body).filter((name) =>
-        physicalIndexPattern.test(name),
-      );
-      if (targets.length > 1)
-        throw new Error('SEARCH_ALIAS_HAS_MULTIPLE_PHYSICAL_INDEXES');
-      return targets[0] ?? null;
+      return Object.keys(body);
     } catch (error) {
-      if (statusCode(error) === 404) return null;
+      if (statusCode(error) === 404) return [];
       throw error;
     }
   }
@@ -620,8 +629,4 @@ function parseIndexDate(index: string) {
   return new Date(
     `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}T${stamp.slice(9, 11)}:${stamp.slice(11, 13)}:${stamp.slice(13, 15)}.${stamp.slice(15, 18)}Z`,
   );
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }

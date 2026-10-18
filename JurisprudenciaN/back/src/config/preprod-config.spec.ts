@@ -1,28 +1,39 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { rootCertificates } from 'node:tls';
 import { validatePreproductionConfig } from './preprod-config';
 
 describe('validatePreproductionConfig', () => {
+  let tempRoot: string;
   let storageRoot: string;
+  let devStorageRoot: string;
+  let caPath: string;
   let env: NodeJS.ProcessEnv;
 
   beforeEach(() => {
-    storageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bjc-preprod-config-'));
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bjc-preprod-config-'));
+    storageRoot = path.join(tempRoot, 'preprod-storage');
+    devStorageRoot = path.join(tempRoot, 'dev-storage');
+    fs.mkdirSync(storageRoot);
+    fs.mkdirSync(devStorageRoot);
+    caPath = path.join(tempRoot, 'root-ca.pem');
+    fs.writeFileSync(caPath, rootCertificates[0]);
     env = {
       NODE_ENV: 'production',
       BJC_DEPLOYMENT_ENV: 'preprod',
-      DATABASE_URL:
-        'postgresql://preprod_user:synthetic-test-password@preprod-db.internal:5432/buscador_juridico_civil_preprod?sslmode=verify-full',
+      DATABASE_URL: '',
       BJC_PREPROD_DATABASE_APPROVED: 'true',
       BJC_PREPROD_DB_HOST: 'preprod-db.internal',
       BJC_PREPROD_DB_PORT: '5432',
       BJC_PREPROD_DB_NAME: 'buscador_juridico_civil_preprod',
       BJC_PREPROD_DB_USER: 'preprod_user',
+      BJC_PREPROD_DB_CA_PATH: caPath,
       JWT_SECRET: 'a7K9m2Q4v8N1x5C3p6R0t9W2b4H7d1F8z3L5',
       JWT_EXPIRES_IN: '2h',
       FRONTEND_URL: 'https://preprod.example.intra',
       BJC_CORPUS_STORAGE_PATH: storageRoot,
+      BJC_DEV_CORPUS_STORAGE_PATH: devStorageRoot,
       BJC_API_BIND_HOST: '127.0.0.1',
       OPENSEARCH_NODE: 'https://preprod-search.internal:9200',
       OPENSEARCH_USERNAME: 'preprod-search-user',
@@ -39,65 +50,112 @@ describe('validatePreproductionConfig', () => {
       BJC_SEARCH_STATEMENT_TIMEOUT_MS: '4000',
       SEARCH_ENGINE: 'opensearch',
     };
+    env.DATABASE_URL = databaseUrl(env);
   });
 
-  afterEach(() => fs.rmSync(storageRoot, { recursive: true, force: true }));
+  afterEach(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
 
-  it('accepts an explicitly approved isolated configuration without connecting to its database', () => {
+  it('accepts an explicitly approved isolated config without connecting to PostgreSQL', () => {
     expect(validatePreproductionConfig(env)).toMatchObject({
       databaseHost: 'preprod-db.internal',
       databasePort: '5432',
       databaseName: 'buscador_juridico_civil_preprod',
       databaseUser: 'preprod_user',
+      databaseCaPath: fs.realpathSync.native(caPath),
+      databaseTlsMode: 'verify-full',
       frontendOrigins: ['https://preprod.example.intra'],
-      storageRoot,
+      storageRoot: fs.realpathSync.native(storageRoot),
       searchNode: 'https://preprod-search.internal:9200',
       searchAlias: 'galilei-preprod-search-active',
       searchIndexPrefix: 'galilei-preprod-search',
     });
   });
 
-  it('rejects missing critical values and does not fall back to local defaults', () => {
-    delete env.JWT_EXPIRES_IN;
-    expect(() => validatePreproductionConfig(env)).toThrow(/JWT_EXPIRES_IN/);
+  it('rejects a startup environment marker that disagrees with NODE_ENV', () => {
+    env.NODE_ENV = 'development';
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'BJC_DEPLOYMENT_ENV_NODE_ENV_MISMATCH',
+    );
   });
 
-  it('rejects a database URL that does not match the approved target or points to DEV', () => {
-    env.DATABASE_URL =
-      'postgresql://bjc_dev:synthetic@127.0.0.1:55432/buscador_juridico_civil_dev?sslmode=verify-full';
-    expect(() => validatePreproductionConfig(env)).toThrow(/coincid/);
+  it('rejects missing critical values without defaults', () => {
+    delete env.BJC_PREPROD_DB_CA_PATH;
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      /BJC_PREPROD_DB_CA_PATH/,
+    );
   });
 
-  it('rejects a database name outside the dedicated preproduction identity', () => {
-    env.BJC_PREPROD_DB_NAME = 'buscador_juridico_civil';
-    env.DATABASE_URL =
-      'postgresql://preprod_user:synthetic-test-password@preprod-db.internal:5432/buscador_juridico_civil?sslmode=verify-full';
+  it('rejects the canonical DEV database identity', () => {
+    env.DATABASE_URL = databaseUrl(env, {
+      host: '127.0.0.1',
+      port: '55432',
+      database: 'buscador_juridico_civil_dev',
+      user: 'bjc_dev',
+    });
+    env.BJC_PREPROD_DB_HOST = '127.0.0.1';
+    env.BJC_PREPROD_DB_PORT = '55432';
+    env.BJC_PREPROD_DB_NAME = 'buscador_juridico_civil_preprod';
+    env.BJC_PREPROD_DB_USER = 'preprod_user';
     expect(() => validatePreproductionConfig(env)).toThrow(
       /identidad preprod aprobada/,
     );
   });
 
-  it('requires PostgreSQL TLS with full certificate and hostname verification', () => {
-    env.DATABASE_URL =
-      'postgresql://preprod_user:synthetic-test-password@preprod-db.internal:5432/buscador_juridico_civil_preprod';
-    expect(() => validatePreproductionConfig(env)).toThrow(/TLS verify-full/);
+  it('rejects query overrides for host, port, database, user, service and driver options', () => {
+    for (const parameter of [
+      'host=127.0.0.1',
+      'hostaddr=127.0.0.1',
+      'port=55432',
+      'dbname=buscador_juridico_civil_dev',
+      'user=bjc_dev',
+      'service=unexpected',
+      'options=-c%20sslmode=disable',
+      'sslcert=%2Ftmp%2Fclient.crt',
+      'target_session_attrs=read-write',
+    ]) {
+      env.DATABASE_URL = `${databaseUrl(env)}&${parameter}`;
+      expect(() => validatePreproductionConfig(env)).toThrow(
+        parameter.startsWith('sslcert=')
+          ? 'DATABASE_URL_DUPLICATE_SECURITY_PARAMETER'
+          : 'DATABASE_URL_UNSUPPORTED_CONNECTION_PARAMETER',
+      );
+    }
   });
 
-  it('rejects loopback even when the declared preproduction identity matches it', () => {
-    env.DATABASE_URL =
-      'postgresql://preprod_user:synthetic@127.0.0.1:55432/buscador_juridico_civil_preprod?sslmode=verify-full';
-    env.BJC_PREPROD_DB_HOST = '127.0.0.1';
-    env.BJC_PREPROD_DB_PORT = '55432';
-    expect(() => validatePreproductionConfig(env)).toThrow(/coincid/);
-    env.DATABASE_URL =
-      'postgresql://preprod_user:synthetic@[::1]:55432/buscador_juridico_civil_preprod?sslmode=verify-full';
-    env.BJC_PREPROD_DB_HOST = '::1';
-    expect(() => validatePreproductionConfig(env)).toThrow(/coincid/);
+  it('rejects duplicate SSL parameters and TLS downgrade attempts using node-postgres rules', () => {
+    env.DATABASE_URL = `${databaseUrl(env)}&sslmode=disable`;
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'DATABASE_URL_DUPLICATE_SECURITY_PARAMETER',
+    );
+    env.DATABASE_URL = databaseUrl(env).replace(
+      'sslmode=verify-full',
+      'sslmode=disable',
+    );
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'DATABASE_URL_TLS_PARAMETERS_INVALID',
+    );
   });
 
-  it('requires explicit HTTPS CORS origins', () => {
-    env.FRONTEND_URL = 'http://localhost:4002';
-    expect(() => validatePreproductionConfig(env)).toThrow(/HTTPS/);
+  it('requires the CA query path to be the same canonical file as the environment setting', () => {
+    const otherCa = path.join(tempRoot, 'other-ca.pem');
+    fs.writeFileSync(otherCa, rootCertificates[1]);
+    env.DATABASE_URL = databaseUrl(env, { caPath: otherCa });
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'DATABASE_URL_CA_PATH_MISMATCH',
+    );
+  });
+
+  it('rejects invalid CA data and malformed URL encodings', () => {
+    fs.writeFileSync(caPath, 'not a certificate');
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'DATABASE_CA_CERTIFICATE_INVALID',
+    );
+    fs.writeFileSync(caPath, rootCertificates[0]);
+    env.DATABASE_URL =
+      'postgresql://bad%ZZ:synthetic@preprod-db.internal:5432/preprod?sslmode=verify-full';
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'DATABASE_URL contiene credenciales o identidad codificadas inválidas.',
+    );
   });
 
   it('rejects multiple replicas while rate limits are process-local', () => {
@@ -105,45 +163,94 @@ describe('validatePreproductionConfig', () => {
     expect(() => validatePreproductionConfig(env)).toThrow(/una sola réplica/);
   });
 
-  it('rejects the local DEV storage fallback', () => {
-    env.BJC_CORPUS_STORAGE_PATH = path.resolve(
-      storageRoot,
-      '..',
-      '_dev-corpus-storage',
+  it('rejects relative paths and same, parent, child, and symlink storage overlap', () => {
+    env.BJC_CORPUS_STORAGE_PATH = 'relative/storage';
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'BJC_CORPUS_STORAGE_PATH_MUST_BE_ABSOLUTE',
     );
-    expect(() => validatePreproductionConfig(env)).toThrow(/storage DEV/);
+
+    env.BJC_CORPUS_STORAGE_PATH = devStorageRoot;
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'BJC_CORPUS_STORAGE_OVERLAP_DEV',
+    );
+
+    const nestedStorage = path.join(devStorageRoot, 'preprod-child');
+    fs.mkdirSync(nestedStorage);
+    env.BJC_CORPUS_STORAGE_PATH = nestedStorage;
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'BJC_CORPUS_STORAGE_OVERLAP_DEV',
+    );
+
+    const nestedDev = path.join(storageRoot, 'dev-child');
+    fs.mkdirSync(nestedDev);
+    env.BJC_CORPUS_STORAGE_PATH = storageRoot;
+    env.BJC_DEV_CORPUS_STORAGE_PATH = nestedDev;
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'BJC_CORPUS_STORAGE_OVERLAP_DEV',
+    );
+
+    const junction = path.join(tempRoot, 'storage-alias');
+    try {
+      fs.symlinkSync(
+        devStorageRoot,
+        junction,
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+      env.BJC_CORPUS_STORAGE_PATH = junction;
+      env.BJC_DEV_CORPUS_STORAGE_PATH = devStorageRoot;
+      expect(() => validatePreproductionConfig(env)).toThrow(
+        'BJC_CORPUS_STORAGE_OVERLAP_DEV',
+      );
+    } catch (error) {
+      if (
+        !['EPERM', 'EACCES', 'ENOTSUP'].includes(
+          (error as NodeJS.ErrnoException).code ?? '',
+        )
+      ) {
+        throw error;
+      }
+    }
   });
 
-  it('requires a loopback API bind behind the approved local reverse proxy', () => {
+  it('requires the approved host-local bind and namespace', () => {
     env.BJC_API_BIND_HOST = '0.0.0.0';
     expect(() => validatePreproductionConfig(env)).toThrow(/BJC_API_BIND_HOST/);
-  });
-
-  it('requires a dedicated physical index prefix and alias for preproduction', () => {
+    env.BJC_API_BIND_HOST = '127.0.0.1';
     env.OPENSEARCH_INDEX_ALIAS = 'galilei-search-active';
     env.OPENSEARCH_INDEX_PREFIX = 'galilei-search';
     expect(() => validatePreproductionConfig(env)).toThrow(
-      /alias y prefijo físico exclusivos/,
+      /PREPROD_NAMESPACE_INVALID/,
     );
   });
 
-  it('requires authenticated HTTPS OpenSearch without accepting a development endpoint', () => {
-    env.OPENSEARCH_NODE = 'http://127.0.0.1:9200';
-    env.OPENSEARCH_ALLOW_INSECURE_LOCAL = 'true';
-    expect(() => validatePreproductionConfig(env)).toThrow(
-      'OPENSEARCH_INSECURE_ENDPOINT_REJECTED',
-    );
-  });
-
-  it('requires the certified Search engine and rejects query/debug capture flags', () => {
+  it('requires explicit public HTTPS CORS origins and the certified Search engine', () => {
+    env.FRONTEND_URL = 'http://localhost:4002';
+    expect(() => validatePreproductionConfig(env)).toThrow(/HTTPS/);
+    env.FRONTEND_URL = 'https://preprod.example.intra';
     env.SEARCH_ENGINE = 'postgres';
     expect(() => validatePreproductionConfig(env)).toThrow(
       /SEARCH_ENGINE preprod/,
     );
-    env.SEARCH_ENGINE = 'opensearch';
-    env.BUSQUEDA_DEBUG = 'true';
-    expect(() => validatePreproductionConfig(env)).toThrow(
-      /flags de diagnóstico/,
-    );
   });
 });
+
+function databaseUrl(
+  env: NodeJS.ProcessEnv,
+  overrides: {
+    host?: string;
+    port?: string;
+    database?: string;
+    user?: string;
+    caPath?: string;
+  } = {},
+) {
+  const host = overrides.host ?? env.BJC_PREPROD_DB_HOST!;
+  const port = overrides.port ?? env.BJC_PREPROD_DB_PORT!;
+  const database = overrides.database ?? env.BJC_PREPROD_DB_NAME!;
+  const user = overrides.user ?? env.BJC_PREPROD_DB_USER!;
+  const caPath = overrides.caPath ?? env.BJC_PREPROD_DB_CA_PATH!;
+  const urlHost =
+    host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+  const encodedCa = encodeURIComponent(caPath);
+  return `postgresql://${encodeURIComponent(user)}:synthetic-test-password@${urlHost}:${port}/${database}?sslmode=verify-full&sslrootcert=${encodedCa}&sslcert=${encodedCa}&sslaccept=strict`;
+}

@@ -1,6 +1,6 @@
 # Galilei — inicio rápido
 
-**Actualizado:** 2026-10-18, después de UX-PROMOTE-DEV. `origin/dev=af8f51d6f5e5be48e0167c5890328acd3c80c2c4`; `main` permanece intacta; `integration/galilei-beta` conserva el SHA certificado INT-1R `111bc5c86faff0bf946ef5e199b4463fe8217d5a`. UX está promovida y revisada. UAT institucional y preproducción siguen pendientes; `feature/preprod-uat-prep` está publicada como rama aislada para preparar esos gates, sin merge.
+**Actualizado:** 2026-10-18, después de UX-PROMOTE-DEV y PREPROD-FIX-1. `origin/dev=af8f51d6f5e5be48e0167c5890328acd3c80c2c4`; `main` permanece intacta; `integration/galilei-beta` conserva el SHA certificado INT-1R `111bc5c86faff0bf946ef5e199b4463fe8217d5a`. UX está promovida y revisada. La candidata `feature/preprod-uat-fix`, basada en `4d68c49d80642a19e93cc1af799fa78414421309`, endurece guards de infraestructura y todavía requiere publicación/revisión independiente. UAT institucional y preproducción siguen pendientes; no hubo promoción de la candidata a DEV.
 
 ## Producto integrado
 

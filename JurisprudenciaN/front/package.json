@@ -16,8 +16,8 @@
     "qa:ux:responsive": "node ux-qa/run.cjs responsive",
     "qa:ux:viewer": "node ux-qa/run.cjs viewer",
     "qa:ux:auth": "node ux-qa/auth-preflight.cjs && node ux-qa/run.cjs auth",
-    "preprod:env:check": "node scripts/preprod-build-env.cjs",
-    "preprod:env:test": "node --test scripts/preprod-build-env.test.cjs"
+    "preprod:env:check": "node scripts/preprod-build-env.mjs",
+    "preprod:env:test": "node --test scripts/preprod-build-env.test.mjs"
   },
   "dependencies": {
     "next": "16.2.4",

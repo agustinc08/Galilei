@@ -1,5 +1,9 @@
 import fs from 'node:fs';
 import { Client } from '@opensearch-project/opensearch';
+import {
+  resolveDeploymentEnvironment,
+  type DeploymentEnvironment,
+} from '../../config/deployment-environment';
 
 export type OpenSearchConfig = {
   node: string;
@@ -12,6 +16,20 @@ export type OpenSearchConfig = {
 };
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
+export const SEARCH_NAMESPACES = {
+  development: {
+    alias: 'galilei-search-active',
+    indexPrefix: 'galilei-search',
+  },
+  preprod: {
+    alias: 'galilei-preprod-search-active',
+    indexPrefix: 'galilei-preprod-search',
+  },
+  production: {
+    alias: 'galilei-production-search-active',
+    indexPrefix: 'galilei-production-search',
+  },
+} as const;
 
 export function readOpenSearchConfig(
   env: NodeJS.ProcessEnv = process.env,
@@ -35,9 +53,9 @@ export function readOpenSearchConfig(
     throw new Error('OPENSEARCH_NODE_INVALID');
   }
 
+  const deploymentEnvironment = resolveDeploymentEnvironment(env);
   const allowInsecureLocal = env.OPENSEARCH_ALLOW_INSECURE_LOCAL === 'true';
-  const isProduction =
-    env.NODE_ENV === 'production' || env.BJC_DEPLOYMENT_ENV === 'preprod';
+  const isProduction = deploymentEnvironment !== 'development';
   const isLoopback = LOOPBACK_HOSTS.has(
     endpoint.hostname.toLowerCase().replace(/^\[|\]$/gu, ''),
   );
@@ -67,7 +85,12 @@ export function readOpenSearchConfig(
     30000,
   );
   const maxRetries = integerInRange(env.OPENSEARCH_MAX_RETRIES, 2, 0, 5);
-  const alias = (env.OPENSEARCH_INDEX_ALIAS ?? 'galilei-search-active').trim();
+  const aliasValue = env.OPENSEARCH_INDEX_ALIAS?.trim();
+  const indexPrefixValue = env.OPENSEARCH_INDEX_PREFIX?.trim();
+  if (isProduction && (!aliasValue || !indexPrefixValue)) {
+    throw new Error('OPENSEARCH_INDEX_ALIAS_AND_PREFIX_REQUIRED');
+  }
+  const alias = aliasValue ?? SEARCH_NAMESPACES.development.alias;
   if (
     !/^[a-z0-9][a-z0-9._-]{2,127}$/u.test(alias) ||
     alias.startsWith('_') ||
@@ -76,7 +99,8 @@ export function readOpenSearchConfig(
   ) {
     throw new Error('OPENSEARCH_INDEX_ALIAS_INVALID');
   }
-  const indexPrefix = (env.OPENSEARCH_INDEX_PREFIX ?? 'galilei-search').trim();
+  const indexPrefix =
+    indexPrefixValue ?? SEARCH_NAMESPACES.development.indexPrefix;
   if (
     !/^[a-z0-9][a-z0-9._-]{2,60}$/u.test(indexPrefix) ||
     indexPrefix.startsWith('.') ||
@@ -85,6 +109,7 @@ export function readOpenSearchConfig(
   ) {
     throw new Error('OPENSEARCH_INDEX_PREFIX_INVALID');
   }
+  validateEnvironmentNamespace(deploymentEnvironment, alias, indexPrefix);
 
   let ca: Buffer | undefined;
   const caPath = env.OPENSEARCH_CA_PATH?.trim();
@@ -111,6 +136,20 @@ export function readOpenSearchConfig(
       maxRetries,
     },
   };
+}
+
+function validateEnvironmentNamespace(
+  environment: DeploymentEnvironment,
+  alias: string,
+  indexPrefix: string,
+) {
+  if (environment === 'development') return;
+  const expected = SEARCH_NAMESPACES[environment];
+  if (alias !== expected.alias || indexPrefix !== expected.indexPrefix) {
+    throw new Error(
+      `OPENSEARCH_${environment.toUpperCase()}_NAMESPACE_INVALID`,
+    );
+  }
 }
 
 function integerInRange(

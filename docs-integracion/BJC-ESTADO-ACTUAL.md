@@ -1,5 +1,15 @@
 # Estado actual — Buscador Jurídico Civil
 
+## PREPROD-FIX-1 — candidata técnica (2026-10-18)
+
+La rama `feature/preprod-uat-fix` parte exactamente de `4d68c49d80642a19e93cc1af799fa78414421309` (`origin/feature/preprod-uat-prep`). Se implementaron cierres fail-closed para los dos P0 y tres P1 de PREPROD-REVIEW-1, más los P2 de loopback/IPv6, storage aislado, escrituras de startup documentadas, inventario de integraciones y topología. La candidata no cambia semántica de Search, ACL/autorización, Viewer, schema Prisma ni migraciones; no se promovió a DEV.
+
+Verificación de esta candidata: backend/frontend typecheck y build PASS; suite segura 42 suites PASS, 272 tests PASS, 7 omitidos; nueve suites PostgreSQL de integración y un test SQLite opt-in quedan fuera de esa suite. Los nueve tests/configs del guard y namespace OpenSearch pasan (65/65), los tests de backup pasan (2/2), URL frontend (5/5), y ESLint de todos los archivos backend/frontend modificados pasa sin errores ni warnings. Los archivos CJS tocados pasan `node --check`. `git diff --check` pasa.
+
+El smoke de DEV fue sólo lectura, con cuatro requests GET a OpenSearch: versión 2.19.6, health green, alias `galilei-search-active` → `galilei-search-v003-20261017t232432555z-a6af18cb`, 69.313 documentos; 0 conexiones DB y 0 escrituras. No se usó DEV como destino de herramientas de backup/migración.
+
+La candidata requiere publicación sólo a `origin/feature/preprod-uat-fix` y revisión independiente PREPROD-FIX-REVIEW-1. PREPROD sigue NOT_PROVISIONED; dump/restore real NOT_PROVEN; imagen Docker, storage de producción, certificado TLS y UAT institucional pendientes. Evidencia local ignorada: `_recovery-work/preprod-fix1/`.
+
 ## PREPROD-UAT-PREP-1 — estado vigente (2026-10-18)
 
 `origin/dev` y la rama de preparación parten de `af8f51d6f5e5be48e0167c5890328acd3c80c2c4`. UX quedó promovida y revisada; `main` permanece en `83947656420a9d6f6c3cfb12b353eb7f2c293a28`; `integration/galilei-beta` conserva el SHA certificado anterior `111bc5c86faff0bf946ef5e199b4463fe8217d5a`. La rama de esta misión es `feature/preprod-uat-prep`, publicada únicamente en origin y sin integración en otras ramas; el SHA publicado se registra en `git-final.json` de los artefactos ignorados.

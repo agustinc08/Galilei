@@ -24,7 +24,11 @@ describe('OpenSearch runtime config security', () => {
 
   it('rejects HTTP in production even if the insecure flag is set', () => {
     expect(() =>
-      readOpenSearchConfig({ ...local, NODE_ENV: 'production' }),
+      readOpenSearchConfig({
+        ...local,
+        NODE_ENV: 'production',
+        BJC_DEPLOYMENT_ENV: 'production',
+      }),
     ).toThrow('OPENSEARCH_INSECURE_ENDPOINT_REJECTED');
   });
 
@@ -42,13 +46,19 @@ describe('OpenSearch runtime config security', () => {
       readOpenSearchConfig({
         OPENSEARCH_NODE: 'https://search.example:9200',
         NODE_ENV: 'production',
+        BJC_DEPLOYMENT_ENV: 'production',
+        OPENSEARCH_INDEX_ALIAS: 'galilei-production-search-active',
+        OPENSEARCH_INDEX_PREFIX: 'galilei-production-search',
       }),
     ).toThrow('OPENSEARCH_PRODUCTION_CREDENTIALS_REQUIRED');
     const config = readOpenSearchConfig({
       OPENSEARCH_NODE: 'https://search.example:9200',
       NODE_ENV: 'production',
+      BJC_DEPLOYMENT_ENV: 'production',
       OPENSEARCH_USERNAME: 'search-user',
       OPENSEARCH_PASSWORD: 'local-test-only',
+      OPENSEARCH_INDEX_ALIAS: 'galilei-production-search-active',
+      OPENSEARCH_INDEX_PREFIX: 'galilei-production-search',
     });
     expect(config.clientOptions.node).toBe('https://search.example:9200');
     expect(config.clientOptions).not.toHaveProperty('ssl');
@@ -101,6 +111,48 @@ describe('OpenSearch runtime config security', () => {
         ...local,
         OPENSEARCH_INDEX_PREFIX: 'Galilei DEV',
         NODE_ENV: 'development',
+      }),
+    ).toThrow('OPENSEARCH_INDEX_PREFIX_INVALID');
+  });
+
+  it('requires explicit PREPROD and PROD namespaces and rejects the DEV namespace', () => {
+    const preprod = {
+      OPENSEARCH_NODE: 'https://preprod-search.internal:9200',
+      OPENSEARCH_USERNAME: 'preprod-user',
+      OPENSEARCH_PASSWORD: 'synthetic-test-only',
+      NODE_ENV: 'production',
+      BJC_DEPLOYMENT_ENV: 'preprod',
+    };
+    expect(() => readOpenSearchConfig(preprod)).toThrow(
+      'OPENSEARCH_INDEX_ALIAS_AND_PREFIX_REQUIRED',
+    );
+    expect(() =>
+      readOpenSearchConfig({
+        ...preprod,
+        OPENSEARCH_INDEX_ALIAS: 'galilei-search-active',
+        OPENSEARCH_INDEX_PREFIX: 'galilei-search',
+      }),
+    ).toThrow('OPENSEARCH_PREPROD_NAMESPACE_INVALID');
+
+    const production = {
+      ...preprod,
+      BJC_DEPLOYMENT_ENV: 'production',
+    };
+    expect(() => readOpenSearchConfig(production)).toThrow(
+      'OPENSEARCH_INDEX_ALIAS_AND_PREFIX_REQUIRED',
+    );
+    expect(() =>
+      readOpenSearchConfig({
+        ...production,
+        OPENSEARCH_INDEX_ALIAS: 'galilei-search-active',
+        OPENSEARCH_INDEX_PREFIX: 'galilei-search',
+      }),
+    ).toThrow('OPENSEARCH_PRODUCTION_NAMESPACE_INVALID');
+    expect(() =>
+      readOpenSearchConfig({
+        ...preprod,
+        OPENSEARCH_INDEX_ALIAS: 'galilei-preprod-search-active',
+        OPENSEARCH_INDEX_PREFIX: 'Bad Prefix',
       }),
     ).toThrow('OPENSEARCH_INDEX_PREFIX_INVALID');
   });

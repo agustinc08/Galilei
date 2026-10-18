@@ -1,29 +1,20 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from './app.module';
 import { SafeExceptionFilter } from './safe-exception.filter';
 import { LocalApiRateLimiter } from './rate-limit.middleware';
-import { validatePreproductionConfig } from './config/preprod-config';
+import { createApplicationAfterPreflight } from './config/runtime-bootstrap';
 
 async function bootstrap() {
-  if (process.env.NODE_ENV === 'production') {
-    const deploymentEnvironment = process.env.BJC_DEPLOYMENT_ENV;
-    if (
-      deploymentEnvironment !== 'preprod' &&
-      deploymentEnvironment !== 'production'
-    ) {
-      throw new Error(
-        'En modo production debe declararse BJC_DEPLOYMENT_ENV=preprod o production.',
-      );
-    }
-    if (deploymentEnvironment === 'preprod')
-      validatePreproductionConfig(process.env);
-  }
-  const app = await NestFactory.create(AppModule);
+  const { deploymentEnvironment, application: app } =
+    await createApplicationAfterPreflight(process.env, () =>
+      NestFactory.create(AppModule),
+    );
   app.enableShutdownHooks();
-  app.use((_request, response, next) => {
+  app.use((_request: Request, response: Response, next: NextFunction) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('X-Frame-Options', 'SAMEORIGIN');
     response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -33,7 +24,7 @@ async function bootstrap() {
     );
     next();
   });
-  app.use((request, response, next) => {
+  app.use((request: Request, response: Response, next: NextFunction) => {
     const provided = request.get('x-request-id');
     const requestId =
       provided && /^[A-Za-z0-9._-]{8,80}$/u.test(provided)
@@ -42,7 +33,11 @@ async function bootstrap() {
     response.setHeader('X-Request-Id', requestId);
     const startedAt = performance.now();
     response.on('finish', () => {
-      const route = request.route?.path ?? 'unmatched';
+      const routeMetadata = request.route as unknown as
+        | { path?: unknown }
+        | undefined;
+      const routePath = routeMetadata?.path;
+      const route = typeof routePath === 'string' ? routePath : 'unmatched';
       const durationMs =
         Math.round((performance.now() - startedAt) * 100) / 100;
       if (response.statusCode >= 400) {
@@ -99,7 +94,7 @@ async function bootstrap() {
   ]
     .map((origin) => origin?.trim())
     .filter((origin): origin is string => Boolean(origin));
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isProduction = deploymentEnvironment !== 'development';
   if (isProduction && configuredFrontendOrigins.length === 0) {
     throw new Error(
       'FRONTEND_URL o FRONTEND_URLS debe configurarse en producción.',

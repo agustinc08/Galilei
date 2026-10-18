@@ -16,9 +16,23 @@ function Invoke-Checked([string]$Label, [scriptblock]$Command) {
   if ($LASTEXITCODE -ne 0) { throw "$Label failed with exit code $LASTEXITCODE" }
 }
 
+function Test-LocalHost([string]$Value) {
+  $hostName = $Value.Trim().TrimStart([char]'[').TrimEnd([char]']').TrimEnd('.').ToLowerInvariant()
+  if ($hostName -eq 'localhost' -or $hostName.EndsWith('.localhost')) { return $true }
+  $address = $null
+  if (-not [System.Net.IPAddress]::TryParse($hostName, [ref]$address)) { return $false }
+  if ($address.IsIPv4MappedToIPv6) { $address = $address.MapToIPv4() }
+  if ([System.Net.IPAddress]::IsLoopback($address)) { return $true }
+  if ($address.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork) {
+    $bytes = $address.GetAddressBytes()
+    return $bytes[0] -eq 0 -or $bytes[0] -eq 127
+  }
+  return $address.Equals([System.Net.IPAddress]::IPv6Any)
+}
+
 $requiredEnvironment = @(
   'NODE_ENV','BJC_DEPLOYMENT_ENV','BJC_PREPROD_DATABASE_APPROVED','BJC_PREPROD_DB_HOST','BJC_PREPROD_DB_PORT',
-  'BJC_PREPROD_DB_NAME','BJC_PREPROD_DB_USER','DATABASE_URL','JWT_SECRET','BJC_CORPUS_STORAGE_PATH','FRONTEND_URL',
+  'BJC_PREPROD_DB_NAME','BJC_PREPROD_DB_USER','BJC_PREPROD_DB_CA_PATH','DATABASE_URL','JWT_SECRET','BJC_CORPUS_STORAGE_PATH','BJC_DEV_CORPUS_STORAGE_PATH','FRONTEND_URL',
   'BJC_PREPROD_API_ORIGIN','BJC_PREPROD_FRONTEND_ORIGIN','BJC_PREPROD_SMOKE_EMAIL','BJC_PREPROD_SMOKE_PASSWORD',
   'BJC_PREPROD_SMOKE_DOCUMENT_ID','BJC_RELEASE_ID','BJC_BACKEND_BUILD_ID','BJC_FRONTEND_BUILD_ID','BJC_PREPROD_REPORT_PATH',
   'GIT_COMMIT_SHA','NEXT_PUBLIC_API_URL'
@@ -40,8 +54,8 @@ if ($env:FRONTEND_URL.TrimEnd('/') -ne $env:BJC_PREPROD_FRONTEND_ORIGIN.TrimEnd(
   throw 'BJC_PREPROD_FRONTEND_ORIGIN must match FRONTEND_URL used by the backend CORS allowlist.'
 }
 Push-Location $frontRoot
-try { Invoke-Checked 'Validate frontend preproduction API target' { node scripts/preprod-build-env.cjs } } finally { Pop-Location }
-if ($env:BJC_PREPROD_DB_NAME -eq 'buscador_juridico_civil_dev' -or $env:BJC_PREPROD_DB_USER -eq 'bjc_dev' -or $env:BJC_PREPROD_DB_HOST -in @('localhost','127.0.0.1','::1')) {
+try { Invoke-Checked 'Validate frontend preproduction API target' { node scripts/preprod-build-env.mjs } } finally { Pop-Location }
+if ($env:BJC_PREPROD_DB_NAME -eq 'buscador_juridico_civil_dev' -or $env:BJC_PREPROD_DB_USER -eq 'bjc_dev' -or (Test-LocalHost $env:BJC_PREPROD_DB_HOST)) {
   throw 'Deployment stopped: the configured database is not an isolated preproduction target.'
 }
 if (-not [IO.Path]::IsPathRooted($env:BJC_CORPUS_STORAGE_PATH) -or $env:BJC_CORPUS_STORAGE_PATH -match '_dev-corpus-storage') {
@@ -56,7 +70,7 @@ if ($reportPath -eq $manifestPath) { throw 'Acceptance report and release manife
 foreach ($key in @('BJC_PREPROD_API_ORIGIN','BJC_PREPROD_FRONTEND_ORIGIN')) {
   $originValue = [Environment]::GetEnvironmentVariable($key)
   $originUri = [Uri]$originValue
-  if (-not $originUri.IsAbsoluteUri -or $originUri.Scheme -ne 'https' -or $originUri.AbsolutePath -ne '/' -or $originUri.Host -in @('localhost','127.0.0.1','::1')) {
+  if (-not $originUri.IsAbsoluteUri -or $originUri.Scheme -ne 'https' -or $originUri.AbsolutePath -ne '/' -or (Test-LocalHost $originUri.DnsSafeHost)) {
     throw "$key must be an explicit HTTPS preproduction origin outside loopback."
   }
 }

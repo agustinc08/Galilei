@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Isolated preproduction projection maintenance. Never call the DEV script here.
-const { Client } = require('pg');
+const { createCanonicalPreprodClient, assertPreprodServerIdentity } = require('./preprod-db-client.cjs');
 
 if (process.env.BJC_PREPROD_GUARD_VALIDATED !== 'true') {
   console.error('PREPROD_PROJECTION=ABORT; use scripts/with-preprod-db-guard.cjs projection-*.');
@@ -14,13 +14,11 @@ if (!['rebuild', 'verify', 'repair'].includes(action)) {
 }
 
 async function main() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  const { database, client } = createCanonicalPreprodClient();
   try {
     await client.connect();
     const identity = (await client.query(`SELECT current_database() AS database, current_user AS role, inet_server_addr()::text AS address, inet_server_port() AS port`)).rows[0];
-    if (identity.database !== process.env.BJC_PREPROD_DB_NAME || identity.role !== process.env.BJC_PREPROD_DB_USER || Number(identity.port) !== Number(process.env.BJC_PREPROD_DB_PORT) || !identity.address || /^(127\.|::ffff:127\.|::1(?:\/|$)|::(?:\/|$)|0\.0\.0\.0)/iu.test(identity.address)) {
-      throw new Error('La identidad PostgreSQL efectiva no coincide con la identidad preprod aprobada.');
-    }
+    assertPreprodServerIdentity(identity, database);
 
     let rebuiltDocuments = 0;
     let repairCursor = '';

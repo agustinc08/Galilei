@@ -9,6 +9,7 @@ Desde `C:\proyecto triple\JurisprudenciaN\back`, con variables cargadas desde el
 ```powershell
 node scripts/with-preprod-db-guard.cjs check
 node scripts/with-preprod-db-guard.cjs target-verify
+node scripts/with-preprod-db-guard.cjs backup-plan '<archivo-dump-nuevo>'
 node scripts/with-preprod-db-guard.cjs migrate-status
 node scripts/with-preprod-db-guard.cjs migrate-deploy
 node scripts/with-preprod-db-guard.cjs db-report
@@ -17,19 +18,19 @@ node scripts/with-preprod-db-guard.cjs projection-rebuild
 node scripts/with-preprod-db-guard.cjs projection-repair
 ```
 
-`check` no abre conexión. Las demás acciones validan primero `NODE_ENV=production`, `BJC_DEPLOYMENT_ENV=preprod`, aprobación explícita, DB/rol coincidentes, HTTPS, JWT, storage aislado y límites de runtime. Toda acción conectante ejecuta antes `target-verify`, que comprueba DB, rol, puerto y dirección efectiva PostgreSQL, y aborta ante loopback. No ejecutar el script de proyección DEV.
+`check` no abre conexión. Las demás acciones validan primero `NODE_ENV=production`, `BJC_DEPLOYMENT_ENV=preprod`, aprobación explícita, DB/rol coincidentes, TLS/CA, HTTPS, JWT, storage aislado y límites de runtime. Toda acción conectante ejecuta antes `target-verify`, que usa el `pgConfig` canónico (sin reinterpretar `DATABASE_URL`), comprueba DB, rol, puerto y dirección efectiva PostgreSQL, y aborta ante loopback. Prisma CLI recibe una URL canónica construida a partir de la misma identidad aprobada (`sslmode=verify-full`, `sslcert=<CA>`, `sslaccept=strict`); nunca usa la cadena ambigua original después del guard. No ejecutar el script de proyección DEV.
 
 ## Secuencia automatizada
 
 `scripts/deploy-preprod.ps1` compila el validador, hace `check`, verifica hashes del backup aprobado, consulta migraciones, aplica migraciones explícitas, construye backend/frontend, llama al script institucional de inicio, espera readiness, verifica la proyección y corre el smoke de Playwright. El script del service manager se entrega por host; no se inventa un método universal de Windows/Linux.
 
-Para producir el manifiesto de backup en un host Windows aprobado, el operador carga `PGPASSFILE` desde el vault (archivo ACL restringido, nunca contenido en comando/chat) y PostgreSQL client tools en PATH, y ejecuta contra un directorio de salida nuevo fuera del storage:
+Para producir el manifiesto de backup en un host Windows aprobado, el operador carga `PGPASSFILE` desde el vault (archivo ACL restringido, nunca contenido en comando/chat) y PostgreSQL client tools en PATH, y ejecuta contra un directorio de salida nuevo fuera del storage. El guard calcula la identidad del dump desde la configuración PostgreSQL canónica y no reutiliza la URL raw:
 
 ```powershell
 & '.\scripts\backup-preprod.ps1' -OutputDirectory '<directorio-nuevo-backup>'
 ```
 
-El script corre `check` y `target-verify`, crea dump custom con `pg_dump --no-password`, valida el archivo con `pg_restore --list`, crea snapshot de lectura del storage con `tar`, valida el archive y escribe SHA-256/`backup-manifest.json`. No modifica los originales. Si la plataforma aprobada es Linux u otra, infraestructura debe usar herramienta equivalente y entregar el mismo manifiesto/verificación antes de deploy.
+El script corre `check`, `target-verify` y `backup-plan`; limpia `PGHOST`, `PGHOSTADDR`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGSERVICE`, `PGOPTIONS` y otros overrides heredados; fija `PGSSLMODE=verify-full`, `PGSSLROOTCERT` y `PGPASSFILE`; y crea dump custom con `pg_dump --no-password` y target explícito. Luego valida el archivo con `pg_restore --list`, crea snapshot de lectura del storage con `tar`, valida el archive y escribe SHA-256/`backup-manifest.json` con `tlsMode=verify-full`. No pasa password/URL a argumentos ni registra secretos; no modifica originales. Si la plataforma aprobada es Linux u otra, infraestructura debe usar herramienta equivalente y entregar el mismo manifiesto/verificación antes de deploy. Este código no prueba un dump real mientras `pg_dump`/PREPROD no estén disponibles.
 
 Formato mínimo del manifiesto de backup que recibe el deploy script:
 
@@ -101,7 +102,7 @@ Digesto export/crosswalk sigue PENDING hasta recibir paquete institucional autor
 
 Los scripts y guards son preparación revisada; **no se ejecutaron** contra infraestructura institucional. `deploy-preprod.ps1` ahora comprueba source SHA y checkout limpio, alinea `FRONTEND_URL` con el origin preprod, valida el destino de bundle Next antes de conectar DB, y verifica backup/manifest/hash antes de migraciones. El backend exige Search OpenSearch, alias/prefijo preprod, DB con `sslmode=verify-full`, API loopback, CORS HTTPS, storage separado, rate limit habilitado y una réplica.
 
-`front/scripts/preprod-build-env.cjs` cuenta con tests sintéticos y bloquea API URL HTTP/loopback/origen divergente. El backend configura shutdown hooks y oculta Swagger en producción. `opensearch-index.service.ts` usa el prefijo físico configurado, con default compatible para DEV. Se requiere validar builds/tests en checkout limpio antes de publicar esta rama.
+`front/scripts/preprod-build-env.mjs` cuenta con tests sintéticos y bloquea API URL HTTP/loopback/local/origen divergente. El backend configura shutdown hooks y oculta Swagger en producción. `opensearch-index.service.ts` usa el prefijo físico configurado, con default compatible para DEV, y aborta la promoción si existe cualquier target ajeno o más de un target. El startup recupera estado de scans/OCR y arranca outbox; por ello DB, Search, storage y backup deben estar healthy antes de levantar la aplicación. La topología soportada es proxy TLS en el mismo host hacia API loopback; proxy en contenedor separado queda NOT CERTIFIED. El inventario contiene exactamente 10 `*.integration.spec.ts`: nueve requieren DB y se excluyen de la suite segura; `document-local-processors.integration.spec.ts` corre dentro de ella. Además, `legacy-sqlite-search.adapter.spec.ts` es un test opt-in y queda excluido aparte. La corrida PREPROD-FIX-1 registró 42 suites PASS, 272 tests PASS y 7 omitidos; su evidencia está en `_recovery-work/preprod-fix1/safe-suite.json`.
 
 No hay contenedor preprod de aplicación y Docker/Podman no están instalados. El compose heredado `JurisprudenciaN/docker-compose.yml` fue corregido para exigir password por variable y bind loopback en puerto 55433; no se inició ni construyó. El compose DEV separado usa 55432 y no debe correrse junto al PostgreSQL nativo DEV.
 
