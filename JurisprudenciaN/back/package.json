@@ -100,6 +100,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:preprod-tls": "node scripts/prisma-cli-tls-blackbox.test.cjs",
     "j4:review": "node scripts/dev/sprint-j4-review-workflow.cjs",
     "j4:review:test": "node --test scripts/dev/jurisprudencia-review-workflow.test.cjs"
   },

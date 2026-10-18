@@ -1,4 +1,7 @@
 import { Client } from '@opensearch-project/opensearch';
+import type { ApprovedRuntimePgConfig } from '../../config/runtime-database-config';
+import { getRuntimeDatabasePoolConfig } from '../../config/runtime-database-config';
+import type { SearchSourceAdapter } from '../adapters/search-source.adapter';
 import { OpenSearchDocumentRepository } from './opensearch-document.repository';
 import { OpenSearchIndexService } from './opensearch-index.service';
 import { readOpenSearchConfig } from './opensearch-config';
@@ -7,19 +10,26 @@ import {
   type SearchCandidateHydrator,
 } from './opensearch-search-source.adapter';
 import { OpenSearchSyncWorker } from './opensearch-sync.worker';
-import type { SearchSourceAdapter } from '../adapters/search-source.adapter';
 
 export class OpenSearchRuntimeService {
   readonly config = readOpenSearchConfig();
   readonly client = new Client(this.config.clientOptions);
-  readonly repository = new OpenSearchDocumentRepository();
-  readonly index = new OpenSearchIndexService(
-    this.client,
-    this.repository,
-    this.config.alias,
-    this.config.indexPrefix,
-  );
-  readonly syncWorker = new OpenSearchSyncWorker(this.repository, this.index);
+  readonly repository: OpenSearchDocumentRepository;
+  readonly index: OpenSearchIndexService;
+  readonly syncWorker: OpenSearchSyncWorker;
+
+  constructor(
+    databaseConfig: ApprovedRuntimePgConfig = getRuntimeDatabasePoolConfig(),
+  ) {
+    this.repository = new OpenSearchDocumentRepository(databaseConfig);
+    this.index = new OpenSearchIndexService(
+      this.client,
+      this.repository,
+      this.config.alias,
+      this.config.indexPrefix,
+    );
+    this.syncWorker = new OpenSearchSyncWorker(this.repository, this.index);
+  }
 
   async isReady() {
     try {

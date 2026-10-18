@@ -1,4 +1,8 @@
 import { Pool } from 'pg';
+import {
+  resolveSearchDatabasePoolConfig,
+  type ApprovedRuntimePgConfig,
+} from '../../config/runtime-database-config';
 import type { QueryResult } from 'pg';
 import { performance } from 'node:perf_hooks';
 import type {
@@ -554,23 +558,9 @@ export class PostgresJurisprudenciaSearchAdapter implements SearchSourceAdapter 
   } | null = null;
 
   constructor(
-    databaseUrl = process.env.DATABASE_URL,
+    databaseConfig?: string | ApprovedRuntimePgConfig,
     candidateStrategy: 'predicate-v1' | 'set-algebra-v2' = 'predicate-v1',
   ) {
-    if (!databaseUrl?.trim())
-      throw new Error('Se requiere DATABASE_URL para PostgreSQL local.');
-    const target = new URL(databaseUrl.trim());
-    if (
-      target.protocol !== 'postgresql:' ||
-      target.hostname !== '127.0.0.1' ||
-      target.port !== '55432' ||
-      target.pathname !== '/buscador_juridico_civil_dev' ||
-      target.username !== 'bjc_dev'
-    ) {
-      throw new Error(
-        'PostgresJurisprudenciaSearchAdapter sólo admite la base DEV local 127.0.0.1:55432.',
-      );
-    }
     const configuredStatementTimeout = Number(
       process.env.BJC_SEARCH_STATEMENT_TIMEOUT_MS ?? 4000,
     );
@@ -581,7 +571,7 @@ export class PostgresJurisprudenciaSearchAdapter implements SearchSourceAdapter 
         ? configuredStatementTimeout
         : 4000;
     this.pool = new Pool({
-      connectionString: databaseUrl.trim(),
+      ...resolveSearchDatabasePoolConfig(databaseConfig),
       max: 4,
       connectionTimeoutMillis: 5000,
       statement_timeout: statementTimeout,

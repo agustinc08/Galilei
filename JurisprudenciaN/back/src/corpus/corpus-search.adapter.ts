@@ -1,6 +1,10 @@
 /* eslint prettier/prettier: off -- Keep unrelated Search SQL formatting out of this workspace change. */
 import { createHash } from 'node:crypto';
 import { Pool } from 'pg';
+import {
+  resolveSearchDatabasePoolConfig,
+  type ApprovedRuntimePgConfig,
+} from '../config/runtime-database-config';
 import type { QueryResult } from 'pg';
 import type {
   SearchContext,
@@ -317,26 +321,9 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
   private readonly pool: Pool;
   private readonly candidateStrategy: 'predicate-v1' | 'set-algebra-v2';
   private lastSearchProfile: { countMs: number; pageQueryMs: number; resultPageMs: number; combinedCandidatePageMs?: number; candidateStrategy?: string; candidateCount?: number; candidateGenerationCount?: number; windowExpansions?: number; windowSizes?: number[]; exactHitsByWindow?: number[]; stageTimings?: Record<string, number | number[]>; resultRows: number; failedQuery?: 'COUNT' | 'PAGE'; errorCode?: string; errorMessage?: string; queryCount: number; queryFingerprints: string[] } | null = null;
-  constructor(databaseUrl = process.env.DATABASE_URL, candidateStrategy: 'predicate-v1' | 'set-algebra-v2' = 'set-algebra-v2') {
-    if (!databaseUrl?.trim())
-      throw new Error('Se requiere DATABASE_URL para PostgreSQL local.');
-    const target = new URL(databaseUrl.trim());
-    const migrationFixtureDatabase =
-      process.env.BJC_SPRINT121_TEMP_DB_TEST === '1' &&
-      target.pathname === '/buscador_juridico_civil_migration_test';
-    if (
-      target.protocol !== 'postgresql:' ||
-      target.hostname !== '127.0.0.1' ||
-      target.port !== '55432' ||
-      (target.pathname !== '/buscador_juridico_civil_dev' && !migrationFixtureDatabase) ||
-      target.username !== 'bjc_dev'
-    ) {
-      throw new Error(
-        'CorpusSearchSourceAdapter sólo admite PostgreSQL DEV loopback.',
-      );
-    }
+  constructor(databaseConfig?: string | ApprovedRuntimePgConfig, candidateStrategy: 'predicate-v1' | 'set-algebra-v2' = 'set-algebra-v2') {
     this.pool = new Pool({
-      connectionString: databaseUrl.trim(),
+      ...resolveSearchDatabasePoolConfig(databaseConfig),
       // Corpus is the high-volume source in federated search. A small pool
       // serialized otherwise independent requests under moderate load; keep
       // it bounded below PostgreSQL's default connection budget while

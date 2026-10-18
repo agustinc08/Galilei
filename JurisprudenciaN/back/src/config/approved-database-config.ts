@@ -147,10 +147,13 @@ export function getApprovedDatabaseConfig(
   const prismaCliUrl = new URL(
     `postgresql://${encodeURIComponent(actualUser)}:${encodeURIComponent(password)}@${uriHost}:${actualPort}/${encodeURIComponent(actualDatabase)}`,
   );
-  // Prisma ORM 7 documents require + sslcert; libpq keeps its separate
-  // verify-full + sslrootcert contract in the dump adapter.
+  // The installed Prisma 7.8 schema engine defaults sslaccept to
+  // accept_invalid_certs. strict was black-box verified to reject both an
+  // untrusted chain and a trusted certificate whose SAN misses the URL host.
+  // libpq keeps its separate verify-full + sslrootcert contract in the dump adapter.
   prismaCliUrl.searchParams.set('sslmode', 'require');
   prismaCliUrl.searchParams.set('sslcert', caPath);
+  prismaCliUrl.searchParams.set('sslaccept', 'strict');
 
   return {
     host: actualHost,

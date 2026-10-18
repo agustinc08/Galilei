@@ -62,7 +62,12 @@ describe('approved PostgreSQL connection config', () => {
     expect(prismaUrl.pathname).toBe('/buscador_juridico_civil_preprod');
     expect(prismaUrl.searchParams.getAll('sslmode')).toEqual(['require']);
     expect(prismaUrl.searchParams.getAll('sslcert')).toEqual([approved.caPath]);
-    expect([...prismaUrl.searchParams.keys()]).toEqual(['sslmode', 'sslcert']);
+    expect(prismaUrl.searchParams.getAll('sslaccept')).toEqual(['strict']);
+    expect([...prismaUrl.searchParams.keys()]).toEqual([
+      'sslmode',
+      'sslcert',
+      'sslaccept',
+    ]);
   });
 
   it('constructs the PROD pg adapter from the same validated identity and TLS trust file', () => {
@@ -101,6 +106,9 @@ describe('approved PostgreSQL connection config', () => {
     expect(effective.ssl.ca.equals(fs.readFileSync(caPath))).toBe(true);
     expect(new URL(approved.prismaCliUrl).searchParams.get('sslmode')).toBe(
       'require',
+    );
+    expect(new URL(approved.prismaCliUrl).searchParams.get('sslaccept')).toBe(
+      'strict',
     );
   });
 

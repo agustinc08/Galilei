@@ -1,4 +1,8 @@
 import { Pool, type PoolClient } from 'pg';
+import {
+  resolveSearchDatabasePoolConfig,
+  type ApprovedRuntimePgConfig,
+} from '../../config/runtime-database-config';
 import type {
   CorpusSearchProjection,
   JurisprudenciaSearchProjection,
@@ -189,20 +193,9 @@ export type SearchOutboxEvent = {
 export class OpenSearchDocumentRepository {
   private readonly pool: Pool;
 
-  constructor(databaseUrl = process.env.DATABASE_URL) {
-    if (!databaseUrl?.trim()) throw new Error('DEV_DATABASE_URL_REQUIRED');
-    const target = new URL(databaseUrl.trim());
-    if (
-      target.protocol !== 'postgresql:' ||
-      target.hostname !== '127.0.0.1' ||
-      target.port !== '55432' ||
-      target.pathname !== '/buscador_juridico_civil_dev' ||
-      target.username !== 'bjc_dev'
-    ) {
-      throw new Error('SEARCH_INDEX_DATABASE_TARGET_REJECTED');
-    }
+  constructor(databaseConfig?: string | ApprovedRuntimePgConfig) {
     this.pool = new Pool({
-      connectionString: databaseUrl.trim(),
+      ...resolveSearchDatabasePoolConfig(databaseConfig),
       max: 4,
       connectionTimeoutMillis: 5000,
       statement_timeout: 180000,

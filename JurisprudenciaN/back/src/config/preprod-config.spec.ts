@@ -95,6 +95,11 @@ describe('validatePreproductionConfig', () => {
     expect(
       new URL(result.approvedDatabase.prismaCliUrl).searchParams.get('sslmode'),
     ).toBe('require');
+    expect(
+      new URL(result.approvedDatabase.prismaCliUrl).searchParams.get(
+        'sslaccept',
+      ),
+    ).toBe('strict');
   });
 
   it('rejects a startup environment marker that disagrees with NODE_ENV', () => {
