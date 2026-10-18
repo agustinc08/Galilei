@@ -9,14 +9,33 @@ export function validateIsolatedStorage(
   protectedRoots: StorageReference[],
 ) {
   const canonicalStorage = canonicalize(storagePath, true);
+  assertDisjointFromProtectedRoots(canonicalStorage, protectedRoots);
+  return canonicalStorage;
+}
+
+/** Validate a path reservation such as a backup directory before it is created. */
+export function assertDisjointStorageReference(
+  storagePath: string,
+  protectedRoots: StorageReference[],
+) {
+  const canonicalStorage = canonicalize(storagePath, false);
+  assertDisjointFromProtectedRoots(canonicalStorage, protectedRoots);
+  return canonicalStorage;
+}
+
+function assertDisjointFromProtectedRoots(
+  canonicalStorage: string,
+  protectedRoots: StorageReference[],
+) {
   for (const root of protectedRoots) {
-    if (!root.path.trim()) continue;
+    if (!root.path?.trim()) {
+      throw new Error(`BJC_CORPUS_STORAGE_REFERENCE_REQUIRED_${root.name}`);
+    }
     const canonicalProtectedRoot = canonicalize(root.path, false);
     if (pathsOverlap(canonicalStorage, canonicalProtectedRoot)) {
       throw new Error(`BJC_CORPUS_STORAGE_OVERLAP_${root.name}`);
     }
   }
-  return canonicalStorage;
 }
 
 export function canonicalizeStorageReference(value: string) {

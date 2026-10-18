@@ -1,5 +1,11 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## PREPROD-FIX-2 — candidata de hardening (2026-10-18)
+
+`feature/preprod-uat-fix2` parte exactamente de `eb3397774b3d16ddafeac0ffba78ed54a8b7c8e7`. Se cerraron los tres hallazgos de PREPROD-FIX-REVIEW-1: configuración efectiva DEV no redirigible por query, referencias de storage no-DEV obligatorias y adaptadores `pg`/Prisma/libpq derivados de una identidad DB validada una sola vez. La reserva de backup se prueba fuera de los tres roots y el candidato de rollback exige namespace + schema actual. Backend typecheck/build y suite segura PASS (300 tests; 9 suites PostgreSQL omitidas), frontend typecheck/build y URL tests PASS; OpenSearch DEV read-only smoke PASS. El detalle de controles y límites queda en el corte PREPROD-FIX-2 de BJC-ESTADO-ACTUAL y doc 136.
+
+Próximo gate: revisión independiente PREPROD-FIX-2. No promover a DEV. PREPROD/UAT, TLS de infraestructura, `pg_dump`, restore, Docker y ACL efectiva del passfile no están probados.
+
 ## PREPROD-FIX-1 — candidata de hardening (2026-10-18)
 
 La rama `feature/preprod-uat-fix` conserva la base exacta `4d68c49d80642a19e93cc1af799fa78414421309`. El código cierra P0/P1 de parser/driver PostgreSQL, preflight obligatorio antes de Nest, alias OpenSearch ajeno/múltiple, TLS efectivo de `pg_dump` y namespace de production; también cubre los P2 seguros de IPv6, storage, efectos de startup, conteo de integraciones y topología. Se mantiene fuera de DEV y no modifica Search semantics, ACL, Viewer, schema Prisma o migraciones.

@@ -1,5 +1,13 @@
 # Estado actual — Buscador Jurídico Civil
 
+## PREPROD-FIX-2 — candidata de hardening (2026-10-18)
+
+La candidata `feature/preprod-uat-fix2` parte exactamente de `origin/feature/preprod-uat-fix` en `eb3397774b3d16ddafeac0ffba78ed54a8b7c8e7`. Cierra los P0 de query overrides DEV y solapamiento PREPROD/PROD, y el P1 de contratos DB de Prisma/libpq mediante identidad canónica y adaptadores explícitos. También endurece la reserva de la ruta de backup frente a los tres roots y limita rollback de alias a un único índice del mismo namespace/schema. No modifica semántica Search, ACL, Auth, Viewer, Processing, schema Prisma ni migraciones.
+
+Verificación local: backend build/typecheck PASS; suite segura 45 suites PASS / 300 tests PASS, 9 suites PostgreSQL omitidas; tests dirigidos DB/config 45/45, guard/backup CJS 7/7, startup/OpenSearch 25/25 y frontend URL 5/5; frontend typecheck/build PASS; OpenSearch DEV sólo lectura 2.19.6 green, alias v3 activo, 69.313 documentos, 0 escrituras y 0 conexiones DB. El backup dry-plan prueba identidad/TLS/passfile y ahora exige ruta separada de DEV/PREPROD/PROD, pero no se ejecutaron `pg_dump` ni restore y no se verificaron ACL reales del passfile.
+
+La rama se mantiene sólo como candidata para `PREPROD-FIX-2-REVIEW`; no se promovió a DEV. PREPROD/UAT no están provisionados; conexión DB preprod, TLS real, backup/restore, Docker e infraestructura institucional siguen sin probar. Evidencia local ignorada en `_recovery-work/preprod-fix2/`.
+
 ## PREPROD-FIX-1 — candidata técnica (2026-10-18)
 
 La rama `feature/preprod-uat-fix` parte exactamente de `4d68c49d80642a19e93cc1af799fa78414421309` (`origin/feature/preprod-uat-prep`). Se implementaron cierres fail-closed para los dos P0 y tres P1 de PREPROD-REVIEW-1, más los P2 de loopback/IPv6, storage aislado, escrituras de startup documentadas, inventario de integraciones y topología. La candidata no cambia semántica de Search, ACL/autorización, Viewer, schema Prisma ni migraciones; no se promovió a DEV.

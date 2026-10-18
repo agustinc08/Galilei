@@ -39,7 +39,7 @@ const PROFILE_SETTINGS = {
 
 const RESERVED_ROLES = new Set(['bjc_dev', 'preprod_user']);
 
-/** Parse and validate the exact PostgreSQL target used by pg, Prisma CLI and libpq tooling. */
+/** Parse one approved target, then derive consumer-specific pg/Prisma/libpq adapters. */
 export function getApprovedDatabaseConfig(
   env: NodeJS.ProcessEnv,
   profile: ApprovedDatabaseProfile,
@@ -147,9 +147,10 @@ export function getApprovedDatabaseConfig(
   const prismaCliUrl = new URL(
     `postgresql://${encodeURIComponent(actualUser)}:${encodeURIComponent(password)}@${uriHost}:${actualPort}/${encodeURIComponent(actualDatabase)}`,
   );
-  prismaCliUrl.searchParams.set('sslmode', 'verify-full');
+  // Prisma ORM 7 documents require + sslcert; libpq keeps its separate
+  // verify-full + sslrootcert contract in the dump adapter.
+  prismaCliUrl.searchParams.set('sslmode', 'require');
   prismaCliUrl.searchParams.set('sslcert', caPath);
-  prismaCliUrl.searchParams.set('sslaccept', 'strict');
 
   return {
     host: actualHost,
@@ -170,23 +171,18 @@ function resolveAndValidateCaPath(configuredCaPath: string, databaseUrl: URL) {
     if (seen.has(key))
       throw new Error('DATABASE_URL_DUPLICATE_SECURITY_PARAMETER');
     seen.add(key);
-    if (!['sslmode', 'sslrootcert', 'sslcert', 'sslaccept'].includes(key)) {
+    if (!['sslmode', 'sslrootcert'].includes(key)) {
       throw new Error('DATABASE_URL_UNSUPPORTED_CONNECTION_PARAMETER');
     }
   }
 
   const sslModes = databaseUrl.searchParams.getAll('sslmode');
   const rootCerts = databaseUrl.searchParams.getAll('sslrootcert');
-  const prismaCerts = databaseUrl.searchParams.getAll('sslcert');
-  const sslAccepts = databaseUrl.searchParams.getAll('sslaccept');
   if (
-    parameters.length !== 4 ||
+    parameters.length !== 2 ||
     sslModes.length !== 1 ||
     sslModes[0] !== 'verify-full' ||
-    rootCerts.length !== 1 ||
-    prismaCerts.length !== 1 ||
-    sslAccepts.length !== 1 ||
-    sslAccepts[0] !== 'strict'
+    rootCerts.length !== 1
   ) {
     throw new Error('DATABASE_URL_TLS_PARAMETERS_INVALID');
   }
@@ -197,18 +193,13 @@ function resolveAndValidateCaPath(configuredCaPath: string, databaseUrl: URL) {
 
   let canonicalCaPath: string;
   let canonicalUrlCaPath: string;
-  let canonicalPrismaCaPath: string;
   try {
     canonicalCaPath = fs.realpathSync.native(configuredCaPath);
     canonicalUrlCaPath = fs.realpathSync.native(rootCerts[0]);
-    canonicalPrismaCaPath = fs.realpathSync.native(prismaCerts[0]);
   } catch {
     throw new Error('DATABASE_CA_FILE_UNREADABLE');
   }
-  if (
-    !samePath(canonicalCaPath, canonicalUrlCaPath) ||
-    !samePath(canonicalCaPath, canonicalPrismaCaPath)
-  ) {
+  if (!samePath(canonicalCaPath, canonicalUrlCaPath)) {
     throw new Error('DATABASE_URL_CA_PATH_MISMATCH');
   }
 

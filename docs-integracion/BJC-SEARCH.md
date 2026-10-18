@@ -39,15 +39,7 @@ Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:9200/_aliases' -ContentTyp
 pnpm search:opensearch:verify
 ```
 
-**Rollback técnico de v3 a v1 certificado en este corte:** es una degradación a índice incompleto (42.180 frente a 69.313); realizar sólo con decisión operativa y actualizar posteriormente el índice:
-```powershell
-$body = @{ actions = @(
-  @{ remove = @{ index = 'galilei-search-v003-20261017t232432555z-a6af18cb'; alias = 'galilei-search-active' } },
-  @{ add = @{ index = 'galilei-search-v001-20261016t162707813z-1dbe2406'; alias = 'galilei-search-active'; is_write_index = $true } }
-) } | ConvertTo-Json -Depth 8
-Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:9200/_aliases' -ContentType 'application/json' -Body $body
-pnpm search:opensearch:status
-```
+**Rollback operativo:** el índice v1 (42.180 documentos) se conserva para investigación, pero no se considera candidato compatible con el schema v3 actual ni se debe asociar manualmente al alias activo. Un candidato de rollback debe ser el único índice explícitamente seleccionado bajo `galilei-search` y llevar schema `v003`; el helper `selectCompatibleRollbackTarget` y el swap atómico rechazan namespace ajeno, versión incompatible y selección ambigua. El código sólo prepara/verifica estas acciones; no ejecuta un rollback real. Si no existe un candidato v003 verificado, reconstruir desde PostgreSQL y pasar el gate de integridad antes de promover.
 
 **Outbox:** procesar una tanda, revisar contadores; reencolar fallidos sólo ante una recuperación explícita y volver a procesar/verificar:
 ```powershell

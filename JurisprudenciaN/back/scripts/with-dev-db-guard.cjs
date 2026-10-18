@@ -32,7 +32,12 @@ const valid =
   target.hostname === '127.0.0.1' &&
   target.port === '55432' &&
   target.pathname === '/buscador_juridico_civil_dev' &&
-  target.username === 'bjc_dev';
+  target.username === 'bjc_dev' &&
+  target.search === '' &&
+  target.hash === '' &&
+  !rawUrl.includes('?') &&
+  !rawUrl.includes('#') &&
+  Boolean(target.password);
 
 if (!valid) {
   console.error(

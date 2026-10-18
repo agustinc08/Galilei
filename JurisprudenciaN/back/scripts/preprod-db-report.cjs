@@ -1,21 +1,30 @@
 #!/usr/bin/env node
 // Read-only preproduction inventory. Must be launched through with-preprod-db-guard.cjs.
-const { createCanonicalPreprodClient, assertPreprodServerIdentity } = require('./preprod-db-client.cjs');
+const {
+  createCanonicalPreprodClient,
+  readCanonicalPreprodDatabase,
+  assertPreprodServerIdentity,
+} = require('./preprod-db-client.cjs');
 
 if (process.env.BJC_PREPROD_GUARD_VALIDATED !== 'true') {
-  console.error('PREPROD_DB_REPORT=ABORT; use scripts/with-preprod-db-guard.cjs db-report.');
+  console.error(
+    'PREPROD_DB_REPORT=ABORT; use scripts/with-preprod-db-guard.cjs db-report.',
+  );
   process.exit(2);
 }
 
 async function main() {
-  const { database, client } = createCanonicalPreprodClient();
+  const database = await readCanonicalPreprodDatabase();
+  const { client } = createCanonicalPreprodClient(database);
   try {
     await client.connect();
-    const identity = (await client.query(`
+    const identity = (
+      await client.query(`
       SELECT current_database() AS database, current_user AS role,
              inet_server_addr()::text AS address, inet_server_port() AS port,
              pg_postmaster_start_time() AS server_started_at
-    `)).rows[0];
+    `)
+    ).rows[0];
     assertPreprodServerIdentity(identity, database);
 
     const report = await client.query(`
@@ -37,20 +46,30 @@ async function main() {
         (SELECT extversion FROM pg_extension WHERE extname = 'pg_trgm') AS "pgTrgmVersion",
         pg_database_size(current_database())::text AS "databaseBytes"
     `);
-    console.log(JSON.stringify({
-      environment: 'preprod',
-      target: { host: database.host, serverAddress: identity.address, port: database.port, database: identity.database, role: identity.role },
-      serverStartedAt: identity.server_started_at,
-      generatedAt: new Date().toISOString(),
-      ...report.rows[0],
-      secretsPersisted: false,
-    }));
+    console.log(
+      JSON.stringify({
+        environment: 'preprod',
+        target: {
+          host: database.host,
+          serverAddress: identity.address,
+          port: database.port,
+          database: identity.database,
+          role: identity.role,
+        },
+        serverStartedAt: identity.server_started_at,
+        generatedAt: new Date().toISOString(),
+        ...report.rows[0],
+        secretsPersisted: false,
+      }),
+    );
   } finally {
     await client.end();
   }
 }
 
 main().catch((error) => {
-  console.error(`PREPROD_DB_REPORT=FAIL; ${error instanceof Error ? error.message : 'database report failed'}`);
+  console.error(
+    `PREPROD_DB_REPORT=FAIL; ${error instanceof Error ? error.message : 'database report failed'}`,
+  );
   process.exitCode = 1;
 });

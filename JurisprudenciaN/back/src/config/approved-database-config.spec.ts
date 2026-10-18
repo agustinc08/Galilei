@@ -60,14 +60,48 @@ describe('approved PostgreSQL connection config', () => {
     expect(prismaUrl.hostname).toBe('preprod-db.internal');
     expect(prismaUrl.port).toBe('5432');
     expect(prismaUrl.pathname).toBe('/buscador_juridico_civil_preprod');
-    expect(prismaUrl.searchParams.getAll('sslmode')).toEqual(['verify-full']);
+    expect(prismaUrl.searchParams.getAll('sslmode')).toEqual(['require']);
     expect(prismaUrl.searchParams.getAll('sslcert')).toEqual([approved.caPath]);
-    expect(prismaUrl.searchParams.getAll('sslaccept')).toEqual(['strict']);
-    expect([...prismaUrl.searchParams.keys()]).toEqual([
-      'sslmode',
-      'sslcert',
-      'sslaccept',
-    ]);
+    expect([...prismaUrl.searchParams.keys()]).toEqual(['sslmode', 'sslcert']);
+  });
+
+  it('constructs the PROD pg adapter from the same validated identity and TLS trust file', () => {
+    const productionEnv: NodeJS.ProcessEnv = {
+      ...env,
+      NODE_ENV: 'production',
+      BJC_DEPLOYMENT_ENV: 'production',
+      BJC_PRODUCTION_DATABASE_APPROVED: 'true',
+      BJC_PRODUCTION_DB_HOST: 'production-db.internal',
+      BJC_PRODUCTION_DB_PORT: '6432',
+      BJC_PRODUCTION_DB_NAME: 'galilei_production',
+      BJC_PRODUCTION_DB_USER: 'galilei_prod_runtime',
+      BJC_PRODUCTION_DB_CA_PATH: caPath,
+    };
+    productionEnv.DATABASE_URL = makeUrl(productionEnv, caPath, 'production');
+    const approved = getApprovedDatabaseConfig(productionEnv, 'production');
+    const client = new Client(approved.pgConfig);
+    const effective = (
+      client as unknown as {
+        connectionParameters: {
+          host: string;
+          port: number;
+          user: string;
+          database: string;
+          ssl: { ca: Buffer; rejectUnauthorized: boolean };
+        };
+      }
+    ).connectionParameters;
+    expect(effective).toMatchObject({
+      host: 'production-db.internal',
+      port: 6432,
+      user: 'galilei_prod_runtime',
+      database: 'galilei_production',
+    });
+    expect(effective.ssl.rejectUnauthorized).toBe(true);
+    expect(effective.ssl.ca.equals(fs.readFileSync(caPath))).toBe(true);
+    expect(new URL(approved.prismaCliUrl).searchParams.get('sslmode')).toBe(
+      'require',
+    );
   });
 
   it('rejects malformed URLs, wrong identities, and query-string authority overrides', () => {
@@ -90,7 +124,8 @@ describe('approved PostgreSQL connection config', () => {
       `${makeUrl(env, caPath)}&user=bjc_dev`,
       `${makeUrl(env, caPath)}&service=dev`,
       `${makeUrl(env, caPath)}&options=-c%20sslmode=disable`,
-      `${makeUrl(env, caPath)}&sslcert=${encodeURIComponent(caPath)}&sslaccept=accept_invalid_certs`,
+      `${makeUrl(env, caPath)}&sslrootcert=${encodeURIComponent(caPath)}`,
+      `${makeUrl(env, caPath)}&sslaccept=strict`,
     ]) {
       env.DATABASE_URL = DATABASE_URL;
       expect(() => getApprovedDatabaseConfig(env, 'preprod')).toThrow();
@@ -102,11 +137,8 @@ describe('approved PostgreSQL connection config', () => {
     for (const DATABASE_URL of [
       `${url}&sslmode=disable`,
       url.replace('sslmode=verify-full', 'sslmode=disable'),
-      url.replace('sslrootcert=', 'sslcert=relative-ca.pem&sslrootcert='),
-      url.replace(
-        'sslrootcert=',
-        'sslaccept=accept_invalid_certs&sslrootcert=',
-      ),
+      `${url}&sslrootcert=${encodeURIComponent(caPath)}`,
+      `${url}&sslaccept=accept_invalid_certs`,
     ]) {
       env.DATABASE_URL = DATABASE_URL;
       expect(() => getApprovedDatabaseConfig(env, 'preprod')).toThrow();
@@ -114,7 +146,16 @@ describe('approved PostgreSQL connection config', () => {
   });
 });
 
-function makeUrl(env: NodeJS.ProcessEnv, caPath: string) {
+function makeUrl(
+  env: NodeJS.ProcessEnv,
+  caPath: string,
+  profile: 'preprod' | 'production' = 'preprod',
+) {
+  const prefix = profile === 'preprod' ? 'BJC_PREPROD' : 'BJC_PRODUCTION';
+  const database = env[`${prefix}_DB_NAME`]!;
+  const user = env[`${prefix}_DB_USER`]!;
+  const host = env[`${prefix}_DB_HOST`]!;
+  const port = env[`${prefix}_DB_PORT`]!;
   const encodedCa = encodeURIComponent(caPath);
-  return `postgresql://preprod_user:synthetic-test-password@${env.BJC_PREPROD_DB_HOST}:${env.BJC_PREPROD_DB_PORT}/${env.BJC_PREPROD_DB_NAME}?sslmode=verify-full&sslrootcert=${encodedCa}&sslcert=${encodedCa}&sslaccept=strict`;
+  return `postgresql://${encodeURIComponent(user)}:synthetic-test-password@${host}:${port}/${database}?sslmode=verify-full&sslrootcert=${encodedCa}`;
 }

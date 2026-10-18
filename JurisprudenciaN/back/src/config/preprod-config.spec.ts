@@ -8,6 +8,7 @@ describe('validatePreproductionConfig', () => {
   let tempRoot: string;
   let storageRoot: string;
   let devStorageRoot: string;
+  let productionStorageRoot: string;
   let caPath: string;
   let env: NodeJS.ProcessEnv;
 
@@ -15,8 +16,10 @@ describe('validatePreproductionConfig', () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bjc-preprod-config-'));
     storageRoot = path.join(tempRoot, 'preprod-storage');
     devStorageRoot = path.join(tempRoot, 'dev-storage');
+    productionStorageRoot = path.join(tempRoot, 'production-storage');
     fs.mkdirSync(storageRoot);
     fs.mkdirSync(devStorageRoot);
+    fs.mkdirSync(productionStorageRoot);
     caPath = path.join(tempRoot, 'root-ca.pem');
     fs.writeFileSync(caPath, rootCertificates[0]);
     env = {
@@ -34,6 +37,7 @@ describe('validatePreproductionConfig', () => {
       FRONTEND_URL: 'https://preprod.example.intra',
       BJC_CORPUS_STORAGE_PATH: storageRoot,
       BJC_DEV_CORPUS_STORAGE_PATH: devStorageRoot,
+      BJC_PRODUCTION_CORPUS_STORAGE_PATH: productionStorageRoot,
       BJC_API_BIND_HOST: '127.0.0.1',
       OPENSEARCH_NODE: 'https://preprod-search.internal:9200',
       OPENSEARCH_USERNAME: 'preprod-search-user',
@@ -69,6 +73,28 @@ describe('validatePreproductionConfig', () => {
       searchAlias: 'galilei-preprod-search-active',
       searchIndexPrefix: 'galilei-preprod-search',
     });
+    const publicResult = validatePreproductionConfig(env);
+    expect('approvedDatabase' in publicResult).toBe(false);
+  });
+
+  it('can hand the validated canonical DB object to a guarded consumer without reparsing a Prisma URL', () => {
+    const result = validatePreproductionConfig(env, {
+      includeApprovedDatabaseConfig: true,
+    });
+    expect('approvedDatabase' in result).toBe(true);
+    if (!('approvedDatabase' in result)) {
+      throw new Error('Expected guard-only canonical DB adapter');
+    }
+    expect(result.approvedDatabase).toMatchObject({
+      host: 'preprod-db.internal',
+      port: 5432,
+      database: 'buscador_juridico_civil_preprod',
+      user: 'preprod_user',
+      tlsMode: 'verify-full',
+    });
+    expect(
+      new URL(result.approvedDatabase.prismaCliUrl).searchParams.get('sslmode'),
+    ).toBe('require');
   });
 
   it('rejects a startup environment marker that disagrees with NODE_ENV', () => {
@@ -82,6 +108,13 @@ describe('validatePreproductionConfig', () => {
     delete env.BJC_PREPROD_DB_CA_PATH;
     expect(() => validatePreproductionConfig(env)).toThrow(
       /BJC_PREPROD_DB_CA_PATH/,
+    );
+  });
+
+  it('fails closed when the reserved PROD storage reference is missing', () => {
+    delete env.BJC_PRODUCTION_CORPUS_STORAGE_PATH;
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      /BJC_PRODUCTION_CORPUS_STORAGE_PATH/,
     );
   });
 
@@ -115,7 +148,7 @@ describe('validatePreproductionConfig', () => {
     ]) {
       env.DATABASE_URL = `${databaseUrl(env)}&${parameter}`;
       expect(() => validatePreproductionConfig(env)).toThrow(
-        parameter.startsWith('sslcert=')
+        parameter.startsWith('sslrootcert=')
           ? 'DATABASE_URL_DUPLICATE_SECURITY_PARAMETER'
           : 'DATABASE_URL_UNSUPPORTED_CONNECTION_PARAMETER',
       );
@@ -212,6 +245,58 @@ describe('validatePreproductionConfig', () => {
     }
   });
 
+  it('rejects exact, parent/child, case-equivalent, and junction aliases of PROD storage', () => {
+    env.BJC_CORPUS_STORAGE_PATH = productionStorageRoot;
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'BJC_CORPUS_STORAGE_OVERLAP_PRODUCTION',
+    );
+
+    const nestedPreprod = path.join(productionStorageRoot, 'preprod-child');
+    fs.mkdirSync(nestedPreprod);
+    env.BJC_CORPUS_STORAGE_PATH = nestedPreprod;
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'BJC_CORPUS_STORAGE_OVERLAP_PRODUCTION',
+    );
+
+    const nestedProd = path.join(storageRoot, 'production-child');
+    fs.mkdirSync(nestedProd);
+    env.BJC_CORPUS_STORAGE_PATH = storageRoot;
+    env.BJC_PRODUCTION_CORPUS_STORAGE_PATH = nestedProd;
+    expect(() => validatePreproductionConfig(env)).toThrow(
+      'BJC_CORPUS_STORAGE_OVERLAP_PRODUCTION',
+    );
+
+    if (process.platform === 'win32') {
+      env.BJC_CORPUS_STORAGE_PATH = storageRoot.toUpperCase();
+      env.BJC_PRODUCTION_CORPUS_STORAGE_PATH = storageRoot;
+      expect(() => validatePreproductionConfig(env)).toThrow(
+        'BJC_CORPUS_STORAGE_OVERLAP_PRODUCTION',
+      );
+    }
+
+    const junction = path.join(tempRoot, 'production-storage-alias');
+    try {
+      fs.symlinkSync(
+        productionStorageRoot,
+        junction,
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+      env.BJC_CORPUS_STORAGE_PATH = junction;
+      env.BJC_PRODUCTION_CORPUS_STORAGE_PATH = productionStorageRoot;
+      expect(() => validatePreproductionConfig(env)).toThrow(
+        'BJC_CORPUS_STORAGE_OVERLAP_PRODUCTION',
+      );
+    } catch (error) {
+      if (
+        !['EPERM', 'EACCES', 'ENOTSUP'].includes(
+          (error as NodeJS.ErrnoException).code ?? '',
+        )
+      ) {
+        throw error;
+      }
+    }
+  });
+
   it('requires the approved host-local bind and namespace', () => {
     env.BJC_API_BIND_HOST = '0.0.0.0';
     expect(() => validatePreproductionConfig(env)).toThrow(/BJC_API_BIND_HOST/);
@@ -252,5 +337,5 @@ function databaseUrl(
   const urlHost =
     host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
   const encodedCa = encodeURIComponent(caPath);
-  return `postgresql://${encodeURIComponent(user)}:synthetic-test-password@${urlHost}:${port}/${database}?sslmode=verify-full&sslrootcert=${encodedCa}&sslcert=${encodedCa}&sslaccept=strict`;
+  return `postgresql://${encodeURIComponent(user)}:synthetic-test-password@${urlHost}:${port}/${database}?sslmode=verify-full&sslrootcert=${encodedCa}`;
 }

@@ -1,33 +1,52 @@
 #!/usr/bin/env node
 // Isolated preproduction projection maintenance. Never call the DEV script here.
-const { createCanonicalPreprodClient, assertPreprodServerIdentity } = require('./preprod-db-client.cjs');
+const {
+  createCanonicalPreprodClient,
+  readCanonicalPreprodDatabase,
+  assertPreprodServerIdentity,
+} = require('./preprod-db-client.cjs');
 
 if (process.env.BJC_PREPROD_GUARD_VALIDATED !== 'true') {
-  console.error('PREPROD_PROJECTION=ABORT; use scripts/with-preprod-db-guard.cjs projection-*.');
+  console.error(
+    'PREPROD_PROJECTION=ABORT; use scripts/with-preprod-db-guard.cjs projection-*.',
+  );
   process.exit(2);
 }
 
 const action = process.argv[2] || 'verify';
 if (!['rebuild', 'verify', 'repair'].includes(action)) {
-  console.error('Usage: guarded projection-rebuild|projection-verify|projection-repair');
+  console.error(
+    'Usage: guarded projection-rebuild|projection-verify|projection-repair',
+  );
   process.exit(2);
 }
 
 async function main() {
-  const { database, client } = createCanonicalPreprodClient();
+  const database = await readCanonicalPreprodDatabase();
+  const { client } = createCanonicalPreprodClient(database);
   try {
     await client.connect();
-    const identity = (await client.query(`SELECT current_database() AS database, current_user AS role, inet_server_addr()::text AS address, inet_server_port() AS port`)).rows[0];
+    const identity = (
+      await client.query(
+        `SELECT current_database() AS database, current_user AS role, inet_server_addr()::text AS address, inet_server_port() AS port`,
+      )
+    ).rows[0];
     assertPreprodServerIdentity(identity, database);
 
     let rebuiltDocuments = 0;
     let repairCursor = '';
-    await client.query(`UPDATE "CorpusSearchTokenProjectionControl" SET "isReady" = FALSE, "verifiedAt" = NULL WHERE "singleton" = TRUE`);
+    await client.query(
+      `UPDATE "CorpusSearchTokenProjectionControl" SET "isReady" = FALSE, "verifiedAt" = NULL WHERE "singleton" = TRUE`,
+    );
     if (action !== 'verify') {
       for (;;) {
-        const stale = action === 'repair'
-          ? await client.query(`SELECT "id" FROM "CorpusDocument" WHERE "id" > $1 ORDER BY "id" LIMIT 50`, [repairCursor])
-          : await client.query(`
+        const stale =
+          action === 'repair'
+            ? await client.query(
+                `SELECT "id" FROM "CorpusDocument" WHERE "id" > $1 ORDER BY "id" LIMIT 50`,
+                [repairCursor],
+              )
+            : await client.query(`
               SELECT d."id" FROM "CorpusDocument" d
               LEFT JOIN "CorpusSearchTokenState" s ON s."documentId" = d."id"
               WHERE s."documentId" IS NULL OR s."sourceChecksum" <> md5(COALESCE(d."searchText", ''))
@@ -36,14 +55,24 @@ async function main() {
             `);
         if (!stale.rowCount) break;
         const ids = stale.rows.map((row) => row.id);
-        await client.query(`SELECT "refreshCorpusSearchTokens"(id) FROM unnest($1::text[]) AS batch(id)`, [ids]);
+        await client.query(
+          `SELECT "refreshCorpusSearchTokens"(id) FROM unnest($1::text[]) AS batch(id)`,
+          [ids],
+        );
         if (action === 'repair') repairCursor = ids[ids.length - 1];
         rebuiltDocuments += ids.length;
-        console.log(JSON.stringify({ projectionAction: action, batchDocuments: ids.length, rebuiltDocuments }));
+        console.log(
+          JSON.stringify({
+            projectionAction: action,
+            batchDocuments: ids.length,
+            rebuiltDocuments,
+          }),
+        );
       }
     }
 
-    const state = (await client.query(`
+    const state = (
+      await client.query(`
       SELECT (SELECT count(*)::int FROM "CorpusDocument") AS "documents",
              (SELECT count(*)::int FROM "CorpusSearchToken") AS "tokens",
              (SELECT count(*)::int FROM "CorpusDocument" d LEFT JOIN "CorpusSearchTokenState" s ON s."documentId" = d."id"
@@ -60,18 +89,36 @@ async function main() {
                  ) diff
                )) sample) AS "sampleMismatches",
              (SELECT count(*)::int FROM (SELECT 1 FROM "CorpusDocument" ORDER BY md5("id") LIMIT 100) sample) AS "sampledDocuments"
-    `)).rows[0];
-    const ready = Number(state.staleDocuments) === 0 && Number(state.sampleMismatches) === 0;
-    await client.query(`UPDATE "CorpusSearchTokenProjectionControl" SET "isReady" = $1, "verifiedAt" = CASE WHEN $1 THEN CURRENT_TIMESTAMP ELSE NULL END WHERE "singleton" = TRUE`, [ready]);
-    console.log(JSON.stringify({
-      status: ready ? `PREPROD_SEARCH_PROJECTION_${action.toUpperCase()}_PASS` : `PREPROD_SEARCH_PROJECTION_${action.toUpperCase()}_STALE`,
-      generatedAt: new Date().toISOString(),
-      target: { port: Number(identity.port), database: identity.database, role: identity.role },
-      rebuiltDocuments,
-      isReady: ready,
-      ...state,
-      queryTextPersisted: false,
-    }, null, 2));
+    `)
+    ).rows[0];
+    const ready =
+      Number(state.staleDocuments) === 0 &&
+      Number(state.sampleMismatches) === 0;
+    await client.query(
+      `UPDATE "CorpusSearchTokenProjectionControl" SET "isReady" = $1, "verifiedAt" = CASE WHEN $1 THEN CURRENT_TIMESTAMP ELSE NULL END WHERE "singleton" = TRUE`,
+      [ready],
+    );
+    console.log(
+      JSON.stringify(
+        {
+          status: ready
+            ? `PREPROD_SEARCH_PROJECTION_${action.toUpperCase()}_PASS`
+            : `PREPROD_SEARCH_PROJECTION_${action.toUpperCase()}_STALE`,
+          generatedAt: new Date().toISOString(),
+          target: {
+            port: Number(identity.port),
+            database: identity.database,
+            role: identity.role,
+          },
+          rebuiltDocuments,
+          isReady: ready,
+          ...state,
+          queryTextPersisted: false,
+        },
+        null,
+        2,
+      ),
+    );
     if (!ready) process.exitCode = 1;
   } finally {
     await client.end();
@@ -79,6 +126,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`PREPROD_SEARCH_PROJECTION=FAIL; ${error instanceof Error ? error.message : 'projection operation failed'}`);
+  console.error(
+    `PREPROD_SEARCH_PROJECTION=FAIL; ${error instanceof Error ? error.message : 'projection operation failed'}`,
+  );
   process.exitCode = 1;
 });

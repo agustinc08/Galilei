@@ -6,7 +6,7 @@ $outputPath = [IO.Path]::GetFullPath($OutputDirectory)
 $storagePath = [IO.Path]::GetFullPath($env:BJC_CORPUS_STORAGE_PATH)
 $pgPassFile = [Environment]::GetEnvironmentVariable('PGPASSFILE')
 
-foreach ($key in @('NODE_ENV','BJC_DEPLOYMENT_ENV','BJC_PREPROD_DATABASE_APPROVED','BJC_PREPROD_DB_HOST','BJC_PREPROD_DB_PORT','BJC_PREPROD_DB_NAME','BJC_PREPROD_DB_USER','BJC_PREPROD_DB_CA_PATH','BJC_DEV_CORPUS_STORAGE_PATH','DATABASE_URL','BJC_CORPUS_STORAGE_PATH')) {
+foreach ($key in @('NODE_ENV','BJC_DEPLOYMENT_ENV','BJC_PREPROD_DATABASE_APPROVED','BJC_PREPROD_DB_HOST','BJC_PREPROD_DB_PORT','BJC_PREPROD_DB_NAME','BJC_PREPROD_DB_USER','BJC_PREPROD_DB_CA_PATH','BJC_DEV_CORPUS_STORAGE_PATH','BJC_PRODUCTION_CORPUS_STORAGE_PATH','DATABASE_URL','BJC_CORPUS_STORAGE_PATH')) {
   if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($key))) { throw "Missing required process environment variable: $key" }
 }
 if ($env:NODE_ENV -ne 'production' -or $env:BJC_DEPLOYMENT_ENV -ne 'preprod' -or $env:BJC_PREPROD_DATABASE_APPROVED -ne 'true') {
@@ -19,18 +19,14 @@ if ([string]::IsNullOrWhiteSpace($pgPassFile) -or -not (Test-Path -LiteralPath $
   throw 'PGPASSFILE must point to the access-controlled credential file provisioned by the institutional vault.'
 }
 if (Test-Path -LiteralPath $outputPath) { throw 'Backup output directory already exists; refusing to overwrite.' }
-$separator = [IO.Path]::DirectorySeparatorChar
-$storagePrefix = $storagePath.TrimEnd('\','/') + $separator
-$outputPrefix = $outputPath.TrimEnd('\','/') + $separator
-if ($outputPath.StartsWith($storagePrefix, [StringComparison]::OrdinalIgnoreCase) -or $storagePath.StartsWith($outputPrefix, [StringComparison]::OrdinalIgnoreCase)) {
-  throw 'Backup output and Corpus storage must be separate trees.'
-}
 
 $backRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location $backRoot
 try {
   & node scripts/with-preprod-db-guard.cjs check
   if ($LASTEXITCODE -ne 0) { throw 'Preproduction configuration check failed.' }
+  & node scripts/preprod-backup-path-check.cjs $outputPath $pgPassFile
+  if ($LASTEXITCODE -ne 0) { throw 'Backup output or passfile path overlaps a protected environment/storage path.' }
   & node scripts/with-preprod-db-guard.cjs target-verify
   if ($LASTEXITCODE -ne 0) { throw 'Effective preproduction database identity check failed.' }
 } finally { Pop-Location }

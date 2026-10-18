@@ -568,6 +568,7 @@ export class OpenSearchIndexService {
       index,
       this.alias,
       this.indexPrefix,
+      SEARCH_INDEX_SCHEMA_VERSION,
     );
     await this.client.indices.updateAliases({ body: { actions } });
     const promotedTargets = await this.aliasTargets();

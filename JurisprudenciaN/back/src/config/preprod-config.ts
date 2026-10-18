@@ -13,6 +13,7 @@ import { readOpenSearchConfig } from '../busqueda/opensearch/opensearch-config';
 /** Validates every PREPROD resource identity before Nest creates any providers. */
 export function validatePreproductionConfig(
   env: NodeJS.ProcessEnv = process.env,
+  options: { includeApprovedDatabaseConfig?: boolean } = {},
 ) {
   if (resolveDeploymentEnvironment(env) !== 'preprod') {
     throw new Error(
@@ -33,6 +34,7 @@ export function validatePreproductionConfig(
     'FRONTEND_URL',
     'BJC_CORPUS_STORAGE_PATH',
     'BJC_DEV_CORPUS_STORAGE_PATH',
+    'BJC_PRODUCTION_CORPUS_STORAGE_PATH',
     'BJC_API_BIND_HOST',
     'API_RATE_LIMIT_ENABLED',
     'BJC_PREPROD_REPLICAS',
@@ -78,13 +80,11 @@ export function validatePreproductionConfig(
 
   const storageRoot = validateIsolatedStorage(env.BJC_CORPUS_STORAGE_PATH!, [
     { name: 'DEV', path: env.BJC_DEV_CORPUS_STORAGE_PATH! },
-    ...(env.BJC_PRODUCTION_CORPUS_STORAGE_PATH?.trim()
-      ? [{ name: 'PRODUCTION', path: env.BJC_PRODUCTION_CORPUS_STORAGE_PATH }]
-      : []),
+    { name: 'PRODUCTION', path: env.BJC_PRODUCTION_CORPUS_STORAGE_PATH! },
   ]);
   validateRateLimitConfiguration(env, 'BJC_PREPROD_REPLICAS', 'preprod');
 
-  return {
+  const validated = {
     databaseHost: database.host,
     databasePort: String(database.port),
     databaseName: database.database,
@@ -97,6 +97,9 @@ export function validatePreproductionConfig(
     searchAlias: search.alias,
     searchIndexPrefix: search.indexPrefix,
   };
+  return options.includeApprovedDatabaseConfig
+    ? { ...validated, approvedDatabase: database }
+    : validated;
 }
 
 function hasSearchDiagnosticFlags(env: NodeJS.ProcessEnv) {
