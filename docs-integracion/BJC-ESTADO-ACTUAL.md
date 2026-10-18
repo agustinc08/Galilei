@@ -2,7 +2,7 @@
 
 ## PREPROD-UAT-PREP-1 — estado vigente (2026-10-18)
 
-`origin/dev` y la rama de preparación parten de `af8f51d6f5e5be48e0167c5890328acd3c80c2c4`. UX quedó promovida y revisada; `main` permanece en `83947656420a9d6f6c3cfb12b353eb7f2c293a28`; `integration/galilei-beta` conserva el SHA certificado anterior `111bc5c86faff0bf946ef5e199b4463fe8217d5a`. La rama de esta misión es `feature/preprod-uat-prep`; todavía no se publicó ni se integró.
+`origin/dev` y la rama de preparación parten de `af8f51d6f5e5be48e0167c5890328acd3c80c2c4`. UX quedó promovida y revisada; `main` permanece en `83947656420a9d6f6c3cfb12b353eb7f2c293a28`; `integration/galilei-beta` conserva el SHA certificado anterior `111bc5c86faff0bf946ef5e199b4463fe8217d5a`. La rama de esta misión es `feature/preprod-uat-prep`; sigue aislada, sin integración en otras ramas; el SHA publicado se registra en `git-final.json` de los artefactos ignorados.
 
 **Preproducción no provisionada; UAT institucional no iniciada.** No hay host, DNS, TLS, storage ni base preprod autorizados en el equipo/repo. En la PC sólo se identificaron PostgreSQL DEV en `127.0.0.1:55432` y OpenSearch local en `127.0.0.1:9200`; no se usan como sustitutos. No se tocó producción ni se escribieron datos en DB/OpenSearch durante esta preparación.
 
@@ -675,3 +675,11 @@ El censo de sólo lectura sobre DEV encuentra 27.133 Sentencias activas, 6.014 p
 Prueba parcial de publicación: una Sentencia activa no publicada seleccionada de DEV fue consultada por su número en el endpoint público; respuesta total 0 y candidato ausente (1 fixture, no matriz completa).
 
 Calidad ejecutada: `tsc --noEmit` PASS; build PASS; Jest con DEV guard PASS (32 suites/162 tests, 9 suites/21 tests omitidos). ESLint de 42 archivos Search reportó 806 errores y 0 warnings; el nuevo censo sí pasa lint y no hubo formateo masivo. Faltan cortes de rutas, filtros/sorts, ACL/publicación engine-side, sync de OCR/DOC/metadata, certificar Golden/frases/prefix por HTTP, concurrency/performance HTTP y Viewer/UTF-16 completos. No tocar origin/dev, main ni ramas UX.
+
+## Evidencia de checkout limpio — PREPROD-UAT-PREP-1 (2026-10-18)
+
+En worktree detached del commit de preparación `25b6a83ed5867bce8e6b296d0da108db0b3ae7c4`: `pnpm install --frozen-lockfile` PASS para backend y frontend; `pnpm prisma:generate` PASS (sin conexión DB); backend `pnpm build` PASS; frontend `pnpm build` PASS con origin HTTPS sintético `.invalid`; frontend preprod env tests 5/5 PASS; guard frontend PASS. Con `NODE_OPTIONS=--experimental-vm-modules`, la suite segura sin DB/fixture legacy corrió 36 suites PASS / 1 SKIP; 231 tests PASS / 9 SKIP.
+
+La invocación total de Jest en checkout vacío no quedó certificada: ocho suites de integración requieren `DATABASE_URL` y un DB aislado; no se usó el DB canónico DEV porque esta misión lo prohíbe. El suite legacy SQLite es opt-in y necesita el fixture histórico fuera del repositorio; no se copió ni accedió a ese corpus. Se excluyeron esos nueve suites del resultado seguro. No hubo writes a PostgreSQL ni a OpenSearch en la fase de build/test. PostgreSQL DEV sólo se consultó en la verificación read-only ya registrada (31 migraciones); no es PREPROD.
+
+Resultado de fase: paquete de preparación listo para revisión/infra, no deploy-ready. PREPROD sigue `NOT PROVISIONED`, backup/restore PREPROD `NOT PROVEN`, smoke real `NOT RUN`, UAT institucional `NOT STARTED`; no invitar usuarios.

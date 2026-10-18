@@ -106,3 +106,7 @@ Los scripts y guards son preparación revisada; **no se ejecutaron** contra infr
 No hay contenedor preprod de aplicación y Docker/Podman no están instalados. El compose heredado `JurisprudenciaN/docker-compose.yml` fue corregido para exigir password por variable y bind loopback en puerto 55433; no se inició ni construyó. El compose DEV separado usa 55432 y no debe correrse junto al PostgreSQL nativo DEV.
 
 El despliegue automático mantiene acciones deliberadas de alto impacto (migraciones, arranque de servicios, smoke con cuenta aprobada) y requiere owner/infra, backup real y acceso al vault; no es un comando para correr en este workspace ni una autorización a ejecutar producción.
+
+### Evidencia reproducible de source/build (2026-10-18)
+
+En worktree limpio del commit `25b6a83ed5867bce8e6b296d0da108db0b3ae7c4`: pnpm frozen install PASS en ambos paquetes; Prisma Client 7.8.0 generado sin conectar; build Nest y Next PASS; 5 tests del guard frontend PASS; suite segura (sin las ocho suites que requieren DB y el test opt-in SQLite ausente) 36 suites/231 tests PASS, un suite/9 tests SKIP. El Jest total requiere una DB temporal aislada y no se ejecutó contra `buscador_juridico_civil_dev`. El deployment, restore, readiness y smoke contra PREPROD siguen sin ejecutarse por falta de target.

@@ -51,3 +51,9 @@ Estado general confirmado: **BLOCKED / INFRA NOT PROVISIONED**. No se ejecutó c
 Verificaciones previas disponibles: rama de preparación basada en `origin/dev=af8f51d6f5e5be48e0167c5890328acd3c80c2c4`; PostgreSQL 16 DEV en `127.0.0.1:55432` tiene 31/31 migraciones (sólo lectura) y queda expresamente excluido de preprod. Docker/Podman no están disponibles; no se ejecutó compose. La máquina tampoco es target institucional y no tiene espacio libre suficiente para asumir el índice v3 (~13.2 GiB) más corpus, DB y restore según sizing final.
 
 Gate inicial propuesto para cerrar este checklist: infraestructura responde doc 140, presenta owner y autorización, entrega host/DB/storage/DNS/TLS/OpenSearch aislados y capacidad; luego ejecutar deploy/restore/smoke exclusivamente en esos targets.
+
+## Pruebas desde checkout limpio (2026-10-18)
+
+`pnpm install --frozen-lockfile` backend y frontend: PASS; `prisma generate`: PASS sin DB; builds backend/frontend: PASS; guard frontend: 5/5 PASS. Suite segura: 36/37 suites PASS, 1 SKIP; 231/240 tests PASS, 9 SKIP. Ocho suites con fixtures de DB quedan sin ejecutar porque la misión prohíbe usar la DB canónica DEV; un test de SQLite legacy requiere un fixture externo no incluido. El C: observado al cierre tiene 40.49 GiB libres; el índice DEV v3 ya ocupa ~13.2 GiB, por lo que no se ofrece esta PC como simulación PREPROD.
+
+Los gates de host, backup/restore, migración sobre DB destino, TLS/proxy, readiness, corpus, smoke y UAT siguen abiertos. Builds no cambian el checklist de infraestructura a PASS.

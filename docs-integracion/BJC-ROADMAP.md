@@ -513,3 +513,16 @@ La integración permanece **BLOCKED**. El inventario de 31 rutas encontró tres 
 Hallazgo de cobertura que debe resolverse antes de la certificación pública: el DEV actual tiene 6.014 Sentencias activas/publicadas sin Sumarios activos, pero la proyección de Jurisprudencia indexa por Sumario. Una llamada real a `/api/public/busqueda` devolvió dos Sentencias publicadas para `responsabilidad civil`; OpenSearch devolvió cero. No se observó fuga en esas filas, pero hay divergencia de resultados entre motores.
 
 Siguiente trabajo acotado: (1) definir/proyectar la identidad Search de Sentencias publicadas que no tienen Sumario sin duplicar documentos; (2) implementar todas las rutas y filtros/sorts del contrato en OpenSearch con respuesta compatible; (3) probar por HTTP una indisponibilidad con contador que demuestre cero invocaciones legacy; (4) completar publicación, ACL/same-SHA/revocación y sync OCR/DOC/metadata; (5) ejecutar Golden 325, frases 100, prefijos 14, comodines, booleanos, paginación, rendimiento y concurrencia sobre HTTP; (6) cerrar Viewer/UTF-16, TLS/auth, lint acotado, cleanup y artefactos. Sólo con todos los gates PASS evaluar commit y push a `origin/integration/galilei-beta`; nunca promover DEV en este sprint.
+
+## Resultado final de PREPROD-UAT-PREP-1 (2026-10-18)
+
+| Gate | Resultado | Evidencia / condición restante |
+|---|---|---|
+| Paquete de despliegue | READY_FOR_INFRA_ACTIONS | Guardas, plantillas placeholder, deploy script y runbooks listos en `feature/preprod-uat-prep`; commit/build/test evidence en artefactos ignorados. |
+| Instalación/build limpio | PASS | Checkout detached; pnpm frozen backend/front, Prisma generate sin DB, builds backend/front. Front build usa dominio reservado `.invalid`. |
+| Tests sin infraestructura | PASS CON ALCANCE | 36 suites/231 tests PASS; 1 suite y 9 tests SKIP en esa corrida. Además, 9 suites fueron excluidas explícitamente (8 requieren DB aislado y 1 fixture SQLite externo). No consultar DB canónico DEV. |
+| PREPROD infraestructura | NOT PROVISIONED | Owner/host, PostgreSQL 16, OpenSearch, TLS/DNS/proxy, storage/capacidad, firewall/vault aún no entregados (doc 140). |
+| Backup/restore PREPROD | NOT PROVEN | Requiere backup de DB+storage y restore drill en reemplazo aislado. Evidencia DEV/INT previa no sustituye el target. |
+| UAT institucional | NOT STARTED | Plan READY; ambiente AFTER_INFRA; sin cuentas ni invitaciones. |
+
+No se habilita despliegue ni invitación de usuarios hasta completar infraestructura, restore, smoke real, matriz ACL/corpus aprobada y responsables institucionales.
