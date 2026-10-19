@@ -1,5 +1,13 @@
 # Estado actual — Buscador Jurídico Civil
 
+## COPERNIC-RESTRICTED-ACL-FIX-2 — candidata (2026-10-19)
+
+La rama `feature/copernic-restricted-acl-fix2` parte exactamente de `origin/feature/copernic-restricted-acl-fix1` (`e311f968e2920ef5f61a8957f7394d9252e589fd`). Corrige el bloqueo de paginación privada detectado en REVIEW-1: el recorrido PIT exige progreso estricto de `search_after`, detecta ciclos y lotes repetidos, exige el desempate final único `id asc`, falla cerrado ante respuestas incompletas/inconsistentes y cierra PIT en `finally`. La autorización viva continúa en PostgreSQL; no se alteran ACL, Auth, Viewer productivo, semántica Jurisprudencia, Prisma ni mappings.
+
+La reproducción adversarial de REVIEW-1 queda cerrada: el mismo cursor/lote deja de falsear el total y falla con respuesta controlada 503. Search dirigido: 2 suites / 19 tests PASS; ACL DEV: 1 suite / 1 test PASS; suite backend segura: 47 suites / 322 tests PASS y 10 suites / 24 tests omitidos por gates opt-in; typecheck, build y lint dirigido PASS. El smoke público fue read-only. El muestreo real read-only en OpenSearch 2.19.6 observó 249 empates de `_score` en 250 documentos y avance estricto del tuple con `id` como valor final. No se pudo crear un índice sintético por permisos del clúster y no se hicieron escrituras.
+
+Estado: candidata local para `COPERNIC-RESTRICTED-ACL-REVIEW-2`; sin promoción a DEV. La latencia de un recorrido privado de 69k sobre OpenSearch + PostgreSQL real sigue siendo una observación P2 pendiente; la medición de escala disponible es simulada. Los hallazgos de drift potencial entre predicados Search/Viewer quedan como riesgo P3. Rama y evidencia de calidad finales se registran al terminar commit/push; no se actualizarán `dev`, `main`, integración ni ramas UX.
+
 ## PREPROD-FIX-2 — candidata de hardening (2026-10-18)
 
 La candidata `feature/preprod-uat-fix2` parte exactamente de `origin/feature/preprod-uat-fix` en `eb3397774b3d16ddafeac0ffba78ed54a8b7c8e7`. Cierra los P0 de query overrides DEV y solapamiento PREPROD/PROD, y el P1 de contratos DB de Prisma/libpq mediante identidad canónica y adaptadores explícitos. También endurece la reserva de la ruta de backup frente a los tres roots y limita rollback de alias a un único índice del mismo namespace/schema. No modifica semántica Search, ACL, Auth, Viewer, Processing, schema Prisma ni migraciones.

@@ -1,6 +1,15 @@
 import { access as pathAccess, mkdir, rm, writeFile } from 'node:fs/promises';
+import type { Server } from 'node:http';
 import path from 'node:path';
 import { Client } from '@opensearch-project/opensearch';
+import {
+  CanActivate,
+  ExecutionContext,
+  INestApplication,
+} from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
 import {
   WorkspaceDependencyType,
   WorkspaceRole,
@@ -15,6 +24,7 @@ import { parseSearchQuery } from '../busqueda/utils/search-parser';
 import { CorpusDocumentAccessService } from './corpus-document-access.service';
 import { CorpusSearchSourceAdapter } from './corpus-search.adapter';
 import { LocalDocumentStorageAdapter } from './document-storage.adapter';
+import { WorkspaceDocumentController } from './workspace-document.controller';
 import { WorkspaceDocumentService } from './workspace-document.service';
 
 const enabled = process.env.SPRINT1561_POSTGRES_TEST === '1';
@@ -24,6 +34,18 @@ const storageRoot = path.resolve(
   process.cwd(),
   `../../_dev-corpus-storage-test/sprint1561-${suffix}`,
 );
+let viewerRequestUser: AuthenticatedUser | undefined;
+
+class SyntheticViewerIdentityGuard implements CanActivate {
+  canActivate(context: ExecutionContext) {
+    if (!viewerRequestUser) return false;
+    const request = context.switchToHttp().getRequest<{
+      user?: AuthenticatedUser;
+    }>();
+    request.user = viewerRequestUser;
+    return true;
+  }
+}
 
 function personalResultDocumentIds(rows: unknown): string[] {
   if (!Array.isArray(rows)) return [];
@@ -48,6 +70,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
   let searchSource: CorpusSearchSourceAdapter;
   let documents: WorkspaceDocumentService;
   let access: CorpusDocumentAccessService;
+  let httpApp: INestApplication | undefined;
   const previousStoragePath = process.env.BJC_CORPUS_STORAGE_PATH;
   const userIds: number[] = [];
   const workspaceIds: string[] = [];
@@ -129,6 +152,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
 
   afterAll(async () => {
     if (!enabled) return;
+    if (httpApp) await httpApp.close();
     if (searchSource) await searchSource.close();
     const syntheticDocumentIds = [...new Set(documentIds)];
     const syntheticDocumentKeys = syntheticDocumentIds.map(
@@ -400,6 +424,10 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         name: `Heredada ${suffix}`,
         parentId: restricted.id,
       });
+      const nestedFolder = await documents.createFolder(workspace.id, admin, {
+        name: `Anidada ${suffix}`,
+        parentId: inherited.id,
+      });
       await expect(
         documents.createFolder(workspace.id, admin, {
           name: `Ampliacion implicita ${suffix}`,
@@ -440,8 +468,10 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         expect.arrayContaining([restricted.id, inherited.id, creatorOnly.id]),
       );
 
+      const token = `SPRINT1561PERSONALACL${suffix}`;
+      const folderToken = `QAFIX2FOLDER${suffix}`;
       const payload = Buffer.from(
-        `SPRINT1561PERSONALACL${suffix} acceso restringido y privado`,
+        `${token} ${folderToken} acceso restringido y privado`,
         'utf8',
       );
       const filename = `sprint1561-${suffix}.txt`;
@@ -496,6 +526,33 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         duplicate: false,
       });
       documentIds.push(workspaceDocumentId);
+      const rootFolderUpload = await documents.upload(workspace.id, admin, [
+        {
+          originalname: `qa-fix2-root-${suffix}.txt`,
+          mimetype: 'text/plain',
+          buffer: Buffer.from(`${folderToken} root-folder fixture`, 'utf8'),
+          size: Buffer.byteLength(`${folderToken} root-folder fixture`),
+        },
+      ]);
+      const rootFolderDocumentId = rootFolderUpload.results[0]?.documentId;
+      expect(rootFolderUpload.results[0]?.status).toBe('INDEXED');
+      documentIds.push(rootFolderDocumentId);
+      const nestedFolderUpload = await documents.upload(
+        workspace.id,
+        admin,
+        [
+          {
+            originalname: `qa-fix2-nested-${suffix}.txt`,
+            mimetype: 'text/plain',
+            buffer: Buffer.from(`${folderToken} nested-folder fixture`, 'utf8'),
+            size: Buffer.byteLength(`${folderToken} nested-folder fixture`),
+          },
+        ],
+        nestedFolder.id,
+      );
+      const nestedFolderDocumentId = nestedFolderUpload.results[0]?.documentId;
+      expect(nestedFolderUpload.results[0]?.status).toBe('INDEXED');
+      documentIds.push(nestedFolderDocumentId);
       const repeatedWorkspaceUpload = await documents.upload(
         workspace.id,
         admin,
@@ -602,7 +659,6 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         )?.canMakePersonal,
       ).toBe(false);
 
-      const token = `SPRINT1561PERSONALACL${suffix}`;
       const [
         allowedWorkspaceSearch,
         deniedWorkspaceSearch,
@@ -695,6 +751,20 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
             ]),
           },
         ],
+        ...[rootFolderDocumentId, nestedFolderDocumentId].map(
+          (id) =>
+            [
+              id,
+              {
+                workspaceId: workspace.id,
+                ownerUserId: null,
+                projectedPrincipalIds: new Set([
+                  String(admin.id),
+                  String(grantee.id),
+                ]),
+              },
+            ] as const,
+        ),
         [
           sharedDocumentId,
           {
@@ -734,6 +804,10 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       ]);
       const candidatesByToken = new Map<string, string[]>([
         [token, [workspaceDocumentId, sharedDocumentId, personalDocumentId]],
+        [
+          folderToken,
+          [workspaceDocumentId, rootFolderDocumentId, nestedFolderDocumentId],
+        ],
         [paginationToken, paginationCandidates],
       ]);
       const rawSearch = jest.fn(
@@ -770,18 +844,26 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
               return false;
             return true;
           });
+          const orderedIds = [...matchingIds].sort((left, right) =>
+            Buffer.compare(
+              Buffer.from(left, 'utf8'),
+              Buffer.from(right, 'utf8'),
+            ),
+          );
           const after = request.body?.search_after;
-          const start = Array.isArray(after)
-            ? Number(after[0]) + 1
-            : Math.max(0, request.body?.from ?? 0);
+          let start = Math.max(0, request.body?.from ?? 0);
+          if (Array.isArray(after)) {
+            const afterId = after[after.length - 1];
+            const afterIndex = orderedIds.indexOf(String(afterId));
+            if (afterIndex < 0) throw new Error('FIX2_TEST_CURSOR_NOT_FOUND');
+            start = afterIndex + 1;
+          }
           const size = Math.max(1, request.body?.size ?? 10);
-          const hits = matchingIds
-            .slice(start, start + size)
-            .map((id, offset) => ({
-              _id: id,
-              _score: 1,
-              sort: [start + offset],
-            }));
+          const hits = orderedIds.slice(start, start + size).map((id) => ({
+            _id: id,
+            _score: 1,
+            sort: [1, null, null, id],
+          }));
           return Promise.resolve({
             body: {
               hits: {
@@ -878,8 +960,55 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
           ),
         ),
       });
+      const folderSearchContext = (folderId: string | null) => ({
+        ...privateSearchContext,
+        documentScope: {
+          ...privateSearchContext.documentScope,
+          folderId,
+        },
+      });
+      const folderSearches = {
+        root: await runSearch(folderToken, folderSearchContext(null)),
+        selected: await runSearch(
+          folderToken,
+          folderSearchContext(inherited.id),
+        ),
+        nested: await runSearch(
+          folderToken,
+          folderSearchContext(nestedFolder.id),
+        ),
+      };
+
+      viewerRequestUser = grantee;
+      const viewerModuleRef = await Test.createTestingModule({
+        controllers: [WorkspaceDocumentController],
+        providers: [
+          { provide: WorkspaceDocumentService, useValue: documents },
+          { provide: APP_GUARD, useClass: SyntheticViewerIdentityGuard },
+        ],
+      }).compile();
+      httpApp = viewerModuleRef.createNestApplication();
+      await httpApp.init();
+      const runViewerHttpChecks = async () => {
+        const base = `/workspaces/${workspace.id}/documents/${workspaceDocumentId}`;
+        const server = httpApp!.getHttpServer() as unknown as Server;
+        const [metadata, matches, file] = await Promise.all([
+          request(server)
+            .get(base)
+            .then((response) => response.status),
+          request(server)
+            .get(`${base}/matches`)
+            .query({ q: token })
+            .then((response) => response.status),
+          request(server)
+            .get(`${base}/file`)
+            .then((response) => response.status),
+        ]);
+        return { metadata, matches, file };
+      };
       const privateBefore = await runPrivateSearch();
       const viewerBefore = await runViewerChecks();
+      const viewerHttpBefore = await runViewerHttpChecks();
       const adminSearch = await runSearch(token, {
         ...privateSearchContext,
         documentScope: {
@@ -1149,6 +1278,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       );
       const privateRevokedWithStaleProjection = await runPrivateSearch();
       const viewerRevoked = await runViewerChecks();
+      const viewerHttpRevoked = await runViewerHttpChecks();
       candidates
         .get(workspaceDocumentId)
         ?.projectedPrincipalIds.delete(String(grantee.id));
@@ -1180,17 +1310,24 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       );
       const privateRestoredWithStaleProjection = await runPrivateSearch();
       const viewerRestored = await runViewerChecks();
+      const viewerHttpRestored = await runViewerHttpChecks();
       const aclLifecycle = {
         backendRestarted: false,
-        before: { search: privateBefore, viewer: viewerBefore },
+        before: {
+          search: privateBefore,
+          viewer: viewerBefore,
+          viewerHttp: viewerHttpBefore,
+        },
         revokedWithStaleProjection: {
           search: privateRevokedWithStaleProjection,
           viewer: viewerRevoked,
+          viewerHttp: viewerHttpRevoked,
         },
         revokedAfterProjectionRefresh: privateRevokedAfterProjectionRefresh,
         restoredWithStaleProjection: {
           search: privateRestoredWithStaleProjection,
           viewer: viewerRestored,
+          viewerHttp: viewerHttpRestored,
         },
         userMatrix: {
           restrictedAdmin: adminSearch,
@@ -1212,6 +1349,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
           ],
           profile: paginationProfile,
         },
+        folderSearches,
       };
       const artifactRoot = process.env.COPERNIC_ACL_ARTIFACT_ROOT;
       if (artifactRoot) {
@@ -1246,6 +1384,22 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
               routeContract: 'metadata/matches/file services map denial to 404',
             },
           ],
+          [
+            'viewer-http-regression.json',
+            {
+              before: viewerHttpBefore,
+              revoked: viewerHttpRevoked,
+              restored: viewerHttpRestored,
+              endpoints: [
+                'GET /workspaces/:workspaceId/documents/:id',
+                'GET /workspaces/:workspaceId/documents/:id/matches',
+                'GET /workspaces/:workspaceId/documents/:id/file',
+              ],
+              harness:
+                'actual Nest WorkspaceDocumentController + HTTP server + synthetic authenticated request user',
+            },
+          ],
+          ['folder-adapter-regression.json', folderSearches],
           [
             'pagination-acl-tests.json',
             {
@@ -1323,12 +1477,40 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         resultIds: [workspaceDocumentId],
       });
       expect(viewerBefore).toEqual({ metadata: 200, matches: 200, file: 200 });
+      expect(viewerHttpBefore).toEqual({
+        metadata: 200,
+        matches: 200,
+        file: 200,
+      });
+      expect(folderSearches.root).toMatchObject({
+        total: 1,
+        totalExact: true,
+        resultIds: [rootFolderDocumentId],
+      });
+      expect(folderSearches.selected).toMatchObject({
+        total: 1,
+        totalExact: true,
+        resultIds: [workspaceDocumentId],
+      });
+      expect(folderSearches.nested).toMatchObject({
+        total: 1,
+        totalExact: true,
+        resultIds: [nestedFolderDocumentId],
+      });
+      expect(folderSearches.nested.resultIds).not.toEqual(
+        expect.arrayContaining([rootFolderDocumentId, workspaceDocumentId]),
+      );
       expect(privateRevokedWithStaleProjection).toMatchObject({
         total: 0,
         totalExact: true,
         resultIds: [],
       });
       expect(viewerRevoked).toEqual({ metadata: 404, matches: 404, file: 404 });
+      expect(viewerHttpRevoked).toEqual({
+        metadata: 404,
+        matches: 404,
+        file: 404,
+      });
       expect(privateRevokedAfterProjectionRefresh).toMatchObject({
         total: 0,
         totalExact: true,
@@ -1340,6 +1522,11 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         resultIds: [workspaceDocumentId],
       });
       expect(viewerRestored).toEqual({
+        metadata: 200,
+        matches: 200,
+        file: 200,
+      });
+      expect(viewerHttpRestored).toEqual({
         metadata: 200,
         matches: 200,
         file: 200,

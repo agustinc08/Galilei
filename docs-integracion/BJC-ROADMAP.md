@@ -1,5 +1,11 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## COPERNIC-RESTRICTED-ACL-FIX-2 — candidata para revisión (2026-10-19)
+
+Corregir y verificar el progreso de `search_after` del Search privado sobre la base exacta de Fix-1. La implementación agrega orden total con `id asc`, comparación monotónica de tuples, fingerprints tipados de cursor, detección acotada de ciclos y lotes duplicados, guardas de respuesta incompleta y cierre PIT ante error. REVIEW-1 P2-1 queda resuelto; no hay P0/P1 nuevos. La validación de ACL viva, paginación, carpetas y Viewer HTTP se ejecutó con fixtures DEV sintéticos y limpieza verificada. OpenSearch 2.19.6 se observó read-only; la prueba de 69k escala sigue siendo simulada y la latencia real combinada es P2 pendiente.
+
+Próximo gate: `COPERNIC-RESTRICTED-ACL-REVIEW-2`. Mantener Fix-2 como rama candidata; no promover a DEV ni tocar `main`, integración o ramas UX. La evidencia reproducible queda en `_recovery-work/copernic-restricted-acl-fix2/` (local e ignorada).
+
 ## PREPROD-FIX-2 — candidata de hardening (2026-10-18)
 
 `feature/preprod-uat-fix2` parte exactamente de `eb3397774b3d16ddafeac0ffba78ed54a8b7c8e7`. Se cerraron los tres hallazgos de PREPROD-FIX-REVIEW-1: configuración efectiva DEV no redirigible por query, referencias de storage no-DEV obligatorias y adaptadores `pg`/Prisma/libpq derivados de una identidad DB validada una sola vez. La reserva de backup se prueba fuera de los tres roots y el candidato de rollback exige namespace + schema actual. Backend typecheck/build y suite segura PASS (300 tests; 9 suites PostgreSQL omitidas), frontend typecheck/build y URL tests PASS; OpenSearch DEV read-only smoke PASS. El detalle de controles y límites queda en el corte PREPROD-FIX-2 de BJC-ESTADO-ACTUAL y doc 136.
