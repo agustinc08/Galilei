@@ -150,6 +150,42 @@ describe('OpenSearch Galilei DSL', () => {
     expect(JSON.stringify(personal)).toContain('PRIVATE_WORKSPACE');
   });
 
+  it('keeps private logical scope filters while delegating ACL and folder checks to live PostgreSQL', () => {
+    const workspace = buildSearchQueryDsl(
+      parseSearchQuery('civil'),
+      {
+        visibility: 'INTERNAL',
+        dialect: 'modern',
+        publicationPolicy: 'legacy-active-only',
+        documentScope: {
+          kind: 'WORKSPACE',
+          workspaceId: 'ws-1',
+          userId: 42,
+          folderId: 'folder-1',
+        },
+      },
+      { source: 'CORPUS', livePrivateAcl: true },
+    );
+    const personal = buildSearchQueryDsl(
+      parseSearchQuery('civil'),
+      {
+        visibility: 'INTERNAL',
+        dialect: 'modern',
+        publicationPolicy: 'legacy-active-only',
+        documentScope: { kind: 'PERSONAL', userId: 42, folderId: 'folder-1' },
+      },
+      { source: 'CORPUS', livePrivateAcl: true },
+    );
+
+    expect(JSON.stringify(workspace)).toContain('ws-1');
+    expect(JSON.stringify(workspace)).toContain('PRIVATE_WORKSPACE');
+    expect(JSON.stringify(workspace)).not.toContain('aclPrincipalIds');
+    expect(JSON.stringify(workspace)).not.toContain('folderId');
+    expect(JSON.stringify(personal)).toContain('ownerUserId');
+    expect(JSON.stringify(personal)).toContain('PRIVATE_WORKSPACE');
+    expect(JSON.stringify(personal)).not.toContain('folderId');
+  });
+
   it('correlates a source folder to the same source and workspace record', () => {
     const query = buildSearchQueryDsl(
       parseSearchQuery('memo'),

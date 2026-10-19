@@ -23,7 +23,11 @@ const fieldPaths: Record<SearchFieldName, string> = {
 };
 
 type Clause = Record<string, unknown>;
-type FilterOptions = { source: 'CORPUS' | 'JURISPRUDENCIA' };
+type FilterOptions = {
+  source: 'CORPUS' | 'JURISPRUDENCIA';
+  /** Private Corpus ACL/folder access is checked live by PostgreSQL per candidate batch. */
+  livePrivateAcl?: boolean;
+};
 
 export function translateSearchNode(
   node: SearchNode | null,
@@ -160,7 +164,7 @@ export function buildSearchQueryDsl(
   if (options.source === 'CORPUS') {
     filters.push({ terms: { status: ['INDEXED', 'OCR_REQUIRED'] } });
     appendVisibilityFilter(filters, context);
-    appendDocumentScopeFilter(filters, context);
+    appendDocumentScopeFilter(filters, context, options);
     appendCorpusFilters(filters, context);
   } else {
     if (context.documentKinds?.length)
@@ -269,7 +273,11 @@ function appendVisibilityFilter(filters: Clause[], context: SearchContext) {
   );
 }
 
-function appendDocumentScopeFilter(filters: Clause[], context: SearchContext) {
+function appendDocumentScopeFilter(
+  filters: Clause[],
+  context: SearchContext,
+  options: FilterOptions,
+) {
   const scope = context.documentScope ?? { kind: 'GENERAL' as const };
   if (scope.kind === 'GENERAL') {
     filters.push({ term: { documentScope: 'GENERAL' } });
@@ -281,7 +289,10 @@ function appendDocumentScopeFilter(filters: Clause[], context: SearchContext) {
     filters.push({
       bool: { must_not: [{ exists: { field: 'workspaceId' } }] },
     });
-    if (Object.prototype.hasOwnProperty.call(scope, 'folderId')) {
+    if (
+      !options.livePrivateAcl &&
+      Object.prototype.hasOwnProperty.call(scope, 'folderId')
+    ) {
       filters.push(
         scope.folderId
           ? { term: { folderId: scope.folderId } }
@@ -291,8 +302,12 @@ function appendDocumentScopeFilter(filters: Clause[], context: SearchContext) {
     return;
   }
   filters.push({ term: { workspaceId: scope.workspaceId } });
-  filters.push({ term: { aclPrincipalIds: String(scope.userId) } });
-  if (Object.prototype.hasOwnProperty.call(scope, 'folderId')) {
+  if (!options.livePrivateAcl)
+    filters.push({ term: { aclPrincipalIds: String(scope.userId) } });
+  if (
+    !options.livePrivateAcl &&
+    Object.prototype.hasOwnProperty.call(scope, 'folderId')
+  ) {
     filters.push(
       scope.folderId
         ? { term: { folderId: scope.folderId } }

@@ -27,11 +27,23 @@ type OpenSearchHit = {
 };
 type SearchResponseBody = {
   took?: number;
+  pit_id?: string;
   hits?: {
     total?: { value?: number; relation?: 'eq' | 'gte' };
     hits?: OpenSearchHit[];
   };
 };
+
+function unwrapSearchResponse(response: unknown): SearchResponseBody {
+  if (typeof response !== 'object' || response === null) {
+    throw new Error('SEARCH_PRIVATE_RESPONSE_INVALID');
+  }
+  const wrapped = response as { body?: unknown };
+  if (typeof wrapped.body === 'object' && wrapped.body !== null) {
+    return wrapped.body;
+  }
+  return response;
+}
 type CompleteLocaleSearch = {
   body: SearchResponseBody;
   queryCount: number;
@@ -40,7 +52,7 @@ type CompleteLocaleSearch = {
   distinctHits: number;
 };
 
-/** OpenSearch owns matching/count/order; PostgreSQL revalidates ACL and hydrates only the returned page. */
+/** Private Corpus scopes authorize each ordered OpenSearch candidate batch in PostgreSQL before count/page selection. */
 export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
   private lastProfile: {
     countMs: number;
@@ -90,6 +102,29 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
 
     const from = (page - 1) * pageSize;
     if (from + pageSize > 30000) throw new Error('SEARCH_PAGE_WINDOW_EXCEEDED');
+    const documentScope = context.documentScope;
+    if (
+      this.source === 'CORPUS' &&
+      (documentScope?.kind === 'WORKSPACE' ||
+        documentScope?.kind === 'PERSONAL')
+    ) {
+      const dslStarted = performance.now();
+      const searchQuery = buildSearchQueryDsl(query, context, {
+        source: this.source,
+        livePrivateAcl: true,
+      });
+      const dslBuildMs = performance.now() - dslStarted;
+      return this.searchPrivateScope(
+        query,
+        context,
+        searchQuery,
+        page,
+        pageSize,
+        from,
+        started,
+        dslBuildMs,
+      );
+    }
     const dslStarted = performance.now();
     const searchQuery = buildSearchQueryDsl(query, context, {
       source: this.source,
@@ -177,6 +212,155 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
       pageSize,
       results,
     };
+  }
+
+  /**
+   * Stream private Corpus hits in OpenSearch order and authorize each bounded
+   * batch through the existing live PostgreSQL hydrator before counting or
+   * selecting the requested page. The PIT gives the scan one stable snapshot.
+   */
+  private async searchPrivateScope(
+    query: SearchQueryAst,
+    context: SearchContext,
+    searchQuery: Record<string, unknown>,
+    page: number,
+    pageSize: number,
+    from: number,
+    started: number,
+    dslBuildMs: number,
+  ): Promise<SearchResultPage> {
+    const batchSize = 500;
+    const sort = searchSort(context, this.source);
+    const scanStarted = performance.now();
+    let pitId: string | undefined;
+    let searchAfter: unknown[] | undefined;
+    let rawTotal: number | null = null;
+    let rawScanned = 0;
+    let authorizedTotal = 0;
+    let searchQueryCount = 0;
+    let authorizationBatchCount = 0;
+    let authorizationMs = 0;
+    const results: SearchResult[] = [];
+
+    try {
+      const pitResponse = unwrapSearchResponse(
+        await this.client.createPit({
+          index: this.alias,
+          keep_alive: '1m',
+        }),
+      );
+      pitId = pitResponse.pit_id;
+      if (!pitId) throw new Error('SEARCH_PRIVATE_PIT_CREATE_FAILED');
+
+      while (rawTotal === null || rawScanned < rawTotal) {
+        const response = await this.client.search({
+          body: {
+            size: batchSize,
+            track_total_hits: rawTotal === null,
+            pit: { id: pitId, keep_alive: '1m' },
+            _source: false,
+            query: searchQuery,
+            sort,
+            ...(searchAfter ? { search_after: searchAfter } : {}),
+          },
+        });
+        searchQueryCount += 1;
+        const body = unwrapSearchResponse(response);
+        pitId = body.pit_id ?? pitId;
+        if (rawTotal === null) {
+          const totalValue = body.hits?.total?.value;
+          if (
+            typeof totalValue !== 'number' ||
+            !Number.isSafeInteger(totalValue) ||
+            body.hits?.total?.relation !== 'eq'
+          )
+            throw new Error('SEARCH_TOTAL_NOT_EXACT');
+          rawTotal = totalValue;
+        }
+
+        const hits = body.hits?.hits ?? [];
+        if (!hits.length) {
+          if (rawScanned < rawTotal)
+            throw new Error('SEARCH_PRIVATE_CANDIDATE_SCAN_INCOMPLETE');
+          break;
+        }
+        if (rawScanned + hits.length > rawTotal)
+          throw new Error('SEARCH_PRIVATE_CANDIDATE_SCAN_OVERFLOW');
+
+        const ids = hits.map((hit) => this.toHydrationId(hit._id));
+        if (new Set(ids).size !== ids.length)
+          throw new Error('SEARCH_PRIVATE_CANDIDATE_DUPLICATE');
+        const authorizationStarted = performance.now();
+        const hydrated = await this.hydrate(
+          query,
+          { ...context, page: 1, pageSize: ids.length },
+          ids,
+        );
+        authorizationMs += performance.now() - authorizationStarted;
+        authorizationBatchCount += 1;
+        const hydratedById = new Map(
+          hydrated.results.map((result) => [result.sourceId, result]),
+        );
+        for (const hit of hits) {
+          const id = this.toHydrationId(hit._id);
+          const authorizedResult = hydratedById.get(id);
+          if (!authorizedResult) continue;
+          const authorizedOrdinal = authorizedTotal;
+          authorizedTotal += 1;
+          if (authorizedOrdinal >= from && results.length < pageSize) {
+            results.push({
+              ...authorizedResult,
+              score: hit._score ?? authorizedResult.score,
+            });
+          }
+        }
+
+        rawScanned += hits.length;
+        if (rawScanned < rawTotal) {
+          const lastSort = hits[hits.length - 1]?.sort;
+          if (!lastSort?.length)
+            throw new Error('SEARCH_PRIVATE_CANDIDATE_CURSOR_MISSING');
+          searchAfter = lastSort;
+        }
+      }
+
+      if (rawTotal === null || rawScanned !== rawTotal)
+        throw new Error('SEARCH_PRIVATE_CANDIDATE_SCAN_INCOMPLETE');
+      const elapsed = performance.now() - started;
+      this.lastProfile = {
+        countMs: 0,
+        resultPageMs: Math.round(elapsed * 100) / 100,
+        resultRows: results.length,
+        queryCount: searchQueryCount,
+        candidateStrategy:
+          'opensearch-ordered-batched-live-acl-before-count-and-page',
+        stageTimings: {
+          dslBuildMs,
+          openSearchPITScanMs:
+            Math.round((performance.now() - scanStarted) * 100) / 100,
+          rawCandidateCount: rawTotal,
+          authorizedTotal,
+          openSearchQueryCount: searchQueryCount,
+          postgresAuthorizationBatchCount: authorizationBatchCount,
+          postgresAuthorizationMs: Math.round(authorizationMs * 100) / 100,
+          totalAdapterMs: Math.round(elapsed * 100) / 100,
+        },
+      };
+      return {
+        total: authorizedTotal,
+        totalExact: true,
+        hasMore: authorizedTotal > from + results.length,
+        page,
+        pageSize,
+        results,
+      };
+    } finally {
+      if (pitId) {
+        await this.client
+          .deletePit({ body: { pit_id: [pitId] } })
+          .catch(() => undefined);
+      }
+    }
   }
 
   private async searchPage(

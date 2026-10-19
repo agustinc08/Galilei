@@ -15,6 +15,7 @@ import {
 } from '@prisma/client';
 import path from 'node:path';
 import { BusquedaService } from '../busqueda/busqueda.service';
+import type { SearchResultPage } from '../busqueda/adapters/search-source.adapter';
 import { OpenSearchRuntimeService } from '../busqueda/opensearch/opensearch-runtime.service';
 import {
   mimeTypesForCorpusTypes,
@@ -1202,7 +1203,7 @@ export class WorkspaceDocumentService {
     page = 1,
     pageSize = 20,
     folderId?: string | null,
-  ) {
+  ): Promise<SearchResultPage | null> {
     if (!q?.trim()) throw new BadRequestException('Ingresá una búsqueda.');
     const readableIds = await readableFolderIds(this.prisma, {
       kind: 'PERSONAL',
