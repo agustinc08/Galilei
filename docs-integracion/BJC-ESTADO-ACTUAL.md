@@ -1,11 +1,14 @@
 # Estado actual — Buscador Jurídico Civil
 
-## JURISPRUDENCIA-SORT-FIX-1 — candidata para revisión (2026-10-20)
+## Estado vigente — principal DEV (2026-10-21)
 
-La candidata feature/jurisprudencia-sort-fix1 parte exactamente de origin/dev en cb42133fc49b112ae7a8c49a0977a3ad49a37b35. Corrige los 503 de Sala y Nº de sentencia sustituyendo el scan/ordenamiento completo en memoria por sort directo sobre keyword ya mapeado y paginación OpenSearch; preserva lexicalidad, faltantes, desempate estable e hidratación. No toca UI, ACL/Copernic, Prisma, mapping, alias, datos ni DEV. Reproducción base 503 ≈5 s; candidate API/UI 200 y total estable 4.759.
+**Search V4 está activo y certificado.** El baseline DEV es `7f4cdd294ea039013b5bd32d9bdd0c916b8c11aa`. OpenSearch 2.19.6 está GREEN, con analysis-icu 2.19.6, ICU4J 75.1 y heap de 2 GiB. `galilei-search-active` apunta exclusivamente a `galilei-search-v004-20261020t094732495z-6015e394`; el writer es V4. V3 (`galilei-search-v003-20261017t232432555z-a6af18cb`) se conserva para rollback. Conteo canónico: 69.313 documentos en V3 y V4. El corte está `CERTIFIED_WITH_FINDINGS`, P0=0 y P1=0. Esta integración no repite el cutover ni ejecuta migraciones.
 
-Calidad: 9 suites enfocadas/92 tests PASS; suite segura no-integración 47/327 PASS, 7 skipped; backend typecheck/build, lint dirigido, Prisma generate guarded y diff-check PASS. Las integraciones que requieren DB/fixtures se excluyen de la suite segura; un test SQLite opt-in sin ruta fixture falla al inicializar su callback skipped y queda como limitación preexistente del harness. DEV/OpenSearch se consultaron read-only; outbox 161/0 conservado; checkout original preservado. Esta candidata requiere revisión independiente JURISPRUDENCIA-SORT-REVIEW-1; no promover a DEV.
+**Copernic UX en integración candidata.** Se incorpora `71c2670e3c5f40869a737ce23df658d9257762b3` sobre el DEV V4 en `integration/copernic-v4-beta`; faltan validaciones y revisión independiente antes de promover. Se conservan los recorridos de Galilei, Jurisprudencia, Mi Sala / Juzgado y Mis documentos; selección de dependencia única o múltiple cuando corresponde; y las visibilidades **Privada — sólo yo**, **Compartida — {dependencia}** y **Restringida — usuarios seleccionados**. El cambio diferencia carga, error recuperable y estado vacío en dependencias y Mis documentos; distingue búsqueda de integrantes sin coincidencias del estado inicial; aclara que creador y administradores mantienen acceso a carpetas restringidas; y corrige el resumen de duplicados de una carga por tandas según el resultado final. Las rutas de carpetas, Viewer y descarga permanecen disponibles. Este cambio es de UX/tests frontend y no altera autorización backend, Search, Prisma ni mappings.
 
+### Registros históricos superados
+
+El registro de `JURISPRUDENCIA-SORT-FIX-1` describe una candidata anterior y sus resultados al 2026-10-20; su estado de “pendiente de revisión/no promover” ya no es el estado vigente del Search V4 certificado. `COPERNIC-PARALLEL-FIX-1` también refleja una revisión de candidata sobre el DEV de entonces (`cb42133...`); sus observaciones de navegación, dependencias, privacidad visible y pruebas UX son antecedentes, no el estado actual de integración. Los informes históricos detallados conservan su alcance y fecha.
 
 ## COPERNIC-RESTRICTED-ACL-FIX-2 — candidata (2026-10-19)
 

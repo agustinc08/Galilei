@@ -119,10 +119,16 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   for (const person of syntheticUsers.users) await addSyntheticMember(workspaceA, person.id);
 
   const sharedFolder = await createFolder(workspaceA, { name: `Compartida ${runId}`, visibilityScope: 'DEPENDENCY_SHARED' });
+  await createFolder(workspaceA, { name: `Vacía ${runId}`, visibilityScope: 'DEPENDENCY_SHARED' });
   const restrictedFolder = await createFolder(workspaceA, {
     name: `Restringida ${runId}`,
     visibilityScope: 'RESTRICTED',
     userIds: [operatorId, ...syntheticUsers.users.map((person) => person.id)],
+  });
+  await createFolder(workspaceA, {
+    name: `Restringida sin personas ${runId}`,
+    visibilityScope: 'RESTRICTED',
+    userIds: [],
   });
   const sharedToken = `SPRINT1561SHARED${runId}`;
   const restrictedToken = `SPRINT1561RESTRICTED${runId}`;
@@ -194,8 +200,12 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
   await expect(page.getByRole('heading', { name: nameA, exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Mi Sala / Juzgado' })).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('Documentos privados de tus dependencias');
+  await expect(page.locator('body')).toContainText('La visibilidad depende de las autorizaciones de cada carpeta.');
   const restrictedFolderButton = page.getByRole('button', { name: new RegExp(`Restringida ${runId}`) }).first();
   await expect(restrictedFolderButton).toBeVisible();
+  await expect(restrictedFolderButton).toContainText('creador y administradores también acceden');
   await restrictedFolderButton.click();
   const restrictedContentsCard = page.getByRole('heading', { name: new RegExp(`Restringida ${runId}`) }).locator('xpath=ancestor::section[1]');
   await expect(restrictedContentsCard).toContainText(restrictedName);
@@ -219,6 +229,34 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   await page.keyboard.press('Escape');
   await expect(accessDialog).toBeHidden();
   await expect(accessDialogTrigger).toBeFocused();
+
+  const emptyAccessTrigger = page.getByRole('button', { name: new RegExp(`Administrar quién puede ver Restringida sin personas ${runId}`) });
+  await emptyAccessTrigger.click();
+  const emptyAccessDialog = page.getByRole('dialog', { name: 'Personas autorizadas' });
+  await expect(emptyAccessDialog.getByText('Buscá integrantes activos por nombre o correo para agregarlos o quitarlos.')).toBeVisible();
+  await emptyAccessDialog.getByLabel('Buscar integrantes').fill(`zqx-not-found-${runId}`);
+  await emptyAccessDialog.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(emptyAccessDialog.getByText('No encontramos otros integrantes activos con ese nombre o correo.')).toBeVisible();
+  await emptyAccessDialog.screenshot({ path: resolve(screenshots, 'restricted-no-matches.png') });
+  await emptyAccessDialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await page.goto('/login');
+  await page.getByLabel('Correo electrónico').fill(credentials.accounts.reviewer.email);
+  await page.getByLabel('Contraseña').fill(credentials.accounts.reviewer.password);
+  await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
+  await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
+  await page.getByRole('button', { name: new RegExp(`Vacía ${runId}`) }).click();
+  await expect(page.getByText('Esta carpeta está vacía.', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Podés subir archivos o mover documentos acá/u)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await page.goto('/login');
+  await page.getByLabel('Correo electrónico').fill(credentials.accounts.admin.email);
+  await page.getByLabel('Contraseña').fill(credentials.accounts.admin.password);
+  await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
+  await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
 
   // ACL changes propagate through the outbox; Search must reflect revocation
   // after projection sync. Viewer and file authorization checks remain live.
@@ -339,6 +377,28 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   const uploadSection = page.getByRole('heading', { name: 'Subir documentos' }).locator('xpath=ancestor::section[1]');
   await uploadSection.screenshot({ path: resolve(screenshots, 'upload-shared.png') });
   await sharedContentsCard.screenshot({ path: resolve(screenshots, 'shared-documents.png') });
+  await expect(uploadSection).toContainText(`Compartido con las personas autorizadas de ${nameA}`);
+  const uiUploadName = `ui-upload-${runId}.txt`;
+  const uiUploadContent = Buffer.from(`COPERNIC FIX ${runId} archivo sintético para validar duplicados`, 'utf8');
+  const uiUploadInput = page.getByLabel('Seleccionar documentos PDF, TXT, RTF, DOC, DOCX u ODT');
+  const uploadResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname.endsWith(`/api/workspaces/${workspaceA}/documents/upload`),
+  );
+  await uiUploadInput.setInputFiles({ name: uiUploadName, mimeType: 'text/plain', buffer: uiUploadContent });
+  const firstUploadPayload = await (await uploadResponse).json() as { results: Array<{ documentId: string; status: string; duplicate: boolean }> };
+  expect(firstUploadPayload.results[0]?.status).toBe('INDEXED');
+  expect(firstUploadPayload.results[0]?.duplicate).toBe(false);
+  manifest.documentIds.push(firstUploadPayload.results[0].documentId);
+  saveManifest();
+  await expect(page.getByText(uiUploadName, { exact: false })).toBeVisible();
+
+  const duplicateUploadResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname.endsWith(`/api/workspaces/${workspaceA}/documents/upload`),
+  );
+  await uiUploadInput.setInputFiles({ name: uiUploadName, mimeType: 'text/plain', buffer: uiUploadContent });
+  const duplicateUploadPayload = await (await duplicateUploadResponse).json() as { results: Array<{ documentId: string; status: string; duplicate: boolean }> };
+  expect(duplicateUploadPayload.results[0]?.duplicate).toBe(true);
+  await expect(page.getByText(/1 archivo\(s\) procesado\(s\)\. 1 ya existían en este espacio\./u)).toBeVisible();
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
   await page.getByRole('button', { name: new RegExp(`Restringida ${runId}`) }).first().click();
   await expect(page.getByRole('heading', { name: new RegExp(`Restringida ${runId}`) }).locator('xpath=ancestor::section[1]')).toContainText(restrictedName);

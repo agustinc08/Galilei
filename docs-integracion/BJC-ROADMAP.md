@@ -1,11 +1,22 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
-## JURISPRUDENCIA-SORT-FIX-1 — candidata para revisión (2026-10-20)
+## Estado vigente — principal DEV (2026-10-21)
 
-Sala y Nº de sentencia ya tienen fix candidate sobre la base exacta DEV cb42133fc49b112ae7a8c49a0977a3ad49a37b35. Se reprodujo el 503 de ambos modos en base; el origen fue el recorrido completo en memoria que excedía el timeout fail-closed de 5 s. Sort keyword directo, missing explícito y desempate logicalNumericId desc, id desc pasa OpenSearch/API/UI con páginas estables; no requiere mapping ni rebuild. Conteos de referencia preservados.
+| Gate | Estado | Evidencia / siguiente paso |
+|---|---|---|
+| DEV base | `7f4cdd294ea039013b5bd32d9bdd0c916b8c11aa` | Base certificada para consolidar Copernic. |
+| Search V4 | **ACTIVO / CERTIFICADO** | Alias `galilei-search-active` → V4 solamente; writer V4; OpenSearch 2.19.6 GREEN, analysis-icu 2.19.6, ICU4J 75.1, heap 2 GiB. |
+| Índices | **V4 activo; V3 retenido** | V3 y V4 tienen 69.313 documentos canónicos; conservar V3 para rollback. |
+| Corte V4 | **CERTIFIED_WITH_FINDINGS** | P0=0, P1=0. No repetir cutover ni cambiar alias/writer en esta misión. |
+| Copernic UX | **Integración candidata** | Commit `71c2670e3c5f40869a737ce23df658d9257762b3`; ejecutar builds/tests enfocados, smoke y revisión independiente antes de promoción. |
+| DB / Prisma | **Sin cambios de esquema** | No ejecutar migraciones, `db push` ni reset. |
+| Oficina | **Pendiente, misión separada** | No acceder a Sytec10. Sólo preparar migración cuando todos los gates de DEV y documentación estén certificados. |
 
-Siguiente gate: JURISPRUDENCIA-SORT-REVIEW-1 independiente. Mantener la candidata en feature/jurisprudencia-sort-fix1; no promocionar a DEV. Evidencia local ignorada: _recovery-work/jurisprudencia-sort-fix1/. Las pruebas amplias excluyen integraciones mutativas y el test legacy SQLite que requiere fixture opcional ausente.
+Copernic mantiene los recorridos de Galilei, Jurisprudencia, Mi Sala / Juzgado y Mis documentos, selector de dependencia cuando aplica, carpetas, carga por tandas, búsqueda de integrantes y accesos a Viewer/descarga. La interfaz explicita **Privada — sólo yo**, **Compartida — {dependencia}** y **Restringida — usuarios seleccionados**. El nuevo manejo separa carga/error/estado vacío, permite reintentar errores de dependencia y documentos personales, muestra explícitamente búsquedas de integrantes sin resultados y calcula duplicados desde los resultados finales de la tanda. No cambia la autorización del backend.
 
+### Registros históricos superados
+
+Los apartados que siguen documentan decisiones fechadas de candidatas previas. En particular, los estados de `JURISPRUDENCIA-SORT-FIX-1` y `COPERNIC-PARALLEL-FIX-1` correspondían al 2026-10-20 y al DEV anterior; no describen el gate vigente ni habilitan por sí solos una promoción. Su evidencia permanece vinculada a sus respectivas misiones.
 
 ## COPERNIC-RESTRICTED-ACL-FIX-2 — candidata para revisión (2026-10-19)
 
