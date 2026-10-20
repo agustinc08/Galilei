@@ -1,5 +1,15 @@
 # Estado actual — Buscador Jurídico Civil
 
+## COPERNIC-PARALLEL-FIX-1 — candidata para revisión (2026-10-20)
+
+`feature/copernic` se actualizó por fast-forward desde `4affe244921f3394b88ba6a7d9ced5afdc25ff84` hasta el `origin/dev` vigente `cb42133fc49b112ae7a8c49a0977a3ad49a37b35`. La revisión posterior confirmó que `origin/dev` no avanzó durante la misión y que `main` permanece en `83947656420a9d6f6c3cfb12b353eb7f2c293a28`.
+
+La base DEV ya contenía la corrección de privacidad visible y la navegación Galilei separada. Se agregaron guardas E2E y cierres UX para error de carga frente a dependencia vacía, carga inicial de Mis documentos, resumen restringido, empty state según permisos, duplicados de carga y búsqueda de integrantes sin coincidencias. La prueba encontró y cerró además un defecto real: el resumen de carga calculaba duplicados desde la fila inicial en vez del resultado final.
+
+Typecheck, build, lint dirigido, `git diff --check` y cinco pruebas Playwright pasan. Se certificaron rutas autenticadas de Galilei, Mi Sala/Juzgado y Mis documentos en 1366×768, 1440×900, 1536×864, 1600×900, 1920×1080, 1920×1200, 2560×1440, 390×844 y 430×932; sin overflow horizontal, scroll interno inesperado ni errores de consola/página. La búsqueda general de Jurisprudencia devolvió 0 casos publicados en este snapshot local y mostró su estado vacío previsto; no se modificó Search.
+
+La candidata no modifica Search/OpenSearch/Jurisprudencia core, ACL/Auth, Prisma ni migraciones. La evidencia local ignorada está en `_recovery-work/copernic-parallel-fix1/`. Próximo gate: revisión independiente `COPERNIC-PARALLEL-REVIEW-1`; no promover directamente a DEV.
+
 ## COPERNIC-RESTRICTED-ACL-FIX-2 — candidata (2026-10-19)
 
 La rama `feature/copernic-restricted-acl-fix2` parte exactamente de `origin/feature/copernic-restricted-acl-fix1` (`e311f968e2920ef5f61a8957f7394d9252e589fd`). Corrige el bloqueo de paginación privada detectado en REVIEW-1: el recorrido PIT exige progreso estricto de `search_after`, detecta ciclos y lotes repetidos, exige el desempate final único `id asc`, falla cerrado ante respuestas incompletas/inconsistentes y cierra PIT en `finally`. La autorización viva continúa en PostgreSQL; no se alteran ACL, Auth, Viewer productivo, semántica Jurisprudencia, Prisma ni mappings.

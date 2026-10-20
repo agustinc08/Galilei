@@ -52,13 +52,22 @@ test('Galilei keeps its three destinations visible across authenticated routes',
   const search = page.getByLabel('Buscar jurisprudencia');
   await expect(search).toHaveValue('responsabilidad civil');
   await expect(page.getByText('Buscando fallos…')).toHaveCount(0, { timeout: 30_000 });
-  await expect(page.getByText(/\d[\d.,]* resultados/u).first()).toBeVisible();
-  const realResult = page.locator('article').first();
-  await expect(realResult).toBeVisible();
-  await expect(realResult.locator('h2 a')).toHaveAttribute(
-    'href',
-    /^\/consulta\/sentencia\/(?!undefined(?:\?|$))[^/?]+(?:\?.*)?$/u,
-  );
+  const resultSummary = page.getByText(/\d[\d.,]* resultados/u).first();
+  await expect(resultSummary).toBeVisible();
+  const resultCountText = await resultSummary.textContent() ?? '';
+  const resultCount = Number.parseInt(resultCountText.replace(/\D/gu, ''), 10);
+  expect(Number.isFinite(resultCount), `parse result count from "${resultCountText}"`).toBe(true);
+  if (resultCount === 0) {
+    // Local DEV snapshots may have no published cases; assert the real empty state.
+    await expect(page.getByRole('status')).toContainText('No encontramos fallos con estos criterios.');
+  } else {
+    const realResult = page.locator('article').first();
+    await expect(realResult).toBeVisible();
+    await expect(realResult.locator('h2 a')).toHaveAttribute(
+      'href',
+      /^\/consulta\/sentencia\/(?!undefined(?:\?|$))[^/?]+(?:\?.*)?$/u,
+    );
+  }
   await captureResponsive('jurisprudencia');
 
   await page.goto('/spaces');

@@ -1,5 +1,11 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## COPERNIC-PARALLEL-REVIEW-1 — próximo gate (2026-10-20)
+
+Revisar independientemente la candidata `feature/copernic`, basada por fast-forward en `origin/dev=cb42133fc49b112ae7a8c49a0977a3ad49a37b35`. La verificación UX/E2E de escritorio, móvil, dependencias, ACL visible, cargas y Viewer pasó; el P0 de expectativa de privacidad está cerrado y hay cero cambios en Search core, ACL/Auth, Prisma o migraciones. La evidencia está en `_recovery-work/copernic-parallel-fix1/`.
+
+Después de la revisión, decidir explícitamente si se integra a DEV. No saltar la revisión ni mezclar esta rama con cambios de Search/OpenSearch. El smoke de Jurisprudencia mostró el estado vacío porque el snapshot local no tiene fallos publicados para la consulta probada; no es una validación de cobertura de búsqueda.
+
 ## COPERNIC-RESTRICTED-ACL-FIX-2 — candidata para revisión (2026-10-19)
 
 Corregir y verificar el progreso de `search_after` del Search privado sobre la base exacta de Fix-1. La implementación agrega orden total con `id asc`, comparación monotónica de tuples, fingerprints tipados de cursor, detección acotada de ciclos y lotes duplicados, guardas de respuesta incompleta y cierre PIT ante error. REVIEW-1 P2-1 queda resuelto; no hay P0/P1 nuevos. La validación de ACL viva, paginación, carpetas y Viewer HTTP se ejecutó con fixtures DEV sintéticos y limpieza verificada. OpenSearch 2.19.6 se observó read-only; la prueba de 69k escala sigue siendo simulada y la latencia real combinada es P2 pendiente.

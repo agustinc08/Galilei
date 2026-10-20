@@ -270,6 +270,8 @@ export default function PrivateSpacesPage() {
   const [newFolderScope, setNewFolderScope] = useState<"INHERIT" | "DEPENDENCY_SHARED" | "RESTRICTED">("DEPENDENCY_SHARED");
   const [restrictedMemberQuery, setRestrictedMemberQuery] = useState("");
   const [restrictedCandidates, setRestrictedCandidates] = useState<MemberCandidate[]>([]);
+  const [restrictedSearchAttempted, setRestrictedSearchAttempted] = useState(false);
+  const [accessSearchAttempted, setAccessSearchAttempted] = useState(false);
   const [selectedRestrictedUsers, setSelectedRestrictedUsers] = useState<number[]>([]);
   const [manageAccessFolderId, setManageAccessFolderId] = useState("");
   const accessDialogTriggerRef = useRef<HTMLElement | null>(null);
@@ -652,6 +654,9 @@ export default function PrivateSpacesPage() {
   async function findRestrictedCandidates(event?: React.FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (restrictedMemberQuery.trim().length < 3 || !workspaceId) return;
+    if (manageAccessFolderId) setAccessSearchAttempted(true);
+    else setRestrictedSearchAttempted(true);
+    setRestrictedCandidates([]);
     setBusy(true);
     setError("");
     try {
@@ -680,6 +685,7 @@ export default function PrivateSpacesPage() {
       setManagedAccessPeople(people);
       setRestrictedCandidates([]);
       setRestrictedMemberQuery("");
+      setAccessSearchAttempted(false);
     } catch (cause) {
       setError(friendlyError(cause, "No se pudo abrir la lista de personas autorizadas."));
     } finally {
@@ -783,6 +789,12 @@ export default function PrivateSpacesPage() {
       });
     }
     setUploadRows(rows);
+    const batchRows = new Map(rows.map((row) => [row.id, { ...row }]));
+    const updateBatchRow = (id: string, patch: Partial<UploadRow>) => {
+      updateUploadRow(id, patch);
+      const row = batchRows.get(id);
+      if (row) Object.assign(row, patch);
+    };
     setUploading(true);
     setError("");
     setNotice("");
@@ -791,7 +803,7 @@ export default function PrivateSpacesPage() {
       const file = selected[index];
       const row = rows[index];
       if (row.message) continue;
-      updateUploadRow(row.id, { status: "Subiendo y procesando…" });
+      updateBatchRow(row.id, { status: "Subiendo y procesando…" });
       const form = new FormData();
       form.append("files", file);
       try {
@@ -807,17 +819,17 @@ export default function PrivateSpacesPage() {
         );
         const result = response.results[0];
         if (!result || result.status === "ERROR") {
-          updateUploadRow(row.id, {
+          updateBatchRow(row.id, {
             status: "Error",
             message: result?.message || "El documento no pudo procesarse.",
           });
         } else if (result.duplicate) {
-          updateUploadRow(row.id, {
+          updateBatchRow(row.id, {
             status: "Ya estaba cargado",
             message: "Este documento ya estaba en la dependencia.",
           });
         } else {
-          updateUploadRow(row.id, {
+          updateBatchRow(row.id, {
             status:
               result.status === "OCR_PROCESSING" || result.status === "OCR_REQUIRED"
                 ? "Procesando documento…"
@@ -829,7 +841,7 @@ export default function PrivateSpacesPage() {
           });
         }
       } catch (cause) {
-        updateUploadRow(row.id, {
+        updateBatchRow(row.id, {
           status: "Error",
           message: friendlyError(cause, "No se pudo procesar este documento."),
         });
@@ -838,11 +850,12 @@ export default function PrivateSpacesPage() {
     }
     setUploading(false);
     await refresh(workspaceId, folderId);
-    const errors = rows.filter(
+    const finishedRows = Array.from(batchRows.values());
+    const errors = finishedRows.filter(
       (row) => row.message && row.status !== "Ya estaba cargado",
     ).length;
-    const duplicates = rows.filter(
-      (row) => row.status === "Ya estaba en este espacio",
+    const duplicates = finishedRows.filter(
+      (row) => row.status === "Ya estaba cargado",
     ).length;
     setNotice(
       `${finished} archivo(s) procesado(s).${duplicates ? ` ${duplicates} ya existían en este espacio.` : ""}${errors ? ` ${errors} requieren atención; el resto de la tanda continuó.` : ""}`,
@@ -1423,7 +1436,7 @@ export default function PrivateSpacesPage() {
                         <input
                           id="restricted-folder-search"
                           value={restrictedMemberQuery}
-                          onChange={(event) => setRestrictedMemberQuery(event.target.value)}
+                          onChange={(event) => { setRestrictedMemberQuery(event.target.value); setRestrictedSearchAttempted(false); setRestrictedCandidates([]); }}
                           placeholder="Nombre o correo"
                         />
                         <button type="button" disabled={busy || restrictedMemberQuery.trim().length < 3} onClick={() => void findRestrictedCandidates()}>
@@ -1443,7 +1456,13 @@ export default function PrivateSpacesPage() {
                             </label>
                           ))}
                         </div>
-                      ) : <p className={styles.muted}>Los resultados se limitan a integrantes activos de esta dependencia.</p>}
+                      ) : (
+                        <p className={styles.muted}>
+                          {restrictedSearchAttempted
+                            ? "No encontramos integrantes activos que coincidan con esa búsqueda."
+                            : "Ingresá un nombre o correo de al menos 3 caracteres para buscar integrantes activos de esta dependencia."}
+                        </p>
+                      )}
                       <p className={styles.muted}>Personas seleccionadas: {selectedRestrictedUsers.length}. Quien crea la carpeta y quienes administran la dependencia conservan acceso.</p>
                     </div>
                   ) : null}
@@ -1497,7 +1516,7 @@ export default function PrivateSpacesPage() {
                         >
                           <strong>📁 {folder.name}</strong>
                           <small>
-                            {folder.visibilityLabel}{folder.effectiveVisibilityScope === "RESTRICTED" && folder.authorizedCount !== undefined ? ` · ${folder.authorizedCount} personas seleccionadas` : ""} · {folder._count.documents} documentos · {folder._count.children} subcarpetas
+                          {folder.visibilityLabel}{folder.effectiveVisibilityScope === "RESTRICTED" && folder.authorizedCount !== undefined ? ` · ${folder.authorizedCount} personas elegidas; creador y administradores también acceden` : ""} · {folder._count.documents} documentos · {folder._count.children} subcarpetas
                           </small>
                         </button>
                         {folder.effectiveVisibilityScope === "RESTRICTED" && folder.canManageAccess ? (
@@ -1644,8 +1663,8 @@ export default function PrivateSpacesPage() {
             ) : (
               <p className={styles.emptyState}>
                 {folderId
-                  ? "Esta carpeta está vacía. Podés subir archivos o mover documentos acá."
-                  : "Esta dependencia todavía no tiene documentos. Podés subir un documento compatible o crear una carpeta."}
+                  ? canEdit ? "Esta carpeta está vacía. Podés subir archivos o mover documentos acá." : "Esta carpeta está vacía."
+                  : canEdit ? "Esta dependencia todavía no tiene documentos. Podés subir un documento compatible o crear una carpeta." : "Esta dependencia todavía no tiene documentos."}
               </p>
             )}
           </Card>
@@ -2093,7 +2112,7 @@ export default function PrivateSpacesPage() {
                   <input
                     id="folder-access-search"
                     value={restrictedMemberQuery}
-                    onChange={(event) => setRestrictedMemberQuery(event.target.value)}
+                    onChange={(event) => { setRestrictedMemberQuery(event.target.value); setAccessSearchAttempted(false); setRestrictedCandidates([]); }}
                     placeholder="Nombre o correo"
                     autoComplete="off"
                   />
@@ -2112,7 +2131,8 @@ export default function PrivateSpacesPage() {
                     <span>{person.nombre} {person.apellido ?? ""}{person.email ? <small>{person.email}</small> : null}</span>
                   </label>
                 ))}
-                {!accessCandidates.length ? <p className={styles.muted}>Buscá integrantes activos para agregarlos o quitarlos.</p> : null}
+                {!accessCandidates.length && !accessSearchAttempted ? <p className={styles.muted}>Buscá integrantes activos por nombre o correo para agregarlos o quitarlos.</p> : null}
+                {accessSearchAttempted && !restrictedCandidates.length ? <p className={styles.muted}>No encontramos otros integrantes activos con ese nombre o correo.</p> : null}
               </fieldset>
               <p className={styles.muted}>Personas seleccionadas: {managedAccessUsers.length}</p>
               <div className={`${styles.modalActions} ${styles.accessActions}`}>

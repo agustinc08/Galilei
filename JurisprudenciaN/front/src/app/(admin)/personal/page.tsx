@@ -43,6 +43,9 @@ export default function PersonalDocumentsPage() {
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [newFolder, setNewFolder] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [busy, setBusy] = useState(false);
@@ -81,6 +84,14 @@ export default function PersonalDocumentsPage() {
     setDocuments(nextDocuments);
   }, [folderId, loadPersonalData]);
 
+  function navigateToFolder(nextFolderId: string | null) {
+    setLoading(true);
+    setLoadError("");
+    setError("");
+    setSearchResults(null);
+    setFolderId(nextFolderId);
+  }
+
   useEffect(() => {
     let active = true;
     void loadPersonalData(folderId)
@@ -90,10 +101,16 @@ export default function PersonalDocumentsPage() {
         setDocuments(nextDocuments);
       })
       .catch((cause: unknown) => {
-        if (active) setError(message(cause));
+        if (active) {
+          setError(message(cause));
+          setLoadError("No pudimos cargar esta carpeta.");
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [folderId, loadPersonalData]);
+  }, [folderId, loadPersonalData, loadAttempt]);
 
   useEffect(() => {
     let active = true;
@@ -264,21 +281,22 @@ export default function PersonalDocumentsPage() {
                 <h2>Carpetas</h2>
                 <p>Privadas para vos</p>
               </div>
-              {folderId ? <button className={styles.secondary} onClick={() => setFolderId(parentId)}>Volver</button> : null}
+              {folderId ? <button className={styles.secondary} onClick={() => navigateToFolder(parentId)}>Volver</button> : null}
             </div>
             <div className={styles.breadcrumb} aria-label="Ubicación actual">
-              <button onClick={() => setFolderId(null)}>Mis documentos</button>
+              <button onClick={() => navigateToFolder(null)}>Mis documentos</button>
               {currentPath.map((name, index) => <span key={`${name}-${index}`}>› {name}</span>)}
             </div>
             <ul className={styles.folderList}>
               {visibleFolders.map((folder) => (
                 <li key={folder.id}>
-                  <button className={styles.folderButton} onClick={() => { setFolderId(folder.id); setSearchResults(null); }}>
+                  <button className={styles.folderButton} onClick={() => navigateToFolder(folder.id)}>
                     <span aria-hidden="true">📁</span><span>{folder.name}</span><small>{folder._count.documents}</small>
                   </button>
                 </li>
               ))}
-              {!visibleFolders.length ? <li className={styles.empty}>Todavía no hay carpetas acá.</li> : null}
+              {loading ? <li className={styles.empty} aria-hidden="true">Cargando carpetas…</li> : null}
+              {!loading && !loadError && !visibleFolders.length ? <li className={styles.empty}>Todavía no hay carpetas acá.</li> : null}
             </ul>
             <form className={styles.inlineForm} onSubmit={createFolder}>
               <label htmlFor="personal-folder-name">Nueva carpeta</label>
@@ -313,7 +331,19 @@ export default function PersonalDocumentsPage() {
               {searchResults ? <button className={styles.secondary} onClick={() => setSearchResults(null)}>Ver carpeta</button> : null}
             </div>
             <ul className={styles.documentList}>
-              {results.map((result) => {
+              {loading ? <li className={styles.empty} role="status">Cargando documentos…</li> : null}
+              {!loading && loadError ? (
+                <li className={styles.empty}>
+                  <span role="alert">No pudimos cargar tus documentos.</span>{" "}
+                  <button className={styles.textButton} type="button" onClick={() => {
+                    setError("");
+                    setLoading(true);
+                    setLoadError("");
+                    setLoadAttempt((attempt) => attempt + 1);
+                  }}>Reintentar</button>
+                </li>
+              ) : null}
+              {!loading && !loadError ? results.map((result) => {
                 const filename = String(result.metadata.filename ?? result.title ?? "documento");
                 return <li key={result.sourceId}>
                   <div><strong>{result.title ?? filename}</strong><span>{filename}</span>{result.snippet ? <p>{result.snippet}</p> : null}</div>
@@ -323,8 +353,8 @@ export default function PersonalDocumentsPage() {
                     {shareableWorkspaces.length ? <button className={styles.secondary} onClick={() => openShareDialog(result.sourceId)}>Compartir con una dependencia</button> : null}
                   </div>
                 </li>;
-              })}
-              {!results.length ? <li className={styles.empty}>{searchResults ? "No encontramos documentos con ese texto." : "Todavía no hay documentos en esta carpeta."}</li> : null}
+              }) : null}
+              {!loading && !loadError && !results.length ? <li className={styles.empty}>{searchResults ? "No encontramos documentos con ese texto." : "Todavía no hay documentos en esta carpeta."}</li> : null}
             </ul>
           </Card>
 

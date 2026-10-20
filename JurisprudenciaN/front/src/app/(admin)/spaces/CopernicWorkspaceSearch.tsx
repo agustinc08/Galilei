@@ -366,6 +366,8 @@ export function CopernicWorkspaceSearch() {
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
+  const [workspaceLoadError, setWorkspaceLoadError] = useState("");
+  const [workspaceLoadAttempt, setWorkspaceLoadAttempt] = useState(0);
   const [workspaceChoiceId, setWorkspaceChoiceId] = useState("");
   const [folders, setFolders] = useState<Folder[]>([]);
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => new Set());
@@ -478,7 +480,10 @@ export function CopernicWorkspaceSearch() {
         }
       })
       .catch((cause: unknown) => {
-        if (live) setSearchError(safeError(cause));
+        if (live) {
+          setWorkspaceLoadError("No pudimos cargar tus dependencias. Revisá tu conexión e intentá nuevamente.");
+          setSearchError(safeError(cause));
+        }
       })
       .finally(() => {
         if (live) setWorkspaceLoading(false);
@@ -486,7 +491,7 @@ export function CopernicWorkspaceSearch() {
     return () => {
       live = false;
     };
-  }, [navigate]);
+  }, [navigate, workspaceLoadAttempt]);
 
   useEffect(() => {
     if (!workspaceId || !isAuthorizedWorkspace) return;
@@ -1000,6 +1005,19 @@ export function CopernicWorkspaceSearch() {
 
       {workspaceLoading || (workspaces.length === 1 && !isAuthorizedWorkspace) ? (
         <div className={styles.loadingWorkspace} role="status">Cargando tus documentos…</div>
+      ) : workspaceLoadError ? (
+        <div className={styles.noWorkspace} role="alert">
+          <h2>No pudimos cargar tus dependencias</h2>
+          <p>Revisá tu conexión y volvé a intentarlo.</p>
+          <button className={styles.primaryLink} type="button" onClick={() => {
+            setWorkspaceLoading(true);
+            setWorkspaceLoadError("");
+            setSearchError("");
+            setWorkspaceLoadAttempt((attempt) => attempt + 1);
+          }}>
+            Reintentar
+          </button>
+        </div>
       ) : workspaces.length === 0 ? (
         <div className={styles.noWorkspace}>
           <h2>Todavía no tenés una dependencia asignada</h2>
