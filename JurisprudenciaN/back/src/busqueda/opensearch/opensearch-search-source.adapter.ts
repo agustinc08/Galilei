@@ -10,17 +10,20 @@ import type { SearchQueryAst } from '../utils/search-ast';
 import { buildSearchQueryDsl } from './search-dsl';
 
 type SearchableSource = 'CORPUS' | 'JURISPRUDENCIA';
+type LocaleSortField = 'sala' | 'numeroSentencia';
 export type SearchCandidateHydrator = (
   query: SearchQueryAst,
   context: SearchContext,
   candidateIds: string[],
 ) => Promise<SearchResultPage>;
 
-type LocaleSortField = 'sala' | 'numeroSentencia';
 type OpenSearchHit = {
   _id: string;
   _score: number | null;
   sort?: unknown[];
+};
+type LocaleSortHit = {
+  _id: string;
   _source?: {
     logicalNumericId?: number | null;
     sortFields?: { sala?: string | null; numeroSentencia?: string | null };
@@ -170,14 +173,6 @@ function unwrapSearchResponse(response: unknown): SearchResponseBody {
   }
   return response;
 }
-type CompleteLocaleSearch = {
-  body: SearchResponseBody;
-  queryCount: number;
-  inMemorySortMs: number;
-  scannedHits: number;
-  distinctHits: number;
-};
-
 /** Private Corpus scopes authorize each ordered OpenSearch candidate batch in PostgreSQL before count/page selection. */
 export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
   private lastProfile: {
@@ -257,19 +252,7 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
     });
     const dslBuildMs = performance.now() - dslStarted;
     const engineStarted = performance.now();
-    const localeField = localeSortField(context, this.source);
-    const localeSearch = localeField
-      ? await this.searchWithLocaleSort(
-          searchQuery,
-          from,
-          pageSize,
-          localeField,
-          context.sort?.order ?? 'asc',
-        )
-      : null;
-    const body = localeSearch
-      ? localeSearch.body
-      : await this.searchPage(searchQuery, from, pageSize, context);
+    const body = await this.searchPage(searchQuery, from, pageSize, context);
     const clientWallMs = performance.now() - engineStarted;
     const total = body.hits?.total?.value;
     if (!Number.isSafeInteger(total) || body.hits?.total?.relation !== 'eq') {
@@ -311,19 +294,12 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
       countMs: 0,
       resultPageMs: Math.round(elapsed * 100) / 100,
       resultRows: results.length,
-      queryCount: localeSearch?.queryCount ?? 1,
+      queryCount: 1,
       candidateStrategy: 'opensearch-exact-id-page-postgresql-hydration',
       stageTimings: {
         dslBuildMs,
         openSearchClientWallMs: clientWallMs,
         openSearchTookMs: Number(body.took ?? 0),
-        ...(localeSearch
-          ? {
-              inMemoryLocaleSortMs: localeSearch.inMemorySortMs,
-              localeSearchScannedHits: localeSearch.scannedHits,
-              localeSearchDistinctHits: localeSearch.distinctHits,
-            }
-          : {}),
         pageIdExtractionMs,
         postgresHydrationMs,
         hydrationReorderMs,
@@ -586,82 +562,6 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
     );
   }
 
-  private async searchWithLocaleSort(
-    query: Record<string, unknown>,
-    from: number,
-    pageSize: number,
-    field: LocaleSortField,
-    order: 'asc' | 'desc',
-  ): Promise<CompleteLocaleSearch> {
-    const batchSize = 1000;
-    const hits: OpenSearchHit[] = [];
-    let total: number | null = null;
-    let tookMs = 0;
-    let queryCount = 0;
-    let searchAfter: unknown[] | undefined;
-    for (;;) {
-      const response = await this.client.search({
-        index: this.alias,
-        body: {
-          size: batchSize,
-          track_total_hits: total === null,
-          track_scores: true,
-          _source: ['logicalNumericId', `sortFields.${field}`],
-          query,
-          sort: [
-            { logicalNumericId: { order: 'desc', missing: '_last' } },
-            { id: { order: 'desc' } },
-          ],
-          ...(searchAfter ? { search_after: searchAfter } : {}),
-        },
-      });
-      queryCount += 1;
-      const body =
-        (response as unknown as { body?: SearchResponseBody }).body ??
-        (response as unknown as SearchResponseBody);
-      tookMs += Number(body.took ?? 0);
-      const batch = body.hits?.hits ?? [];
-      if (total === null) {
-        if (
-          !Number.isSafeInteger(body.hits?.total?.value) ||
-          body.hits?.total?.relation !== 'eq'
-        )
-          throw new Error('SEARCH_TOTAL_NOT_EXACT');
-        total = body.hits?.total?.value as number;
-      }
-      hits.push(...batch);
-      if (hits.length >= total) break;
-      const lastSort = batch[batch.length - 1]?.sort;
-      if (!batch.length || !lastSort)
-        throw new Error('SEARCH_LOCALE_SORT_SCAN_INCOMPLETE');
-      searchAfter = lastSort;
-    }
-    if (hits.length !== total)
-      throw new Error('SEARCH_LOCALE_SORT_TOTAL_MISMATCH');
-    const distinctHits = new Set(hits.map((hit) => hit._id)).size;
-    if (distinctHits !== total)
-      throw new Error('SEARCH_LOCALE_SORT_DUPLICATE_HITS');
-
-    const sortStarted = performance.now();
-    hits.sort((left, right) =>
-      compareLocaleSortHits(left, right, field, order),
-    );
-    const inMemorySortMs = performance.now() - sortStarted;
-    return {
-      body: {
-        took: tookMs,
-        hits: {
-          total: { value: total, relation: 'eq' },
-          hits: hits.slice(from, from + pageSize),
-        },
-      },
-      queryCount,
-      inMemorySortMs,
-      scannedHits: hits.length,
-      distinctHits,
-    };
-  }
-
   private toHydrationId(engineId: string) {
     if (this.source === 'CORPUS') return engineId;
     const match = engineId.match(/^JURISPRUDENCIA:(SUMARIO|SENTENCIA):(\d+)$/u);
@@ -676,9 +576,10 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
   }
 }
 
+/** Shared by offline diagnostics that compare the legacy locale collation with indexed keyword order. */
 export function compareLocaleSortHits(
-  left: OpenSearchHit,
-  right: OpenSearchHit,
+  left: LocaleSortHit,
+  right: LocaleSortHit,
   field: LocaleSortField,
   order: 'asc' | 'desc',
 ) {
@@ -691,16 +592,6 @@ export function compareLocaleSortHits(
   const rightId = right._source?.logicalNumericId ?? Number.MIN_SAFE_INTEGER;
   if (leftId !== rightId) return rightId - leftId;
   return right._id.localeCompare(left._id);
-}
-
-function localeSortField(
-  context: SearchContext,
-  source: SearchableSource,
-): LocaleSortField | null {
-  if (source !== 'JURISPRUDENCIA') return null;
-  if (context.sort?.field === 'sala') return 'sala';
-  if (context.sort?.field === 'numeroSentencia') return 'numeroSentencia';
-  return null;
 }
 
 export function searchSort(context: SearchContext, source: SearchableSource) {
@@ -722,6 +613,12 @@ export function searchSort(context: SearchContext, source: SearchableSource) {
           : 'sortFields.numeroSentencia';
     if (requested.field === 'sala' || requested.field === 'numeroSentencia')
       return [
+        {
+          [selected]: {
+            order: requested.order,
+            missing: requested.order === 'asc' ? '_first' : '_last',
+          },
+        },
         { logicalNumericId: { order: 'desc', missing: '_last' } },
         { id: { order: 'desc' } },
       ];

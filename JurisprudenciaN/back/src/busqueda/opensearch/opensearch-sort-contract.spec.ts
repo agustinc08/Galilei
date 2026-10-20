@@ -1,8 +1,5 @@
 import type { SearchContext } from '../adapters/search-source.adapter';
-import {
-  compareLocaleSortHits,
-  searchSort,
-} from './opensearch-search-source.adapter';
+import { searchSort } from './opensearch-search-source.adapter';
 
 const baseContext: SearchContext = {
   visibility: 'INTERNAL',
@@ -66,6 +63,7 @@ describe('Jurisprudencia product sort contract', () => {
       'sala',
       'asc',
       [
+        { 'sortFields.sala': { order: 'asc', missing: '_first' } },
         { logicalNumericId: { order: 'desc', missing: '_last' } },
         { id: { order: 'desc' } },
       ],
@@ -74,6 +72,7 @@ describe('Jurisprudencia product sort contract', () => {
       'sala',
       'desc',
       [
+        { 'sortFields.sala': { order: 'desc', missing: '_last' } },
         { logicalNumericId: { order: 'desc', missing: '_last' } },
         { id: { order: 'desc' } },
       ],
@@ -82,6 +81,9 @@ describe('Jurisprudencia product sort contract', () => {
       'numeroSentencia',
       'asc',
       [
+        {
+          'sortFields.numeroSentencia': { order: 'asc', missing: '_first' },
+        },
         { logicalNumericId: { order: 'desc', missing: '_last' } },
         { id: { order: 'desc' } },
       ],
@@ -90,12 +92,15 @@ describe('Jurisprudencia product sort contract', () => {
       'numeroSentencia',
       'desc',
       [
+        {
+          'sortFields.numeroSentencia': { order: 'desc', missing: '_last' },
+        },
         { logicalNumericId: { order: 'desc', missing: '_last' } },
         { id: { order: 'desc' } },
       ],
     ],
   ] as const)(
-    '%s/%s uses deterministic engine order before any locale collation',
+    '%s/%s sorts by its mapped keyword and deterministic tie breakers',
     (field, order, expected) => {
       expect(
         searchSort(
@@ -115,22 +120,41 @@ describe('Jurisprudencia product sort contract', () => {
     ]);
   });
 
-  it('uses the product localeCompare comparator and treats null as empty text', () => {
-    const left = {
-      _id: 'JURISPRUDENCIA:SENTENCIA:1',
-      _score: 0,
-      _source: { logicalNumericId: 1, sortFields: { numeroSentencia: null } },
-    };
-    const empty = {
-      _id: 'JURISPRUDENCIA:SENTENCIA:1',
-      _score: 0,
-      _source: { logicalNumericId: 1, sortFields: { numeroSentencia: '' } },
-    };
-    expect(compareLocaleSortHits(left, empty, 'numeroSentencia', 'asc')).toBe(
-      0,
-    );
-    expect(compareLocaleSortHits(left, empty, 'numeroSentencia', 'desc')).toBe(
-      0,
-    );
+  it.each([
+    ['sala', 'asc', '_first'],
+    ['sala', 'desc', '_last'],
+    ['numeroSentencia', 'asc', '_first'],
+    ['numeroSentencia', 'desc', '_last'],
+  ] as const)(
+    '%s/%s has explicit missing placement and stable ties',
+    (field, order, missing) => {
+      const expectedField =
+        field === 'sala' ? 'sortFields.sala' : 'sortFields.numeroSentencia';
+      expect(
+        searchSort(
+          { ...baseContext, sort: { field, order } },
+          'JURISPRUDENCIA',
+        ),
+      ).toEqual([
+        { [expectedField]: { order, missing } },
+        { logicalNumericId: { order: 'desc', missing: '_last' } },
+        { id: { order: 'desc' } },
+      ]);
+    },
+  );
+
+  it('does not add a script sort or alter private Corpus fields', () => {
+    expect(
+      searchSort(
+        { ...baseContext, sort: { field: 'sala', order: 'asc' } },
+        'CORPUS',
+      ),
+    ).toEqual([
+      { chamber: { order: 'asc', missing: '_last' } },
+      { _score: { order: 'desc' } },
+      { decisionDate: { order: 'desc', missing: '_last' } },
+      { updatedAt: { order: 'desc', missing: '_last' } },
+      { id: { order: 'asc' } },
+    ]);
   });
 });

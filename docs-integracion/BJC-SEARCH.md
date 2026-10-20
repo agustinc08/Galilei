@@ -1,5 +1,14 @@
 # Search V2 — estado operativo
 
+## JURISPRUDENCIA-SORT-FIX-1 — candidata (2026-10-20)
+
+La rama feature/jurisprudencia-sort-fix1 se basa exactamente en origin/dev cb42133fc49b112ae7a8c49a0977a3ad49a37b35. Repara los sorts públicos sala y numeroSentencia: el camino anterior recorría y ordenaba en memoria los 4.759 hits y superaba el timeout fail-closed de 5 s; la candidata delega el orden y la ventana de página en OpenSearch, conservando la hidratación PostgreSQL en ese orden. Los campos existentes sortFields.sala y sortFields.numeroSentencia son keyword con doc_values efectivos (default true); no cambian mapping, schema, alias ni índice.
+
+Contrato preservado: ambos sorts aceptan asc/desc por API; la UI expone asc. La comparación es lexical, conforme al comparador legacy localeCompare; el orden keyword y localeCompare(es-AR) coincide en los 27 valores Sala observados. Los faltantes equivalen a texto vacío: primero en asc y al final en desc. Los empates se resuelven por logicalNumericId desc, id desc. En el snapshot actual, 1.218/6.014 Sentencias públicas no tienen Sala y 6.014/6.014 no tienen número de sentencia; por ello, el segundo sort hoy se resuelve por desempate estable sin inventar semántica numérica.
+
+La evidencia read-only de OpenSearch 2.19.6, API y UI candidate muestra HTTP 200, total 4.759, páginas repetibles sin duplicados y latencias API observadas de 36–124 ms. Sin reindex ni escrituras. Estado: candidata; requiere JURISPRUDENCIA-SORT-REVIEW-1 antes de cualquier promoción. Ver evidencia local ignorada en _recovery-work/jurisprudencia-sort-fix1/.
+
+
 ## Estado vigente Search — cierre de integración v3 (2026-10-18)
 
 El contrato vigente es `COPERNIC_PREFIX_EXACT_PHRASE`: TERM simple = prefijo de unidad léxica; PHRASE = unidades completas, ordenadas y contiguas; sin stemming, sinonimia ni lematización. Se conservan comodines explícitos y la normalización de acentos/ñ ya certificada. OpenSearch 2.19.6/schema v3 implementa el contrato; PostgreSQL sigue como fuente de verdad. `galilei-search-active` apunta a `galilei-search-v003-20261017t232432555z-a6af18cb` (write alias). Cobertura exacta postpromoción: 69.313 IDs, hash `1e104fe4cb7eaa5604b42878d51a45884eb34048992eff43e946c8295c2af73f`, cero faltantes/extras/duplicados; Corpus 17.077, Sumarios 25.103, Sentencias 27.133, publicadas 6.014.

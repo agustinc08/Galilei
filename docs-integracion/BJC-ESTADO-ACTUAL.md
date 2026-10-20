@@ -1,5 +1,12 @@
 # Estado actual — Buscador Jurídico Civil
 
+## JURISPRUDENCIA-SORT-FIX-1 — candidata para revisión (2026-10-20)
+
+La candidata feature/jurisprudencia-sort-fix1 parte exactamente de origin/dev en cb42133fc49b112ae7a8c49a0977a3ad49a37b35. Corrige los 503 de Sala y Nº de sentencia sustituyendo el scan/ordenamiento completo en memoria por sort directo sobre keyword ya mapeado y paginación OpenSearch; preserva lexicalidad, faltantes, desempate estable e hidratación. No toca UI, ACL/Copernic, Prisma, mapping, alias, datos ni DEV. Reproducción base 503 ≈5 s; candidate API/UI 200 y total estable 4.759.
+
+Calidad: 9 suites enfocadas/92 tests PASS; suite segura no-integración 47/327 PASS, 7 skipped; backend typecheck/build, lint dirigido, Prisma generate guarded y diff-check PASS. Las integraciones que requieren DB/fixtures se excluyen de la suite segura; un test SQLite opt-in sin ruta fixture falla al inicializar su callback skipped y queda como limitación preexistente del harness. DEV/OpenSearch se consultaron read-only; outbox 161/0 conservado; checkout original preservado. Esta candidata requiere revisión independiente JURISPRUDENCIA-SORT-REVIEW-1; no promover a DEV.
+
+
 ## COPERNIC-RESTRICTED-ACL-FIX-2 — candidata (2026-10-19)
 
 La rama `feature/copernic-restricted-acl-fix2` parte exactamente de `origin/feature/copernic-restricted-acl-fix1` (`e311f968e2920ef5f61a8957f7394d9252e589fd`). Corrige el bloqueo de paginación privada detectado en REVIEW-1: el recorrido PIT exige progreso estricto de `search_after`, detecta ciclos y lotes repetidos, exige el desempate final único `id asc`, falla cerrado ante respuestas incompletas/inconsistentes y cierra PIT en `finally`. La autorización viva continúa en PostgreSQL; no se alteran ACL, Auth, Viewer productivo, semántica Jurisprudencia, Prisma ni mappings.

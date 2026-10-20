@@ -93,69 +93,80 @@ describe('OpenSearchSearchSourceAdapter', () => {
     expect(hydratedIds).toEqual(['22', '11']);
   });
 
-  it('uses a stable scan order before applying the product locale comparator', async () => {
-    const requests: Array<{ body?: { sort?: unknown } }> = [];
-    const search = jest.fn((request: { body?: { sort?: unknown } }) => {
-      requests.push(request);
-      return Promise.resolve({
-        body: { hits: { total: { value: 0, relation: 'eq' }, hits: [] } },
-      });
-    });
-    const adapter = new OpenSearchSearchSourceAdapter(
-      { search } as unknown as Client,
-      'galilei-search-active',
-      'JURISPRUDENCIA',
-      jest.fn(),
-    );
-
-    await adapter.search(parseSearchQuery('civil'), {
-      ...context,
-      sort: { field: 'sala', order: 'asc' },
-    });
-
-    expect(requests[0]?.body?.sort).toEqual([
-      { logicalNumericId: { order: 'desc', missing: '_last' } },
-      { id: { order: 'desc' } },
-    ]);
-  });
-
-  it('locale-sorts the complete hit set before selecting the requested page', async () => {
-    const client = {
-      search: jest.fn().mockResolvedValue({
-        body: {
-          took: 3,
-          hits: {
-            total: { value: 3, relation: 'eq' },
-            hits: [
-              {
-                _id: 'JURISPRUDENCIA:SENTENCIA:3',
-                _score: 1,
-                sort: [3, 'JURISPRUDENCIA:SENTENCIA:3'],
-                _source: {
-                  logicalNumericId: 3,
-                  sortFields: { sala: 'Sala B' },
-                },
-              },
-              {
-                _id: 'JURISPRUDENCIA:SENTENCIA:2',
-                _score: 1,
-                sort: [2, 'JURISPRUDENCIA:SENTENCIA:2'],
-                _source: { logicalNumericId: 2, sortFields: { sala: null } },
-              },
-              {
-                _id: 'JURISPRUDENCIA:SENTENCIA:1',
-                _score: 1,
-                sort: [1, 'JURISPRUDENCIA:SENTENCIA:1'],
-                _source: {
-                  logicalNumericId: 1,
-                  sortFields: { sala: 'Sala A' },
-                },
-              },
-            ],
-          },
+  it.each([
+    ['sala', 'asc', '_first'],
+    ['sala', 'desc', '_last'],
+    ['numeroSentencia', 'asc', '_first'],
+    ['numeroSentencia', 'desc', '_last'],
+  ] as const)(
+    'uses one bounded OpenSearch request for %s/%s with missing=%s',
+    async (field, order, missing) => {
+      const requests: Array<{
+        index?: string;
+        body?: Record<string, unknown>;
+      }> = [];
+      const search = jest.fn(
+        (request: { index?: string; body?: Record<string, unknown> }) => {
+          requests.push(request);
+          return Promise.resolve({
+            body: { hits: { total: { value: 0, relation: 'eq' }, hits: [] } },
+          });
         },
-      }),
-    } as unknown as Client;
+      );
+      const adapter = new OpenSearchSearchSourceAdapter(
+        { search } as unknown as Client,
+        'galilei-search-active',
+        'JURISPRUDENCIA',
+        jest.fn(),
+      );
+
+      await adapter.search(parseSearchQuery('civil'), {
+        ...context,
+        page: 1,
+        pageSize: 25,
+        sort: { field, order },
+      });
+
+      expect(search).toHaveBeenCalledTimes(1);
+      expect(requests[0]).toMatchObject({
+        index: 'galilei-search-active',
+        body: {
+          from: 0,
+          size: 25,
+          track_total_hits: true,
+          _source: false,
+          sort: [
+            { [`sortFields.${field}`]: { order, missing } },
+            { logicalNumericId: { order: 'desc', missing: '_last' } },
+            { id: { order: 'desc' } },
+          ],
+        },
+      });
+    },
+  );
+
+  it('keeps engine sort order when PostgreSQL hydration returns IDs in another order', async () => {
+    const search = jest.fn().mockResolvedValue({
+      body: {
+        took: 3,
+        hits: {
+          total: { value: 3, relation: 'eq' },
+          hits: [
+            {
+              _id: 'JURISPRUDENCIA:SENTENCIA:2',
+              _score: 1,
+              sort: [null, 2, 'JURISPRUDENCIA:SENTENCIA:2'],
+            },
+            {
+              _id: 'JURISPRUDENCIA:SENTENCIA:1',
+              _score: 1,
+              sort: ['Sala A', 1, 'JURISPRUDENCIA:SENTENCIA:1'],
+            },
+          ],
+        },
+      },
+    });
+    const client = { search } as unknown as Client;
     const hydrated = jest.fn<
       Promise<SearchResultPage>,
       Parameters<SearchCandidateHydrator>
@@ -164,7 +175,7 @@ describe('OpenSearchSearchSourceAdapter', () => {
         total: ids.length,
         page: 1,
         pageSize: ids.length,
-        results: ids.map((id) => sentenciaHit(id.replace('SENTENCIA:', ''))),
+        results: [sentenciaHit('1'), sentenciaHit('2')],
       }),
     );
     const adapter = new OpenSearchSearchSourceAdapter(
@@ -178,18 +189,46 @@ describe('OpenSearchSearchSourceAdapter', () => {
       ...context,
       page: 1,
       pageSize: 2,
-      visibility: 'INTERNAL',
-      publicationPolicy: 'legacy-active-only',
       sort: { field: 'sala', order: 'asc' },
     });
 
+    expect(search).toHaveBeenCalledTimes(1);
     expect(result.total).toBe(3);
+    expect(result.hasMore).toBe(true);
     expect(result.results.map((row) => row.sourceId)).toEqual(['2', '1']);
     expect(hydrated.mock.calls[0]?.[2]).toEqual(['SENTENCIA:2', 'SENTENCIA:1']);
-    expect(adapter.getLastSearchProfile()?.stageTimings).toMatchObject({
-      localeSearchScannedHits: 3,
-      localeSearchDistinctHits: 3,
+    expect(adapter.getLastSearchProfile()).toMatchObject({
+      queryCount: 1,
+      resultRows: 2,
+      stageTimings: { openSearchTookMs: 3 },
     });
+  });
+
+  it('uses the OpenSearch page window for later pages', async () => {
+    const requests: Array<{ body?: Record<string, unknown> }> = [];
+    const search = jest.fn((request: { body?: Record<string, unknown> }) => {
+      requests.push(request);
+      return Promise.resolve({
+        body: { hits: { total: { value: 41, relation: 'eq' }, hits: [] } },
+      });
+    });
+    const adapter = new OpenSearchSearchSourceAdapter(
+      { search } as unknown as Client,
+      'galilei-search-active',
+      'JURISPRUDENCIA',
+      jest.fn(),
+    );
+
+    await adapter.search(parseSearchQuery('civil'), {
+      ...context,
+      page: 2,
+      pageSize: 25,
+      sort: { field: 'numeroSentencia', order: 'asc' },
+    });
+
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(requests[0]?.body).toMatchObject({ from: 25, size: 25 });
+    expect(requests[0]?.body).not.toHaveProperty('search_after');
   });
 
   it('honors ascending relevance while keeping deterministic secondary keys', async () => {

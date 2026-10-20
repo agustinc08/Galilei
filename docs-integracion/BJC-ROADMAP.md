@@ -1,5 +1,12 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## JURISPRUDENCIA-SORT-FIX-1 — candidata para revisión (2026-10-20)
+
+Sala y Nº de sentencia ya tienen fix candidate sobre la base exacta DEV cb42133fc49b112ae7a8c49a0977a3ad49a37b35. Se reprodujo el 503 de ambos modos en base; el origen fue el recorrido completo en memoria que excedía el timeout fail-closed de 5 s. Sort keyword directo, missing explícito y desempate logicalNumericId desc, id desc pasa OpenSearch/API/UI con páginas estables; no requiere mapping ni rebuild. Conteos de referencia preservados.
+
+Siguiente gate: JURISPRUDENCIA-SORT-REVIEW-1 independiente. Mantener la candidata en feature/jurisprudencia-sort-fix1; no promocionar a DEV. Evidencia local ignorada: _recovery-work/jurisprudencia-sort-fix1/. Las pruebas amplias excluyen integraciones mutativas y el test legacy SQLite que requiere fixture opcional ausente.
+
+
 ## COPERNIC-RESTRICTED-ACL-FIX-2 — candidata para revisión (2026-10-19)
 
 Corregir y verificar el progreso de `search_after` del Search privado sobre la base exacta de Fix-1. La implementación agrega orden total con `id asc`, comparación monotónica de tuples, fingerprints tipados de cursor, detección acotada de ciclos y lotes duplicados, guardas de respuesta incompleta y cierre PIT ante error. REVIEW-1 P2-1 queda resuelto; no hay P0/P1 nuevos. La validación de ACL viva, paginación, carpetas y Viewer HTTP se ejecutó con fixtures DEV sintéticos y limpieza verificada. OpenSearch 2.19.6 se observó read-only; la prueba de 69k escala sigue siendo simulada y la latencia real combinada es P2 pendiente.
