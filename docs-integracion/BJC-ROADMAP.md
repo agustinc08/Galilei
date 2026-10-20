@@ -551,3 +551,15 @@ Siguiente trabajo acotado: (1) definir/proyectar la identidad Search de Sentenci
 | UAT institucional | NOT STARTED | Plan READY; ambiente AFTER_INFRA; sin cuentas ni invitaciones. |
 
 No se habilita despliegue ni invitación de usuarios hasta completar infraestructura, restore, smoke real, matriz ACL/corpus aprobada y responsables institucionales.
+
+## Siguiente gate — collation V4 (2026-10-20)
+
+| Gate | Estado | Evidencia / condición |
+|---|---|---|
+| Implementación V4 shadow | PASS técnico | Reindex 69.313/69.313, cero fallos; ID/source parity exacta; Golden ASC/DESC sin diferencias. |
+| Search público e interno | PASS en smoke candidato | Orden, referencias, filtros, paginación y export verificados; cero 503 en el benchmark. |
+| Search privado / ACL | PASS | Fixtures aislados: personal, workspace, shared, restricted, folder y no-member; 5 candidatos PIT → 2 autorizados antes de total/página, 0 IDs denegados. Nueve solicitudes HTTP p50 20,30 ms / max 48,76 ms. Limpieza V4/DB PASS. |
+| Alias / V3 | PASS seguridad | `galilei-search-active` sigue en V3; cero writes a V3. |
+| Commit / push / promoción | CANDIDATO LISTO; promoción no realizada | Commit/push únicamente a `feature/jurisprudencia-collation-v4-implement1` tras calidad final; no tocar alias, `dev`, `main` ni UX. |
+
+Próximo paso: revisión independiente `JURISPRUDENCIA-COLLATION-V4-REVIEW-1`. V4 queda como shadow; no cambiar alias. Los fixtures fueron sintéticos y se limpiaron del DB DEV y del índice V4; el conteo final regresó a 69.313 y el outbox a 217.809/0 pendientes/0 fallidos. Re-certificar la colación si cambia la versión ICU de Node u OpenSearch.

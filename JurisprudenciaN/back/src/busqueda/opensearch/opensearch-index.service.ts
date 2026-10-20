@@ -2,8 +2,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Client } from '@opensearch-project/opensearch';
 import { OpenSearchDocumentRepository } from './opensearch-document.repository';
 import {
-  SEARCH_INDEX_DEFINITION,
+  SEARCH_INDEX_DEFINITIONS,
   SEARCH_INDEX_SCHEMA_VERSION,
+  type SearchIndexSchemaVersion,
   type SearchIndexDocument,
 } from './opensearch-mapping';
 import {
@@ -35,15 +36,19 @@ export class OpenSearchIndexService {
     private readonly repository: OpenSearchDocumentRepository,
     readonly alias: string,
     private readonly indexPrefix = 'galilei-search',
+    private readonly schemaVersion: SearchIndexSchemaVersion = SEARCH_INDEX_SCHEMA_VERSION,
+    private readonly readOnlyCandidate = false,
+    readonly searchTarget = alias,
   ) {}
 
   async rebuild() {
+    this.assertMutable('REBUILD');
     const buildStarted = Date.now();
     const startWatermark = await this.repository.withMutationBarrier(
       (_client, watermark) => Promise.resolve(watermark),
     );
     const managedIndexPrefix = `${this.indexPrefix}-v`;
-    const physicalIndex = `${managedIndexPrefix}${String(SEARCH_INDEX_SCHEMA_VERSION).padStart(3, '0')}-${new Date().toISOString().replace(/[-:.]/gu, '').toLowerCase()}-${randomUUID().slice(0, 8)}`;
+    const physicalIndex = `${managedIndexPrefix}${String(this.schemaVersion).padStart(3, '0')}-${new Date().toISOString().replace(/[-:.]/gu, '').toLowerCase()}-${randomUUID().slice(0, 8)}`;
     let indexCreated = false;
     let promoted = false;
     let indexedCorpus = 0;
@@ -51,7 +56,7 @@ export class OpenSearchIndexService {
     let indexedSentencias = 0;
     try {
       const mapping = JSON.parse(
-        JSON.stringify(SEARCH_INDEX_DEFINITION),
+        JSON.stringify(SEARCH_INDEX_DEFINITIONS[this.schemaVersion]),
       ) as Record<string, unknown>;
       const settings = mapping.settings as Record<string, unknown>;
       settings.refresh_interval = '-1';
@@ -63,7 +68,9 @@ export class OpenSearchIndexService {
         for (;;) {
           const rows = await this.repository.corpusPage(pg, after, 500);
           if (!rows.length) break;
-          const docs = rows.map(projectCorpusSearchDocument);
+          const docs = rows.map((row) =>
+            projectCorpusSearchDocument(row, this.schemaVersion),
+          );
           await this.bulkIndex(physicalIndex, docs);
           indexedCorpus += docs.length;
           after = rows[rows.length - 1].id;
@@ -77,7 +84,9 @@ export class OpenSearchIndexService {
           );
           if (!rows.length) break;
           const docs = rows
-            .map(projectJurisprudenciaSearchDocument)
+            .map((row) =>
+              projectJurisprudenciaSearchDocument(row, this.schemaVersion),
+            )
             .filter((doc): doc is SearchIndexDocument => doc !== null);
           await this.bulkIndex(physicalIndex, docs);
           indexedJurisprudencia += docs.length;
@@ -92,7 +101,9 @@ export class OpenSearchIndexService {
           );
           if (!rows.length) break;
           const docs = rows
-            .map(projectSentenciaSearchDocument)
+            .map((row) =>
+              projectSentenciaSearchDocument(row, this.schemaVersion),
+            )
             .filter((doc): doc is SearchIndexDocument => doc !== null);
           await this.bulkIndex(physicalIndex, docs);
           indexedSentencias += docs.length;
@@ -124,7 +135,7 @@ export class OpenSearchIndexService {
         await this.client.indices.refresh({ index: physicalIndex });
         verification = await this.verifyPhysical(
           physicalIndex,
-          SEARCH_INDEX_SCHEMA_VERSION,
+          this.schemaVersion,
         );
         if (
           !verification.exactIdEquality ||
@@ -133,7 +144,10 @@ export class OpenSearchIndexService {
         ) {
           throw new Error('SEARCH_REBUILD_INTEGRITY_FAILED');
         }
-        if (process.env.OPENSEARCH_CANDIDATE_ONLY !== 'true') {
+        if (
+          !this.readOnlyCandidate &&
+          process.env.OPENSEARCH_CANDIDATE_ONLY !== 'true'
+        ) {
           await this.swapAlias(physicalIndex);
           promoted = true;
           await this.repository.markOutboxThrough(pg, highWatermark);
@@ -186,6 +200,7 @@ export class OpenSearchIndexService {
       if (
         indexCreated &&
         !promoted &&
+        !this.readOnlyCandidate &&
         process.env.OPENSEARCH_CANDIDATE_ONLY !== 'true' &&
         (await this.indexExists(physicalIndex).catch(() => false))
       ) {
@@ -207,25 +222,86 @@ export class OpenSearchIndexService {
     };
   }
 
+  async verifyTarget(target: string) {
+    return {
+      target,
+      ...(await this.verifyPhysical(target, this.schemaVersion)),
+    };
+  }
+
+  async replayShadowChanges(target: string, afterWatermark: string) {
+    if (
+      this.schemaVersion !== 4 ||
+      !target.startsWith(`${this.indexPrefix}-v004-`)
+    ) {
+      throw new Error('SEARCH_SHADOW_TARGET_INVALID');
+    }
+    return this.repository.withMutationBarrier(async (pg, highWatermark) => {
+      const changedKeys = await this.repository.outboxChangesAfter(
+        pg,
+        afterWatermark,
+      );
+      for (let offset = 0; offset < changedKeys.length; offset += 250) {
+        const keys = changedKeys.slice(offset, offset + 250);
+        const documents = await Promise.all(
+          keys.map((key) => this.resolveKey(key)),
+        );
+        await this.applyResolutions(target, keys, documents);
+      }
+      await this.client.indices.refresh({ index: target });
+      const verification = await this.verifyPhysical(
+        target,
+        this.schemaVersion,
+      );
+      if (
+        !verification.exactIdEquality ||
+        verification.missing.length ||
+        verification.extra.length
+      ) {
+        throw new Error('SEARCH_SHADOW_CATCHUP_INTEGRITY_FAILED');
+      }
+      return {
+        target,
+        afterWatermark,
+        highWatermark,
+        changedKeys: changedKeys.length,
+        outboxStatusesChanged: false,
+        verification: {
+          expectedIds: verification.expectedIds,
+          indexedIds: verification.indexedIds,
+          missing: verification.missing.length,
+          extra: verification.extra.length,
+          duplicates: verification.duplicates,
+        },
+      };
+    });
+  }
+
   async hasActiveIndex() {
     return (await this.activePhysicalIndex()) !== null;
   }
 
   async status() {
-    const aliasTarget = await this.activePhysicalIndex();
+    const aliasTarget = this.readOnlyCandidate
+      ? null
+      : await this.activePhysicalIndex();
+    const target = this.readOnlyCandidate ? this.searchTarget : aliasTarget;
     const [healthResult, outbox, integrity] = await Promise.all([
-      this.client.cluster.health(aliasTarget ? { index: aliasTarget } : {}),
+      this.client.cluster.health(target ? { index: target } : {}),
       this.repository.outboxStatus(),
-      aliasTarget ? this.verifyPhysical(aliasTarget) : Promise.resolve(null),
+      target
+        ? this.verifyPhysical(target, this.schemaVersion)
+        : Promise.resolve(null),
     ]);
     const health =
       bodyOf<{ status?: string }>(healthResult).status ?? 'unknown';
     return {
-      healthy: Boolean(aliasTarget) && ['green', 'yellow'].includes(health),
+      healthy: Boolean(target) && ['green', 'yellow'].includes(health),
       clusterHealth: health,
-      activeAlias: this.alias,
-      physicalIndex: aliasTarget,
-      schemaVersion: SEARCH_INDEX_SCHEMA_VERSION,
+      activeAlias: this.readOnlyCandidate ? null : this.alias,
+      physicalIndex: this.readOnlyCandidate ? this.searchTarget : aliasTarget,
+      searchTarget: target,
+      schemaVersion: this.schemaVersion,
       outbox,
       index: integrity
         ? {
@@ -240,6 +316,7 @@ export class OpenSearchIndexService {
   }
 
   async indexKey(key: string) {
+    this.assertMutable('INDEX_DOCUMENT');
     const physical = await this.activePhysicalIndex();
     if (!physical) throw new Error('SEARCH_ACTIVE_ALIAS_MISSING');
     const document = await this.resolveKey(key);
@@ -264,6 +341,7 @@ export class OpenSearchIndexService {
   }
 
   async cleanupOldIndexes(retentionDays = 7, keepPrevious = 1) {
+    this.assertMutable('CLEANUP');
     const active = await this.activePhysicalIndex();
     const response = await this.client.cat.indices({
       index: `${this.indexPrefix}-v*`,
@@ -294,7 +372,10 @@ export class OpenSearchIndexService {
     };
   }
 
-  async verifyPhysical(index: string, expectedSchemaVersion?: number) {
+  async verifyPhysical(
+    index: string,
+    expectedSchemaVersion: number | undefined = this.schemaVersion,
+  ) {
     const [mappingResponse, countResponse] = await Promise.all([
       this.client.indices.getMapping({ index }),
       this.client.count({ index, body: { query: { match_all: {} } } }),
@@ -475,21 +556,25 @@ export class OpenSearchIndexService {
       const row = await this.repository.getCorpusDocument(
         key.slice('CORPUS:'.length),
       );
-      return row ? projectCorpusSearchDocument(row) : null;
+      return row ? projectCorpusSearchDocument(row, this.schemaVersion) : null;
     }
     if (key.startsWith('JURISPRUDENCIA:SUMARIO:')) {
       const id = Number(key.slice('JURISPRUDENCIA:SUMARIO:'.length));
       if (!Number.isSafeInteger(id) || id <= 0)
         throw new Error('SEARCH_OUTBOX_KEY_INVALID');
       const row = await this.repository.getJurisprudenciaDocument(id);
-      return row ? projectJurisprudenciaSearchDocument(row) : null;
+      return row
+        ? projectJurisprudenciaSearchDocument(row, this.schemaVersion)
+        : null;
     }
     if (key.startsWith('JURISPRUDENCIA:SENTENCIA:')) {
       const id = Number(key.slice('JURISPRUDENCIA:SENTENCIA:'.length));
       if (!Number.isSafeInteger(id) || id <= 0)
         throw new Error('SEARCH_OUTBOX_KEY_INVALID');
       const row = await this.repository.getSentenciaDocument(id);
-      return row ? projectSentenciaSearchDocument(row) : null;
+      return row
+        ? projectSentenciaSearchDocument(row, this.schemaVersion)
+        : null;
     }
     throw new Error('SEARCH_OUTBOX_KEY_INVALID');
   }
@@ -568,7 +653,7 @@ export class OpenSearchIndexService {
       index,
       this.alias,
       this.indexPrefix,
-      SEARCH_INDEX_SCHEMA_VERSION,
+      this.schemaVersion,
     );
     await this.client.indices.updateAliases({ body: { actions } });
     const promotedTargets = await this.aliasTargets();
@@ -598,6 +683,11 @@ export class OpenSearchIndexService {
   private async indexExists(index: string) {
     const response = await this.client.indices.exists({ index });
     return bodyOf<boolean>(response);
+  }
+
+  private assertMutable(operation: string) {
+    if (this.readOnlyCandidate)
+      throw new Error(`OPENSEARCH_READ_ONLY_CANDIDATE_${operation}_REJECTED`);
   }
 
   private toIndexId(key: string) {

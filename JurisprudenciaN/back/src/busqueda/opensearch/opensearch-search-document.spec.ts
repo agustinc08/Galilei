@@ -2,6 +2,7 @@ import {
   projectSentenciaSearchDocument,
   type SentenciaSearchProjection,
 } from './opensearch-search-document';
+import { SEARCH_INDEX_SCHEMA_VERSION_V4 } from './opensearch-mapping';
 
 function sentencia(
   input: Partial<SentenciaSearchProjection> = {},
@@ -84,5 +85,23 @@ describe('Sentencia logical Search projection', () => {
     expect(document?.publicSearchText).not.toContain('bruno perez');
     expect(document?.publicFields.actor).not.toContain('ana');
     expect(document?.publicFilterFields.title).not.toContain('ana garcia');
+  });
+
+  it('materializes the v4 sort value without trimming and coalesces null to empty', () => {
+    const withRawValue = projectSentenciaSearchDocument(
+      sentencia({ numeroSentencia: '  A-123  ' }),
+      SEARCH_INDEX_SCHEMA_VERSION_V4,
+    );
+    expect(withRawValue?.sortFields).toMatchObject({
+      numeroSentencia: '  A-123  ',
+      numeroSentenciaCollation: '  A-123  ',
+    });
+
+    const withNull = projectSentenciaSearchDocument(
+      sentencia({ numeroSentencia: null }),
+      SEARCH_INDEX_SCHEMA_VERSION_V4,
+    );
+    expect(withNull?.sortFields?.numeroSentencia).toBeNull();
+    expect(withNull?.sortFields?.numeroSentenciaCollation).toBe('');
   });
 });

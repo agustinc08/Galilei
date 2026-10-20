@@ -498,14 +498,51 @@ export class OpenSearchDocumentRepository {
   }
 
   async outboxStatus() {
-    const result = await this.pool.query<{ pending: string; failed: string }>(
-      `SELECT count(*) FILTER (WHERE "processedAt" IS NULL AND "failedAt" IS NULL)::text AS pending,
-              count(*) FILTER (WHERE "failedAt" IS NOT NULL)::text AS failed
+    const result = await this.pool.query<{
+      total: string;
+      processed: string;
+      pending: string;
+      failed: string;
+      highWatermark: string;
+    }>(
+      `SELECT count(*)::text AS total,
+              count(*) FILTER (WHERE "processedAt" IS NOT NULL)::text AS processed,
+              count(*) FILTER (WHERE "processedAt" IS NULL AND "failedAt" IS NULL)::text AS pending,
+              count(*) FILTER (WHERE "processedAt" IS NULL AND "failedAt" IS NOT NULL)::text AS failed,
+              COALESCE(max("id"), 0)::text AS "highWatermark"
          FROM "SearchIndexOutbox"`,
     );
     return {
+      total: Number(result.rows[0]?.total ?? 0),
+      processed: Number(result.rows[0]?.processed ?? 0),
       pending: Number(result.rows[0]?.pending ?? 0),
       failed: Number(result.rows[0]?.failed ?? 0),
+      highWatermark: result.rows[0]?.highWatermark ?? '0',
+    };
+  }
+
+  async outboxSnapshot(client: PoolClient) {
+    const result = await client.query<{
+      total: string;
+      processed: string;
+      pending: string;
+      failed: string;
+      highWatermark: string;
+    }>(
+      `SELECT count(*)::text AS total,
+              count(*) FILTER (WHERE "processedAt" IS NOT NULL)::text AS processed,
+              count(*) FILTER (WHERE "processedAt" IS NULL AND "failedAt" IS NULL)::text AS pending,
+              count(*) FILTER (WHERE "processedAt" IS NULL AND "failedAt" IS NOT NULL)::text AS failed,
+              COALESCE(max("id"), 0)::text AS "highWatermark"
+         FROM "SearchIndexOutbox"`,
+    );
+    const row = result.rows[0];
+    return {
+      total: Number(row?.total ?? 0),
+      processed: Number(row?.processed ?? 0),
+      pending: Number(row?.pending ?? 0),
+      failed: Number(row?.failed ?? 0),
+      highWatermark: row?.highWatermark ?? '0',
     };
   }
 

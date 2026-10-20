@@ -8,6 +8,11 @@ import type {
 } from '../adapters/search-source.adapter';
 import type { SearchQueryAst } from '../utils/search-ast';
 import { buildSearchQueryDsl } from './search-dsl';
+import {
+  SEARCH_INDEX_SCHEMA_VERSION,
+  SEARCH_INDEX_SCHEMA_VERSION_V4,
+  type SearchIndexSchemaVersion,
+} from './opensearch-mapping';
 
 type SearchableSource = 'CORPUS' | 'JURISPRUDENCIA';
 type LocaleSortField = 'sala' | 'numeroSentencia';
@@ -190,6 +195,7 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
     private readonly source: SearchableSource,
     private readonly hydrate: SearchCandidateHydrator,
     private readonly closeHydrator?: () => Promise<void>,
+    private readonly schemaVersion: SearchIndexSchemaVersion = SEARCH_INDEX_SCHEMA_VERSION,
   ) {}
 
   getLastSearchProfile() {
@@ -332,7 +338,7 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
     dslBuildMs: number,
   ): Promise<SearchResultPage> {
     const batchSize = 500;
-    const sort = searchSort(context, this.source);
+    const sort = searchSort(context, this.source, this.schemaVersion);
     const sortCriteria = privateSortCriteria(sort);
     const scanStarted = performance.now();
     let pitId: string | undefined;
@@ -432,8 +438,13 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
         for (let index = 0; index < hits.length; index += 1) {
           const hit = hits[index];
           const candidateSort = hit.sort;
+          if (!candidateSort)
+            throw new Error('SEARCH_PRIVATE_CANDIDATE_CURSOR_MISSING');
           privateCursorFingerprint(candidateSort, sortCriteria.length);
-          if (candidateSort?.[candidateSort.length - 1] !== hit._id)
+          if (
+            this.schemaVersion !== SEARCH_INDEX_SCHEMA_VERSION_V4 &&
+            candidateSort?.[candidateSort.length - 1] !== hit._id
+          )
             throw new Error('SEARCH_PRIVATE_SORT_TIEBREAKER_INVALID');
           if (
             previousSort &&
@@ -553,7 +564,7 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
         track_total_hits: true,
         _source: false,
         query,
-        sort: searchSort(context, this.source),
+        sort: searchSort(context, this.source, this.schemaVersion),
       },
     });
     return (
@@ -594,7 +605,11 @@ export function compareLocaleSortHits(
   return right._id.localeCompare(left._id);
 }
 
-export function searchSort(context: SearchContext, source: SearchableSource) {
+export function searchSort(
+  context: SearchContext,
+  source: SearchableSource,
+  schemaVersion: SearchIndexSchemaVersion = SEARCH_INDEX_SCHEMA_VERSION,
+) {
   const requested = context.sort;
   if (source === 'JURISPRUDENCIA') {
     if (!requested || requested.field === 'relevancia') {
@@ -610,7 +625,9 @@ export function searchSort(context: SearchContext, source: SearchableSource) {
         ? 'decisionDate'
         : requested.field === 'sala'
           ? 'sortFields.sala'
-          : 'sortFields.numeroSentencia';
+          : schemaVersion === SEARCH_INDEX_SCHEMA_VERSION_V4
+            ? 'sortFields.numeroSentenciaCollation'
+            : 'sortFields.numeroSentencia';
     if (requested.field === 'sala' || requested.field === 'numeroSentencia')
       return [
         {
@@ -620,7 +637,12 @@ export function searchSort(context: SearchContext, source: SearchableSource) {
           },
         },
         { logicalNumericId: { order: 'desc', missing: '_last' } },
-        { id: { order: 'desc' } },
+        {
+          [schemaVersion === SEARCH_INDEX_SCHEMA_VERSION_V4 &&
+          requested.field === 'numeroSentencia'
+            ? 'id.collation'
+            : 'id']: { order: 'desc' },
+        },
       ];
     if (requested.field === 'fecha')
       return [

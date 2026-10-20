@@ -57,11 +57,15 @@ const actions = {
   'prisma-validate': 'pnpm.cmd exec prisma validate',
   'prisma-migrate-status': 'pnpm.cmd exec prisma migrate status',
   'prisma-migrate-deploy': 'pnpm.cmd exec prisma migrate deploy',
+  'collation-v4-db-audit': 'node scripts/dev/collation-v4-db-audit.cjs',
+  'collation-v4-db-cleanup': 'node scripts/dev/collation-v4-db-cleanup.cjs',
   'int1-temp-create': 'node scripts/dev/int1-temp-db.cjs create',
   'int1-temp-drop': 'node scripts/dev/int1-temp-db.cjs drop',
   'int1-temp-inspect': 'node scripts/dev/int1-temp-db.cjs inspect',
   'opensearch-status':
     'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts status',
+  'opensearch-v4-shadow':
+    'pnpm.cmd exec ts-node scripts/dev/opensearch-v4-shadow.ts',
   'opensearch-verify':
     'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts verify',
   'opensearch-rebuild':
@@ -719,6 +723,8 @@ const childEnv = {
   BJC_INSTITUTIONAL_ARGS: action.startsWith('institutional-')
     ? JSON.stringify(process.argv.slice(3))
     : '',
+  BJC_COLLATION_V4_ACTION:
+    action === 'opensearch-v4-shadow' ? process.argv[3] || '' : '',
 };
 if (action === 'sprint151-ui-tests') {
   fs.mkdirSync(childEnv.BJC_CORPUS_STORAGE_PATH, { recursive: true });

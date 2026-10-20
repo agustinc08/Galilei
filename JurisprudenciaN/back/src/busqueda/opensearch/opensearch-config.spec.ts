@@ -11,6 +11,72 @@ describe('OpenSearch runtime config security', () => {
     expect(config.allowInsecureLocal).toBe(true);
     expect(config.alias).toBe('galilei-search-active');
     expect(config.indexPrefix).toBe('galilei-search');
+    expect(config.searchSchemaVersion).toBe(3);
+    expect(config.searchTarget).toBe('galilei-search-active');
+    expect(config.readOnlyCandidate).toBe(false);
+  });
+
+  it('allows an explicitly scoped v4 physical target only in read-only candidate mode', () => {
+    const config = readOpenSearchConfig({
+      ...local,
+      NODE_ENV: 'development',
+      OPENSEARCH_SEARCH_SCHEMA_VERSION: '4',
+      OPENSEARCH_SEARCH_TARGET:
+        'galilei-search-v004-20261020t123456789z-ab12cd34',
+      OPENSEARCH_READ_ONLY_CANDIDATE: 'true',
+    });
+    expect(config).toMatchObject({
+      alias: 'galilei-search-active',
+      searchSchemaVersion: 4,
+      searchTarget: 'galilei-search-v004-20261020t123456789z-ab12cd34',
+      readOnlyCandidate: true,
+    });
+  });
+
+  it('keeps the normal safe target on v3 and rejects an unguarded v4 switch', () => {
+    expect(() =>
+      readOpenSearchConfig({
+        ...local,
+        OPENSEARCH_SEARCH_SCHEMA_VERSION: '4',
+      }),
+    ).toThrow('OPENSEARCH_V4_REQUIRES_READ_ONLY_CANDIDATE');
+  });
+
+  it('rejects user-shaped, non-physical, or production v4 targets', () => {
+    const candidate = {
+      ...local,
+      NODE_ENV: 'development',
+      OPENSEARCH_SEARCH_SCHEMA_VERSION: '4',
+      OPENSEARCH_READ_ONLY_CANDIDATE: 'true',
+    };
+    expect(() =>
+      readOpenSearchConfig({
+        ...candidate,
+        OPENSEARCH_SEARCH_TARGET: 'galilei-search-active',
+      }),
+    ).toThrow('OPENSEARCH_SEARCH_TARGET_INVALID');
+    expect(() =>
+      readOpenSearchConfig({
+        ...candidate,
+        OPENSEARCH_SEARCH_TARGET:
+          'galilei-search-v004-20261020t123456789z-ab12cd34,other-index',
+      }),
+    ).toThrow('OPENSEARCH_SEARCH_TARGET_INVALID');
+    expect(() =>
+      readOpenSearchConfig({
+        ...candidate,
+        NODE_ENV: 'production',
+        BJC_DEPLOYMENT_ENV: 'production',
+        OPENSEARCH_NODE: 'https://search.example:9200',
+        OPENSEARCH_ALLOW_INSECURE_LOCAL: 'false',
+        OPENSEARCH_USERNAME: 'candidate-user',
+        OPENSEARCH_PASSWORD: 'synthetic-test-only',
+        OPENSEARCH_INDEX_ALIAS: 'galilei-production-search-active',
+        OPENSEARCH_INDEX_PREFIX: 'galilei-production-search',
+        OPENSEARCH_SEARCH_TARGET:
+          'galilei-search-v004-20261020t123456789z-ab12cd34',
+      }),
+    ).toThrow('OPENSEARCH_SEARCH_TARGET_INVALID');
   });
 
   it('rejects loopback HTTP without the explicit development flag', () => {

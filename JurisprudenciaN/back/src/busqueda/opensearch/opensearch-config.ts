@@ -4,11 +4,19 @@ import {
   resolveDeploymentEnvironment,
   type DeploymentEnvironment,
 } from '../../config/deployment-environment';
+import {
+  SEARCH_INDEX_SCHEMA_VERSION,
+  SEARCH_INDEX_SCHEMA_VERSION_V4,
+  type SearchIndexSchemaVersion,
+} from './opensearch-mapping';
 
 export type OpenSearchConfig = {
   node: string;
   alias: string;
   indexPrefix: string;
+  searchTarget: string;
+  searchSchemaVersion: SearchIndexSchemaVersion;
+  readOnlyCandidate: boolean;
   requestTimeoutMs: number;
   maxRetries: number;
   allowInsecureLocal: boolean;
@@ -16,6 +24,7 @@ export type OpenSearchConfig = {
 };
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
+const V4_PHYSICAL_INDEX = /^galilei-search-v004-\d{8}t\d{9}z-[a-f0-9]{8}$/u;
 export const SEARCH_NAMESPACES = {
   development: {
     alias: 'galilei-search-active',
@@ -111,6 +120,55 @@ export function readOpenSearchConfig(
   }
   validateEnvironmentNamespace(deploymentEnvironment, alias, indexPrefix);
 
+  const schemaVersionValue = env.OPENSEARCH_SEARCH_SCHEMA_VERSION?.trim();
+  if (
+    schemaVersionValue &&
+    schemaVersionValue !== '3' &&
+    schemaVersionValue !== '4'
+  )
+    throw new Error('OPENSEARCH_SCHEMA_VERSION_INVALID');
+  const searchSchemaVersion: SearchIndexSchemaVersion =
+    schemaVersionValue === '4'
+      ? SEARCH_INDEX_SCHEMA_VERSION_V4
+      : SEARCH_INDEX_SCHEMA_VERSION;
+  const searchTargetValue = env.OPENSEARCH_SEARCH_TARGET?.trim();
+  const searchTarget = searchTargetValue ?? alias;
+  const readOnlyCandidateValue = env.OPENSEARCH_READ_ONLY_CANDIDATE?.trim();
+  if (
+    readOnlyCandidateValue !== undefined &&
+    readOnlyCandidateValue !== '' &&
+    readOnlyCandidateValue !== 'true' &&
+    readOnlyCandidateValue !== 'false'
+  ) {
+    throw new Error('OPENSEARCH_READ_ONLY_CANDIDATE_INVALID');
+  }
+  const readOnlyCandidate = readOnlyCandidateValue === 'true';
+  if (searchTargetValue) {
+    if (
+      searchSchemaVersion !== SEARCH_INDEX_SCHEMA_VERSION_V4 ||
+      !V4_PHYSICAL_INDEX.test(searchTarget) ||
+      isProduction ||
+      !isLoopback
+    ) {
+      throw new Error('OPENSEARCH_SEARCH_TARGET_INVALID');
+    }
+  }
+  if (
+    readOnlyCandidate &&
+    (searchSchemaVersion !== SEARCH_INDEX_SCHEMA_VERSION_V4 ||
+      !searchTargetValue ||
+      isProduction ||
+      !isLoopback)
+  ) {
+    throw new Error('OPENSEARCH_READ_ONLY_CANDIDATE_SCOPE_INVALID');
+  }
+  if (
+    searchSchemaVersion === SEARCH_INDEX_SCHEMA_VERSION_V4 &&
+    !readOnlyCandidate
+  ) {
+    throw new Error('OPENSEARCH_V4_REQUIRES_READ_ONLY_CANDIDATE');
+  }
+
   let ca: Buffer | undefined;
   const caPath = env.OPENSEARCH_CA_PATH?.trim();
   if (caPath) {
@@ -125,6 +183,9 @@ export function readOpenSearchConfig(
     node: endpoint.origin,
     alias,
     indexPrefix,
+    searchTarget,
+    searchSchemaVersion,
+    readOnlyCandidate,
     requestTimeoutMs,
     maxRetries,
     allowInsecureLocal,

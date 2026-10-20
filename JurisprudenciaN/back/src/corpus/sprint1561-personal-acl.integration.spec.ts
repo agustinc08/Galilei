@@ -20,11 +20,14 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { OpenSearchDocumentRepository } from '../busqueda/opensearch/opensearch-document.repository';
 import { OpenSearchIndexService } from '../busqueda/opensearch/opensearch-index.service';
 import { OpenSearchSearchSourceAdapter } from '../busqueda/opensearch/opensearch-search-source.adapter';
+import { projectCorpusSearchDocument } from '../busqueda/opensearch/opensearch-search-document';
+import { SEARCH_INDEX_SCHEMA_VERSION_V4 } from '../busqueda/opensearch/opensearch-mapping';
 import { parseSearchQuery } from '../busqueda/utils/search-parser';
 import { CorpusDocumentAccessService } from './corpus-document-access.service';
 import { CorpusSearchSourceAdapter } from './corpus-search.adapter';
 import { LocalDocumentStorageAdapter } from './document-storage.adapter';
 import { WorkspaceDocumentController } from './workspace-document.controller';
+import { PersonalDocumentController } from './personal-document.controller';
 import { WorkspaceDocumentService } from './workspace-document.service';
 
 const enabled = process.env.SPRINT1561_POSTGRES_TEST === '1';
@@ -35,6 +38,8 @@ const storageRoot = path.resolve(
   `../../_dev-corpus-storage-test/sprint1561-${suffix}`,
 );
 let viewerRequestUser: AuthenticatedUser | undefined;
+let v4QaOpenSearchClient: Client | undefined;
+let v4PrivateHttpEvidence: Record<string, unknown> | null = null;
 
 class SyntheticViewerIdentityGuard implements CanActivate {
   canActivate(context: ExecutionContext) {
@@ -77,6 +82,8 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
   const dependencyIds: string[] = [];
   const documentIds: string[] = [];
   let outboxBaseline = { pending: 0, failed: 0 };
+  let v4ShadowCountBeforeSyntheticQa: number | null = null;
+  let v4ShadowCountAfterCleanup: number | null = null;
   let admin: AuthenticatedUser;
   let grantee: AuthenticatedUser;
   let otherMember: AuthenticatedUser;
@@ -153,6 +160,10 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
   afterAll(async () => {
     if (!enabled) return;
     if (httpApp) await httpApp.close();
+    if (v4QaOpenSearchClient) {
+      await v4QaOpenSearchClient.close();
+      v4QaOpenSearchClient = undefined;
+    }
     if (searchSource) await searchSource.close();
     const syntheticDocumentIds = [...new Set(documentIds)];
     const syntheticDocumentKeys = syntheticDocumentIds.map(
@@ -198,7 +209,17 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
     let searchProjectionCleanup: 'PASS' | 'FAILED' | 'NOT_REQUIRED' =
       syntheticDocumentKeys.length ? 'FAILED' : 'NOT_REQUIRED';
     let remainingSyntheticSearchDocuments: number | null = null;
+    let deletedSyntheticOutboxRows = 0;
+    let v4ShadowCountRestored = false;
     if (syntheticDocumentKeys.length) {
+      const cleanupTarget =
+        process.env.OPENSEARCH_SEARCH_TARGET ?? 'galilei-search-active';
+      if (
+        process.env.OPENSEARCH_READ_ONLY_CANDIDATE === 'true' &&
+        !/^galilei-search-v004-\d{8}t\d{9}z-[a-f0-9]{8}$/u.test(cleanupTarget)
+      ) {
+        throw new Error('SYNTHETIC_CLEANUP_TARGET_NOT_V4');
+      }
       const openSearchClient = new Client({
         node: 'http://127.0.0.1:9200',
         requestTimeout: 5000,
@@ -207,15 +228,34 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       const index = new OpenSearchIndexService(
         openSearchClient,
         new OpenSearchDocumentRepository(),
-        'galilei-search-active',
+        cleanupTarget,
       );
       try {
-        for (const key of syntheticDocumentKeys) await index.indexKey(key);
+        if (process.env.OPENSEARCH_READ_ONLY_CANDIDATE === 'true') {
+          for (const id of syntheticDocumentIds) {
+            try {
+              await openSearchClient.delete({
+                index: cleanupTarget,
+                id,
+                refresh: false,
+              });
+            } catch (error) {
+              const candidate = error as {
+                statusCode?: number;
+                meta?: { statusCode?: number };
+              };
+              if ((candidate.statusCode ?? candidate.meta?.statusCode) !== 404)
+                throw error;
+            }
+          }
+        } else {
+          for (const key of syntheticDocumentKeys) await index.indexKey(key);
+        }
         await openSearchClient.indices.refresh({
-          index: 'galilei-search-active',
+          index: cleanupTarget,
         });
         const response = await openSearchClient.search({
-          index: 'galilei-search-active',
+          index: cleanupTarget,
           body: {
             size: 0,
             track_total_hits: true,
@@ -233,21 +273,40 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
           body.hits?.total?.value ?? 0,
         );
         if (remainingSyntheticSearchDocuments === 0) {
-          if (qaOutboxBeforeProjectionCleanup.length)
-            await prisma.searchIndexOutbox.updateMany({
-              where: {
-                id: {
-                  in: qaOutboxBeforeProjectionCleanup.map((event) => event.id),
+          if (qaOutboxBeforeProjectionCleanup.length) {
+            const eventIds = qaOutboxBeforeProjectionCleanup.map(
+              (event) => event.id,
+            );
+            if (process.env.OPENSEARCH_READ_ONLY_CANDIDATE === 'true') {
+              const removed = await prisma.searchIndexOutbox.deleteMany({
+                where: { id: { in: eventIds } },
+              });
+              deletedSyntheticOutboxRows = removed.count;
+            } else {
+              await prisma.searchIndexOutbox.updateMany({
+                where: { id: { in: eventIds } },
+                data: {
+                  processedAt: new Date(),
+                  failedAt: null,
+                  leaseUntil: null,
+                  lastError: null,
                 },
-              },
-              data: {
-                processedAt: new Date(),
-                failedAt: null,
-                leaseUntil: null,
-                lastError: null,
-              },
-            });
+              });
+            }
+          }
           searchProjectionCleanup = 'PASS';
+        }
+        if (process.env.OPENSEARCH_READ_ONLY_CANDIDATE === 'true') {
+          const countResponse = await openSearchClient.count({
+            index: cleanupTarget,
+          });
+          const countBody =
+            (countResponse as unknown as { body?: { count?: number } }).body ??
+            (countResponse as unknown as { count?: number });
+          v4ShadowCountAfterCleanup = Number(countBody.count ?? -1);
+          v4ShadowCountRestored =
+            v4ShadowCountBeforeSyntheticQa === 69313 &&
+            v4ShadowCountAfterCleanup === v4ShadowCountBeforeSyntheticQa;
         }
       } finally {
         await index.close();
@@ -356,6 +415,8 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       ) &&
       remainingPending === outboxBaseline.pending &&
       remainingFailed === outboxBaseline.failed &&
+      (process.env.OPENSEARCH_READ_ONLY_CANDIDATE !== 'true' ||
+        v4ShadowCountRestored) &&
       !storageRootExists
         ? 'PASS'
         : 'REVIEW_REQUIRED';
@@ -367,9 +428,15 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         result: searchProjectionCleanup,
         remainingSyntheticDocuments: remainingSyntheticSearchDocuments,
       },
+      v4Candidate: {
+        countBeforeSyntheticQa: v4ShadowCountBeforeSyntheticQa,
+        countAfterCleanup: v4ShadowCountAfterCleanup,
+        restored: v4ShadowCountRestored,
+      },
       outbox: {
         syntheticRows: qaOutboxAfterCleanup.length,
         qaOutboxEventIds: qaOutboxAfterCleanup.map((event) => String(event.id)),
+        deletedSyntheticRows: deletedSyntheticOutboxRows,
         pending: qaOutboxAfterCleanup.filter(
           (event) => event.processedAt === null && event.failedAt === null,
         ).length,
@@ -389,6 +456,23 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         `${JSON.stringify(cleanupVerification, null, 2)}\n`,
         'utf8',
       );
+      if (v4PrivateHttpEvidence) {
+        await writeFile(
+          path.join(artifactRoot, 'private-http-v4.json'),
+          `${JSON.stringify(
+            {
+              ...v4PrivateHttpEvidence,
+              countBeforeSyntheticQa: v4ShadowCountBeforeSyntheticQa,
+              countAfterCleanup: v4ShadowCountAfterCleanup,
+              countRestored: v4ShadowCountRestored,
+              cleanupResult,
+            },
+            null,
+            2,
+          )}\n`,
+          'utf8',
+        );
+      }
     }
   });
 
@@ -734,6 +818,89 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         (isAuthorized ? paginationAuthorizedIds : paginationDeniedIds).push(id);
       }
 
+      const v4CandidateMode =
+        process.env.OPENSEARCH_READ_ONLY_CANDIDATE === 'true';
+      let v4CandidateIndex: string | null = null;
+      let v4ShadowCountWithSyntheticQa: number | null = null;
+      if (v4CandidateMode) {
+        v4CandidateIndex = process.env.OPENSEARCH_SEARCH_TARGET ?? '';
+        if (
+          !/^galilei-search-v004-\d{8}t\d{9}z-[a-f0-9]{8}$/u.test(
+            v4CandidateIndex,
+          )
+        )
+          throw new Error('SYNTHETIC_QA_TARGET_NOT_V4');
+        v4QaOpenSearchClient = new Client({
+          node: 'http://127.0.0.1:9200',
+          requestTimeout: 5000,
+          maxRetries: 0,
+        });
+        const [healthResponse, aliasResponse, countResponse] =
+          await Promise.all([
+            v4QaOpenSearchClient.cluster.health(),
+            v4QaOpenSearchClient.indices.getAlias({
+              name: 'galilei-search-active',
+            }),
+            v4QaOpenSearchClient.count({ index: v4CandidateIndex }),
+          ]);
+        const health =
+          (healthResponse as unknown as { body?: { status?: string } }).body ??
+          (healthResponse as unknown as { status?: string });
+        const aliases =
+          (aliasResponse as unknown as { body?: Record<string, unknown> })
+            .body ?? (aliasResponse as unknown as Record<string, unknown>);
+        const countBody =
+          (countResponse as unknown as { body?: { count?: number } }).body ??
+          (countResponse as unknown as { count?: number });
+        const aliasTargets = Object.keys(aliases);
+        v4ShadowCountBeforeSyntheticQa = Number(countBody.count ?? -1);
+        if (
+          health.status !== 'green' ||
+          aliasTargets.length !== 1 ||
+          aliasTargets[0] !==
+            'galilei-search-v003-20261017t232432555z-a6af18cb' ||
+          aliasTargets.includes(v4CandidateIndex) ||
+          v4ShadowCountBeforeSyntheticQa !== 69313
+        )
+          throw new Error('V4_SYNTHETIC_QA_PREFLIGHT_FAILED');
+
+        const repository = new OpenSearchDocumentRepository();
+        try {
+          const syntheticIds = [...new Set(documentIds)];
+          for (const id of syntheticIds) {
+            const row = await repository.getCorpusDocument(id);
+            if (!row) throw new Error('V4_SYNTHETIC_CORPUS_ROW_MISSING');
+            const projected = projectCorpusSearchDocument(
+              row,
+              SEARCH_INDEX_SCHEMA_VERSION_V4,
+            );
+            await v4QaOpenSearchClient.index({
+              index: v4CandidateIndex,
+              id: projected.id,
+              body: projected,
+              refresh: false,
+            });
+          }
+        } finally {
+          await repository.close();
+        }
+        await v4QaOpenSearchClient.indices.refresh({
+          index: v4CandidateIndex,
+        });
+        const countAfterIndex = await v4QaOpenSearchClient.count({
+          index: v4CandidateIndex,
+        });
+        const indexedBody =
+          (countAfterIndex as unknown as { body?: { count?: number } }).body ??
+          (countAfterIndex as unknown as { count?: number });
+        v4ShadowCountWithSyntheticQa = Number(indexedBody.count ?? -1);
+        if (
+          v4ShadowCountWithSyntheticQa !==
+          v4ShadowCountBeforeSyntheticQa + new Set(documentIds).size
+        )
+          throw new Error('V4_SYNTHETIC_QA_INDEX_COUNT_MISMATCH');
+      }
+
       type Candidate = {
         workspaceId: string | null;
         ownerUserId: number | null;
@@ -980,15 +1147,238 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       };
 
       viewerRequestUser = grantee;
+      const v4HttpSearchAdapter = v4CandidateMode
+        ? new OpenSearchSearchSourceAdapter(
+            v4QaOpenSearchClient!,
+            v4CandidateIndex!,
+            'CORPUS',
+            (parsedQuery, searchContext, candidateIds) =>
+              searchSource.search(parsedQuery, searchContext, candidateIds),
+            undefined,
+            SEARCH_INDEX_SCHEMA_VERSION_V4,
+          )
+        : null;
+      const v4HttpDocuments = v4HttpSearchAdapter
+        ? new WorkspaceDocumentService(
+            prisma,
+            {
+              federatedSearch: async (
+                query: string,
+                _operator: 'AND',
+                context: Parameters<CorpusSearchSourceAdapter['search']>[1],
+              ) => v4HttpSearchAdapter.search(parseSearchQuery(query), context),
+            } as never,
+            access,
+            new LocalDocumentStorageAdapter(storageRoot),
+          )
+        : documents;
       const viewerModuleRef = await Test.createTestingModule({
-        controllers: [WorkspaceDocumentController],
+        controllers: [WorkspaceDocumentController, PersonalDocumentController],
         providers: [
-          { provide: WorkspaceDocumentService, useValue: documents },
+          {
+            provide: WorkspaceDocumentService,
+            useValue: v4HttpDocuments,
+          },
           { provide: APP_GUARD, useClass: SyntheticViewerIdentityGuard },
         ],
       }).compile();
       httpApp = viewerModuleRef.createNestApplication();
       await httpApp.init();
+      const activeHttpApp = httpApp;
+      const runCandidateHttpSearch = async (
+        user: AuthenticatedUser,
+        route: string,
+        query: Record<string, string>,
+      ) => {
+        viewerRequestUser = user;
+        const requestStarted = performance.now();
+        const response = await request(activeHttpApp.getHttpServer() as Server)
+          .get(route)
+          .query(query);
+        const elapsedMs =
+          Math.round((performance.now() - requestStarted) * 100) / 100;
+        const responseBody = response.body as unknown as {
+          total?: unknown;
+          totalExact?: unknown;
+          results?: unknown;
+          page?: unknown;
+          pageSize?: unknown;
+          hasMore?: unknown;
+        };
+        const resultIds = Array.isArray(responseBody.results)
+          ? responseBody.results.flatMap((result: unknown) => {
+              if (
+                typeof result !== 'object' ||
+                result === null ||
+                !('sourceId' in result) ||
+                typeof result.sourceId !== 'string'
+              )
+                return [];
+              return [result.sourceId];
+            })
+          : [];
+        return {
+          status: response.status,
+          elapsedMs,
+          total: responseBody.total ?? null,
+          totalExact: responseBody.totalExact ?? null,
+          resultIds,
+          page: responseBody.page ?? null,
+          pageSize: responseBody.pageSize ?? null,
+          hasMore: responseBody.hasMore ?? null,
+        };
+      };
+      const privateHttpV4 = v4CandidateMode
+        ? {
+            workspaceAllowed: await runCandidateHttpSearch(
+              grantee,
+              `/workspaces/${workspace.id}/search`,
+              { q: token, folderId: inherited.id },
+            ),
+            restrictedFolderDenied: await runCandidateHttpSearch(
+              otherMember,
+              `/workspaces/${workspace.id}/search`,
+              { q: token, folderId: inherited.id },
+            ),
+            workspaceWithoutFolderGrant: await runCandidateHttpSearch(
+              otherMember,
+              `/workspaces/${workspace.id}/search`,
+              { q: token },
+            ),
+            nonMember: await runCandidateHttpSearch(
+              outsider,
+              `/workspaces/${workspace.id}/search`,
+              { q: token },
+            ),
+            sharedMember: await runCandidateHttpSearch(
+              otherMember,
+              `/workspaces/${sharedWorkspace.id}/search`,
+              { q: token },
+            ),
+            personalOwner: await runCandidateHttpSearch(
+              grantee,
+              '/personal/search',
+              { q: token },
+            ),
+            personalOther: await runCandidateHttpSearch(
+              otherMember,
+              '/personal/search',
+              { q: token },
+            ),
+            paginationPage1: await runCandidateHttpSearch(
+              grantee,
+              `/workspaces/${workspace.id}/search`,
+              { q: paginationToken, page: '1', pageSize: '1' },
+            ),
+            paginationPage2: await runCandidateHttpSearch(
+              grantee,
+              `/workspaces/${workspace.id}/search`,
+              { q: paginationToken, page: '2', pageSize: '1' },
+            ),
+            paginationProfile: v4HttpSearchAdapter?.getLastSearchProfile(),
+          }
+        : null;
+      if (privateHttpV4) {
+        const routeLatencySamples = [
+          privateHttpV4.workspaceAllowed.elapsedMs,
+          privateHttpV4.restrictedFolderDenied.elapsedMs,
+          privateHttpV4.workspaceWithoutFolderGrant.elapsedMs,
+          privateHttpV4.nonMember.elapsedMs,
+          privateHttpV4.sharedMember.elapsedMs,
+          privateHttpV4.personalOwner.elapsedMs,
+          privateHttpV4.personalOther.elapsedMs,
+          privateHttpV4.paginationPage1.elapsedMs,
+          privateHttpV4.paginationPage2.elapsedMs,
+        ].sort((left, right) => left - right);
+        const privateHttpLatencySummary = {
+          sampleCount: routeLatencySamples.length,
+          medianMs:
+            routeLatencySamples[Math.floor(routeLatencySamples.length / 2)],
+          maxMs: routeLatencySamples[routeLatencySamples.length - 1],
+        };
+        v4PrivateHttpEvidence = {
+          candidateIndex: v4CandidateIndex,
+          schemaVersion: SEARCH_INDEX_SCHEMA_VERSION_V4,
+          countWithSyntheticQa: v4ShadowCountWithSyntheticQa,
+          routeLatency: privateHttpLatencySummary,
+          checks: privateHttpV4,
+        };
+        const artifactRoot = process.env.COPERNIC_ACL_ARTIFACT_ROOT;
+        if (artifactRoot) {
+          await mkdir(artifactRoot, { recursive: true });
+          await writeFile(
+            path.join(artifactRoot, 'private-http-v4.json'),
+            `${JSON.stringify(v4PrivateHttpEvidence, null, 2)}\n`,
+            'utf8',
+          );
+        }
+        expect(privateHttpV4.workspaceAllowed).toMatchObject({
+          status: 200,
+          total: 1,
+          totalExact: true,
+          resultIds: [workspaceDocumentId],
+        });
+        expect(privateHttpV4.restrictedFolderDenied.status).toBe(404);
+        expect(privateHttpV4.workspaceWithoutFolderGrant).toMatchObject({
+          status: 200,
+          total: 0,
+          totalExact: true,
+          resultIds: [],
+        });
+        expect(privateHttpV4.nonMember.status).toBe(404);
+        expect(privateHttpV4.sharedMember).toMatchObject({
+          status: 200,
+          total: 1,
+          resultIds: [sharedDocumentId],
+        });
+        expect(privateHttpV4.personalOwner).toMatchObject({
+          status: 200,
+          total: 1,
+          resultIds: [personalDocumentId],
+        });
+        expect(privateHttpV4.personalOther).toMatchObject({
+          status: 200,
+          total: 0,
+          resultIds: [],
+        });
+        expect(privateHttpV4.paginationPage1).toMatchObject({
+          status: 200,
+          total: 2,
+          totalExact: true,
+          page: 1,
+          pageSize: 1,
+          hasMore: true,
+        });
+        expect(privateHttpV4.paginationPage2).toMatchObject({
+          status: 200,
+          total: 2,
+          totalExact: true,
+          page: 2,
+          pageSize: 1,
+          hasMore: false,
+        });
+        const actualPaginationIds = [
+          ...privateHttpV4.paginationPage1.resultIds,
+          ...privateHttpV4.paginationPage2.resultIds,
+        ];
+        expect(new Set(actualPaginationIds)).toEqual(
+          new Set(paginationAuthorizedIds),
+        );
+        expect(
+          actualPaginationIds.some((id) => paginationDeniedIds.includes(id)),
+        ).toBe(false);
+        expect(privateHttpV4.paginationProfile?.candidateStrategy).toBe(
+          'opensearch-ordered-batched-live-acl-before-count-and-page',
+        );
+        expect(privateHttpV4.paginationProfile?.stageTimings).toMatchObject({
+          rawCandidateCount: 5,
+          authorizedTotal: 2,
+        });
+        expect(privateHttpLatencySummary.maxMs).toBeLessThan(5000);
+        expect(privateHttpV4.paginationPage1.resultIds[0]).not.toBe(
+          privateHttpV4.paginationPage2.resultIds[0],
+        );
+      }
       const runViewerHttpChecks = async () => {
         const base = `/workspaces/${workspace.id}/documents/${workspaceDocumentId}`;
         const server = httpApp!.getHttpServer() as unknown as Server;

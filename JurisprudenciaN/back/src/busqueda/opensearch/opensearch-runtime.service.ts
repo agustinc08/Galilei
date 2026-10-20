@@ -27,6 +27,9 @@ export class OpenSearchRuntimeService {
       this.repository,
       this.config.alias,
       this.config.indexPrefix,
+      this.config.searchSchemaVersion,
+      this.config.readOnlyCandidate,
+      this.config.searchTarget,
     );
     this.syncWorker = new OpenSearchSyncWorker(this.repository, this.index);
   }
@@ -35,7 +38,9 @@ export class OpenSearchRuntimeService {
     try {
       const [healthResult, aliasResult] = await Promise.all([
         this.client.cluster.health({ local: true, timeout: '1s' }),
-        this.client.indices.existsAlias({ name: this.config.alias }),
+        this.config.readOnlyCandidate
+          ? this.client.indices.exists({ index: this.config.searchTarget })
+          : this.client.indices.existsAlias({ name: this.config.alias }),
       ]);
       const health =
         (healthResult as unknown as { body?: { status?: string } }).body ??
@@ -44,7 +49,9 @@ export class OpenSearchRuntimeService {
         (aliasResult as unknown as { body?: boolean }).body ??
         (aliasResult as unknown as boolean);
       return (
-        ['green', 'yellow'].includes(health.status ?? '') && aliasBody === true
+        ['green', 'yellow'].includes(health.status ?? '') &&
+        aliasBody === true &&
+        (await this.activeSchemaVersion()) === this.config.searchSchemaVersion
       );
     } catch {
       return false;
@@ -54,7 +61,7 @@ export class OpenSearchRuntimeService {
   async activeSchemaVersion(): Promise<number | null> {
     try {
       const response = await this.client.indices.getMapping({
-        index: this.config.alias,
+        index: this.config.searchTarget,
       });
       const body =
         (response as unknown as { body?: Record<string, unknown> }).body ??
@@ -78,6 +85,7 @@ export class OpenSearchRuntimeService {
   }
 
   onModuleInit() {
+    if (this.config.readOnlyCandidate) return;
     this.syncWorker.start();
   }
 
@@ -88,10 +96,11 @@ export class OpenSearchRuntimeService {
   ): SearchSourceAdapter {
     return new OpenSearchSearchSourceAdapter(
       this.client,
-      this.config.alias,
+      this.config.searchTarget,
       source,
       hydrate,
       closeHydrator,
+      this.config.searchSchemaVersion,
     );
   }
 

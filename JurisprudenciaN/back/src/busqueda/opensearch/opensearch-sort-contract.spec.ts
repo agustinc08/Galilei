@@ -1,5 +1,6 @@
 import type { SearchContext } from '../adapters/search-source.adapter';
 import { searchSort } from './opensearch-search-source.adapter';
+import { SEARCH_INDEX_SCHEMA_VERSION_V4 } from './opensearch-mapping';
 
 const baseContext: SearchContext = {
   visibility: 'INTERNAL',
@@ -156,5 +157,70 @@ describe('Jurisprudencia product sort contract', () => {
       { updatedAt: { order: 'desc', missing: '_last' } },
       { id: { order: 'asc' } },
     ]);
+  });
+
+  it.each(['asc', 'desc'] as const)(
+    'uses the certified v4 ICU sentence-number tuple for %s',
+    (order) => {
+      expect(
+        searchSort(
+          { ...baseContext, sort: { field: 'numeroSentencia', order } },
+          'JURISPRUDENCIA',
+          SEARCH_INDEX_SCHEMA_VERSION_V4,
+        ),
+      ).toEqual([
+        {
+          'sortFields.numeroSentenciaCollation': {
+            order,
+            missing: order === 'asc' ? '_first' : '_last',
+          },
+        },
+        { logicalNumericId: { order: 'desc', missing: '_last' } },
+        { 'id.collation': { order: 'desc' } },
+      ]);
+    },
+  );
+
+  it('keeps Sala on its keyword contract when searching a v4 target', () => {
+    expect(
+      searchSort(
+        { ...baseContext, sort: { field: 'sala', order: 'asc' } },
+        'JURISPRUDENCIA',
+        SEARCH_INDEX_SCHEMA_VERSION_V4,
+      ),
+    ).toEqual([
+      { 'sortFields.sala': { order: 'asc', missing: '_first' } },
+      { logicalNumericId: { order: 'desc', missing: '_last' } },
+      { id: { order: 'desc' } },
+    ]);
+  });
+
+  it('reproduces the known raw-keyword ordering bug and selects ICU for v4', () => {
+    const legacy = new Intl.Collator('es-AR', {
+      usage: 'sort',
+      sensitivity: 'variant',
+      ignorePunctuation: false,
+      numeric: false,
+    });
+    const values = ['ñ', 'z'];
+    const keywordOrder = [...values].sort();
+    const legacyOrder = [...values].sort((left, right) =>
+      legacy.compare(left, right),
+    );
+    expect(keywordOrder).toEqual(['z', 'ñ']);
+    expect(legacyOrder).toEqual(['ñ', 'z']);
+    expect(keywordOrder).not.toEqual(legacyOrder);
+    expect(
+      searchSort(
+        { ...baseContext, sort: { field: 'numeroSentencia', order: 'asc' } },
+        'JURISPRUDENCIA',
+        SEARCH_INDEX_SCHEMA_VERSION_V4,
+      )[0],
+    ).toEqual({
+      'sortFields.numeroSentenciaCollation': {
+        order: 'asc',
+        missing: '_first',
+      },
+    });
   });
 });

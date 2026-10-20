@@ -28,7 +28,15 @@ async function main() {
   const config = readOpenSearchConfig();
   const client = new Client(config.clientOptions);
   const repository = new OpenSearchDocumentRepository();
-  const index = new OpenSearchIndexService(client, repository, config.alias);
+  const index = new OpenSearchIndexService(
+    client,
+    repository,
+    config.alias,
+    config.indexPrefix,
+    config.searchSchemaVersion,
+    config.readOnlyCandidate,
+    config.searchTarget,
+  );
   const worker = new OpenSearchSyncWorker(repository, index);
   try {
     switch (action) {

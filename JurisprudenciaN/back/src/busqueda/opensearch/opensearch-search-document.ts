@@ -4,10 +4,12 @@ import {
   SEARCH_FIELD_NAMES,
   SEARCH_SCOPE_NAMES,
   SEARCH_INDEX_SCHEMA_VERSION,
+  SEARCH_INDEX_SCHEMA_VERSION_V4,
   lexicalTokens,
   phraseBigramSequence,
   phraseSequence,
   type SearchIndexDocument,
+  type SearchIndexSchemaVersion,
   type SearchScopeField,
 } from './opensearch-mapping';
 
@@ -123,8 +125,11 @@ export type SentenciaSearchProjection = {
 
 export function projectCorpusSearchDocument(
   row: CorpusSearchProjection,
+  schemaVersion: SearchIndexSchemaVersion = SEARCH_INDEX_SCHEMA_VERSION,
 ): SearchIndexDocument {
   const metadata = row.metadata ?? {};
+  // Preserve the pre-existing projection layout while parameterizing its schema.
+  // prettier-ignore
   return finishProjection({
     id: row.id,
     sourceSystem: 'CORPUS',
@@ -205,11 +210,12 @@ export function projectCorpusSearchDocument(
     folderId: row.folderId,
     visibilityScope: row.visibilityScope,
     publicationStatus: 'NOT_APPLICABLE',
-  });
+  }, schemaVersion);
 }
 
 export function projectJurisprudenciaSearchDocument(
   row: JurisprudenciaSearchProjection,
+  schemaVersion: SearchIndexSchemaVersion = SEARCH_INDEX_SCHEMA_VERSION,
 ): SearchIndexDocument | null {
   if (!row.sumarioActivo || !row.sentenciaActivo) return null;
   const publicActor =
@@ -288,6 +294,8 @@ export function projectJurisprudenciaSearchDocument(
     .join(' ');
   const publicSumarioText =
     row.sumarioPublicado && row.sentenciaPublicado ? internalSumarioText : '';
+  // Preserve the pre-existing projection layout while parameterizing its schema.
+  // prettier-ignore
   return finishProjection({
     id: `JURISPRUDENCIA:SUMARIO:${row.id}`,
     logicalNumericId: row.id,
@@ -399,11 +407,12 @@ export function projectJurisprudenciaSearchDocument(
       row.sumarioPublicado && row.sentenciaPublicado
         ? 'PUBLISHED'
         : 'UNPUBLISHED',
-  });
+  }, schemaVersion);
 }
 
 export function projectSentenciaSearchDocument(
   row: SentenciaSearchProjection,
+  schemaVersion: SearchIndexSchemaVersion = SEARCH_INDEX_SCHEMA_VERSION,
 ): SearchIndexDocument | null {
   if (!row.activo) return null;
   const published = row.publicado && row.estadoCarga === 'PUBLICADA';
@@ -437,6 +446,8 @@ export function projectSentenciaSearchDocument(
     : [row.textoBusquedaNormalizado, row.sumariosSearchText]
         .filter(Boolean)
         .join(' ');
+  // Preserve the pre-existing projection layout while parameterizing its schema.
+  // prettier-ignore
   return finishProjection({
     id: `JURISPRUDENCIA:SENTENCIA:${row.id}`,
     logicalNumericId: row.id,
@@ -555,7 +566,7 @@ export function projectSentenciaSearchDocument(
     folderId: null,
     visibilityScope: null,
     publicationStatus: published ? 'PUBLISHED' : 'UNPUBLISHED',
-  });
+  }, schemaVersion);
 }
 
 function finishProjection(
@@ -588,6 +599,7 @@ function finishProjection(
     filterFields: Record<string, unknown>;
     publicFilterFields?: Record<string, unknown>;
   },
+  schemaVersion: SearchIndexSchemaVersion = SEARCH_INDEX_SCHEMA_VERSION,
 ): SearchIndexDocument {
   const canonical = normalizeSearchText(input.canonicalSearchText);
   const publicSearch = normalizeSearchText(input.publicSearchText ?? canonical);
@@ -624,8 +636,16 @@ function finishProjection(
   for (const [name, raw] of Object.entries(publicFilterInput)) {
     publicFilterFields[name] = normalizeOptionalText(raw);
   }
+  const sortFields =
+    schemaVersion === SEARCH_INDEX_SCHEMA_VERSION_V4
+      ? {
+          ...(input.sortFields ?? { sala: null, numeroSentencia: null }),
+          numeroSentenciaCollation: input.sortFields?.numeroSentencia ?? '',
+        }
+      : input.sortFields;
   return {
     ...input,
+    ...(sortFields ? { sortFields } : {}),
     canonicalSearchText: canonical,
     publicSearchText: publicSearch,
     lexicalTokens: lexicalTokens(canonical),
@@ -640,7 +660,7 @@ function finishProjection(
     publicFields,
     filterFields,
     publicFilterFields,
-    indexSchemaVersion: SEARCH_INDEX_SCHEMA_VERSION,
+    indexSchemaVersion: schemaVersion,
   };
 }
 

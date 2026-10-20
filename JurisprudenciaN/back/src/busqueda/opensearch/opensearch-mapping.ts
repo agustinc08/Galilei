@@ -1,4 +1,25 @@
 export const SEARCH_INDEX_SCHEMA_VERSION = 3 as const;
+export const SEARCH_INDEX_SCHEMA_VERSION_V4 = 4 as const;
+export type SearchIndexSchemaVersion =
+  | typeof SEARCH_INDEX_SCHEMA_VERSION
+  | typeof SEARCH_INDEX_SCHEMA_VERSION_V4;
+
+export const SEARCH_V4_COLLATION_PIPELINE_ID =
+  'galilei-search-v004-collation-v1';
+
+export const SEARCH_V4_COLLATION_PIPELINE = {
+  description:
+    'GALILEI collation v1: materialize raw numeroSentencia or empty string without normalization',
+  processors: [
+    {
+      script: {
+        lang: 'painless',
+        source:
+          "if (ctx.sortFields == null) { ctx.sortFields = [:]; } def value = ctx.sortFields.get('numeroSentencia'); ctx.sortFields.put('numeroSentenciaCollation', value == null ? '' : value);",
+      },
+    },
+  ],
+} as const;
 
 export const SEARCH_FIELD_NAMES = [
   'tema',
@@ -240,6 +261,57 @@ export const SEARCH_INDEX_DEFINITION = {
   },
 } as const;
 
+type MutableSearchIndexDefinition = {
+  settings: Record<string, unknown>;
+  mappings: {
+    _meta: Record<string, unknown>;
+    properties: Record<string, unknown>;
+  };
+};
+
+function createSearchIndexDefinitionV4(): MutableSearchIndexDefinition {
+  const definition = JSON.parse(
+    JSON.stringify(SEARCH_INDEX_DEFINITION),
+  ) as MutableSearchIndexDefinition;
+  definition.mappings._meta.galileiSearchSchemaVersion =
+    SEARCH_INDEX_SCHEMA_VERSION_V4;
+  definition.settings.final_pipeline = SEARCH_V4_COLLATION_PIPELINE_ID;
+
+  const icuCollationField = {
+    type: 'icu_collation_keyword',
+    language: 'es',
+    country: 'AR',
+    variant: '@collation=standard',
+    strength: 'tertiary',
+    decomposition: 'no',
+    alternate: 'non-ignorable',
+    case_level: false,
+    numeric: false,
+    index: false,
+    doc_values: true,
+  };
+  const id = definition.mappings.properties.id as Record<string, unknown>;
+  id.fields = { collation: { ...icuCollationField } };
+  const sortFields = definition.mappings.properties.sortFields as {
+    properties: Record<string, unknown>;
+  };
+  sortFields.properties.numeroSentenciaCollation = {
+    ...icuCollationField,
+  };
+  return definition;
+}
+
+export const SEARCH_INDEX_DEFINITION_V4 =
+  createSearchIndexDefinitionV4() as Readonly<MutableSearchIndexDefinition>;
+
+export const SEARCH_INDEX_DEFINITIONS: Record<
+  SearchIndexSchemaVersion,
+  Readonly<MutableSearchIndexDefinition>
+> = {
+  [SEARCH_INDEX_SCHEMA_VERSION]: SEARCH_INDEX_DEFINITION,
+  [SEARCH_INDEX_SCHEMA_VERSION_V4]: SEARCH_INDEX_DEFINITION_V4,
+};
+
 export type SearchIndexDocument = {
   id: string;
   sourceSystem: 'CORPUS' | 'JURISPRUDENCIA';
@@ -265,7 +337,11 @@ export type SearchIndexDocument = {
   featured?: boolean;
   workspaceNameFields?: { title: string | null; filename: string | null };
   workspaceLinkedAt?: string | null;
-  sortFields?: { sala: string | null; numeroSentencia: string | null };
+  sortFields?: {
+    sala: string | null;
+    numeroSentencia: string | null;
+    numeroSentenciaCollation?: string;
+  };
   canonicalSearchText: string;
   publicSearchText: string;
   lexicalTokens: string[];
@@ -305,7 +381,7 @@ export type SearchIndexDocument = {
   folderId: string | null;
   visibilityScope: string | null;
   publicationStatus: string;
-  indexSchemaVersion: typeof SEARCH_INDEX_SCHEMA_VERSION;
+  indexSchemaVersion: SearchIndexSchemaVersion;
 };
 
 export type SearchScopeField = {
