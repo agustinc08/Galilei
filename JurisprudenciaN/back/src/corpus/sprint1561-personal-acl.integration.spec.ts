@@ -209,7 +209,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
     let searchProjectionCleanup: 'PASS' | 'FAILED' | 'NOT_REQUIRED' =
       syntheticDocumentKeys.length ? 'FAILED' : 'NOT_REQUIRED';
     let remainingSyntheticSearchDocuments: number | null = null;
-    let deletedSyntheticOutboxRows = 0;
+    let processedSyntheticOutboxRows = 0;
     let v4ShadowCountRestored = false;
     if (syntheticDocumentKeys.length) {
       const cleanupTarget =
@@ -277,22 +277,16 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
             const eventIds = qaOutboxBeforeProjectionCleanup.map(
               (event) => event.id,
             );
-            if (process.env.OPENSEARCH_READ_ONLY_CANDIDATE === 'true') {
-              const removed = await prisma.searchIndexOutbox.deleteMany({
-                where: { id: { in: eventIds } },
-              });
-              deletedSyntheticOutboxRows = removed.count;
-            } else {
-              await prisma.searchIndexOutbox.updateMany({
-                where: { id: { in: eventIds } },
-                data: {
-                  processedAt: new Date(),
-                  failedAt: null,
-                  leaseUntil: null,
-                  lastError: null,
-                },
-              });
-            }
+            const processed = await prisma.searchIndexOutbox.updateMany({
+              where: { id: { in: eventIds } },
+              data: {
+                processedAt: new Date(),
+                failedAt: null,
+                leaseUntil: null,
+                lastError: null,
+              },
+            });
+            processedSyntheticOutboxRows = processed.count;
           }
           searchProjectionCleanup = 'PASS';
         }
@@ -436,7 +430,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       outbox: {
         syntheticRows: qaOutboxAfterCleanup.length,
         qaOutboxEventIds: qaOutboxAfterCleanup.map((event) => String(event.id)),
-        deletedSyntheticRows: deletedSyntheticOutboxRows,
+        processedSyntheticRows: processedSyntheticOutboxRows,
         pending: qaOutboxAfterCleanup.filter(
           (event) => event.processedAt === null && event.failedAt === null,
         ).length,

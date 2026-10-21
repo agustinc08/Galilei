@@ -30,7 +30,83 @@ describe('OpenSearch runtime config security', () => {
       searchSchemaVersion: 4,
       searchTarget: 'galilei-search-v004-20261020t123456789z-ab12cd34',
       readOnlyCandidate: true,
+      trustedPhysicalWriter: false,
     });
+  });
+
+  it('allows a trusted V4 physical writer only when explicitly enabled for local operator use', () => {
+    const config = readOpenSearchConfig({
+      ...local,
+      NODE_ENV: 'development',
+      OPENSEARCH_SEARCH_SCHEMA_VERSION: '4',
+      OPENSEARCH_SEARCH_TARGET:
+        'galilei-search-v004-20261020t123456789z-ab12cd34',
+      OPENSEARCH_TRUSTED_PHYSICAL_WRITE: 'true',
+    });
+    expect(config).toMatchObject({
+      alias: 'galilei-search-active',
+      searchSchemaVersion: 4,
+      searchTarget: 'galilei-search-v004-20261020t123456789z-ab12cd34',
+      readOnlyCandidate: false,
+      trustedPhysicalWriter: true,
+    });
+  });
+
+  it('allows an explicit trusted V3 physical target for deterministic rollback reprojection', () => {
+    const config = readOpenSearchConfig({
+      ...local,
+      NODE_ENV: 'development',
+      OPENSEARCH_SEARCH_SCHEMA_VERSION: '3',
+      OPENSEARCH_SEARCH_TARGET:
+        'galilei-search-v003-20261017t232432555z-a6af18cb',
+      OPENSEARCH_TRUSTED_PHYSICAL_WRITE: 'true',
+    });
+    expect(config).toMatchObject({
+      searchSchemaVersion: 3,
+      searchTarget: 'galilei-search-v003-20261017t232432555z-a6af18cb',
+      trustedPhysicalWriter: true,
+      readOnlyCandidate: false,
+    });
+  });
+
+  it('rejects empty and whitespace-only search targets instead of generating an empty URL path', () => {
+    for (const target of ['', '   ']) {
+      expect(() =>
+        readOpenSearchConfig({
+          ...local,
+          OPENSEARCH_SEARCH_TARGET: target,
+        }),
+      ).toThrow('OPENSEARCH_SEARCH_TARGET_INVALID');
+    }
+  });
+
+  it('rejects trusted physical writes outside local development and conflicting read-only mode', () => {
+    const target = 'galilei-search-v004-20261020t123456789z-ab12cd34';
+    expect(() =>
+      readOpenSearchConfig({
+        ...local,
+        OPENSEARCH_NODE: 'https://127.0.0.1:9200',
+        OPENSEARCH_ALLOW_INSECURE_LOCAL: 'false',
+        NODE_ENV: 'production',
+        BJC_DEPLOYMENT_ENV: 'production',
+        OPENSEARCH_USERNAME: 'test-only',
+        OPENSEARCH_PASSWORD: 'test-only',
+        OPENSEARCH_INDEX_ALIAS: 'galilei-production-search-active',
+        OPENSEARCH_INDEX_PREFIX: 'galilei-production-search',
+        OPENSEARCH_SEARCH_SCHEMA_VERSION: '4',
+        OPENSEARCH_SEARCH_TARGET: target,
+        OPENSEARCH_TRUSTED_PHYSICAL_WRITE: 'true',
+      }),
+    ).toThrow('OPENSEARCH_SEARCH_TARGET_INVALID');
+    expect(() =>
+      readOpenSearchConfig({
+        ...local,
+        OPENSEARCH_SEARCH_SCHEMA_VERSION: '4',
+        OPENSEARCH_SEARCH_TARGET: target,
+        OPENSEARCH_READ_ONLY_CANDIDATE: 'true',
+        OPENSEARCH_TRUSTED_PHYSICAL_WRITE: 'true',
+      }),
+    ).toThrow('OPENSEARCH_TRUSTED_PHYSICAL_WRITE_SCOPE_INVALID');
   });
 
   it('keeps the normal safe target on v3 and rejects an unguarded v4 switch', () => {

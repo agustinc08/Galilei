@@ -11,6 +11,13 @@ import {
 } from './opensearch-search-source.adapter';
 import { OpenSearchSyncWorker } from './opensearch-sync.worker';
 
+function responseBody<T>(response: unknown): T {
+  if (typeof response === 'object' && response !== null && 'body' in response) {
+    return (response as { body: T }).body;
+  }
+  return response as T;
+}
+
 export class OpenSearchRuntimeService {
   readonly config = readOpenSearchConfig();
   readonly client = new Client(this.config.clientOptions);
@@ -30,6 +37,7 @@ export class OpenSearchRuntimeService {
       this.config.searchSchemaVersion,
       this.config.readOnlyCandidate,
       this.config.searchTarget,
+      this.config.trustedPhysicalWriter,
     );
     this.syncWorker = new OpenSearchSyncWorker(this.repository, this.index);
   }
@@ -40,18 +48,25 @@ export class OpenSearchRuntimeService {
         this.client.cluster.health({ local: true, timeout: '1s' }),
         this.config.readOnlyCandidate
           ? this.client.indices.exists({ index: this.config.searchTarget })
-          : this.client.indices.existsAlias({ name: this.config.alias }),
+          : this.config.trustedPhysicalWriter
+            ? this.client.indices.getAlias({ name: this.config.alias })
+            : this.client.indices.existsAlias({ name: this.config.alias }),
       ]);
-      const health =
-        (healthResult as unknown as { body?: { status?: string } }).body ??
-        (healthResult as unknown as { status?: string });
-      const aliasBody =
-        (aliasResult as unknown as { body?: boolean }).body ??
-        (aliasResult as unknown as boolean);
-      return (
+      const health = responseBody<{ status?: string }>(healthResult);
+      const aliasReady: boolean = Boolean(
+        this.config.trustedPhysicalWriter
+          ? Object.keys(responseBody<Record<string, unknown>>(aliasResult))
+              .length === 1 &&
+              Object.prototype.hasOwnProperty.call(
+                responseBody<Record<string, unknown>>(aliasResult),
+                this.config.searchTarget,
+              )
+          : responseBody<boolean>(aliasResult) === true,
+      );
+      return Boolean(
         ['green', 'yellow'].includes(health.status ?? '') &&
-        aliasBody === true &&
-        (await this.activeSchemaVersion()) === this.config.searchSchemaVersion
+        aliasReady &&
+        (await this.activeSchemaVersion()) === this.config.searchSchemaVersion,
       );
     } catch {
       return false;
@@ -63,9 +78,7 @@ export class OpenSearchRuntimeService {
       const response = await this.client.indices.getMapping({
         index: this.config.searchTarget,
       });
-      const body =
-        (response as unknown as { body?: Record<string, unknown> }).body ??
-        (response as unknown as Record<string, unknown>);
+      const body = responseBody<Record<string, unknown>>(response);
       const versions = Object.values(body).flatMap((entry) => {
         if (!entry || typeof entry !== 'object') return [];
         const mappings = (entry as { mappings?: { _meta?: unknown } }).mappings;
@@ -84,8 +97,11 @@ export class OpenSearchRuntimeService {
     }
   }
 
-  onModuleInit() {
+  async onModuleInit() {
     if (this.config.readOnlyCandidate) return;
+    if (this.config.trustedPhysicalWriter && !(await this.isReady())) {
+      throw new Error('OPENSEARCH_TRUSTED_WRITER_TARGET_NOT_ACTIVE');
+    }
     this.syncWorker.start();
   }
 

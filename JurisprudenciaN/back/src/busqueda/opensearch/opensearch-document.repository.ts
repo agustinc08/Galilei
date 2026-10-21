@@ -181,6 +181,9 @@ const MUTATION_TABLES = [
   'DigestoCollection',
   'DigestoTopic',
   'DigestoTag',
+  // Lock the outbox itself as well as every trigger source. A cutover watermark
+  // must not race a direct outbox writer while the source tables are quiesced.
+  'SearchIndexOutbox',
 ];
 
 export type SearchOutboxEvent = {
@@ -476,6 +479,30 @@ export class OpenSearchDocumentRepository {
     return result.rows.map((row) => row.documentKey);
   }
 
+  async outboxChangesPage(
+    client: PoolClient,
+    afterWatermark: string,
+    throughWatermark: string,
+    afterDocumentKey: string,
+    limit = 250,
+  ) {
+    const safeLimit = Math.max(1, Math.min(1000, Math.trunc(limit)));
+    const result = await client.query<{ documentKey: string }>(
+      `SELECT latest."documentKey"
+         FROM (
+           SELECT DISTINCT ON ("documentKey") "documentKey", "id"
+             FROM "SearchIndexOutbox"
+            WHERE "id" > $1::bigint AND "id" <= $2::bigint
+            ORDER BY "documentKey", "id" DESC
+         ) latest
+        WHERE latest."documentKey" > $3
+        ORDER BY latest."documentKey"
+        LIMIT $4`,
+      [afterWatermark, throughWatermark, afterDocumentKey, safeLimit],
+    );
+    return result.rows.map((row) => row.documentKey);
+  }
+
   async markOutboxThrough(client: PoolClient, watermark: string) {
     await client.query(
       `UPDATE "SearchIndexOutbox" SET "processedAt" = COALESCE("processedAt", now()), "leaseUntil" = NULL,
@@ -543,6 +570,27 @@ export class OpenSearchDocumentRepository {
       pending: Number(row?.pending ?? 0),
       failed: Number(row?.failed ?? 0),
       highWatermark: row?.highWatermark ?? '0',
+    };
+  }
+
+  async outboxSnapshotThrough(client: PoolClient, watermark: string) {
+    const result = await client.query<{
+      pending: string;
+      failed: string;
+    }>(
+      `SELECT count(*) FILTER (
+                WHERE "processedAt" IS NULL AND "failedAt" IS NULL
+              )::text AS pending,
+              count(*) FILTER (
+                WHERE "processedAt" IS NULL AND "failedAt" IS NOT NULL
+              )::text AS failed
+         FROM "SearchIndexOutbox"
+        WHERE "id" <= $1::bigint`,
+      [watermark],
+    );
+    return {
+      pending: Number(result.rows[0]?.pending ?? 0),
+      failed: Number(result.rows[0]?.failed ?? 0),
     };
   }
 

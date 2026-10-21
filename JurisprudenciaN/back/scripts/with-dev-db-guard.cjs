@@ -58,6 +58,8 @@ const actions = {
   'prisma-migrate-status': 'pnpm.cmd exec prisma migrate status',
   'prisma-migrate-deploy': 'pnpm.cmd exec prisma migrate deploy',
   'collation-v4-db-audit': 'node scripts/dev/collation-v4-db-audit.cjs',
+  'collation-v4-db-certification':
+    'node scripts/dev/collation-v4-db-certification.cjs',
   'collation-v4-db-cleanup': 'node scripts/dev/collation-v4-db-cleanup.cjs',
   'int1-temp-create': 'node scripts/dev/int1-temp-db.cjs create',
   'int1-temp-drop': 'node scripts/dev/int1-temp-db.cjs drop',
@@ -66,6 +68,12 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts status',
   'opensearch-v4-shadow':
     'pnpm.cmd exec ts-node scripts/dev/opensearch-v4-shadow.ts',
+  'search-v4-operator':
+    'pnpm.cmd exec ts-node scripts/dev/search-v4-operator.ts',
+  'search-v4-source-parity':
+    'pnpm.cmd exec ts-node scripts/dev/search-v4-source-parity.ts',
+  'search-v4-lifecycle':
+    'pnpm.cmd exec ts-node scripts/dev/search-v4-lifecycle.integration.ts',
   'opensearch-verify':
     'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts verify',
   'opensearch-rebuild':
@@ -618,15 +626,23 @@ const childEnv = {
     ? 'true'
     : '',
   NODE_OPTIONS:
-    action === 'sprint15-postgres-tests' ||
-    action === 'sprint15-full-tests' ||
-    action === 'sprint1511-postgres-tests' ||
-    action.startsWith('sprint1561-') ||
-    action === 'sprint152-source-tests'
-      ? '--experimental-vm-modules'
-      : action === 'sprint122-concurrency'
-        ? '--trace-warnings'
-        : process.env.NODE_OPTIONS,
+    action === 'search-v4-source-parity'
+      ? [process.env.NODE_OPTIONS, '--expose-gc', '--max-old-space-size=768']
+          .filter(Boolean)
+          .join(' ')
+      : action === 'sprint15-postgres-tests' ||
+          action === 'sprint15-full-tests' ||
+          action === 'sprint1511-postgres-tests' ||
+          action.startsWith('sprint1561-') ||
+          action === 'sprint152-source-tests'
+        ? '--experimental-vm-modules'
+        : action === 'sprint122-concurrency'
+          ? '--trace-warnings'
+          : process.env.NODE_OPTIONS,
+  TS_NODE_TRANSPILE_ONLY:
+    action === 'search-v4-source-parity'
+      ? 'true'
+      : process.env.TS_NODE_TRANSPILE_ONLY,
   BJC_BENCHMARK_OUTPUT_ROOT:
     action === 'sprint121-parity'
       ? 'sprint121'
@@ -725,6 +741,10 @@ const childEnv = {
     : '',
   BJC_COLLATION_V4_ACTION:
     action === 'opensearch-v4-shadow' ? process.argv[3] || '' : '',
+  BJC_SEARCH_V4_OPERATOR_ARGS:
+    action === 'search-v4-operator'
+      ? JSON.stringify(process.argv.slice(3))
+      : '',
 };
 if (action === 'sprint151-ui-tests') {
   fs.mkdirSync(childEnv.BJC_CORPUS_STORAGE_PATH, { recursive: true });

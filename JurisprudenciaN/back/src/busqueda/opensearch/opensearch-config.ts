@@ -17,6 +17,7 @@ export type OpenSearchConfig = {
   searchTarget: string;
   searchSchemaVersion: SearchIndexSchemaVersion;
   readOnlyCandidate: boolean;
+  trustedPhysicalWriter: boolean;
   requestTimeoutMs: number;
   maxRetries: number;
   allowInsecureLocal: boolean;
@@ -24,7 +25,7 @@ export type OpenSearchConfig = {
 };
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
-const V4_PHYSICAL_INDEX = /^galilei-search-v004-\d{8}t\d{9}z-[a-f0-9]{8}$/u;
+const PHYSICAL_INDEX = /^galilei-search-v00[34]-\d{8}t\d{9}z-[a-f0-9]{8}$/u;
 export const SEARCH_NAMESPACES = {
   development: {
     alias: 'galilei-search-active',
@@ -131,7 +132,11 @@ export function readOpenSearchConfig(
     schemaVersionValue === '4'
       ? SEARCH_INDEX_SCHEMA_VERSION_V4
       : SEARCH_INDEX_SCHEMA_VERSION;
-  const searchTargetValue = env.OPENSEARCH_SEARCH_TARGET?.trim();
+  const rawSearchTarget = env.OPENSEARCH_SEARCH_TARGET;
+  const searchTargetValue = rawSearchTarget?.trim();
+  if (rawSearchTarget !== undefined && !searchTargetValue) {
+    throw new Error('OPENSEARCH_SEARCH_TARGET_INVALID');
+  }
   const searchTarget = searchTargetValue ?? alias;
   const readOnlyCandidateValue = env.OPENSEARCH_READ_ONLY_CANDIDATE?.trim();
   if (
@@ -143,10 +148,21 @@ export function readOpenSearchConfig(
     throw new Error('OPENSEARCH_READ_ONLY_CANDIDATE_INVALID');
   }
   const readOnlyCandidate = readOnlyCandidateValue === 'true';
+  const trustedWriterValue = env.OPENSEARCH_TRUSTED_PHYSICAL_WRITE?.trim();
+  if (
+    trustedWriterValue !== undefined &&
+    trustedWriterValue !== 'true' &&
+    trustedWriterValue !== 'false'
+  ) {
+    throw new Error('OPENSEARCH_TRUSTED_PHYSICAL_WRITE_INVALID');
+  }
+  const trustedPhysicalWriter = trustedWriterValue === 'true';
   if (searchTargetValue) {
     if (
-      searchSchemaVersion !== SEARCH_INDEX_SCHEMA_VERSION_V4 ||
-      !V4_PHYSICAL_INDEX.test(searchTarget) ||
+      !PHYSICAL_INDEX.test(searchTarget) ||
+      !searchTarget.includes(
+        `-v${String(searchSchemaVersion).padStart(3, '0')}-`,
+      ) ||
       isProduction ||
       !isLoopback
     ) {
@@ -163,10 +179,27 @@ export function readOpenSearchConfig(
     throw new Error('OPENSEARCH_READ_ONLY_CANDIDATE_SCOPE_INVALID');
   }
   if (
+    trustedPhysicalWriter &&
+    (readOnlyCandidate ||
+      !searchTargetValue ||
+      !PHYSICAL_INDEX.test(searchTarget) ||
+      !searchTarget.includes(
+        `-v${String(searchSchemaVersion).padStart(3, '0')}-`,
+      ) ||
+      isProduction ||
+      !isLoopback)
+  ) {
+    throw new Error('OPENSEARCH_TRUSTED_PHYSICAL_WRITE_SCOPE_INVALID');
+  }
+  if (
     searchSchemaVersion === SEARCH_INDEX_SCHEMA_VERSION_V4 &&
-    !readOnlyCandidate
+    !readOnlyCandidate &&
+    !trustedPhysicalWriter
   ) {
     throw new Error('OPENSEARCH_V4_REQUIRES_READ_ONLY_CANDIDATE');
+  }
+  if (searchTargetValue && !readOnlyCandidate && !trustedPhysicalWriter) {
+    throw new Error('OPENSEARCH_SEARCH_TARGET_OPERATOR_MODE_REQUIRED');
   }
 
   let ca: Buffer | undefined;
@@ -186,6 +219,7 @@ export function readOpenSearchConfig(
     searchTarget,
     searchSchemaVersion,
     readOnlyCandidate,
+    trustedPhysicalWriter,
     requestTimeoutMs,
     maxRetries,
     allowInsecureLocal,

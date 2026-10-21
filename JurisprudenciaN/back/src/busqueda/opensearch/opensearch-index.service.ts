@@ -30,6 +30,28 @@ type SearchHitsResponse = {
   };
 };
 
+export type SearchReplayCheckpoint = {
+  target: string;
+  schemaVersion: SearchIndexSchemaVersion;
+  afterWatermark: string;
+  highWatermark: string;
+  changedKeys: number;
+  pendingThrough: number;
+  failedThrough: number;
+  verification: {
+    expectedIds: number;
+    indexedIds: number;
+    missing: number;
+    extra: number;
+    duplicates: number;
+  };
+};
+
+export type SearchReplayOptions = {
+  requireOutboxClear?: boolean;
+  beforeBarrierRelease?: (checkpoint: SearchReplayCheckpoint) => Promise<void>;
+};
+
 export class OpenSearchIndexService {
   constructor(
     private readonly client: Client,
@@ -39,10 +61,14 @@ export class OpenSearchIndexService {
     private readonly schemaVersion: SearchIndexSchemaVersion = SEARCH_INDEX_SCHEMA_VERSION,
     private readonly readOnlyCandidate = false,
     readonly searchTarget = alias,
+    private readonly trustedPhysicalWriter = false,
   ) {}
 
   async rebuild() {
     this.assertMutable('REBUILD');
+    if (this.schemaVersion === 4 || this.trustedPhysicalWriter) {
+      throw new Error('SEARCH_PHYSICAL_REBUILD_REQUIRES_OPERATOR_REVIEW');
+    }
     const buildStarted = Date.now();
     const startWatermark = await this.repository.withMutationBarrier(
       (_client, watermark) => Promise.resolve(watermark),
@@ -229,24 +255,65 @@ export class OpenSearchIndexService {
     };
   }
 
-  async replayShadowChanges(target: string, afterWatermark: string) {
-    if (
-      this.schemaVersion !== 4 ||
-      !target.startsWith(`${this.indexPrefix}-v004-`)
-    ) {
+  async replayShadowChanges(
+    target: string,
+    afterWatermark: string,
+    options: SearchReplayOptions = {},
+  ): Promise<SearchReplayCheckpoint> {
+    if (this.schemaVersion !== 4 || !this.isPhysicalIndex(target, 4)) {
       throw new Error('SEARCH_SHADOW_TARGET_INVALID');
     }
+    return this.replayPhysicalChanges(target, afterWatermark, options);
+  }
+
+  async replayPhysicalChanges(
+    target: string,
+    afterWatermark: string,
+    options: SearchReplayOptions = {},
+  ): Promise<SearchReplayCheckpoint> {
+    if (
+      !this.trustedPhysicalWriter ||
+      !this.isPhysicalIndex(target, this.schemaVersion)
+    ) {
+      throw new Error('SEARCH_PHYSICAL_REPLAY_TARGET_INVALID');
+    }
+    const start = parseOutboxWatermark(afterWatermark);
+    if (!(await this.indexExists(target))) {
+      throw new Error('SEARCH_PHYSICAL_REPLAY_TARGET_MISSING');
+    }
+    const mappingResponse = await this.client.indices.getMapping({
+      index: target,
+    });
+    const mappings = bodyOf<Record<string, unknown>>(mappingResponse);
+    const targetMapping = mappings[target] as
+      | { mappings?: { _meta?: { galileiSearchSchemaVersion?: unknown } } }
+      | undefined;
+    if (
+      targetMapping?.mappings?._meta?.galileiSearchSchemaVersion !==
+      this.schemaVersion
+    ) {
+      throw new Error('SEARCH_PHYSICAL_REPLAY_SCHEMA_MISMATCH');
+    }
     return this.repository.withMutationBarrier(async (pg, highWatermark) => {
-      const changedKeys = await this.repository.outboxChangesAfter(
-        pg,
-        afterWatermark,
-      );
-      for (let offset = 0; offset < changedKeys.length; offset += 250) {
-        const keys = changedKeys.slice(offset, offset + 250);
+      const end = parseOutboxWatermark(highWatermark);
+      if (end < start) throw new Error('SEARCH_OUTBOX_WATERMARK_REGRESSION');
+      let changedKeys = 0;
+      let afterDocumentKey = '';
+      for (;;) {
+        const keys = await this.repository.outboxChangesPage(
+          pg,
+          start.toString(),
+          end.toString(),
+          afterDocumentKey,
+          250,
+        );
+        if (!keys.length) break;
         const documents = await Promise.all(
-          keys.map((key) => this.resolveKey(key)),
+          keys.map((key) => this.resolveKey(key, this.schemaVersion)),
         );
         await this.applyResolutions(target, keys, documents);
+        changedKeys += keys.length;
+        afterDocumentKey = keys[keys.length - 1];
       }
       await this.client.indices.refresh({ index: target });
       const verification = await this.verifyPhysical(
@@ -260,12 +327,18 @@ export class OpenSearchIndexService {
       ) {
         throw new Error('SEARCH_SHADOW_CATCHUP_INTEGRITY_FAILED');
       }
-      return {
+      const outbox = await this.repository.outboxSnapshotThrough(
+        pg,
+        end.toString(),
+      );
+      const checkpoint: SearchReplayCheckpoint = {
         target,
-        afterWatermark,
-        highWatermark,
-        changedKeys: changedKeys.length,
-        outboxStatusesChanged: false,
+        schemaVersion: this.schemaVersion,
+        afterWatermark: start.toString(),
+        highWatermark: end.toString(),
+        changedKeys,
+        pendingThrough: outbox.pending,
+        failedThrough: outbox.failed,
         verification: {
           expectedIds: verification.expectedIds,
           indexedIds: verification.indexedIds,
@@ -274,6 +347,17 @@ export class OpenSearchIndexService {
           duplicates: verification.duplicates,
         },
       };
+      if (
+        options.requireOutboxClear &&
+        (checkpoint.pendingThrough !== 0 || checkpoint.failedThrough !== 0)
+      ) {
+        throw new Error('SEARCH_OUTBOX_NOT_CLEAR_THROUGH_CUT');
+      }
+      // This callback deliberately runs before the PostgreSQL table locks and
+      // advisory lock are released. A future cutover may put its atomic alias
+      // action here after the application and projector have been quiesced.
+      await options.beforeBarrierRelease?.(checkpoint);
+      return checkpoint;
     });
   }
 
@@ -317,12 +401,23 @@ export class OpenSearchIndexService {
 
   async indexKey(key: string) {
     this.assertMutable('INDEX_DOCUMENT');
-    const physical = await this.activePhysicalIndex();
-    if (!physical) throw new Error('SEARCH_ACTIVE_ALIAS_MISSING');
+    const destination = this.trustedPhysicalWriter
+      ? this.searchTarget
+      : this.alias;
+    if (this.trustedPhysicalWriter) {
+      if (!this.isPhysicalIndex(destination, this.schemaVersion)) {
+        throw new Error('SEARCH_PHYSICAL_WRITE_TARGET_INVALID');
+      }
+      if (!(await this.indexExists(destination))) {
+        throw new Error('SEARCH_PHYSICAL_WRITE_TARGET_MISSING');
+      }
+    } else if (!(await this.activePhysicalIndex())) {
+      throw new Error('SEARCH_ACTIVE_ALIAS_MISSING');
+    }
     const document = await this.resolveKey(key);
     if (document) {
       await this.client.index({
-        index: this.alias,
+        index: destination,
         id: document.id,
         body: document,
         refresh: false,
@@ -330,7 +425,7 @@ export class OpenSearchIndexService {
     } else {
       try {
         await this.client.delete({
-          index: this.alias,
+          index: destination,
           id: key.startsWith('CORPUS:') ? key.slice('CORPUS:'.length) : key,
           refresh: false,
         });
@@ -551,12 +646,15 @@ export class OpenSearchIndexService {
     return { all, corpus, sumarios, sentencias, publishedSentencias };
   }
 
-  private async resolveKey(key: string): Promise<SearchIndexDocument | null> {
+  private async resolveKey(
+    key: string,
+    schemaVersion: SearchIndexSchemaVersion = this.schemaVersion,
+  ): Promise<SearchIndexDocument | null> {
     if (key.startsWith('CORPUS:')) {
       const row = await this.repository.getCorpusDocument(
         key.slice('CORPUS:'.length),
       );
-      return row ? projectCorpusSearchDocument(row, this.schemaVersion) : null;
+      return row ? projectCorpusSearchDocument(row, schemaVersion) : null;
     }
     if (key.startsWith('JURISPRUDENCIA:SUMARIO:')) {
       const id = Number(key.slice('JURISPRUDENCIA:SUMARIO:'.length));
@@ -564,7 +662,7 @@ export class OpenSearchIndexService {
         throw new Error('SEARCH_OUTBOX_KEY_INVALID');
       const row = await this.repository.getJurisprudenciaDocument(id);
       return row
-        ? projectJurisprudenciaSearchDocument(row, this.schemaVersion)
+        ? projectJurisprudenciaSearchDocument(row, schemaVersion)
         : null;
     }
     if (key.startsWith('JURISPRUDENCIA:SENTENCIA:')) {
@@ -572,9 +670,7 @@ export class OpenSearchIndexService {
       if (!Number.isSafeInteger(id) || id <= 0)
         throw new Error('SEARCH_OUTBOX_KEY_INVALID');
       const row = await this.repository.getSentenciaDocument(id);
-      return row
-        ? projectSentenciaSearchDocument(row, this.schemaVersion)
-        : null;
+      return row ? projectSentenciaSearchDocument(row, schemaVersion) : null;
     }
     throw new Error('SEARCH_OUTBOX_KEY_INVALID');
   }
@@ -688,11 +784,43 @@ export class OpenSearchIndexService {
   private assertMutable(operation: string) {
     if (this.readOnlyCandidate)
       throw new Error(`OPENSEARCH_READ_ONLY_CANDIDATE_${operation}_REJECTED`);
+    if (this.schemaVersion === 4 && !this.trustedPhysicalWriter) {
+      throw new Error(
+        `OPENSEARCH_V4_WRITER_${operation}_REQUIRES_OPERATOR_MODE`,
+      );
+    }
+    if (this.searchTarget !== this.alias && !this.trustedPhysicalWriter) {
+      throw new Error(
+        `OPENSEARCH_PHYSICAL_WRITER_${operation}_REQUIRES_OPERATOR_MODE`,
+      );
+    }
+  }
+
+  private isPhysicalIndex(index: string, schemaVersion: number) {
+    const escapedPrefix = this.indexPrefix.replace(
+      /[.*+?^${}()|[\]\\]/gu,
+      '\\$&',
+    );
+    return new RegExp(
+      `^${escapedPrefix}-v${String(schemaVersion).padStart(3, '0')}-\\d{8}t\\d{9}z-[a-f0-9]{8}$`,
+      'u',
+    ).test(index);
   }
 
   private toIndexId(key: string) {
     return key.startsWith('CORPUS:') ? key.slice('CORPUS:'.length) : key;
   }
+}
+
+function parseOutboxWatermark(value: string) {
+  if (!/^(?:0|[1-9]\d{0,18})$/u.test(value)) {
+    throw new Error('SEARCH_OUTBOX_WATERMARK_INVALID');
+  }
+  const parsed = BigInt(value);
+  if (parsed > 9_223_372_036_854_775_807n) {
+    throw new Error('SEARCH_OUTBOX_WATERMARK_INVALID');
+  }
+  return parsed;
 }
 
 function bodyOf<T>(response: unknown): T {
