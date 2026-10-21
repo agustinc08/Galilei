@@ -2,14 +2,17 @@
 
 ## Estado vigente — principal DEV (2026-10-21)
 
-**Search V4 está activo y certificado.** El baseline DEV es `7f4cdd294ea039013b5bd32d9bdd0c916b8c11aa`. OpenSearch 2.19.6 está GREEN, con analysis-icu 2.19.6, ICU4J 75.1 y heap de 2 GiB. `galilei-search-active` apunta exclusivamente a `galilei-search-v004-20261020t094732495z-6015e394`; el writer es V4. V3 (`galilei-search-v003-20261017t232432555z-a6af18cb`) se conserva para rollback. Conteo canónico: 69.313 documentos en V3 y V4. El corte está `CERTIFIED_WITH_FINDINGS`, P0=0 y P1=0. Esta integración no repite el cutover ni ejecuta migraciones.
+**Equipo principal:** AgustinNotebook. **Raíz:** `C:\proyecto triple`. **DEV consolidado:** `origin/dev` contiene la integración Copernic `899210c0c9f2231fd9302b1c86971b23a7a19610` y esta actualización documental de sólo documentación. `main` sigue en `83947656420a9d6f6c3cfb12b353eb7f2c293a28`.
 
-**Copernic UX en integración candidata.** Se incorpora `71c2670e3c5f40869a737ce23df658d9257762b3` sobre el DEV V4 en `integration/copernic-v4-beta`; faltan validaciones y revisión independiente antes de promover. Se conservan los recorridos de Galilei, Jurisprudencia, Mi Sala / Juzgado y Mis documentos; selección de dependencia única o múltiple cuando corresponde; y las visibilidades **Privada — sólo yo**, **Compartida — {dependencia}** y **Restringida — usuarios seleccionados**. El cambio diferencia carga, error recuperable y estado vacío en dependencias y Mis documentos; distingue búsqueda de integrantes sin coincidencias del estado inicial; aclara que creador y administradores mantienen acceso a carpetas restringidas; y corrige el resumen de duplicados de una carga por tandas según el resultado final. Las rutas de carpetas, Viewer y descarga permanecen disponibles. Este cambio es de UX/tests frontend y no altera autorización backend, Search, Prisma ni mappings.
+**Search V4 está activo y certificado.** OpenSearch 2.19.6 `GREEN`, `analysis-icu` 2.19.6, ICU4J 75.1, heap 2 GiB. `galilei-search-active` apunta exclusivamente a `galilei-search-v004-20261020t094732495z-6015e394`, que es el writer vigente. V3 `galilei-search-v003-20261017t232432555z-a6af18cb` permanece disponible para rollback. Conteos canónicos observados: 69.313 en V3 y V4. Estado de corte: `CERTIFIED_WITH_FINDINGS`, P0=0, P1=0. No se repite cutover.
 
-### Registros históricos superados
+**Copernic UX integrado y revisado.** Commit de integración `899210c0c9f2231fd9302b1c86971b23a7a19610`, promovido a `dev` con fast-forward desde la base certificada; P0=0, P1=0. Typechecks/builds backend y frontend PASS; Playwright Copernic 5/5; 27 chequeos responsive en 9 viewports sin overflow; ACL sintética, Viewer/descarga y limpieza PASS. Búsqueda pública smoke: `responsabilidad civil` 4.759, frase exacta 3.369, `falta de servicio` 1.826, filtro Sala A 347; páginas 1 y 2 verificadas, 5xx=0 y 503=0. Orden V4 de número de sentencia: muestra de 100 por dirección, ASC=0 diferencias y DESC=0 diferencias.
 
-El registro de `JURISPRUDENCIA-SORT-FIX-1` describe una candidata anterior y sus resultados al 2026-10-20; su estado de “pendiente de revisión/no promover” ya no es el estado vigente del Search V4 certificado. `COPERNIC-PARALLEL-FIX-1` también refleja una revisión de candidata sobre el DEV de entonces (`cb42133...`); sus observaciones de navegación, dependencias, privacidad visible y pruebas UX son antecedentes, no el estado actual de integración. Los informes históricos detallados conservan su alcance y fecha.
+**Próxima frontera — oficina (sin acceder en esta misión).** PC Sytec10; raíz `D:\proyecto triple`; PostgreSQL oficina `READY`; OpenSearch `NOT_INSTALLED`; migración V4 `NOT_STARTED`. `READY_FOR_OFFICE_V4_MIGRATION=YES`; siguiente misión: `GALILEI-V4-OFFICE-MIGRATE-1`. No se conectó a Sytec10 ni se cambió su configuración.
 
+## Cronología histórica — cortes anteriores (no representan el estado operativo actual)
+
+Todo lo que sigue conserva decisiones, cifras y ramas de su fecha. Las etiquetas antiguas como “V3 activo”, “V4 shadow”, “pendiente” o “no promover” describen únicamente esos cortes históricos; el bloque de arriba es la única referencia vigente. La evidencia fuente se mantiene en los artefactos de cada misión.
 ## COPERNIC-RESTRICTED-ACL-FIX-2 — candidata (2026-10-19)
 
 La rama `feature/copernic-restricted-acl-fix2` parte exactamente de `origin/feature/copernic-restricted-acl-fix1` (`e311f968e2920ef5f61a8957f7394d9252e589fd`). Corrige el bloqueo de paginación privada detectado en REVIEW-1: el recorrido PIT exige progreso estricto de `search_after`, detecta ciclos y lotes repetidos, exige el desempate final único `id asc`, falla cerrado ante respuestas incompletas/inconsistentes y cierra PIT en `finally`. La autorización viva continúa en PostgreSQL; no se alteran ACL, Auth, Viewer productivo, semántica Jurisprudencia, Prisma ni mappings.
@@ -36,7 +39,7 @@ El smoke de DEV fue sólo lectura, con cuatro requests GET a OpenSearch: versió
 
 La candidata está publicada únicamente en `origin/feature/preprod-uat-fix`; requiere revisión independiente PREPROD-FIX-REVIEW-1 antes de cualquier promoción. PREPROD sigue NOT_PROVISIONED; dump/restore real NOT_PROVEN; imagen Docker, storage de producción, certificado TLS y UAT institucional pendientes. Evidencia local ignorada: `_recovery-work/preprod-fix1/`.
 
-## PREPROD-UAT-PREP-1 — estado vigente (2026-10-18)
+## PREPROD-UAT-PREP-1 — estado registrado al cierre de ese corte (2026-10-18)
 
 `origin/dev` y la rama de preparación parten de `af8f51d6f5e5be48e0167c5890328acd3c80c2c4`. UX quedó promovida y revisada; `main` permanece en `83947656420a9d6f6c3cfb12b353eb7f2c293a28`; `integration/galilei-beta` conserva el SHA certificado anterior `111bc5c86faff0bf946ef5e199b4463fe8217d5a`. La rama de esta misión es `feature/preprod-uat-prep`, publicada únicamente en origin y sin integración en otras ramas; el SHA publicado se registra en `git-final.json` de los artefactos ignorados.
 
@@ -48,7 +51,7 @@ En `feature/preprod-uat-prep` se agregan guardas fail-closed para alias/prefijo 
 
 ## INT-1R — recertificación final (2026-10-18)
 
-**Resultado vigente: INT-1R PASS y promoción separada verificada.** `origin/dev == origin/integration/galilei-beta == 111bc5c86faff0bf946ef5e199b4463fe8217d5a`; ése es el SHA certificado. `main` permanece sin cambios. La reconciliación de UX corre aparte en `feature/ux-reconcile`, sin promoción a DEV. UAT institucional y preproducción siguen pendientes. INT-1S y la integración OpenSearch continúan cerrados; OpenSearch 2.19.6 es índice derivado schema v3 y PostgreSQL sigue como fuente de verdad. `galilei-search-active` apunta únicamente a `galilei-search-v003-20261017t232432555z-a6af18cb`.
+**resultado histórico: INT-1R PASS y promoción separada verificada.** `origin/dev == origin/integration/galilei-beta == 111bc5c86faff0bf946ef5e199b4463fe8217d5a`; ése es el SHA certificado. `main` permanece sin cambios. La reconciliación de UX corre aparte en `feature/ux-reconcile`, sin promoción a DEV. UAT institucional y preproducción siguen pendientes. INT-1S y la integración OpenSearch continúan cerrados; OpenSearch 2.19.6 es índice derivado schema v3 y PostgreSQL sigue como fuente de verdad. `galilei-search-active` apunta únicamente a `galilei-search-v003-20261017t232432555z-a6af18cb`.
 
 La promoción tuvo una desviación procedimental por adelantarse a una autorización explícita de ese momento; se conserva tal como fue solicitada después: sin rollback, sin `--force-with-lease`, y con verificación read-only de igualdad entre DEV e integración. Esta nota no amplía el alcance de la promoción ni autoriza desplegar el branch UX.
 
@@ -60,7 +63,7 @@ Integridad actual: 69.313/69.313 IDs, 0 faltantes/extras/duplicados; Corpus 17.0
 
 Calidad: backend 37 suites/224 tests pass, 8 suites/20 tests omitidos por gates PostgreSQL/SQLite opcionales o capacidades de OCR/Office; typecheck/build backend, typecheck/build frontend, lint dirigido y diff-check pasan. E2E frontend recertificado: 17 pass / 3 skips existentes; el visor Corpus real pasó aparte. La prueba PostgreSQL-only Sprint 15.5 se habilitó de forma diagnóstica y expiró en `C-PHRASE-LINE` por timeout del adapter legacy; no es la ruta activa OpenSearch, cuya Golden HTTP 325/325 y smoke de Corpus sí pasan. Sus fixtures se limpiaron y los 674 eventos transitorios se drenaron; integridad final quedó exacta y outbox en cero.
 
-Capacidad: índice v3 13,26 GiB, rebuild equivalente ~72,9 min; el volumen local tiene 41,98 GiB libres, suficientes para certificar localmente pero debajo de la reserva de producción recomendada de ≥50 GiB. Evidencia detallada: `_recovery-work/int-1r-final/` y `_recovery-work/search-engine-integration1/` (ignorados por Git). Los registros posteriores mantienen su alcance/fecha; los cortes anteriores quedan supersedidos sólo respecto del estado vigente.
+Capacidad: índice v3 13,26 GiB, rebuild equivalente ~72,9 min; el volumen local tiene 41,98 GiB libres, suficientes para certificar localmente pero debajo de la reserva de producción recomendada de ≥50 GiB. Evidencia detallada: `_recovery-work/int-1r-final/` y `_recovery-work/search-engine-integration1/` (ignorados por Git). Los registros posteriores mantienen su alcance/fecha; los cortes anteriores quedan supersedidos sólo respecto del estado registrado al cierre de ese corte.
 ## Sprint INT-1S.6 — resultados sin conteo exacto (2026-10-15)
 
 **FAST_RESULTS_VIABLE: NO.** Se ejecutaron 1 warmup + 10 repeticiones de cada búsqueda sobre la ruta federada y el PostgreSQL DEV local, suprimiendo sólo el conteo total completo en una ruta diagnóstica temporal. “falta de servicio”: p50/p95/máx 4.125/4.255/4.255 ms; Corpus agotó el timeout SQL de 4 s en 10/10. “responsabilidad civil”: 4.145/4.210/4.210 ms y 10/10 timeouts Corpus. La interfaz no recibió una página Corpus utilizable en esas solicitudes parciales. Esto demuestra que sacar el total no basta: la generación/verificación/orden de la página todavía excede el presupuesto.
@@ -86,9 +89,9 @@ La causa confirmada fue `.gitignore` raíz `**/logs/`, que ocultaba cinco fuente
 
 La auditoría inspeccionó 589 archivos source-like bajo rutas compilables: 576 ya versionados y 13 candidatos ignorados/no versionados; se añadieron los seis archivos de código requeridos. Los otros siete candidatos son salidas JSON runtime, configuración IDE local y `next-env.d.ts` generado. Ninguno de los seis archivos añadidos tuvo coincidencias en el escaneo de secretos; el mayor agregado mide menos de 9 KiB. `pnpm exec eslint .` en frontend sigue reportando cuatro errores preexistentes de `react-hooks/set-state-in-effect` en páginas Corpus/Digesto/Revisión y una advertencia de variable no usada en `ProtectedContent.tsx`; no bloqueó typecheck/build ni pertenece a esta corrección.
 
-## Sprint 14 — corte vigente 2026-10-13
+## Sprint 14 — corte histórico 2026-10-13
 
-**Resultado vigente:** Sprint 14.8 ingirió el lote civil local; Sprint 14.9.2 dejó PHRASE en PARTIAL / PHRASE REGRESSION REMAINS (p95 comparable 2.427,38 ms; early exit no certifica total exacto). La auditoría posterior de fuentes Civil clasificó 5.738/10.600 enlaces y confirmó 4.862 sin intento, 17 challenges, 10 no disponibles y 1 error del visor; 452 grupos continúan en revisión. No se conoce un denominador oficial integral de cobertura. Ver corte de Sprint 15.1.1 + auditoría Civil al final de este documento.
+**resultado histórico:** Sprint 14.8 ingirió el lote civil local; Sprint 14.9.2 dejó PHRASE en PARTIAL / PHRASE REGRESSION REMAINS (p95 comparable 2.427,38 ms; early exit no certifica total exacto). La auditoría posterior de fuentes Civil clasificó 5.738/10.600 enlaces y confirmó 4.862 sin intento, 17 challenges, 10 no disponibles y 1 error del visor; 452 grupos continúan en revisión. No se conoce un denominador oficial integral de cobertura. Ver corte de Sprint 15.1.1 + auditoría Civil al final de este documento.
 
 Detalle: docs 146–158. Manifiestos no versionados: `_recovery-work/sprint14/`. No reauditar Search, preproducción ni raíces locales.
 
@@ -218,7 +221,7 @@ Ver cierre integral en `79`–`87`. El estado Sprint 10 de arriba queda supersed
 La corrida completa de métricas y los límites se documentan en informes 79–87; artifacts locales sensibles/restringidos permanecen en `_recovery-work/sprint11/`.
 
 
-## Cierre Sprint 12 — estado vigente (2026-10-08)
+## Cierre Sprint 12 — estado registrado al cierre de ese corte (2026-10-08)
 
 | Área | Estado / evidencia |
 |---|---|
@@ -233,7 +236,7 @@ La corrida completa de métricas y los límites se documentan en informes 79–8
 | UAT/ACL/Digesto | UAT y ACL institucional PENDING; export/crosswalk Digesto PENDING; CIJ/CSJN NO GO. |
 | Dictamen | TECHNICAL PREPRODUCTION — NOT READY. Informes 97 y 98; Sprint 12.1 limitado a bloqueos técnicos demostrados. |
 
-Las secciones históricas anteriores conservan sus cifras de cada corte; esta tabla representa el estado vigente.
+Las secciones históricas anteriores conservan sus cifras de cada corte; esta tabla representa el estado registrado al cierre de ese corte.
 
 ## Cierre Sprint 12.1 — 2026-10-08
 
@@ -252,7 +255,7 @@ Las secciones históricas anteriores conservan sus cifras de cada corte; esta ta
 La causa de Search y los límites de las mediciones se explican en docs 99–104. La ola de concurrencia fue in-process y local; no representa proxy/TLS/red.
 
 
-## Cierre Sprint 12.2 — estado vigente (2026-10-08)
+## Cierre Sprint 12.2 — estado registrado al cierre de ese corte (2026-10-08)
 
 | Área | Estado / evidencia |
 |---|---|
@@ -292,7 +295,7 @@ Artefactos privados y sanitizados de Sprint 12.3: `_recovery-work/sprint123/`. P
 
 ## Cierre Sprint 13 — 2026-10-08
 
-Este es el corte vigente de preproducción/UAT; conserva Sprint 12.3 como último resultado técnico de Search en DEV.
+Este es el corte histórico de preproducción/UAT; conserva Sprint 12.3 como último resultado técnico de Search en DEV.
 
 | Área | Estado / evidencia |
 |---|---|
@@ -328,7 +331,7 @@ Próximo gate: IT debe proveer un host privado y DB/storage nuevos autorizados; 
 **Sprint 14.2 final:** el inventario histórico global quedó completo: 226.770/226.770 filas, 11.339/11.339 páginas, cero páginas fallidas. Se identificaron 1.277 fallos de Cámara Civil (2008–2013); 1.254 documentos nuevos ingresaron al Corpus y Search V2. El catálogo actual expone 110 Juzgados Civiles y 14 salas, pero las consultas siguen bloqueadas por `cap-widget`. El master operativo y el checkpoint están en `BJC-ADQUISICION-JURISPRUDENCIA.md` y `_recovery-work/sprint142/historical.sqlite`.
 
 
-## Sprint 14.2 — corte vigente
+## Sprint 14.2 — corte histórico
 
 El filtro `tid=18` enumeró 1.277 fallos de Cámara Civil (07/07/2008–28/08/2013). De los 1.277 flids, 1.263 PDFs se validaron, 13 ya estaban locales y uno devolvió 404 persistente. Se incorporaron 1.254 nuevos hashes al Corpus DEV; 1.253 quedaron INDEXED y uno OCR_REQUIRED. Search V2 quedó con 12.262 documentos, 10.035.849 tokens, cero stale y TERM p50/p95 113/227 ms, PHRASE 270/538 ms. El inventario global cerró en 226.770 filas y 11.339 páginas. Detalle operativo en `BJC-ADQUISICION-JURISPRUDENCIA.md`.
 
@@ -399,18 +402,18 @@ El PDF actual enlazado por el feed está en una ruta que el `robots.txt` de CSJN
 - Ingesta pendiente. El servicio PostgreSQL DEV quedó detenido tras apagado limpio; Windows Code Integrity (eventos 3033/3077) bloquea `postgres.exe` porque la firma Authenticode figura `NotSigned` frente al nivel Enterprise requerido. No hay listener en `127.0.0.1:55432`, backup válido ni escrituras de Corpus/Search.
 - En ese checkpoint, el próximo gate era recuperar PostgreSQL DEV antes de cualquier escritura. Se completó el 2026-10-13; ver el apartado vigente Sprint 14.8 arriba y `BJC-ADQUISICION-JURISPRUDENCIA.md`.
 
-## Estado vigente — cierre Sprint 14.9.1 (2026-10-13)
+## estado registrado al cierre de ese corte — cierre Sprint 14.9.1 (2026-10-13)
 
 Search continúa en DEV local y PARTIAL / PHRASE REGRESSION REMAINS. La proyección conserva 17.078 documentos y 18.799.500 tokens, stale 0 y 0 discrepancias en muestra de 100. Candidate set y ampliación PHRASE ahora se ejecutan en una sola consulta SQL además del readiness; el caso medido de cuatro resultados bajó de 4.431 a 2.094 ms y de 4 SQL a 2. La corrida comparable PHRASE de 10 requests dio p50 2.118 ms/p95 2.323 ms, peor que el baseline 1.632/1.763 ms y fuera del gate de 1.200 ms.
 
 Paridad 40/40, viewer 6/6, pruebas parser/adapter 34/34, PostgreSQL 7/7, Corpus 3/3, suite general 93 PASS/15 omitidos, schema verify 44 tablas/21 migraciones PASS, typecheck y build PASS. VACUUM (ANALYZE) mejoró visibilidad a 99,985%, pero no logró Index Only Scan. Mantener Search local; el siguiente cuello medido es la lectura heap y el orden/agregado de todo el set candidato PHRASE. No continuar con los 452 grupos hasta cerrar este gate. Evidencia y límites en BJC-SEARCH.md y _recovery-work/sprint1491/.
-## Estado vigente — Sprint 15 (2026-10-13)
+## estado registrado al cierre de ese corte — Sprint 15 (2026-10-13)
 
 **MVP de espacios privados IMPLEMENTADO en DEV.** Migración `20261013130000_sprint15_private_document_workspaces` aplicada en `bjc_dev@127.0.0.1:55432/buscador_juridico_civil_dev`, con backup pre-migración verificado ya existente en Sprint 14.9. E2E PostgreSQL sintético PASS: workspace A/B, mismo SHA/blob con documentos lógicos distintos, idempotencia por SHA dentro del mismo workspace, resultados aislados, general sin privados, acceso cruzado y acceso global por ID 404, lectura autorizada directa, carpetas/movimientos, membership y restricciones VIEWER. Suite backend 94 PASS/15 omitidos; typecheck y builds backend/frontend PASS; Search verify stale=0/mismatch=0, paridad 40/40 y viewer 6/6 PASS; schema 49 tablas/22 migraciones PASS. Benchmark canónico endpoint tras warmup + 10 requests: TERM común p50/p95 202/266 ms; PHRASE 1.934/2.226 ms; 0 fallos. Baseline comparable Sprint 14.9.2 PHRASE 2.272/2.427 ms; PHRASE mejora, pero supera el objetivo histórico de 1.200 ms y permanece PARTIAL. Espacio sintético de 1 documento: TERM p50/p95 3,9/5,4 ms; PHRASE 86,6/176,6 ms (3 muestras, no SLO).
 
 El storage de prueba queda aislado bajo `_dev-corpus-storage-test/sprint15-workspaces` y se limpia con la suite. No se reindexó el corpus existente (17.078 documentos / 18.799.500 tokens) ni se editaron documentos de adquisición. Search PHRASE continúa PARTIAL según `BJC-SEARCH.md`. Este estado es sólo local DEV; preproducción, producción, UAT y acceso institucional siguen pendientes. Detalle y contratos: `BJC-ESPACIOS-DOCUMENTALES.md`.
 
-## Estado vigente — Sprint 15.1 (2026-10-13)
+## estado registrado al cierre de ese corte — Sprint 15.1 (2026-10-13)
 
 **Sprint 15.1 PARTIAL; listo técnicamente para organizar un piloto en DEV, pendiente de UAT con personas reales.** Se implementaron en UI administración de workspaces y miembros, selección de alcance, búsqueda en espacio/carpeta/nombre, carpetas, carga 1–20 archivos con resultados por archivo, actividad y errores legibles. Playwright sintético pasó 2 escenarios en 1366×768/1920×1080; backend verificó ACL positiva/negativa, viewer y descarga cruzada 404, aislamiento de Search general y casos same-hash. Typecheck, builds, suite backend, Prisma y checks de Search previos PASS. No hubo acceso ni despliegue institucional.
 
@@ -418,7 +421,7 @@ Dataset sintético privado 100/500/1.000: última corrida TERM p50/p95 38,15/42,
 
 Search general: 17.078 documentos, 18.799.500 tokens, stale=0, mismatch 0/100; paridad 40/40 y viewer 6/6. Aceptación por personal de juzgados/salas sigue PENDING y TERM sintético a 1.000 documentos mostró hasta 2,70 s p95, por lo que no declarar el Sprint CLOSED ni escalar el corpus del piloto sin seguimiento de rendimiento. Ver detalles y checklist ejecutado en `BJC-ESPACIOS-DOCUMENTALES.md`.
 
-## Estado vigente — Sprint 15.1.1 (2026-10-13)
+## estado registrado al cierre de ese corte — Sprint 15.1.1 (2026-10-13)
 
 **PARTIAL; no ampliar los espacios privados todavía.** Causa ACL confirmada: estadísticas obsoletas estimaron 1 documento frente a 600 reales y forzaron 600 lookups repetidos, con 174.750 filas descartadas por unión. El Hash Join posterior quitó ese patrón. Se aplicó la migración local `20261013150000_sprint1511_private_search_stats_maintenance` con backup previo comprobado; sin índice nuevo ni reescritura de seguridad.
 
@@ -440,7 +443,7 @@ El paquete runtime no versionado para PC oficina quedó en `_local-setup/office-
 
 Los nueve artefactos de discovery están bajo `_recovery-work/jurisprudencia-discovery/` y excluidos del commit. Resumen por año/Sala, endpoint, oportunidades y políticas se documenta en `BJC-FUENTES-DE-DATOS.md` y `BJC-ADQUISICION-JURISPRUDENCIA.md`. Estado final de esta misión: runtime mirror listo; source inventory y gap analysis parciales por falta de censos oficiales y rutas autorizadas.
 
-## Estado vigente — Sprint J1 (2026-10-13)
+## estado registrado al cierre de ese corte — Sprint J1 (2026-10-13)
 
 Sprint J1 queda **PARTIAL**. PostgreSQL DEV fue verificado en `127.0.0.1:55432`, DB `buscador_juridico_civil_dev`, rol `bjc_dev`, PostgreSQL 16.15. Se generó y verificó backup preescritura de 570.040.784 bytes, SHA-256 `901b28b53c776d45a3912b2969cd2ba1c238f95060afc3de8d444c5667190cab`.
 
@@ -472,19 +475,19 @@ Reextracción local reprodujo 15 comparaciones: 2 `SAME_TEXT_RENDER`, 12 `SAME_D
 
 Search projection se verificó read-only: 17.078 documentos, 18.799.500 tokens, stale 0, discrepancias 0/100, cero rebuild. Se agregaron únicamente tooling/tests CJS y scripts de paquete; Prisma, migraciones, Corpus/Search runtime y DB quedaron sin cambios. Paquete local e ignorado: `_recovery-work/jurisprudencia-j4/` (snapshot, comparación, ledger, HTML/CSV de revisión, fixture/import validation, schema options y performance). PHRASE Search sigue con su gate independiente pendiente; este trabajo de review no lo cambia.
 
-## Sprint J5 — estado vigente (2026-10-14)
+## Sprint J5 — estado registrado al cierre de ese corte (2026-10-14)
 
 El review package de 451 grupos ya contiene procedencia y evidencia por expediente. Ningún candidato de los 106 se pudo recuperar; 194 conflictos estructurales tienen varios expedientes exactos impresos en un mismo PDF y 127 siguen como colisiones de metadata. De 7 metadata conflicts, un expediente fuente quedó corroborado junto con otro expediente Corpus en el PDF; 6 conservan campos críticos pendientes. No se aplican links ni se cambia legal metadata.
 
 Readiness: 2 listos para decisión humana, 106 sin candidato, 6 con datos críticos pendientes, 321 estructurales y 16 limitados por modelo. El paquete está en `_recovery-work/jurisprudencia-j5/`; tests CJS 19/19 y determinismo 10/10 pasan. DEV permanece en 17.078 documentos, 17.098 archivos, 17.685 ingestas y 18.799.500 tokens; Search verify: 0 stale, 0 mismatch/100 y 0 rebuild. El timestamp `verifiedAt` se devolvió al valor previo de J4 tras detectar que el comando de verify lo refresca. No hay cambios finales de contenido en Corpus/Search, Prisma ni migraciones. **Cierre técnico: PARTIAL**, porque ese refresco transitorio incumplió el gate estricto de cero escrituras aunque se restauró el valor previo.
 
-## Sprint J6 — estado vigente (2026-10-14)
+## Sprint J6 — estado registrado al cierre de ese corte (2026-10-14)
 
 J6 completó el análisis reproducible de los 321 grupos y la cola de revisión V3. Pruebas Node: 15/15 PASS; artefactos deterministas: 11/11 PASS. La DB DEV se mantuvo read-only, con cero intentos de mutación y sentinelas sin cambios. Search: 17.078 documentos, 18.799.500 tokens, 0 stale, 0 diferencias en muestra 100; `verifiedAt` estable.
 
 Resultado `PARTIAL`: la identidad primaria tiene 187 propuestas confirmadas/probables listas para revisión estructural y 134 ambiguas/limitadas; las 127 colisiones de metadata incluyen 107 sin procedencia suficiente. No se aplicaron links ni correcciones, y no se decidió schema. Paquete local ignorado: `_recovery-work/jurisprudencia-j6/`.
 
-## Sprint J6.1 — estado vigente (2026-10-14)
+## Sprint J6.1 — estado registrado al cierre de ese corte (2026-10-14)
 
 Review tool local listo para revisión humana: 187 casos (P0 8, P1 174, P2 5), sample-20 determinista (P0 4/P1 12/P2 4), 14/14 tests J6.1 PASS (30/30 junto con J6). Snapshot J6.1 `2b04cdb75acaa36dec515b7b7d8e8928dc80186d10bb6b293d119317b6f1827d`; referencia J6 `541be6ede30c0f0e9cd68a9fbb7bad23d23b3f3f77d7f67ee354d686ecc3b3ac`. La app es HTML offline; no hace writes DB. Se verifica igualdad de sentinelas heredados de J6 y paridad Search (17.078/18.799.500, stale 0, mismatch 0/100, verifiedAt intacto).
 
@@ -552,14 +555,14 @@ Jurisprudencia queda `CLOSED` en DEV para los gaps dirigidos de sumarios, cola d
 
 Edge renderizó el PDF real de 3 páginas y el fixture de 1 página en 1366×768 y 1920×1080. La impresión browser invoca `window.print()` con stylesheet verificada; no se automatizó diálogo del sistema. No cambió Search/Viewer core, Corpus, archivos ni schema; conteos de publicación permanecen 6.014/56. No hubo UAT institucional, preproducción ni producción. Evidencia local ignorada: `_recovery-work/jurisprudencia-j911/`.
 
-## Estado vigente — Sprint 15.2 fuentes documentales (2026-10-13)
+## estado registrado al cierre de ese corte — Sprint 15.2 fuentes documentales (2026-10-13)
 
 **PARTIAL por validación ambiental; implementación técnica lista en DEV.** Migración `20261013170000_sprint152_document_sources` aplicada y `migrate status` limpio: 24 migraciones. Se respaldó DEV antes de migrar y se validaron hashes de dump/SQL. El modelo de fuentes, escaneo en segundo plano, cambios incrementales, rename inequívoco, manejo offline sin marcar missing, ingesta por el pipeline existente, alias de Search y controles de membership ADMIN pasaron integración sintética. Typecheck, lint y builds backend/frontend PASS. Search general “responsabilidad” devolvió 21 resultados (20 en página) y cero documentos privados; Search verify 17.078 docs/18.799.500 tokens listo, Viewer 6/6. El benchmark metadata sin cambios de 5.000 archivos fue 1.190 ms, cero hashes y cero reingestas.
 
 La suite backend completa terminó: 94 PASS, 19 omitidas, 0 fallos (21 suites PASS, 7 omitidas). No se probó una carpeta UNC real: IT debe habilitar lectura SMB/NTFS para la identidad del backend. La paridad legacy 40/40 está bloqueada porque no existe el SQLite local esperado; no se reporta PASS. No hubo acceso a shares institucionales, preproducción ni producción, ni UAT humana. Evidencia privada local: `_recovery-work/sprint152/`; contrato en `BJC-FUENTES-DOCUMENTALES.md`.
 
 `origin/feature/jurisprudencia` contiene cambios independientes de adquisición y modificaciones divergentes en `BJC-ESTADO-ACTUAL.md` y `BJC-ROADMAP.md`. No se integraron ni sobrescribieron; un futuro cherry-pick/merge puede requerir resolver esos dos documentos manualmente.
-## Estado vigente — Sprint 15.3 (2026-10-13)
+## estado registrado al cierre de ese corte — Sprint 15.3 (2026-10-13)
 
 **Sprint 15.3 PARTIAL; implementación de UX y validaciones técnicas PASS en DEV.** /spaces ahora usa layout Copernic de tres paneles con árbol por workspace, carpetas virtuales de fuentes, búsqueda explícita combinada por contenido/nombre, filtros de fuente/carpeta y preview PDF persistente. La página de viewer conserva query, workspace, alcance, página y coincidencia al volver. Sin cambios de schema/migraciones.
 
@@ -569,7 +572,7 @@ Se mantiene PARTIAL porque offsets de PHRASE no garantizan todavía resaltado de
 
 No hubo UAT humano, acceso UNC institucional, preproducción ni producción. Riesgo de integración con feature/jurisprudencia: corpus-search.adapter.ts, workspace-document.service.ts, controller de workspace y documentos maestros generales; no se mergeó esa rama ni se tocó main/dev.
 
-## Estado vigente — Sprint 15.3.1 (2026-10-14)
+## estado registrado al cierre de ese corte — Sprint 15.3.1 (2026-10-14)
 
 **PARTIAL; filtros backend y spans del extractor implementados en `feature/copernic`.** Workspace Search combina source/folder/type/date en SQL antes de count/paginación; fecha=`decisionDate` inclusiva calendario sin fallback; tipos PDF/TXT por MIME de última versión. `/matches` usa `start/end` sobre texto de página original y comunica truncation. El viewer resalta el fixture de frase exacta y se abstiene ante mapeo PDF.js ambiguo. No se tocó Prisma/schema.
 
@@ -577,7 +580,7 @@ Pruebas registradas: Search filter helpers 10/10 (incluye match contract), Searc
 
 Sprint 15.3.1 queda **PARTIAL** hasta ampliar evidencia de alineación extractor↔PDF.js más allá del fixture. No hubo UAT humana, share UNC real, preproducción ni producción. Archivos con posible conflicto respecto de `feature/jurisprudencia`: `corpus-search.adapter.ts`, `workspace-document.service.ts`, `workspace-document.controller.ts`, `BJC-SEARCH.md`, `BJC-ESPACIOS-DOCUMENTALES.md`, `BJC-FUNCIONAL.md`, `BJC-ESTADO-ACTUAL.md` y `BJC-ROADMAP.md`; no se integró esa rama ni se tocaron `dev/main`.
 
-## Estado vigente — Sprint 15.3.2 (2026-10-14)
+## estado registrado al cierre de ese corte — Sprint 15.3.2 (2026-10-14)
 
 **PARTIAL / PARTIALLY CERTIFIED.** En `feature/copernic` se robusteció el mapping visual Search→PDF.js y el fallback fail-closed. La muestra local fue 25 PDFs/827 páginas (2008–2026), con 138 spans mapeados y 83 sin correspondencia segura; se observaron 0 falsos highlights. Las páginas diferentes (672) difirieron sólo en espacios/saltos de línea. TERM real: 4/25 mapeados; PHRASE: 3/18 spans mapeados. Acentos 5/25, `ñ` 25/25, repetidos 71/75, dos casos multi-item y dos con salto de línea. No se declara cobertura universal.
 
@@ -585,7 +588,7 @@ Verificaciones actuales: Search verify 17.078 docs/18.799.500 tokens, stale 0, m
 
 No hubo cambios backend, Search, Prisma, migration o ACL. La validación ACL/workspace sigue sustentada por el E2E de Sprint 15.3.1; no se reejecutó en esta sprint. No hubo aceptación humana ni cambios a `BJC-ESPACIOS-DOCUMENTALES.md`. `origin/feature/jurisprudencia` avanzó a `cfc9014` y también toca `CorpusPdfViewer.tsx` y los cuatro documentos generales de esta sprint; no se integró ninguna rama. Evidencia de auditoría y screenshots queda bajo `_recovery-work/sprint1532/`, ignorada por Git.
 
-## Estado vigente — Sprint 15.3.3 (2026-10-14)
+## estado registrado al cierre de ese corte — Sprint 15.3.3 (2026-10-14)
 
 **Mapping Search→PDF.js: certificado para los spans y clases medidos; cobertura universal sigue PARTIAL.** Sobre los 25 PDFs/827 páginas de baseline se reprodujeron exactamente los 221 estados Sprint 15.3.2 (138 mapeados, 83 `UNMAPPABLE`, cero falsos). El análisis de fallos clasificó 76 diferencias de salto de línea/espacio y 7 límites de item sin separador. El mapper nuevo ubicó 221/221 spans con 0/221 secuencias visibles incorrectas: `DIRECT_EXACT` 35, `NORMALIZED_EXACT` 178, `SEGMENTED_EXACT` 7, `CONTEXT_EXACT` 1. TERM 25/25; PHRASE 18/18; repetidos, acentos y `ñ`: 75/75, 25/25 y 25/25.
 
@@ -595,7 +598,7 @@ Runtime DEV verificado sin reconstrucción: Search projection ready, 17.078 docu
 
 No se cambió Search backend/AST/SQL/projection, Prisma, schema, migraciones ni ACL. El cambio queda en `feature/copernic`; no se integraron `dev`, `main` ni `feature/jurisprudencia`. UAT humana, validación de OCR/ligaduras/columnas y certificación universal siguen pendientes.
 
-## Estado vigente — Sprint 15.4A (2026-10-14)
+## estado registrado al cierre de ese corte — Sprint 15.4A (2026-10-14)
 
 **PARTIAL.** Se agregó detección de formato por contenido y extracción local para TXT, RTF, DOCX y ODT, junto a PDF existente. Upload privado y fuentes admiten P0 con 20 MiB por archivo; el original permanece protegido e inalterado. Preview textual, Search por tipo y descarga con ACL cubren RTF/DOCX/ODT. DOC legado se detecta y rechaza de forma explícita (`LEGACY_DOC_UNSUPPORTED`). PDFs con páginas de texto escaso quedan `OCR_REQUIRED`, con cualquier texto nativo conservado para Search.
 
@@ -615,7 +618,7 @@ La migración aditiva `20261014110000_sprint154a1_local_document_processing` est
 La suite backend completa final pasó 128 pruebas en 27 suites; 20 pruebas opt-in quedaron omitidas y siete suites no aplicaban. Después se repitieron la integración PostgreSQL Workspace extendida con DOC (1/1), Source (2/2) y el E2E UI completo (1/1). Backend build/typecheck/lint y frontend typecheck/build/lint pasaron. La E2E mantuvo health y Search disponibles durante OCR, encontró el texto al completar el job, probó DOC/RTF, descargas y ACL, navegó F3/Shift+F3 y no dibujó highlight visual OCR. Benchmark DOC 10/10: media 35,35 s, p50 30,48 s, p95 57,57 s; es una limitación de rendimiento para carga masiva. Mantener local-only; para detalle, límites y próximo alcance consultar `BJC-PROCESAMIENTO-DOCUMENTAL.md` y `BJC-ROADMAP.md`.
 
 Collision audit final después de `git fetch origin --prune`: `origin/dev`=`f7e37bc12436110191da15121bf047a0184e2e5a`, `origin/feature/jurisprudencia`=`e27fb1547c128b2a5976ad160a1b4eb7e4b95341`, `origin/feature/copernic` antes del commit=`928ba3c1398f924e53f7af02870f2dc9df09e8d8`; merge-base de las ramas=`origin/dev`. La rama remota tiene 98 rutas divergentes y ocho coinciden con esta sprint: `AGENTS.md`, `schema.prisma`, `with-dev-db-guard.cjs` y cinco documentos generales. El riesgo de integración es **ALTO** por schema/migraciones y contratos/documentación compartidos; package.json y la migración de workflow sólo cambian en jurisprudencia, mientras este sprint agrega una migración local distinta. No se mergeó ni modificó esa rama; resolver schema, migraciones y rutas compartidas durante una integración coordinada.
-## Sprint 15.5 — estado vigente (2026-10-14)
+## Sprint 15.5 — estado registrado al cierre de ese corte (2026-10-14)
 
 Search + Viewer: **CERTIFIED_WITH_KNOWN_LIMITATIONS para beta técnica controlada en DEV**. Golden Search 319/319; real sample 300/300 invariantes; Workspace/ACL PostgreSQL 1/1; E2E piloto 5/5 y workspace 2/2; paginación 325/325 sin duplicados/faltantes. Baseline posterior al cleanup: 17.078 documentos, 17.098 archivos, 198.129 páginas, 17.685 ingestas, 18.799.500 tokens, stale=0, mismatch=0/100, workspaces privados=0. Prisma: 25 migraciones al día; no hubo migration/schema/dependency change.
 
@@ -631,7 +634,7 @@ La integración PostgreSQL Workspace se ejecutó dos veces y falló en la expect
 
 **Dictamen esperado: PARTIAL para la misión integral.** Se verificó por código/modelo que `WorkspaceDocument` no tiene propietario personal ni ACL por carpeta; el acceso actual corresponde a todas las membresías activas de la dependencia. No se expusieron botones personales/restringidos que pudieran prometer un permiso inexistente. No hubo cambios de backend, Search core, Viewer core, OCR, Prisma o migraciones. UAT humana y toda certificación personal/restringida siguen pendientes. Ver `BJC-UX-ESPACIOS-DOCUMENTALES.md` y `_recovery-work/sprint156/`.
 
-## Cierre Sprint 15.6.1 — 2026-10-14 (estado vigente)
+## Cierre Sprint 15.6.1 — 2026-10-14 (estado registrado al cierre de ese corte)
 
 **CLOSED técnicamente en DEV local; UAT humana, UNC institucional, preproducción y producción siguen pendientes.** `feature/copernic` incorpora propiedad personal global por usuario y ACL heredable por carpeta para dependencias. Los dos cambios Prisma son aditivos; DEV está al día con 27 migraciones. El backend aplica el permiso antes de árboles, Search/count, metadata, matches, Viewer y descarga, y revoca grants en vivo. Fuente sincronizada no se privatiza ni se republica con las rutas de documentos personales.
 
@@ -639,7 +642,7 @@ La E2E final de Playwright pasó 1/1 y los tamaños 1366×768, 1440×900, 1536×
 
 El OCR `attemptCount=2` histórico ocurrió mientras un backend ya existente escuchaba 4001; la suite compartía la cola `default`. La prueba ahora usa una cola por corrida y storage aislado. Seis repeticiones pasaron con intento 1. Esto prueba determinismo bajo aislamiento; no reconstruye la intercalación histórica y no atribuye un defecto al worker de producción. La limpieza posterior dejó cero filas E2E y borró cuatro blobs sintéticos; baseline Search: 17.078 documentos, 17.098 archivos, 198.129 páginas, 17.685 ingestas, 18.799.500 tokens, stale 0, mismatch 0/100 y rebuild 0. Evidencia local: `_recovery-work/sprint1561/`.
 
-## INT-1S.4 — estado vigente de Search (2026-10-15)
+## INT-1S.4 — estado registrado al cierre de ese corte de Search (2026-10-15)
 
 **Acelerador adaptativo por chunks REJECTED; INT-1S e INT-1R continúan BLOCKED.** La garantía formal de chunks con 2048/overlap 127 cubre frases normalizadas hasta 128 caracteres; para frases mayores, anchors literales de hasta 128 caracteres preservan candidatos y requieren verificación exacta completa. La prueba sintética cubrió límites y frases 129/301/1000. En el Corpus DEV, 2048 y 1024 produjeron el total histórico 202 para `falta de servicio`, pero `responsabilidad civil` agotó 4 s en ambas. 1024 redujo los bloques compartidos del plan de `falta` a 3.981 desde 33.211, pero elevó el almacenamiento temporal a 833,44 MiB y la preparación total observada a ~24,4 min; 512 no se intentó. Cero cambios de código Search, schema o migración; se eliminaron los objetos UNLOGGED y se verificó cero residuo. Los 13 cambios previos del worktree se conservaron; DEV no se promovió y UX-2 no se inició. Evidencia: `_recovery-work/integration-int1s4/final-summary.json`.
 
@@ -660,7 +663,7 @@ La clasificación inicial `SUBSTRING_UNCERTAIN` queda resuelta por validación d
 
 El FTS simple de un vector fue descartado por falsos negativos en documentos extensos (5.363/5.364 para “responsabilidad civil”; 149/194 para “falta de servicio”). Un prototipo híbrido FTS por ventanas recuperó esos dos totales y pasó 23/23 fixtures, pero su p95 combinado para “responsabilidad civil” fue 2.467 ms (sobre el gate de 2 s); “falta de servicio” fue 437 ms. La paridad de IDs/100 consultas y concurrencia no está certificada. Ningún adapter, Golden, schema o migración de producto fue modificado; los objetos FTS de prueba fueron temporales y revertidos. INT-1S sigue bloqueado por rendimiento. Artefactos: `_recovery-work/search-semantics-audit1/` y `_recovery-work/search-contract-change1/`.
 
-## SEARCH-SEMANTICS-AUDIT-2 — estado vigente (2026-10-16)
+## SEARCH-SEMANTICS-AUDIT-2 — estado registrado al cierre de ese corte (2026-10-16)
 
 **PARTIAL / WAITING HUMAN COPERNIC RUNTIME TEST.** Se reabrió la clasificación previa SUBSTRING_ACCIDENTAL / confianza alta porque una segunda fuente anónima recuerda lo contrario en TERM: CIVIL sí aparecía dentro de CIVILIZACIÓN y se resaltaba sólo CIVIL. H1 mantiene el recuerdo anterior: no aparecía; también recuerda TERM y PHRASE léxicos. H2 todavía no puede confirmar la semántica de PHRASE y no aporta semántica completa de comodines.
 
@@ -677,7 +680,7 @@ H2 reportó frase exacta "responsabilidad civil" con ambas palabras resaltadas y
 Search no se implementó y todavía difiere del target: plain TERM actual puede ser substring arbitraria; Corpus PHRASE admite secuencia literal sin límites léxicos, mientras el adapter moderno Jurisprudencia aplica límites por espacios. Golden sigue en 319 (0 explícitamente dependientes de partial-word), sin cambios. Motor DEFERRED y EVAL-2 no iniciado; benchmarks substring anteriores no comparan el contrato nuevo. INT-1S bloqueado por implementación/rendimiento, no por incertidumbre semántica; INT-1R espera Search; DEV no promovido; UX-2 no iniciado. Sin DB ni cambios de producto. Próximo sprint: `SEARCH-CONTRACT-COPERNIC-1`, con PostgreSQL primero bajo el contrato acordado.
 
 
-## SEARCH-CONTRACT-COPERNIC-1 — resultado vigente (2026-10-16)
+## SEARCH-CONTRACT-COPERNIC-1 — resultado histórico (2026-10-16)
 
 **PostgreSQL REJECTED; contrato semántico CLOSED; implementación Search BLOCKED.** Baseline PostgreSQL DEV local, sólo lectura: Corpus lógico 17.078, elegibles 17.077, proyección 17.078 documentos/18.799.500 tokens; J8 6.070 documentos únicos, 6.014 publicados activos y cohorte review 56 (36 identidad + 20 representación), sin BROKEN/UNKNOWN/UNRESOLVED.
 
@@ -685,7 +688,7 @@ Candidato A trigram document-wide + regex: timeout de 2,1 s a los 2.114 ms para 
 
 No se implementó Search; Golden sigue 319 sin cambios; no hubo cambios de producto/schema, migraciones, escrituras DEV, backup, build ni pruebas finales de producto. Se limpiaron las rutas temporales del DB guard y su SHA volvió al estado preexistente. Próxima evaluación: SEARCH-ENGINE-EVAL-2 bajo el contrato nuevo. INT-1S BLOCKED BY ENGINE; INT-1R BLOCKED; DEV NOT PROMOTED; UX branch UNTOUCHED. Artefactos: `_recovery-work/search-contract-copernic1/`.
 
-## SEARCH-ENGINE-EVAL-2 — estado vigente (2026-10-16)
+## SEARCH-ENGINE-EVAL-2 — estado registrado al cierre de ese corte (2026-10-16)
 
 Contrato de búsqueda: CLOSED (COPERNIC_PREFIX_EXACT_PHRASE). PostgreSQL search: REJECTED por rendimiento y falta de certificación exacta; PostgreSQL sigue como source of truth. OpenSearch 2.19.6: EVALUATION PASSED y ADOPT como motor candidato para integración. No está integrado ni habilitado en el producto.
 

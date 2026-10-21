@@ -1,23 +1,21 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
-## Estado vigente — principal DEV (2026-10-21)
+## Estado y gates vigentes — principal DEV (2026-10-21)
 
-| Gate | Estado | Evidencia / siguiente paso |
+| Gate | Estado actual | Evidencia / siguiente paso |
 |---|---|---|
-| DEV base | `7f4cdd294ea039013b5bd32d9bdd0c916b8c11aa` | Base certificada para consolidar Copernic. |
-| Search V4 | **ACTIVO / CERTIFICADO** | Alias `galilei-search-active` → V4 solamente; writer V4; OpenSearch 2.19.6 GREEN, analysis-icu 2.19.6, ICU4J 75.1, heap 2 GiB. |
-| Índices | **V4 activo; V3 retenido** | V3 y V4 tienen 69.313 documentos canónicos; conservar V3 para rollback. |
-| Corte V4 | **CERTIFIED_WITH_FINDINGS** | P0=0, P1=0. No repetir cutover ni cambiar alias/writer en esta misión. |
-| Copernic UX | **Integración candidata** | Commit `71c2670e3c5f40869a737ce23df658d9257762b3`; ejecutar builds/tests enfocados, smoke y revisión independiente antes de promoción. |
-| DB / Prisma | **Sin cambios de esquema** | No ejecutar migraciones, `db push` ni reset. |
-| Oficina | **Pendiente, misión separada** | No acceder a Sytec10. Sólo preparar migración cuando todos los gates de DEV y documentación estén certificados. |
+| Principal DEV | **CONSOLIDADO** | Copernic integrado en `origin/dev`; commit `899210c0c9f2231fd9302b1c86971b23a7a19610` más este follow-up documental. `main` intacta en `83947656420a9d6f6c3cfb12b353eb7f2c293a28`. |
+| Search V4 | **ACTIVO / CERTIFICADO** | OpenSearch 2.19.6 GREEN; `analysis-icu` 2.19.6, ICU4J 75.1, heap 2 GiB; alias `galilei-search-active` → V4 solamente; writer V4. |
+| Índices / rollback | **V4 activo; V3 retenido** | V3 y V4 con 69.313 documentos observados; mantener V3 para rollback. Corte `CERTIFIED_WITH_FINDINGS`, P0=0/P1=0. No repetir cutover. |
+| Copernic | **INTEGRADO / REVISIÓN PASS** | Home, Jurisprudencia, Mi Sala / Juzgado, Mis documentos, carpetas, búsqueda, ACL, Viewer/descarga, estados de carga/error/vacío y duplicados; backend ACL/Search sin cambios. Tests Copernic 5/5 y responsive 27/27. |
+| Búsqueda | **SMOKE PASS** | Responsabilidad civil 4.759; frase exacta 3.369; falta de servicio 1.826; Sala A 347; paginación 200; 5xx=0, 503=0. Orden V4 sampleado ASC/DESC: 0 diferencias en 100 valores por dirección. |
+| DB / Prisma | **SIN CAMBIOS** | Prisma generate PASS contra PostgreSQL DEV 16.15 en `127.0.0.1:55432`; no se ejecutaron migraciones. Outbox pending=0, failed=0; residuo sintético=0. |
+| Oficina — Sytec10 | **LISTA PARA MISIÓN SEPARADA** | Raíz `D:\proyecto triple`; PostgreSQL READY; OpenSearch NOT_INSTALLED; migración V4 NOT_STARTED. No se accedió a esa PC. |
+| Próximo gate | `GALILEI-V4-OFFICE-MIGRATE-1` | Ejecutar sólo después, en Sytec10 y su raíz D:, con su propia validación previa. |
 
-Copernic mantiene los recorridos de Galilei, Jurisprudencia, Mi Sala / Juzgado y Mis documentos, selector de dependencia cuando aplica, carpetas, carga por tandas, búsqueda de integrantes y accesos a Viewer/descarga. La interfaz explicita **Privada — sólo yo**, **Compartida — {dependencia}** y **Restringida — usuarios seleccionados**. El nuevo manejo separa carga/error/estado vacío, permite reintentar errores de dependencia y documentos personales, muestra explícitamente búsquedas de integrantes sin resultados y calcula duplicados desde los resultados finales de la tanda. No cambia la autorización del backend.
+## Cronología histórica — decisiones/cortes anteriores
 
-### Registros históricos superados
-
-Los apartados que siguen documentan decisiones fechadas de candidatas previas. En particular, los estados de `JURISPRUDENCIA-SORT-FIX-1` y `COPERNIC-PARALLEL-FIX-1` correspondían al 2026-10-20 y al DEV anterior; no describen el gate vigente ni habilitan por sí solos una promoción. Su evidencia permanece vinculada a sus respectivas misiones.
-
+Todo el contenido posterior registra estado y evidencias de la fecha del encabezado. Las afirmaciones antiguas de V3 activo, V4 shadow, promoción pendiente o gates bloqueados no describen el estado actual; usar exclusivamente la tabla de arriba para operar.
 ## COPERNIC-RESTRICTED-ACL-FIX-2 — candidata para revisión (2026-10-19)
 
 Corregir y verificar el progreso de `search_after` del Search privado sobre la base exacta de Fix-1. La implementación agrega orden total con `id asc`, comparación monotónica de tuples, fingerprints tipados de cursor, detección acotada de ciclos y lotes duplicados, guardas de respuesta incompleta y cierre PIT ante error. REVIEW-1 P2-1 queda resuelto; no hay P0/P1 nuevos. La validación de ACL viva, paginación, carpetas y Viewer HTTP se ejecutó con fixtures DEV sintéticos y limpieza verificada. OpenSearch 2.19.6 se observó read-only; la prueba de 69k escala sigue siendo simulada y la latencia real combinada es P2 pendiente.
@@ -36,7 +34,7 @@ La rama `feature/preprod-uat-fix` conserva la base exacta `4d68c49d80642a19e93cc
 
 Calidad local: backend/frontend build y typecheck PASS; suite segura 42/272 con 7 omitidos; focused guard/namespace 65/65; backup 2/2; frontend URL 5/5; ESLint de todos los archivos modificados sin errores ni warnings. Smokes DEV sólo GET: OpenSearch 2.19.6 green, alias activo v3 y 69.313 documentos; no hubo conexión DB ni escrituras. `feature/preprod-uat-fix` se publicó sólo en su ref autorizada. Siguiente gate: PREPROD-FIX-REVIEW-1 independiente; no promover antes de esa revisión. PREPROD no provisionado; backup/restore real, Docker image y UAT no probados.
 
-## Corte vigente — preparación de preproducción/UAT (2026-10-18)
+## corte histórico — preparación de preproducción/UAT (2026-10-18)
 
 | Alcance | Estado | Evidencia / siguiente paso |
 |---|---|---|
@@ -51,7 +49,7 @@ Calidad local: backend/frontend build y typecheck PASS; suite segura 42/272 con 
 
 Siguiente gate: PREPROD-FIX-REVIEW-1 independiente. La topología elegida es API loopback + proxy del mismo host; proxy en contenedor separado NO CERTIFIED. El startup puede recuperar scans/OCR y procesar outbox, por lo que DB/Search/storage/backup deben estar healthy antes de iniciar. Luego infraestructura provisiona y entrega identidad/owner/ventana. Sólo entonces ejecutar el runbook 136 con guard de DB, restore drill y service manager aprobado. No desplegar producción ni iniciar UAT real.
 
-## Corte vigente — Search DEV y reconciliación UX separada (2026-10-18)
+## corte histórico — Search DEV y reconciliación UX separada (2026-10-18)
 
 | Alcance | Estado | Evidencia / siguiente paso |
 |---|---|---|
@@ -77,7 +75,7 @@ Próxima acción: revisar `feature/ux-reconcile` en su branch. No promover ese b
 
 **Siguiente decisión:** encargar por separado evaluación de motor Search externo o cambio explícito del contrato de producto. No seleccionar ni instalar un motor en esta continuidad. Evidencia: `_recovery-work/integration-int1s6/decision.json`.
 
-## Estado vigente — Sprint INT-1 (2026-10-14)
+## estado registrado al cierre de ese corte — Sprint INT-1 (2026-10-14)
 
 **INT-1 PARTIAL; integración local lista para revisión/publicación de branch.** Ambas ramas están fusionadas en integration/galilei-beta; la shell Galilei distingue Jurisprudencia, Mi Sala / Juzgado y Mis documentos. Replay limpio de 28 migraciones, Search golden + verify, Viewer, ACL/workspace E2E, typechecks y builds pasan. No actualizar origin/dev: DEV local reporta 0 fallos publicados (frente al snapshot J9 esperado de 6.014) y faltan los manifests J7/J8 que autorizan repetir certificación de Corpus/publicación. No transformar ni publicar datos para hacer coincidir conteos.
 
@@ -186,7 +184,7 @@ Mantener **NOT READY FOR PREPRODUCTION**. Priorizar performance legacy/federada 
 
 ## Plan anunciado tras Sprint 10 (histórico)
 
-**Sprint 11 — VALIDACIÓN CON USUARIOS + CORRECCIONES DEL PILOTO + PREPRODUCCIÓN**, sujeto a feedback humano y cierre de estos gates. Mantener DEV guardado; no conectar producción ni servicios remotos. El estado vigente y el trabajo pendiente están en Sprint 12.1 al final de este documento.
+**Sprint 11 — VALIDACIÓN CON USUARIOS + CORRECCIONES DEL PILOTO + PREPRODUCCIÓN**, sujeto a feedback humano y cierre de estos gates. Mantener DEV guardado; no conectar producción ni servicios remotos. El estado registrado al cierre de ese corte y el trabajo pendiente están en Sprint 12.1 al final de este documento.
 
 
 ## Sprint 12 — cierre
@@ -480,7 +478,7 @@ La UX de entrada, dependencia, carpetas compartidas, Search, preview y upload se
 
 Próximo trabajo permitido: integración coordinada de ramas sólo después de comparar las decisiones de UX y los contratos ACL; luego diseñar un alcance backend dedicado para propietario personal y carpetas restringidas, con regresión DB/API/árbol/Search/count/preview/download/upload/move antes de activar controles. Human UAT sigue pendiente. No comenzar Search features, RAG, NEAR, scraping ni adquisición por esta conclusión.
 
-## Sprint 15.6.1 — resultado vigente y siguiente paso (2026-10-14)
+## Sprint 15.6.1 — resultado histórico y siguiente paso (2026-10-14)
 
 **CLOSED técnicamente en DEV local.** Se completaron documentos `GLOBAL_PER_USER`, carpetas compartidas/restringidas con grants a membresías activas, revocación inmediata en Search/Viewer/download, transiciones con confirmación y seguridad para documentos sincronizados. Herencia es acumulativa: no se puede ensanchar un hijo dentro de una carpeta restringida; se debe cambiar primero el alcance del padre. La corrida OCR histórica se volvió determinística usando cola y storage únicos por ejecución; seis integraciones Workspace consecutivas pasaron. E2E, Search golden, Source, Prisma y Search Verify también pasaron; DB/storage sintético se limpiaron y el baseline quedó intacto. Detalle/evidencia: `BJC-ESTADO-ACTUAL.md`, `BJC-ESPACIOS-DOCUMENTALES.md` y `_recovery-work/sprint1561/`.
 
