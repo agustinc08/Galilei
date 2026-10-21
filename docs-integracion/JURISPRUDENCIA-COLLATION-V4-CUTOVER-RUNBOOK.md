@@ -39,7 +39,7 @@ Before the alias operation, any failure leaves V3 active and the application can
 
 ## Future rollback after V4 has served writes
 
-Keep the backend stopped and the V4 projector drained. Capture a new rollback `H0` only after quiescing. Replay the current PostgreSQL state and all outbox keys through the captured high-water into the retained physical V3 index using schema 3. Require exact ID parity and zero pending/failed events through the boundary. Then, in one atomic alias update, remove the alias from V4 and add it to V3. Restart the backend with its default schema 3/alias configuration. Do not infer freshness from timestamps or replay “until it looks current.”
+Keep the backend stopped and the V4 projector drained. Preserve the original V4 activation boundary `H_CUT` in the cutover evidence. After quiescing, capture `H_ROLLBACK = MAX(SearchIndexOutbox.id)` as the inclusive upper boundary. Replay V3 with schema 3 using `--after H_CUT`: `--after` is an exclusive lower bound, so replaying from the newly captured `H_ROLLBACK` would omit the V4-era writes. The replay captures `H_ROLLBACK` under the database mutation barrier, resolves every changed key from current PostgreSQL state, and applies events in `(H_CUT, H_ROLLBACK]` to V3. Keep those outbox rows available through the rollback observation window; do not run processed-outbox retention cleanup for events newer than `H_CUT`. Require exact ID parity and zero pending/failed events through `H_ROLLBACK`. Then, in one atomic alias update, remove the alias from V4 and add it to V3. Restart the backend with its default schema 3/alias configuration. Do not infer freshness from timestamps or replay “until it looks current.”
 
 ## Safe OpenSearch runtime
 
