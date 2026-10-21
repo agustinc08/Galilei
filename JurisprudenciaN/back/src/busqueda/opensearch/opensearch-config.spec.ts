@@ -12,6 +12,7 @@ describe('OpenSearch runtime config security', () => {
     expect(config.alias).toBe('galilei-search-active');
     expect(config.indexPrefix).toBe('galilei-search');
     expect(config.searchSchemaVersion).toBe(3);
+    expect(config.topology).toBe('principal-cutover');
     expect(config.searchTarget).toBe('galilei-search-active');
     expect(config.readOnlyCandidate).toBe(false);
   });
@@ -116,6 +117,46 @@ describe('OpenSearch runtime config security', () => {
         OPENSEARCH_SEARCH_SCHEMA_VERSION: '4',
       }),
     ).toThrow('OPENSEARCH_V4_REQUIRES_READ_ONLY_CANDIDATE');
+  });
+
+  it('requires explicit fresh-v4 topology and allows only the V4 alias writer in that mode', () => {
+    expect(() =>
+      readOpenSearchConfig({
+        ...local,
+        NODE_ENV: 'development',
+        OPENSEARCH_SEARCH_SCHEMA_VERSION: '4',
+      }),
+    ).toThrow('OPENSEARCH_V4_REQUIRES_READ_ONLY_CANDIDATE');
+
+    const config = readOpenSearchConfig({
+      ...local,
+      NODE_ENV: 'development',
+      BJC_SEARCH_TOPOLOGY: 'fresh-v4',
+      OPENSEARCH_SEARCH_SCHEMA_VERSION: '4',
+    });
+    expect(config).toMatchObject({
+      topology: 'fresh-v4',
+      searchSchemaVersion: 4,
+      searchTarget: 'galilei-search-active',
+      trustedPhysicalWriter: false,
+      readOnlyCandidate: false,
+    });
+  });
+
+  it('rejects unknown search topologies instead of inferring from index state', () => {
+    expect(() =>
+      readOpenSearchConfig({
+        ...local,
+        BJC_SEARCH_TOPOLOGY: 'automatic',
+      }),
+    ).toThrow('OPENSEARCH_TOPOLOGY_INVALID');
+    expect(() =>
+      readOpenSearchConfig({
+        ...local,
+        BJC_SEARCH_TOPOLOGY: 'fresh-v4',
+        OPENSEARCH_SEARCH_SCHEMA_VERSION: '3',
+      }),
+    ).toThrow('OPENSEARCH_FRESH_V4_SCHEMA_REQUIRED');
   });
 
   it('rejects user-shaped, non-physical, or production v4 targets', () => {

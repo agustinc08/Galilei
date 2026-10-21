@@ -31,6 +31,9 @@ import { PersonalDocumentController } from './personal-document.controller';
 import { WorkspaceDocumentService } from './workspace-document.service';
 
 const enabled = process.env.SPRINT1561_POSTGRES_TEST === '1';
+const openSearchNode =
+  process.env.OPENSEARCH_NODE?.trim() ?? 'http://127.0.0.1:9200';
+const freshV4Topology = process.env.BJC_SEARCH_TOPOLOGY === 'fresh-v4';
 const suffix =
   `${Date.now()}${Math.random().toString(16).slice(2, 7)}`.toUpperCase();
 const storageRoot = path.resolve(
@@ -221,7 +224,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         throw new Error('SYNTHETIC_CLEANUP_TARGET_NOT_V4');
       }
       const openSearchClient = new Client({
-        node: 'http://127.0.0.1:9200',
+        node: openSearchNode,
         requestTimeout: 5000,
         maxRetries: 0,
       });
@@ -825,7 +828,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         )
           throw new Error('SYNTHETIC_QA_TARGET_NOT_V4');
         v4QaOpenSearchClient = new Client({
-          node: 'http://127.0.0.1:9200',
+          node: openSearchNode,
           requestTimeout: 5000,
           maxRetries: 0,
         });
@@ -848,12 +851,14 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
           (countResponse as unknown as { count?: number });
         const aliasTargets = Object.keys(aliases);
         v4ShadowCountBeforeSyntheticQa = Number(countBody.count ?? -1);
+        const expectedAliasTarget = freshV4Topology
+          ? v4CandidateIndex
+          : 'galilei-search-v003-20261017t232432555z-a6af18cb';
         if (
           health.status !== 'green' ||
           aliasTargets.length !== 1 ||
-          aliasTargets[0] !==
-            'galilei-search-v003-20261017t232432555z-a6af18cb' ||
-          aliasTargets.includes(v4CandidateIndex) ||
+          aliasTargets[0] !== expectedAliasTarget ||
+          (!freshV4Topology && aliasTargets.includes(v4CandidateIndex)) ||
           v4ShadowCountBeforeSyntheticQa !== 69313
         )
           throw new Error('V4_SYNTHETIC_QA_PREFLIGHT_FAILED');

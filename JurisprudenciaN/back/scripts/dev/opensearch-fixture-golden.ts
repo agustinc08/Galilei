@@ -109,11 +109,14 @@ async function main() {
   );
   const allIds = [...ids, ...paginationIds];
   const artifactRoot = resolve(
-    process.cwd(),
-    '..',
-    '..',
-    '_recovery-work',
-    'search-engine-integration1',
+    process.env.BJC_SEARCH_V4_ARTIFACT_ROOT ??
+      resolve(
+        process.cwd(),
+        '..',
+        '..',
+        '_recovery-work',
+        'search-engine-integration1',
+      ),
   );
   const context: SearchContext = {
     visibility: 'INTERNAL',
@@ -701,7 +704,10 @@ async function waitForOutbox(runtime: OpenSearchRuntimeService) {
 }
 
 function loadLocalEnvironment() {
-  const file = resolve(process.cwd(), '.env.development.local');
+  const file = resolve(
+    process.env.BJC_DEV_DB_GUARD_ENV_FILE ??
+      resolve(process.cwd(), '.env.development.local'),
+  );
   const contents = readFileSync(file, 'utf8');
   for (const line of contents.split(/\r?\n/u)) {
     const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/u);

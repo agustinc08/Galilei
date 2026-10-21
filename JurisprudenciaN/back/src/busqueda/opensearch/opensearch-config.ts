@@ -12,6 +12,7 @@ import {
 
 export type OpenSearchConfig = {
   node: string;
+  topology: 'principal-cutover' | 'fresh-v4';
   alias: string;
   indexPrefix: string;
   searchTarget: string;
@@ -64,6 +65,15 @@ export function readOpenSearchConfig(
   }
 
   const deploymentEnvironment = resolveDeploymentEnvironment(env);
+  const topologyValue = env.BJC_SEARCH_TOPOLOGY?.trim();
+  if (
+    topologyValue !== undefined &&
+    topologyValue !== 'principal-cutover' &&
+    topologyValue !== 'fresh-v4'
+  ) {
+    throw new Error('OPENSEARCH_TOPOLOGY_INVALID');
+  }
+  const topology = topologyValue ?? 'principal-cutover';
   const allowInsecureLocal = env.OPENSEARCH_ALLOW_INSECURE_LOCAL === 'true';
   const isProduction = deploymentEnvironment !== 'development';
   const isLoopback = LOOPBACK_HOSTS.has(
@@ -132,6 +142,9 @@ export function readOpenSearchConfig(
     schemaVersionValue === '4'
       ? SEARCH_INDEX_SCHEMA_VERSION_V4
       : SEARCH_INDEX_SCHEMA_VERSION;
+  if (topology === 'fresh-v4' && searchSchemaVersion !== 4) {
+    throw new Error('OPENSEARCH_FRESH_V4_SCHEMA_REQUIRED');
+  }
   const rawSearchTarget = env.OPENSEARCH_SEARCH_TARGET;
   const searchTargetValue = rawSearchTarget?.trim();
   if (rawSearchTarget !== undefined && !searchTargetValue) {
@@ -194,9 +207,18 @@ export function readOpenSearchConfig(
   if (
     searchSchemaVersion === SEARCH_INDEX_SCHEMA_VERSION_V4 &&
     !readOnlyCandidate &&
-    !trustedPhysicalWriter
+    !trustedPhysicalWriter &&
+    topology !== 'fresh-v4'
   ) {
     throw new Error('OPENSEARCH_V4_REQUIRES_READ_ONLY_CANDIDATE');
+  }
+  if (
+    topology === 'fresh-v4' &&
+    !readOnlyCandidate &&
+    !trustedPhysicalWriter &&
+    searchTarget !== alias
+  ) {
+    throw new Error('OPENSEARCH_FRESH_V4_ALIAS_TARGET_REQUIRED');
   }
   if (searchTargetValue && !readOnlyCandidate && !trustedPhysicalWriter) {
     throw new Error('OPENSEARCH_SEARCH_TARGET_OPERATOR_MODE_REQUIRED');
@@ -214,6 +236,7 @@ export function readOpenSearchConfig(
 
   return {
     node: endpoint.origin,
+    topology,
     alias,
     indexPrefix,
     searchTarget,

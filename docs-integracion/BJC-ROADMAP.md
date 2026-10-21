@@ -572,3 +572,9 @@ No se habilita despliegue ni invitación de usuarios hasta completar infraestruc
 | Commit / push / promoción | CANDIDATO LISTO; promoción no realizada | Commit/push únicamente a `feature/jurisprudencia-collation-v4-implement1` tras calidad final; no tocar alias, `dev`, `main` ni UX. |
 
 Próximo paso: revisión independiente `JURISPRUDENCIA-COLLATION-V4-REVIEW-1`. V4 queda como shadow; no cambiar alias. Los fixtures fueron sintéticos y se limpiaron del DB DEV y del índice V4; el conteo final regresó a 69.313 y el outbox a 217.809/0 pendientes/0 fallidos. Re-certificar la colación si cambia la versión ICU de Node u OpenSearch.
+
+## JURISPRUDENCIA-V4-FRESH-BOOTSTRAP-TOOLING-1R — gate en curso (2026-10-21)
+
+El objetivo es añadir un camino soportado que cree V4 directamente en un OpenSearch vacío, reutilizando mapping/proyección V4 y sin requerir V3. El trabajo candidato está en `feature/search-fresh-v4-bootstrap1r`, basado exactamente en `origin/dev=ebefee54a5208187b7f77b84d71d7addd043f653`. La validación se limita al runtime aislado de `19200/19300`; el índice `galilei-search-v004-20261021t082000000z-1a2b3c4d` sigue en proyección y el alias aislado permanece ausente.
+
+Siguiente: completar proyección y paridad, probar Golden ASC/DESC, Search y ACL, lifecycle/outbox, restart y regresión principal; cerrar typecheck/build/tests y escaneo de secretos/archivos grandes. La promoción a `origin/dev` queda bloqueada hasta una revisión independiente PASS con cero hallazgos P0/P1. No cambiar `main`, Search principal, migraciones ni Sytec10; si un gate no puede completarse, dejarlo como bloqueante y conservar el candidato sin promoción.

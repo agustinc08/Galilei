@@ -5,7 +5,23 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
-const envFile = path.resolve(__dirname, '..', '.env.development.local');
+const defaultEnvFile = path.resolve(__dirname, '..', '.env.development.local');
+const configuredEnvFile = process.env.BJC_DEV_DB_GUARD_ENV_FILE;
+const envFile = configuredEnvFile
+  ? path.resolve(configuredEnvFile)
+  : defaultEnvFile;
+if (
+  configuredEnvFile &&
+  (path.basename(envFile).toLowerCase() !== '.env.development.local' ||
+    !/[\\/]JurisprudenciaN[\\/]back[\\/]\.env\.development\.local$/iu.test(
+      envFile,
+    ))
+) {
+  console.error(
+    'DEV_DB_GUARD=ABORT; external config path must be a project backend .env.development.local.',
+  );
+  process.exit(2);
+}
 if (!fs.existsSync(envFile)) {
   console.error('DEV_DB_GUARD=ABORT; .env.development.local is missing.');
   process.exit(2);
@@ -70,10 +86,14 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/opensearch-v4-shadow.ts',
   'search-v4-operator':
     'pnpm.cmd exec ts-node scripts/dev/search-v4-operator.ts',
+  'search-v4-fresh-bootstrap':
+    'pnpm.cmd exec ts-node scripts/dev/search-v4-fresh-bootstrap.ts',
   'search-v4-source-parity':
     'pnpm.cmd exec ts-node scripts/dev/search-v4-source-parity.ts',
   'search-v4-lifecycle':
     'pnpm.cmd exec ts-node scripts/dev/search-v4-lifecycle.integration.ts',
+  'search-v4-fresh-lifecycle':
+    'pnpm.cmd exec ts-node scripts/dev/search-v4-fresh-lifecycle.integration.ts',
   'opensearch-verify':
     'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts verify',
   'opensearch-rebuild':
@@ -630,17 +650,22 @@ const childEnv = {
       ? [process.env.NODE_OPTIONS, '--expose-gc', '--max-old-space-size=768']
           .filter(Boolean)
           .join(' ')
-      : action === 'sprint15-postgres-tests' ||
-          action === 'sprint15-full-tests' ||
-          action === 'sprint1511-postgres-tests' ||
-          action.startsWith('sprint1561-') ||
-          action === 'sprint152-source-tests'
-        ? '--experimental-vm-modules'
-        : action === 'sprint122-concurrency'
-          ? '--trace-warnings'
-          : process.env.NODE_OPTIONS,
+      : action === 'search-v4-fresh-bootstrap'
+        ? [process.env.NODE_OPTIONS, '--expose-gc', '--max-old-space-size=512']
+            .filter(Boolean)
+            .join(' ')
+        : action === 'sprint15-postgres-tests' ||
+            action === 'sprint15-full-tests' ||
+            action === 'sprint1511-postgres-tests' ||
+            action.startsWith('sprint1561-') ||
+            action === 'sprint152-source-tests'
+          ? '--experimental-vm-modules'
+          : action === 'sprint122-concurrency'
+            ? '--trace-warnings'
+            : process.env.NODE_OPTIONS,
   TS_NODE_TRANSPILE_ONLY:
-    action === 'search-v4-source-parity'
+    action === 'search-v4-source-parity' ||
+    action === 'search-v4-fresh-bootstrap'
       ? 'true'
       : process.env.TS_NODE_TRANSPILE_ONLY,
   BJC_BENCHMARK_OUTPUT_ROOT:
@@ -743,6 +768,10 @@ const childEnv = {
     action === 'opensearch-v4-shadow' ? process.argv[3] || '' : '',
   BJC_SEARCH_V4_OPERATOR_ARGS:
     action === 'search-v4-operator'
+      ? JSON.stringify(process.argv.slice(3))
+      : '',
+  BJC_SEARCH_V4_FRESH_ARGS:
+    action === 'search-v4-fresh-bootstrap'
       ? JSON.stringify(process.argv.slice(3))
       : '',
 };

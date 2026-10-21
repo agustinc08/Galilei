@@ -18,6 +18,63 @@ function responseBody<T>(response: unknown): T {
   return response as T;
 }
 
+export function freshV4AliasTarget(
+  response: unknown,
+  alias: string,
+  indexPrefix: string,
+): string | null {
+  const body = responseBody<Record<string, unknown>>(response);
+  const targets = Object.keys(body ?? {});
+  if (targets.length !== 1) return null;
+  const target = targets[0];
+  const escapedPrefix = indexPrefix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  if (
+    !new RegExp(`^${escapedPrefix}-v004-\\d{8}t\\d{9}z-[a-f0-9]{8}$`, 'u').test(
+      target,
+    )
+  ) {
+    return null;
+  }
+  const index = body[target];
+  if (!index || typeof index !== 'object') return null;
+  const aliases = (index as { aliases?: Record<string, unknown> }).aliases;
+  const settings = aliases?.[alias];
+  if (!settings || typeof settings !== 'object') return null;
+  return (settings as { is_write_index?: unknown }).is_write_index === true
+    ? target
+    : null;
+}
+
+export function isSearchTargetReady(
+  response: unknown,
+  config: Pick<
+    ReturnType<typeof readOpenSearchConfig>,
+    | 'topology'
+    | 'readOnlyCandidate'
+    | 'trustedPhysicalWriter'
+    | 'alias'
+    | 'indexPrefix'
+    | 'searchTarget'
+  >,
+): boolean {
+  if (config.readOnlyCandidate) {
+    return responseBody<boolean>(response) === true;
+  }
+  if (config.topology === 'fresh-v4') {
+    return (
+      freshV4AliasTarget(response, config.alias, config.indexPrefix) !== null
+    );
+  }
+  if (!config.trustedPhysicalWriter) {
+    return responseBody<boolean>(response) === true;
+  }
+  const targets = responseBody<Record<string, unknown>>(response);
+  return (
+    Object.keys(targets).length === 1 &&
+    Object.prototype.hasOwnProperty.call(targets, config.searchTarget)
+  );
+}
+
 export class OpenSearchRuntimeService {
   readonly config = readOpenSearchConfig();
   readonly client = new Client(this.config.clientOptions);
@@ -38,6 +95,7 @@ export class OpenSearchRuntimeService {
       this.config.readOnlyCandidate,
       this.config.searchTarget,
       this.config.trustedPhysicalWriter,
+      this.config.topology === 'fresh-v4',
     );
     this.syncWorker = new OpenSearchSyncWorker(this.repository, this.index);
   }
@@ -48,21 +106,13 @@ export class OpenSearchRuntimeService {
         this.client.cluster.health({ local: true, timeout: '1s' }),
         this.config.readOnlyCandidate
           ? this.client.indices.exists({ index: this.config.searchTarget })
-          : this.config.trustedPhysicalWriter
+          : this.config.trustedPhysicalWriter ||
+              this.config.topology === 'fresh-v4'
             ? this.client.indices.getAlias({ name: this.config.alias })
             : this.client.indices.existsAlias({ name: this.config.alias }),
       ]);
       const health = responseBody<{ status?: string }>(healthResult);
-      const aliasReady: boolean = Boolean(
-        this.config.trustedPhysicalWriter
-          ? Object.keys(responseBody<Record<string, unknown>>(aliasResult))
-              .length === 1 &&
-              Object.prototype.hasOwnProperty.call(
-                responseBody<Record<string, unknown>>(aliasResult),
-                this.config.searchTarget,
-              )
-          : responseBody<boolean>(aliasResult) === true,
-      );
+      const aliasReady = isSearchTargetReady(aliasResult, this.config);
       return Boolean(
         ['green', 'yellow'].includes(health.status ?? '') &&
         aliasReady &&
@@ -99,6 +149,9 @@ export class OpenSearchRuntimeService {
 
   async onModuleInit() {
     if (this.config.readOnlyCandidate) return;
+    if (this.config.topology === 'fresh-v4' && !(await this.isReady())) {
+      throw new Error('OPENSEARCH_FRESH_V4_ALIAS_NOT_READY');
+    }
     if (this.config.trustedPhysicalWriter && !(await this.isReady())) {
       throw new Error('OPENSEARCH_TRUSTED_WRITER_TARGET_NOT_ACTIVE');
     }

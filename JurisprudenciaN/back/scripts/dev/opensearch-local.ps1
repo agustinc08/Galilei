@@ -9,11 +9,15 @@ $baseUri = 'http://127.0.0.1:9200'
 $expectedVersion = '2.19.6'
 $expectedIcuVersion = '2.19.6'
 $expectedIcu4jVersion = '75.1'
+$topology = if ($env:BJC_SEARCH_TOPOLOGY) { $env:BJC_SEARCH_TOPOLOGY } else { 'principal-cutover' }
+if ($topology -notin @('principal-cutover', 'fresh-v4')) { throw 'OPENSEARCH_TOPOLOGY_INVALID' }
+if ($topology -eq 'fresh-v4') { throw 'OPENSEARCH_FRESH_V4_REQUIRES_ISOLATED_LAUNCHER' }
 $expectedV3 = if ($env:BJC_OPENSEARCH_EXPECTED_V3) { $env:BJC_OPENSEARCH_EXPECTED_V3 } else { 'galilei-search-v003-20261017t232432555z-a6af18cb' }
 $expectedV4 = if ($env:BJC_OPENSEARCH_EXPECTED_V4) { $env:BJC_OPENSEARCH_EXPECTED_V4 } else { 'galilei-search-v004-20261020t094732495z-6015e394' }
-$expectedActiveTarget = if ($env:BJC_OPENSEARCH_EXPECTED_ACTIVE_TARGET) { $env:BJC_OPENSEARCH_EXPECTED_ACTIVE_TARGET } else { $expectedV3 }
+$expectedActiveTarget = if ($env:BJC_OPENSEARCH_EXPECTED_ACTIVE_TARGET) { $env:BJC_OPENSEARCH_EXPECTED_ACTIVE_TARGET } else { $expectedV4 }
 $expectedDocuments = if ($env:BJC_OPENSEARCH_EXPECTED_DOCUMENT_COUNT) { [int]$env:BJC_OPENSEARCH_EXPECTED_DOCUMENT_COUNT } else { 69313 }
 if ($expectedActiveTarget -notin @($expectedV3, $expectedV4)) { throw 'OPENSEARCH_EXPECTED_ACTIVE_TARGET_INVALID' }
+if ($topology -eq 'fresh-v4' -and $expectedActiveTarget -ne $expectedV4) { throw 'OPENSEARCH_FRESH_V4_ALIAS_MUST_TARGET_V4' }
 
 function Get-RequiredPath([string]$Name, [string]$Value) {
   if ([string]::IsNullOrWhiteSpace($Value)) { throw "OPENSEARCH_${Name}_REQUIRED" }
@@ -24,6 +28,14 @@ function Get-RequiredPath([string]$Name, [string]$Value) {
 function Normalize-Path([string]$Path) {
   $value = [Environment]::ExpandEnvironmentVariables($Path.Trim().Trim('"', "'"))
   return [IO.Path]::GetFullPath($value).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+}
+
+function Invoke-OpenSearchJson([string]$Uri) {
+  $response = Invoke-WebRequest -Uri $Uri -TimeoutSec 5 -UseBasicParsing
+  if ([string]::IsNullOrWhiteSpace($response.Content)) { return }
+  $value = ConvertFrom-Json -InputObject $response.Content
+  if ($value -is [Array]) { foreach ($item in $value) { $item } }
+  else { $value }
 }
 
 function Get-RuntimePaths {
@@ -113,25 +125,28 @@ function Get-ClusterSummary {
     throw 'OPENSEARCH_RUNTIME_HOME_OR_CONFIG_MISMATCH'
   }
 
-  $plugins = Invoke-RestMethod -Uri "$baseUri/_cat/plugins?format=json" -TimeoutSec 5
+  $plugins = @(Invoke-OpenSearchJson "$baseUri/_cat/plugins?format=json")
   $icu = @($plugins | Where-Object { $_.component -eq 'analysis-icu' -and $_.version -eq $expectedIcuVersion })
   if ($icu.Count -ne 1) { throw 'OPENSEARCH_RUNTIME_ANALYSIS_ICU_MISSING_OR_MISMATCH' }
 
-  $indices = Invoke-RestMethod -Uri "$baseUri/_cat/indices/${expectedV3},${expectedV4}?format=json&h=index,status,health,docs.count" -TimeoutSec 5
-  $v3 = @($indices | Where-Object { $_.index -eq $expectedV3 -and $_.status -eq 'open' -and $_.health -eq 'green' })
-  $v4 = @($indices | Where-Object { $_.index -eq $expectedV4 -and $_.status -eq 'open' -and $_.health -eq 'green' })
-  if ($v3.Count -ne 1 -or $v4.Count -ne 1) { throw 'OPENSEARCH_V3_V4_IDENTITY_MISMATCH' }
-  if ([long]$v3[0].'docs.count' -ne $expectedDocuments -or [long]$v4[0].'docs.count' -ne $expectedDocuments) {
-    throw 'OPENSEARCH_V3_V4_DOCUMENT_COUNT_MISMATCH'
-  }
+  $indices = @(Invoke-OpenSearchJson "$baseUri/_cat/indices/galilei-search-v00*?format=json&h=index,status,health,docs.count")
+  $allV3 = @($indices | Where-Object { $_.index -like 'galilei-search-v003-*' })
+  $allV4 = @($indices | Where-Object { $_.index -like 'galilei-search-v004-*' })
+  $v3 = @($allV3 | Where-Object { $_.index -eq $expectedV3 -and $_.status -eq 'open' -and $_.health -eq 'green' })
+  $v4 = @($allV4 | Where-Object { $_.index -eq $expectedV4 -and $_.status -eq 'open' -and $_.health -eq 'green' })
+  if ($allV4.Count -ne 1 -or $v4.Count -ne 1) { throw 'OPENSEARCH_V4_IDENTITY_MISMATCH' }
+  if ([long]$v4[0].'docs.count' -ne $expectedDocuments) { throw 'OPENSEARCH_V4_DOCUMENT_COUNT_MISMATCH' }
+  if ($allV3.Count -ne 1 -or $v3.Count -ne 1) { throw 'OPENSEARCH_PRINCIPAL_V3_V4_TOPOLOGY_REQUIRED' }
+  if ([long]$v3[0].'docs.count' -ne $expectedDocuments) { throw 'OPENSEARCH_V3_DOCUMENT_COUNT_MISMATCH' }
 
-  $aliases = @(Invoke-RestMethod -Uri "$baseUri/_cat/aliases?format=json&h=alias,index,is_write_index" -TimeoutSec 5 | Where-Object { $_.alias -eq 'galilei-search-active' })
+  $aliases = @(Invoke-OpenSearchJson "$baseUri/_cat/aliases?format=json&h=alias,index,is_write_index" | Where-Object { $_.alias -eq 'galilei-search-active' })
   if ($aliases.Count -ne 1 -or $aliases[0].index -ne $expectedActiveTarget -or $aliases[0].is_write_index -ne 'true') {
     throw 'OPENSEARCH_ACTIVE_ALIAS_TARGET_MISMATCH'
   }
 
   return [pscustomobject]@{
     version = $root.version.number
+    topology = $topology
     build = $root.version.build_hash
     health = $health.status
     heapInitBytes = $jvmNode.jvm.mem.heap_init_in_bytes
@@ -141,7 +156,7 @@ function Get-ClusterSummary {
     icu4j = $expectedIcu4jVersion
     dataPath = $dataPaths[0]
     v3 = $expectedV3
-    v3Documents = [long]$v3[0].'docs.count'
+    v3Documents = if ($v3.Count -eq 1) { [long]$v3[0].'docs.count' } else { $null }
     v4 = $expectedV4
     v4Documents = [long]$v4[0].'docs.count'
     activeTarget = $expectedActiveTarget
@@ -192,7 +207,7 @@ function Stop-OpenSearchSafely($Paths) {
 function Start-OpenSearchSafely($Paths) {
   if (Test-Endpoint) {
     $summary = Get-ClusterSummary
-    Write-Output "OPENSEARCH=ALREADY_READY version=$($summary.version) health=$($summary.health) dataPath=$($summary.dataPath)"
+        Write-Output "OPENSEARCH=ALREADY_READY topology=$($summary.topology) version=$($summary.version) health=$($summary.health) dataPath=$($summary.dataPath)"
     return
   }
   $processes = Get-OpenSearchProcesses
@@ -214,7 +229,7 @@ function Start-OpenSearchSafely($Paths) {
       $health = Invoke-RestMethod -Uri "$baseUri/_cluster/health" -TimeoutSec 3
       if ($health.status -eq 'green' -and $health.initializing_shards -eq 0 -and $health.unassigned_shards -eq 0) {
         $summary = Get-ClusterSummary
-      Write-Output "OPENSEARCH=STARTED version=$($summary.version) health=$($summary.health) heap=2GiB ICU=$($summary.analysisIcu)/ICU4J-$($summary.icu4j) dataPath=$($summary.dataPath) alias=$($summary.alias)"
+        Write-Output "OPENSEARCH=STARTED topology=$($summary.topology) version=$($summary.version) health=$($summary.health) heap=2GiB ICU=$($summary.analysisIcu)/ICU4J-$($summary.icu4j) dataPath=$($summary.dataPath) alias=$($summary.alias)"
         return
       }
     } catch {
@@ -234,7 +249,7 @@ try {
     }
     'status' {
       $summary = Get-ClusterSummary
-      Write-Output ("OPENSEARCH=SAFE version={0} build={1} health={2} ICU={3}/ICU4J-{4} heap=2GiB dataPath={5} V3={6}:{7} V4={8}:{9} activeTarget={10} alias={11}" -f $summary.version,$summary.build,$summary.health,$summary.analysisIcu,$summary.icu4j,$summary.dataPath,$summary.v3,$summary.v3Documents,$summary.v4,$summary.v4Documents,$summary.activeTarget,$summary.alias)
+      Write-Output ("OPENSEARCH=SAFE topology={0} version={1} build={2} health={3} ICU={4}/ICU4J-{5} heap=2GiB dataPath={6} V3={7}:{8} V4={9}:{10} activeTarget={11} alias={12}" -f $summary.topology,$summary.version,$summary.build,$summary.health,$summary.analysisIcu,$summary.icu4j,$summary.dataPath,$summary.v3,$summary.v3Documents,$summary.v4,$summary.v4Documents,$summary.activeTarget,$summary.alias)
     }
     'stop' { Stop-OpenSearchSafely $paths }
     'start' { Start-OpenSearchSafely $paths }

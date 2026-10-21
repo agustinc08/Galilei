@@ -8,7 +8,7 @@ import {
   mkdirSync,
   statfsSync,
 } from 'node:fs';
-import { resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { Client } from '@opensearch-project/opensearch';
 import { OpenSearchDocumentRepository } from '../../src/busqueda/opensearch/opensearch-document.repository';
 import { OpenSearchIndexService } from '../../src/busqueda/opensearch/opensearch-index.service';
@@ -47,20 +47,26 @@ const EXPECTED_BUILD = '97d3c13bf22a4a72ac11dc503fe44c97662b9161';
 const EXPECTED_DOCS = 69_313;
 const MIN_FREE_BYTES = 60 * 1024 ** 3;
 const ARTIFACT_ROOT = resolve(
-  process.cwd(),
-  '..',
-  '..',
-  '..',
-  '..',
-  'jurisprudencia-collation-v4-implement1',
+  process.env.BJC_SEARCH_V4_ARTIFACT_ROOT ??
+    resolve(
+      process.cwd(),
+      '..',
+      '..',
+      '..',
+      '..',
+      'jurisprudencia-collation-v4-implement1',
+    ),
 );
 const DESIGN_ROOT = resolve(
-  process.cwd(),
-  '..',
-  '..',
-  '..',
-  '..',
-  'jurisprudencia-collation-v4-design1',
+  process.env.BJC_SEARCH_V4_DESIGN_ROOT ??
+    resolve(
+      process.cwd(),
+      '..',
+      '..',
+      '..',
+      '..',
+      'jurisprudencia-collation-v4-design1',
+    ),
 );
 const INDEX_FILE = resolve(ARTIFACT_ROOT, 'v4-index.json');
 const GOLDEN_CONTEXT: SearchContext = {
@@ -1876,12 +1882,44 @@ function makePhysicalIndexName() {
 }
 
 function requireLocalRuntime(node: string) {
-  if (node !== 'http://127.0.0.1:9200')
+  if (node === 'http://127.0.0.1:9200') return;
+  const markerFile = process.env.BJC_SEARCH_FRESH_RUNTIME_MARKER;
+  if (
+    process.env.BJC_SEARCH_TOPOLOGY !== 'fresh-v4' ||
+    !markerFile ||
+    !isAbsolute(markerFile)
+  ) {
     throw new Error('OPENSEARCH_V4_NONLOCAL_TARGET_REJECTED');
+  }
+  let marker: { endpoint?: string; httpPort?: number };
+  try {
+    marker = JSON.parse(readFileSync(markerFile, 'utf8')) as {
+      endpoint?: string;
+      httpPort?: number;
+    };
+  } catch {
+    throw new Error('OPENSEARCH_V4_FRESH_RUNTIME_MARKER_INVALID');
+  }
+  const endpoint = new URL(node);
+  if (
+    endpoint.protocol !== 'http:' ||
+    endpoint.hostname !== '127.0.0.1' ||
+    endpoint.pathname !== '/' ||
+    endpoint.search ||
+    endpoint.hash ||
+    ['9200', '9300'].includes(endpoint.port) ||
+    marker.endpoint !== endpoint.origin ||
+    marker.httpPort !== Number(endpoint.port)
+  ) {
+    throw new Error('OPENSEARCH_V4_FRESH_RUNTIME_MARKER_MISMATCH');
+  }
 }
 
 function loadLocalEnvironment() {
-  const envFile = resolve(process.cwd(), '.env.development.local');
+  const envFile = resolve(
+    process.env.BJC_DEV_DB_GUARD_ENV_FILE ??
+      resolve(process.cwd(), '.env.development.local'),
+  );
   let content: string;
   try {
     content = readFileSync(envFile, 'utf8');

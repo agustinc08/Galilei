@@ -1,9 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import type { Client } from '@opensearch-project/opensearch';
 import { OpenSearchDocumentRepository } from './opensearch-document.repository';
 import {
   SEARCH_INDEX_DEFINITIONS,
   SEARCH_INDEX_SCHEMA_VERSION,
+  SEARCH_V4_COLLATION_PIPELINE,
+  SEARCH_V4_COLLATION_PIPELINE_ID,
   type SearchIndexSchemaVersion,
   type SearchIndexDocument,
 } from './opensearch-mapping';
@@ -18,6 +21,73 @@ import {
 } from './opensearch-alias-safety';
 
 const BULK_LIMIT_BYTES = 4 * 1024 * 1024;
+const FRESH_V4_PROJECTION_PAGE_SIZE = 10;
+
+/**
+ * OpenSearch omits several mapping defaults from GET _mapping responses. Treat
+ * those omissions as equivalent to the canonical mapping while keeping every
+ * non-default mapping choice (including V4 collation settings) strict.
+ */
+function normalizeOpenSearchMappingDefaults(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(normalizeOpenSearchMappingDefaults);
+  }
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+
+  const normalized = Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [
+      key,
+      normalizeOpenSearchMappingDefaults(child),
+    ]),
+  ) as Record<string, unknown>;
+  const type = normalized.type;
+
+  // Object is the implicit type for a property container in OpenSearch.
+  if (type === 'object' && normalized.properties !== undefined) {
+    delete normalized.type;
+  }
+  if (type === 'text') {
+    if (normalized.index_options === 'positions') {
+      delete normalized.index_options;
+    }
+    if (
+      normalized.search_analyzer !== undefined &&
+      normalized.search_analyzer === normalized.analyzer
+    ) {
+      delete normalized.search_analyzer;
+    }
+  }
+  if (
+    type === 'date' &&
+    normalized.format === 'strict_date_optional_time||epoch_millis'
+  ) {
+    delete normalized.format;
+  }
+  if (type === 'icu_collation_keyword') {
+    if (normalized.case_level === false) {
+      delete normalized.case_level;
+    }
+    if (normalized.numeric === false) {
+      delete normalized.numeric;
+    }
+    if (normalized.doc_values === true) {
+      delete normalized.doc_values;
+    }
+  }
+  if (
+    (type === 'keyword' || type === 'date') &&
+    normalized.doc_values === true
+  ) {
+    delete normalized.doc_values;
+  }
+  if (type === 'wildcard' && normalized.doc_values === false) {
+    delete normalized.doc_values;
+  }
+
+  return normalized;
+}
 
 type SearchHitsResponse = {
   hits?: {
@@ -52,6 +122,71 @@ export type SearchReplayOptions = {
   beforeBarrierRelease?: (checkpoint: SearchReplayCheckpoint) => Promise<void>;
 };
 
+export type SearchProjectionCounts = {
+  corpus: number;
+  jurisprudencia: number;
+  sentencias: number;
+  total: number;
+};
+
+export type FreshV4ProjectionCursor =
+  | { source: 'corpus'; after: string }
+  | { source: 'jurisprudencia'; after: number }
+  | { source: 'sentencias'; after: number }
+  | { source: 'complete' };
+
+export type FreshV4ProjectionProgress = {
+  cursor: FreshV4ProjectionCursor;
+  counts: SearchProjectionCounts;
+};
+
+export type FreshV4ProjectionOptions = {
+  cursor?: FreshV4ProjectionCursor;
+  counts?: SearchProjectionCounts;
+  onProgress?: (progress: FreshV4ProjectionProgress) => void | Promise<void>;
+};
+
+export type SearchSourceParityResult = {
+  target: string;
+  schemaVersion: 4;
+  corpusCompared: number;
+  sumariosCompared: number;
+  sentenciasCompared: number;
+  expectedIds: number;
+  indexedIds: number;
+  missing: number;
+  extra: number;
+  exactIdEquality: boolean;
+  sourceDifferences: number;
+  samples: string[];
+  pass: boolean;
+};
+
+export type FreshV4SourceParityCursor =
+  | { source: 'corpus'; after: string }
+  | { source: 'jurisprudencia'; after: number }
+  | { source: 'sentencias'; after: number }
+  | { source: 'complete' };
+
+export type FreshV4SourceParityProgress = Pick<
+  SearchSourceParityResult,
+  | 'corpusCompared'
+  | 'sumariosCompared'
+  | 'sentenciasCompared'
+  | 'missing'
+  | 'sourceDifferences'
+  | 'samples'
+>;
+
+export type FreshV4SourceParityOptions = {
+  cursor?: FreshV4SourceParityCursor;
+  progress?: FreshV4SourceParityProgress;
+  onProgress?: (progress: {
+    cursor: FreshV4SourceParityCursor;
+    progress: FreshV4SourceParityProgress;
+  }) => void | Promise<void>;
+};
+
 export class OpenSearchIndexService {
   constructor(
     private readonly client: Client,
@@ -62,6 +197,7 @@ export class OpenSearchIndexService {
     private readonly readOnlyCandidate = false,
     readonly searchTarget = alias,
     private readonly trustedPhysicalWriter = false,
+    private readonly allowSchema4AliasWriter = false,
   ) {}
 
   async rebuild() {
@@ -89,53 +225,10 @@ export class OpenSearchIndexService {
       await this.client.indices.create({ index: physicalIndex, body: mapping });
       indexCreated = true;
 
-      await this.repository.withReadSnapshot(async (pg) => {
-        let after = '';
-        for (;;) {
-          const rows = await this.repository.corpusPage(pg, after, 500);
-          if (!rows.length) break;
-          const docs = rows.map((row) =>
-            projectCorpusSearchDocument(row, this.schemaVersion),
-          );
-          await this.bulkIndex(physicalIndex, docs);
-          indexedCorpus += docs.length;
-          after = rows[rows.length - 1].id;
-        }
-        let afterSumario = 0;
-        for (;;) {
-          const rows = await this.repository.jurisprudenciaPage(
-            pg,
-            afterSumario,
-            500,
-          );
-          if (!rows.length) break;
-          const docs = rows
-            .map((row) =>
-              projectJurisprudenciaSearchDocument(row, this.schemaVersion),
-            )
-            .filter((doc): doc is SearchIndexDocument => doc !== null);
-          await this.bulkIndex(physicalIndex, docs);
-          indexedJurisprudencia += docs.length;
-          afterSumario = rows[rows.length - 1].id;
-        }
-        let afterSentencia = 0;
-        for (;;) {
-          const rows = await this.repository.sentenciaPage(
-            pg,
-            afterSentencia,
-            500,
-          );
-          if (!rows.length) break;
-          const docs = rows
-            .map((row) =>
-              projectSentenciaSearchDocument(row, this.schemaVersion),
-            )
-            .filter((doc): doc is SearchIndexDocument => doc !== null);
-          await this.bulkIndex(physicalIndex, docs);
-          indexedSentencias += docs.length;
-          afterSentencia = rows[rows.length - 1].id;
-        }
-      });
+      const projected = await this.projectCurrentState(physicalIndex);
+      indexedCorpus = projected.corpus;
+      indexedJurisprudencia = projected.jurisprudencia;
+      indexedSentencias = projected.sentencias;
 
       await this.client.indices.putSettings({
         index: physicalIndex,
@@ -236,6 +329,251 @@ export class OpenSearchIndexService {
       }
       throw error;
     }
+  }
+
+  /** Capture a stable starting point before projecting a clean V4 target. */
+  async captureFreshV4HighWatermark() {
+    this.assertFreshV4OperatorTarget(this.searchTarget);
+    return this.repository.withMutationBarrier((_client, watermark) =>
+      Promise.resolve(watermark),
+    );
+  }
+
+  /** Create only the canonical schema-4 index; the operator owns empty-cluster checks. */
+  async createFreshV4Index(target: string) {
+    this.assertFreshV4OperatorTarget(target);
+    if ((await this.aliasTargets()).length !== 0) {
+      throw new Error('SEARCH_FRESH_V4_ALIAS_MUST_BE_ABSENT');
+    }
+    if (await this.indexExists(target)) {
+      throw new Error('SEARCH_FRESH_V4_TARGET_ALREADY_EXISTS');
+    }
+    const pipeline = await this.ensureFreshV4CollationPipeline();
+    const mapping = JSON.parse(
+      JSON.stringify(SEARCH_INDEX_DEFINITIONS[4]),
+    ) as Record<string, unknown>;
+    const settings = mapping.settings as Record<string, unknown>;
+    settings.refresh_interval = '-1';
+    await this.client.indices.create({ index: target, body: mapping });
+    return {
+      target,
+      schemaVersion: 4 as const,
+      state: 'INDEX_CREATED' as const,
+      collationPipeline: pipeline.id,
+      collationPipelineCreated: pipeline.created,
+    };
+  }
+
+  /** Validate an interrupted projection target without deleting or recreating it. */
+  async assertFreshV4ResumeTarget(target: string) {
+    this.assertFreshV4OperatorTarget(target);
+    if ((await this.aliasTargets()).length !== 0) {
+      throw new Error('SEARCH_FRESH_V4_RESUME_ALIAS_MUST_BE_ABSENT');
+    }
+    await this.assertPhysicalSchema(target, 4);
+    const pipeline = await this.assertFreshV4PipelineSetting(target);
+    return {
+      target,
+      schemaVersion: 4 as const,
+      state: 'INDEX_CREATED' as const,
+      collationPipeline: pipeline.id,
+      collationPipelineCreated: pipeline.created,
+    };
+  }
+
+  /** Project current PostgreSQL state in bounded pages using the canonical document builders. */
+  async projectFreshV4(target: string, options: FreshV4ProjectionOptions = {}) {
+    this.assertFreshV4OperatorTarget(target);
+    await this.assertPhysicalSchema(target, 4);
+    const counts = await this.projectCurrentState(
+      target,
+      FRESH_V4_PROJECTION_PAGE_SIZE,
+      options,
+    );
+    await this.client.indices.putSettings({
+      index: target,
+      body: { index: { refresh_interval: '1s' } },
+    });
+    await this.client.indices.refresh({ index: target });
+    const countResponse = await this.client.count({
+      index: target,
+      body: { query: { match_all: {} } },
+    });
+    const indexedIds = bodyOf<{ count: number }>(countResponse).count;
+    if (indexedIds !== counts.total)
+      throw new Error('SEARCH_FRESH_V4_ID_COUNT_PARITY_FAILED');
+    return {
+      target,
+      ...counts,
+      countCheck: {
+        expectedIds: counts.total,
+        indexedIds,
+        pass: true,
+      },
+      state: 'PROJECTED' as const,
+    };
+  }
+
+  /** Compare each PostgreSQL source page to the indexed V4 source without retaining the full corpus. */
+  async verifyFreshV4SourceParity(
+    target: string,
+    pageSize = 250,
+    options: FreshV4SourceParityOptions = {},
+  ): Promise<SearchSourceParityResult> {
+    this.assertFreshV4OperatorTarget(target);
+    await this.assertPhysicalSchema(target, 4);
+    const result: SearchSourceParityResult = {
+      target,
+      schemaVersion: 4,
+      corpusCompared: options.progress?.corpusCompared ?? 0,
+      sumariosCompared: options.progress?.sumariosCompared ?? 0,
+      sentenciasCompared: options.progress?.sentenciasCompared ?? 0,
+      expectedIds: 0,
+      indexedIds: 0,
+      missing: options.progress?.missing ?? 0,
+      extra: 0,
+      exactIdEquality: false,
+      sourceDifferences: options.progress?.sourceDifferences ?? 0,
+      samples: options.progress?.samples ?? [],
+      pass: false,
+    };
+    const cursor = options.cursor ?? { source: 'corpus', after: '' };
+    const sourceRank = {
+      corpus: 0,
+      jurisprudencia: 1,
+      sentencias: 2,
+      complete: 3,
+    } as const;
+    const shouldCompare = (source: keyof typeof sourceRank) =>
+      sourceRank[source] >= sourceRank[cursor.source] &&
+      cursor.source !== 'complete';
+    const reportProgress = async (next: FreshV4SourceParityCursor) => {
+      await options.onProgress?.({
+        cursor: next,
+        progress: {
+          corpusCompared: result.corpusCompared,
+          sumariosCompared: result.sumariosCompared,
+          sentenciasCompared: result.sentenciasCompared,
+          missing: result.missing,
+          sourceDifferences: result.sourceDifferences,
+          samples: [...result.samples],
+        },
+      });
+    };
+    await this.repository.withReadSnapshot(async (pg) => {
+      if (shouldCompare('corpus')) {
+        let afterCorpus = cursor.source === 'corpus' ? cursor.after : '';
+        for (;;) {
+          const rows = await this.repository.corpusPage(
+            pg,
+            afterCorpus,
+            pageSize,
+          );
+          if (!rows.length) break;
+          const docs = rows.map((row) => projectCorpusSearchDocument(row, 4));
+          await this.compareSourcePage(target, docs, result);
+          result.corpusCompared += docs.length;
+          afterCorpus = rows[rows.length - 1].id;
+          await reportProgress({ source: 'corpus', after: afterCorpus });
+        }
+        await reportProgress({ source: 'jurisprudencia', after: 0 });
+      }
+      if (shouldCompare('jurisprudencia')) {
+        let afterSumario =
+          cursor.source === 'jurisprudencia' ? cursor.after : 0;
+        for (;;) {
+          const rows = await this.repository.jurisprudenciaPage(
+            pg,
+            afterSumario,
+            pageSize,
+          );
+          if (!rows.length) break;
+          const docs = rows
+            .map((row) => projectJurisprudenciaSearchDocument(row, 4))
+            .filter((doc): doc is SearchIndexDocument => doc !== null);
+          await this.compareSourcePage(target, docs, result);
+          result.sumariosCompared += docs.length;
+          afterSumario = rows[rows.length - 1].id;
+          await reportProgress({
+            source: 'jurisprudencia',
+            after: afterSumario,
+          });
+        }
+        await reportProgress({ source: 'sentencias', after: 0 });
+      }
+      if (shouldCompare('sentencias')) {
+        let afterSentencia = cursor.source === 'sentencias' ? cursor.after : 0;
+        for (;;) {
+          const rows = await this.repository.sentenciaPage(
+            pg,
+            afterSentencia,
+            pageSize,
+          );
+          if (!rows.length) break;
+          const docs = rows
+            .map((row) => projectSentenciaSearchDocument(row, 4))
+            .filter((doc): doc is SearchIndexDocument => doc !== null);
+          await this.compareSourcePage(target, docs, result);
+          result.sentenciasCompared += docs.length;
+          afterSentencia = rows[rows.length - 1].id;
+          await reportProgress({ source: 'sentencias', after: afterSentencia });
+        }
+      }
+      await reportProgress({ source: 'complete' });
+    });
+    result.expectedIds =
+      result.corpusCompared +
+      result.sumariosCompared +
+      result.sentenciasCompared;
+    const countResponse = await this.client.count({
+      index: target,
+      body: { query: { match_all: {} } },
+    });
+    result.indexedIds = bodyOf<{ count: number }>(countResponse).count;
+    result.extra = Math.max(0, result.indexedIds - result.expectedIds);
+    result.exactIdEquality =
+      result.indexedIds === result.expectedIds && result.missing === 0;
+    result.pass = result.exactIdEquality && result.sourceDifferences === 0;
+    return result;
+  }
+
+  /** Reconcile writes since H_BOOT and add the fresh alias only while the mutation barrier is held. */
+  async reconcileAndActivateFreshV4(
+    target: string,
+    highWatermark: string,
+    beforeActivation?: () => Promise<void>,
+  ) {
+    this.assertFreshV4OperatorTarget(target);
+    await this.assertPhysicalSchema(target, 4);
+    await this.assertFreshV4PipelineSetting(target);
+    let aliasActivated = false;
+    const checkpoint = await this.replayPhysicalChanges(target, highWatermark, {
+      requireOutboxClear: true,
+      beforeBarrierRelease: async (reconciled) => {
+        if (reconciled.pendingThrough !== 0 || reconciled.failedThrough !== 0) {
+          throw new Error('SEARCH_FRESH_V4_OUTBOX_NOT_CLEAR');
+        }
+        if ((await this.aliasTargets()).length !== 0) {
+          throw new Error('SEARCH_FRESH_V4_ALIAS_MUST_BE_ABSENT');
+        }
+        await beforeActivation?.();
+        const actions = buildAtomicAliasSwapActions(
+          [],
+          target,
+          this.alias,
+          this.indexPrefix,
+          4,
+        );
+        await this.client.indices.updateAliases({ body: { actions } });
+        const activated = await this.aliasTargets();
+        if (activated.length !== 1 || activated[0] !== target) {
+          throw new Error('SEARCH_FRESH_V4_ALIAS_POSTCONDITION_FAILED');
+        }
+        aliasActivated = true;
+      },
+    });
+    if (!aliasActivated) throw new Error('SEARCH_FRESH_V4_ALIAS_NOT_ACTIVATED');
+    return { ...checkpoint, alias: this.alias, aliasTarget: target };
   }
 
   async verifyActive() {
@@ -558,6 +896,254 @@ export class OpenSearchIndexService {
     await this.repository.close();
   }
 
+  private async projectCurrentState(
+    index: string,
+    pageSize = 500,
+    options: FreshV4ProjectionOptions = {},
+  ): Promise<SearchProjectionCounts> {
+    const counts: SearchProjectionCounts = {
+      corpus: options.counts?.corpus ?? 0,
+      jurisprudencia: options.counts?.jurisprudencia ?? 0,
+      sentencias: options.counts?.sentencias ?? 0,
+      total: options.counts?.total ?? 0,
+    };
+    const initialSource = options.cursor?.source ?? 'corpus';
+    const sourceRank = {
+      corpus: 0,
+      jurisprudencia: 1,
+      sentencias: 2,
+      complete: 3,
+    } as const;
+    const shouldProject = (source: keyof typeof sourceRank) =>
+      sourceRank[source] >= sourceRank[initialSource] &&
+      initialSource !== 'complete';
+    const reportProgress = async (cursor: FreshV4ProjectionCursor) => {
+      counts.total = counts.corpus + counts.jurisprudencia + counts.sentencias;
+      await options.onProgress?.({ cursor, counts: { ...counts } });
+    };
+    await this.repository.withReadSnapshot(async (pg) => {
+      if (shouldProject('corpus')) {
+        let afterCorpus =
+          options.cursor?.source === 'corpus' ? options.cursor.after : '';
+        for (;;) {
+          const rows = await this.repository.corpusPage(
+            pg,
+            afterCorpus,
+            pageSize,
+          );
+          if (!rows.length) break;
+          const docs = rows.map((row) =>
+            projectCorpusSearchDocument(row, this.schemaVersion),
+          );
+          await this.bulkIndex(index, docs);
+          counts.corpus += docs.length;
+          afterCorpus = rows[rows.length - 1].id;
+          await reportProgress({ source: 'corpus', after: afterCorpus });
+        }
+        await reportProgress({ source: 'jurisprudencia', after: 0 });
+      }
+      if (shouldProject('jurisprudencia')) {
+        let afterSumario =
+          options.cursor?.source === 'jurisprudencia'
+            ? options.cursor.after
+            : 0;
+        for (;;) {
+          const rows = await this.repository.jurisprudenciaPage(
+            pg,
+            afterSumario,
+            pageSize,
+          );
+          if (!rows.length) break;
+          const docs = rows
+            .map((row) =>
+              projectJurisprudenciaSearchDocument(row, this.schemaVersion),
+            )
+            .filter((doc): doc is SearchIndexDocument => doc !== null);
+          await this.bulkIndex(index, docs);
+          counts.jurisprudencia += docs.length;
+          afterSumario = rows[rows.length - 1].id;
+          await reportProgress({
+            source: 'jurisprudencia',
+            after: afterSumario,
+          });
+        }
+        await reportProgress({ source: 'sentencias', after: 0 });
+      }
+      if (shouldProject('sentencias')) {
+        let afterSentencia =
+          options.cursor?.source === 'sentencias' ? options.cursor.after : 0;
+        for (;;) {
+          const rows = await this.repository.sentenciaPage(
+            pg,
+            afterSentencia,
+            pageSize,
+          );
+          if (!rows.length) break;
+          const docs = rows
+            .map((row) =>
+              projectSentenciaSearchDocument(row, this.schemaVersion),
+            )
+            .filter((doc): doc is SearchIndexDocument => doc !== null);
+          await this.bulkIndex(index, docs);
+          counts.sentencias += docs.length;
+          afterSentencia = rows[rows.length - 1].id;
+          await reportProgress({ source: 'sentencias', after: afterSentencia });
+        }
+      }
+      await reportProgress({ source: 'complete' });
+    });
+    return counts;
+  }
+
+  private async compareSourcePage(
+    target: string,
+    expected: SearchIndexDocument[],
+    result: SearchSourceParityResult,
+  ) {
+    if (!expected.length) return;
+    const response = await this.client.mget({
+      index: target,
+      body: { ids: expected.map((document) => document.id) },
+    });
+    const body = bodyOf<{
+      docs?: Array<{
+        _id?: string;
+        found?: boolean;
+        _source?: Record<string, unknown>;
+      }>;
+    }>(response);
+    const actual = body.docs ?? [];
+    if (actual.length !== expected.length) {
+      throw new Error('SEARCH_FRESH_V4_MGET_CARDINALITY_MISMATCH');
+    }
+    for (let index = 0; index < expected.length; index += 1) {
+      const wanted = expected[index];
+      const found = actual[index];
+      if (found?._id !== wanted.id) {
+        throw new Error('SEARCH_FRESH_V4_MGET_ORDER_MISMATCH');
+      }
+      if (!found.found || !found._source) {
+        result.missing += 1;
+        if (result.samples.length < 20) result.samples.push(wanted.id);
+        continue;
+      }
+      if (!isDeepStrictEqual(found._source, wanted)) {
+        result.sourceDifferences += 1;
+        if (result.samples.length < 20) result.samples.push(wanted.id);
+      }
+    }
+  }
+
+  private assertFreshV4OperatorTarget(target: string) {
+    if (
+      this.schemaVersion !== 4 ||
+      this.readOnlyCandidate ||
+      !this.trustedPhysicalWriter ||
+      this.searchTarget !== target ||
+      this.alias !== `${this.indexPrefix}-active` ||
+      !this.isPhysicalIndex(target, 4)
+    ) {
+      throw new Error('SEARCH_FRESH_V4_OPERATOR_SCOPE_REJECTED');
+    }
+  }
+
+  private async assertPhysicalSchema(index: string, expectedSchemaVersion: 4) {
+    if (!this.isPhysicalIndex(index, expectedSchemaVersion)) {
+      throw new Error('SEARCH_FRESH_V4_TARGET_INVALID');
+    }
+    if (!(await this.indexExists(index))) {
+      throw new Error('SEARCH_FRESH_V4_TARGET_MISSING');
+    }
+    const response = await this.client.indices.getMapping({ index });
+    const body =
+      bodyOf<Record<string, { mappings?: Record<string, unknown> }>>(response);
+    const actualMapping = body[index]?.mappings;
+    const expectedMapping = (
+      SEARCH_INDEX_DEFINITIONS[expectedSchemaVersion] as {
+        mappings: Record<string, unknown>;
+      }
+    ).mappings;
+    if (
+      actualMapping?._meta === undefined ||
+      actualMapping._meta === null ||
+      typeof actualMapping._meta !== 'object' ||
+      (actualMapping._meta as Record<string, unknown>)
+        .galileiSearchSchemaVersion !== expectedSchemaVersion
+    ) {
+      throw new Error('SEARCH_FRESH_V4_TARGET_SCHEMA_MISMATCH');
+    }
+    if (
+      !isDeepStrictEqual(
+        normalizeOpenSearchMappingDefaults(actualMapping),
+        normalizeOpenSearchMappingDefaults(expectedMapping),
+      )
+    ) {
+      throw new Error('SEARCH_FRESH_V4_CANONICAL_MAPPING_MISMATCH');
+    }
+  }
+
+  private async assertFreshV4PipelineSetting(index: string) {
+    const response = await this.client.indices.getSettings({
+      index,
+      flat_settings: true,
+    });
+    const body =
+      bodyOf<Record<string, { settings?: Record<string, unknown> }>>(response);
+    const settings = body[index]?.settings;
+    const nestedIndexSettings = settings?.index;
+    const finalPipeline =
+      settings?.['index.final_pipeline'] ??
+      (nestedIndexSettings && typeof nestedIndexSettings === 'object'
+        ? (nestedIndexSettings as Record<string, unknown>).final_pipeline
+        : undefined);
+    if (finalPipeline !== SEARCH_V4_COLLATION_PIPELINE_ID) {
+      throw new Error('SEARCH_FRESH_V4_COLLATION_PIPELINE_SETTING_MISMATCH');
+    }
+    return this.ensureFreshV4CollationPipeline();
+  }
+
+  private async ensureFreshV4CollationPipeline() {
+    const path = `/_ingest/pipeline/${SEARCH_V4_COLLATION_PIPELINE_ID}`;
+    let existing: Record<string, unknown> | undefined;
+    try {
+      const response = await this.client.transport.request({
+        method: 'GET',
+        path,
+      });
+      existing =
+        bodyOf<Record<string, Record<string, unknown>>>(response)[
+          SEARCH_V4_COLLATION_PIPELINE_ID
+        ];
+    } catch (error) {
+      if (statusCode(error) !== 404) throw error;
+    }
+    if (existing) {
+      if (!isCanonicalFreshV4Pipeline(existing)) {
+        throw new Error('SEARCH_FRESH_V4_COLLATION_PIPELINE_MISMATCH');
+      }
+      return { created: false, id: SEARCH_V4_COLLATION_PIPELINE_ID };
+    }
+    await this.client.transport.request({
+      method: 'PUT',
+      path,
+      body: SEARCH_V4_COLLATION_PIPELINE,
+    });
+    const verifiedResponse = await this.client.transport.request({
+      method: 'GET',
+      path,
+    });
+    const verified =
+      bodyOf<Record<string, Record<string, unknown>>>(verifiedResponse)[
+        SEARCH_V4_COLLATION_PIPELINE_ID
+      ];
+    if (!verified || !isCanonicalFreshV4Pipeline(verified)) {
+      throw new Error(
+        'SEARCH_FRESH_V4_COLLATION_PIPELINE_POSTCONDITION_FAILED',
+      );
+    }
+    return { created: true, id: SEARCH_V4_COLLATION_PIPELINE_ID };
+  }
+
   private async expectedIds() {
     const all: string[] = [];
     const corpus: string[] = [];
@@ -703,7 +1289,7 @@ export class OpenSearchIndexService {
           (op) => op.status !== 404 && (op.status ?? 200) >= 300,
         ),
       );
-      if (failed) throw new Error('SEARCH_INDEX_BULK_FAILED');
+      if (failed) throw createBulkFailure(body.items ?? []);
     }
   }
 
@@ -723,7 +1309,7 @@ export class OpenSearchIndexService {
           Object.values(item).some((op) => (op.status ?? 200) >= 300),
         )
       ) {
-        throw new Error('SEARCH_INDEX_BULK_FAILED');
+        throw createBulkFailure(body.items ?? []);
       }
       actions = [];
       bytes = 0;
@@ -784,7 +1370,11 @@ export class OpenSearchIndexService {
   private assertMutable(operation: string) {
     if (this.readOnlyCandidate)
       throw new Error(`OPENSEARCH_READ_ONLY_CANDIDATE_${operation}_REJECTED`);
-    if (this.schemaVersion === 4 && !this.trustedPhysicalWriter) {
+    if (
+      this.schemaVersion === 4 &&
+      !this.trustedPhysicalWriter &&
+      !this.allowSchema4AliasWriter
+    ) {
       throw new Error(
         `OPENSEARCH_V4_WRITER_${operation}_REQUIRES_OPERATOR_MODE`,
       );
@@ -827,6 +1417,79 @@ function bodyOf<T>(response: unknown): T {
   return response && typeof response === 'object' && 'body' in response
     ? (response as { body: T }).body
     : (response as T);
+}
+
+function createBulkFailure(
+  items: Array<Record<string, { status?: number; error?: unknown }>>,
+) {
+  const failures = items.flatMap((item) =>
+    Object.values(item).flatMap((operation) => {
+      if ((operation.status ?? 200) < 300) return [];
+      const queue = [operation.error];
+      const types = new Set<string>();
+      const fields = new Set<string>();
+      const categories = new Set<string>();
+      while (queue.length) {
+        const value = queue.pop();
+        if (typeof value !== 'object' || value === null) continue;
+        const error = value as {
+          type?: unknown;
+          reason?: unknown;
+          caused_by?: unknown;
+          root_cause?: unknown;
+        };
+        if (
+          typeof error.type === 'string' &&
+          /^[a-z0-9_]{1,80}$/iu.test(error.type)
+        ) {
+          types.add(error.type);
+        }
+        const reason = typeof error.reason === 'string' ? error.reason : '';
+        const field = reason.match(
+          /(?:field|property) \[([^\]]{1,120})\]/iu,
+        )?.[1];
+        if (field) fields.add(field);
+        if (/failed to parse|cannot parse/iu.test(reason))
+          categories.add('parse');
+        else if (/unknown parameter|unknown setting/iu.test(reason))
+          categories.add('unknown-parameter');
+        else if (/strict_dynamic_mapping|mapping.*not allowed/iu.test(reason))
+          categories.add('strict-mapping');
+        else if (/content.?type|media type/iu.test(reason))
+          categories.add('content-type');
+        else if (/no handler|unsupported operation/iu.test(reason))
+          categories.add('unsupported-operation');
+        else if (reason) categories.add('other');
+        if (error.caused_by) queue.push(error.caused_by);
+        if (Array.isArray(error.root_cause)) queue.push(...error.root_cause);
+      }
+      return [
+        {
+          status: Number(operation.status ?? 0),
+          types: [...types].slice(0, 4),
+          categories: [...categories].slice(0, 4),
+          fields: [...fields].slice(0, 4),
+        },
+      ];
+    }),
+  );
+  const unique = [
+    ...new Map(
+      failures.map((failure) => [JSON.stringify(failure), failure]),
+    ).values(),
+  ].slice(0, 5);
+  const error = new Error('SEARCH_INDEX_BULK_FAILED') as Error & {
+    safeDetails?: { failedOperations: number; samples: typeof unique };
+  };
+  error.safeDetails = { failedOperations: failures.length, samples: unique };
+  return error;
+}
+
+function isCanonicalFreshV4Pipeline(value: Record<string, unknown>) {
+  return (
+    value.description === SEARCH_V4_COLLATION_PIPELINE.description &&
+    isDeepStrictEqual(value.processors, SEARCH_V4_COLLATION_PIPELINE.processors)
+  );
 }
 
 function statusCode(error: unknown) {

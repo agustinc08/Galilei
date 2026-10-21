@@ -1,12 +1,13 @@
 # Galilei — inicio rápido
 
-**Corte operativo: 2026-10-21.** PC principal `AgustinNotebook`; raíz `C:\proyecto triple`. `origin/dev` está consolidado con Copernic en `899210c0c9f2231fd9302b1c86971b23a7a19610`, más el follow-up documental de esta misión. `main` permanece en `83947656420a9d6f6c3cfb12b353eb7f2c293a28`.
+**Corte operativo: 2026-10-21.** PC principal `AgustinNotebook`; raíz `C:\proyecto triple`. `origin/dev=ebefee54a5208187b7f77b84d71d7addd043f653`; el trabajo de bootstrap V4 está sin commit en un worktree candidato aislado y aún no se promovió. `main=83947656420a9d6f6c3cfb12b353eb7f2c293a28` permanece intacta.
 
 ## Estado actual
 
-- **Search:** V4 activo y certificado en OpenSearch 2.19.6 GREEN; plugin `analysis-icu` 2.19.6, ICU4J 75.1, heap 2 GiB. El alias `galilei-search-active` apunta sólo a `galilei-search-v004-20261020t094732495z-6015e394`; V3 se retiene para rollback.
+- **Search principal:** V4 activo y certificado en OpenSearch 2.19.6 GREEN; plugin `analysis-icu` 2.19.6, ICU4J 75.1, heap 2 GiB. El alias `galilei-search-active` apunta sólo a `galilei-search-v004-20261020t094732495z-6015e394`; V3 se retiene para rollback.
+- **Fresh bootstrap:** `JURISPRUDENCIA-V4-FRESH-BOOTSTRAP-TOOLING-1R` sigue en verificación aislada; el target V4 de prueba está en `PROJECTING`, sin alias. No declarar resuelto el bloqueo de oficina hasta cerrar paridad, pruebas, restart y review independiente.
 - **Copernic:** integrado y revisado en DEV. Typechecks y builds PASS, 5 E2E enfocados PASS, 27 comprobaciones responsive PASS y limpieza ACL sintética verificada.
-- **Oficina:** la próxima misión es `GALILEI-V4-OFFICE-MIGRATE-1`, en Sytec10 y `D:\proyecto triple`. PostgreSQL está READY, OpenSearch no está instalado y la migración V4 todavía no empezó. Esta PC no se tocó durante el cierre de DEV.
+- **Oficina:** el bloqueo `OFFICE_V4_BOOTSTRAP_TOOLING_GAP` sigue abierto. Sytec10 (`D:\proyecto triple`) no fue accedida; PostgreSQL está READY, OpenSearch no está instalado y la migración V4 no empezó. No iniciar allí hasta que el bootstrap fresh sea certificado y promovido.
 
 ## Producto integrado
 
