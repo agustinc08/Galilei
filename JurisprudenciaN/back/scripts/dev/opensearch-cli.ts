@@ -36,6 +36,8 @@ async function main() {
     config.searchSchemaVersion,
     config.readOnlyCandidate,
     config.searchTarget,
+    config.trustedPhysicalWriter,
+    config.topology === 'fresh-v4',
   );
   const worker = new OpenSearchSyncWorker(repository, index);
   try {
