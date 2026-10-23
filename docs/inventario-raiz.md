@@ -14,7 +14,7 @@ La línea base de la limpieza se capturó el 2026-10-23 a las 18:18 UTC:
 - Directorios: **68.599**
 - Espacio libre en C:: **156.923.879.424 bytes**
 
-Rescan completo después de retirar las copias redundantes y el worktree terminado, 2026-10-23 18:36 UTC:
+Rescan intermedio después de retirar las copias redundantes y el worktree terminado, antes de la limpieza final de Sprint 14.6, 2026-10-23 18:36 UTC:
 
 - Logical/on-disk: **87.090.697.888 bytes**
 - Archivos: **442.094**
@@ -38,7 +38,7 @@ Informe de medición: `_recovery-work/galilei-project-structure-normalize1/root-
 | `_dev-corpus-storage/` | 3.667.203.658 → igual | Storage local real para Viewer/descarga; 17.078 documentos y 17.098 archivos registrados en PostgreSQL DEV, con blobs verificados por tamaño y SHA-256. | Local, ignorado por Git; el backend lo resuelve por configuración/default. | `REAL_CORPUS_REQUIRED`: preservado. No mover ni versionar. |
 | `_dev-corpus-storage-test/` | Ausente → ausente | Storage sintético de tests ya retirado. | No existe. | `OBSOLETE_DELETE`: ausente / previamente limpiado. |
 | `_local-setup/` | 7.519.319.046 → 3.282.074.789 B | Scripts y paquete único de transferencia a oficina. El RAR contiene dump DEV y blobs; checksums y manifests laterales. | Local e ignorado. | Se retuvieron el RAR verificado, checksums, manifests y scripts. Se eliminaron la copia expandida (3.667.203.473 B lógicos) y el dump expandido duplicado (570.040.784 B), ambos verificados dentro del RAR. |
-| `_recovery-work/` | 68.768.444.005 → 67.601.663.430 B | Evidencia de misiones, runtimes, Search principal y QA del release con gates P1 pendientes. | Local, ignorado por Git. | Conservado selectivamente. Se eliminó el worktree limpio terminado `galilei-project-structure-normalize1/worktree` (1.027.932.978 B lógicos); permanecen informes. Se preservan Search principal y runtimes QA del release. |
+| `_recovery-work/` | 68.768.444.005 → 64.994.062.080 B | Evidencia de misiones, runtimes, Search principal y QA del release con gates P1 pendientes. | Local, ignorado por Git. | Conservado selectivamente. Se eliminó el worktree limpio terminado `galilei-project-structure-normalize1/worktree` (1.027.932.978 B lógicos). En Sprint 14.6 se retiraron 36 perfiles Edge QA (1.267.684.391 B) y 4.766 PDFs duplicados (1.339.930.242 B), verificando SHA-256 de ambos lados; se preservaron 284 PDFs únicos. Search principal y QA de release activo permanecen intactos. |
 | `_recovery-backups/` | 2.312.140.330 → igual | Snapshot local único/justificado; contiene datos de recuperación. | Local, ignorado. | `UNIQUE_BACKUP`: preservado. |
 | `_legacy-audit-work/` | 1.057.736.720 → igual | Extracción y evidencia histórica de auditoría jurisprudencial. | Local, ignorado. | `LEGACY_REFERENCE_REQUIRED`: preservado fuera de Git; no es runtime de producto. |
 | `.gitattributes` | 62 → igual | Reglas compartidas de texto/atributos Git. | Rastreado. | Permanece en la raíz canónica. |
@@ -81,7 +81,7 @@ Los conteos y clasificaciones completos están fuera de Git, bajo `_recovery-wor
 
 ## Medición física final
 
-Rescan completo de `C:\proyecto triple` en AGUSTINNOTEBOOK, 2026-10-23 16:21 -03: 87.092.949.184 B lógicos, 87.092.949.184 B en disco, 442.182 archivos, 58.940 directorios y cero errores. C: quedó en 68,46% usado, con 161.001.140.224 B libres.
+Rescan completo de `C:\proyecto triple` en AGUSTINNOTEBOOK, 2026-10-23 16:35 -03: 84.485.384.806 B lógicos y en disco (78,7 GiB), 426.570 archivos, 55.789 directorios y cero errores. En ese instante C: estaba en 67,94% usado, con 163.635.212.288 B libres. La reducción frente a la línea base fue de 8.011.578.544 B (8,66%).
 
-Hijos directos actuales, ordenados por tamaño: `_recovery-work/` 67.601.663.430 B (principal Search y QA de release preservados); `JurisprudenciaN/` 7.025.145.697 B (checkout histórico protegido); `_dev-corpus-storage/` 3.667.203.658 B (corpus real requerido); `_local-setup/` 3.282.074.789 B (paquete único para oficina); `_recovery-backups/` 2.312.140.330 B (backup único validado); `.git/` 1.945.367.505 B (historial compartido); `_legacy-audit-work/` 1.057.736.720 B (evidencia histórica); `digesto/` 200.066.849 B (PDFs locales del checkout histórico); `docs-integracion/` 1.533.879 B (copia histórica de documentación); y 16.327 B en tres archivos raíz. No quedaron `Copernic/` ni `_dev-corpus-storage-test/`.
+Hijos directos medidos, ordenados por tamaño: `_recovery-work/` 64.994.062.080 B (Search principal, QA de release activo y evidencia); `JurisprudenciaN/` 7.025.145.697 B (checkout histórico protegido); `_dev-corpus-storage/` 3.667.203.658 B (corpus real requerido); `_local-setup/` 3.282.074.789 B (paquete único para oficina); `_recovery-backups/` 2.312.140.330 B (backup único validado); `.git/` 1.945.404.477 B (historial compartido); `_legacy-audit-work/` 1.057.736.720 B (evidencia histórica); `digesto/` 200.066.849 B (PDFs locales del checkout histórico); `docs-integracion/` 1.533.879 B (copia histórica de documentación); y 16.327 B en tres archivos raíz. No quedaron `Copernic/` ni `_dev-corpus-storage-test/`. El objetivo de 60–80 GiB se cumple; no se eliminan datos legítimos para reducirlo más.
 
