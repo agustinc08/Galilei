@@ -7,10 +7,11 @@ Galilei reúne jurisprudencia, corpus documental, Digesto y espacios de trabajo 
 - client/: interfaz Next.js, pruebas Playwright y harness de UX.
 - server/: API NestJS, Search, ACL, Prisma, migraciones y scripts protegidos.
 - docs/: guías del repositorio y documentación de integración BJC.
-- legacy/digesto/: aplicación antigua CRA/Nest conservada como referencia; no es el runtime de Galilei.
 - docker-compose.yml y docker-compose.dev.yml: recetas locales optativas, no servicios activos.
 
-Ver [estructura del proyecto](docs/estructura-proyecto.md), [inventario de raíz](docs/inventario-raiz.md), [guía de inicio BJC](docs/integracion/BJC-START-HERE.md) y [archivo histórico Digesto](legacy/README.md).
+Digesto sigue como dominio funcional dentro de client/ y server/. La aplicación antigua CRA/Nest que vivía en `legacy/digesto/` fue retirada porque no tiene dependencias activas; Git conserva su historia.
+
+Ver [estructura del proyecto](docs/estructura-proyecto.md), [inventario de raíz](docs/inventario-raiz.md) y [guía de inicio BJC](docs/integracion/BJC-START-HERE.md).
 
 ## Desarrollo local
 
@@ -24,6 +25,8 @@ Las pruebas y builds se ejecutan desde la aplicación correspondiente con sus sc
 
 ## Datos y servicios locales
 
-El corpus real, PostgreSQL, OpenSearch, backups y evidencia operativa viven fuera de Git en raíces locales ignoradas. La reorganización cambia sólo el código versionado: no mueve documentos, bases, índices, secretos ni runtimes. El inventario registra qué se conserva y por qué. No conectar a producción ni a servidores institucionales.
+El corpus DEV real vive en `_dev-corpus-storage/` y contiene los blobs locales referenciados por PostgreSQL para Viewer y descarga; no borrarlo ni versionarlo. PostgreSQL, OpenSearch, backups, configuración de oficina y evidencia operativa viven fuera de Git en raíces locales ignoradas. El inventario explica qué se conserva y por qué. No conectar a producción ni a servidores institucionales.
 
-Las rutas históricas JurisprudenciaN/back/data, JurisprudenciaN/back/uploads y digesto/server/pdfs identifican fuentes locales preexistentes del checkout original. No son carpetas de código actual ni se trasladan por esta reorganización; se preservan y permanecen ignoradas.
+`_local-setup/office-runtime-transfer.rar` contiene el paquete único de transferencia para la PC de oficina: dump PostgreSQL DEV y blobs del corpus, sin secretos. Los manifiestos y checksums acompañantes permiten validar el archivo antes del traspaso. Los runtimes y datos históricos de `_recovery-work/` no son parte del paquete.
+
+Las rutas históricas `JurisprudenciaN/back/data`, `JurisprudenciaN/back/uploads` y `digesto/server/pdfs` pertenecen al checkout original y se conservan aparte; no son el runtime de las aplicaciones actuales. La allowlist PDF de `server/scripts/dev/institutional-pdf-roots.json` las trata como fuentes locales read-only: un clon limpio debe configurar sus propios roots antes de inventariar o ingerir.

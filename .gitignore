@@ -22,8 +22,6 @@
 /server/coverage/
 /server/.cache/
 /server/generated/
-/legacy/digesto/client/build/
-/legacy/digesto/server/dist/
 **/*.tsbuildinfo
 
 # Datos locales y runtimes del checkout
@@ -34,7 +32,6 @@
 /server/data/*.sqlite
 /server/data/*.sqlite3
 /server/data/*.db
-/legacy/digesto/server/pdfs/
 /_dev-corpus-storage/
 /_dev-corpus-storage-test/
 /_recovery-work/

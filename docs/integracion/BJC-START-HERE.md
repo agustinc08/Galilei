@@ -1,17 +1,17 @@
-## Normalización de estructura — 2026-10-23
+## Estado de PC principal — 2026-10-23
 
-El código versionado queda en client/ + server/; documentación en docs/ y la aplicación anterior Digesto en legacy/digesto/. Esta misión partió del release candidate 2eba98996b4dc6f3ef7438d01e1a1ff31341a220, con origin/dev=1ba18d69b548f6cee915478229b9cd168ee0096d y origin/main=83947656420a9d6f6c3cfb12b353eb7f2c293a28 observados al inicio. No se cambiaron PostgreSQL, OpenSearch, corpus ni la aceptación de producto. Ver docs/estructura-proyecto.md y docs/inventario-raiz.md; el estado funcional que sigue corresponde al corte del 2026-10-21.
+El código vigente está organizado en `client/`, `server/` y `docs/`. La app Digesto antigua en `legacy/digesto/` se retiró por no tener dependencias activas; el dominio Digesto vigente sigue integrado en las aplicaciones actuales. La limpieza de raíz parte de `origin/dev=dfa81250af387326ab338b1c58fcc3198c42817a`; `origin/main=83947656420a9d6f6c3cfb12b353eb7f2c293a28` permanece intacta. El commit de QA `2eba98996b4dc6f3ef7438d01e1a1ff31341a220` ya es ancestro de esa base. El worktree candidato conserva cambios locales no committeados y no se modifica en esta limpieza.
 
 # Galilei — inicio rápido
 
-**Último corte funcional documentado: 2026-10-21.** PC principal `AgustinNotebook`; raíz `C:\proyecto triple`. `origin/dev=ebefee54a5208187b7f77b84d71d7addd043f653`; el trabajo de bootstrap V4 está sin commit en un worktree candidato aislado y aún no se promovió. `main=83947656420a9d6f6c3cfb12b353eb7f2c293a28` permanece intacta.
+**PC principal:** `AgustinNotebook`; raíz `C:\proyecto triple`. Este documento registra el estado operativo observado el 2026-10-23, no una certificación de oficina ni un permiso para cambiar `main`.
 
 ## Estado actual
 
 - **Search principal:** V4 activo y certificado en OpenSearch 2.19.6 GREEN; plugin `analysis-icu` 2.19.6, ICU4J 75.1, heap 2 GiB. El alias `galilei-search-active` apunta sólo a `galilei-search-v004-20261020t094732495z-6015e394`; V3 se retiene para rollback.
-- **Fresh bootstrap:** `JURISPRUDENCIA-V4-FRESH-BOOTSTRAP-TOOLING-1R` sigue en verificación aislada; el target V4 de prueba está en `PROJECTING`, sin alias. No declarar resuelto el bloqueo de oficina hasta cerrar paridad, pruebas, restart y review independiente.
+- **Release QA aislada:** la certificación exacta de `2eba98996b4dc6f3ef7438d01e1a1ff31341a220` conserva QA local en `127.0.0.1:55434` y OpenSearch `127.0.0.1:29220/29320`. El bootstrap alcanzó `PROJECTED` (69.313 documentos; outbox pending=0, failed=0), pero la review dejó gates de runtime P1 pendientes para lifecycle, concurrencia, Viewer, descarga y ACL. Se preservan esos runtimes hasta cerrar la certificación; no son el Search principal.
 - **Copernic:** integrado y revisado en DEV. Typechecks y builds PASS, 5 E2E enfocados PASS, 27 comprobaciones responsive PASS y limpieza ACL sintética verificada.
-- **Oficina:** el bloqueo `OFFICE_V4_BOOTSTRAP_TOOLING_GAP` sigue abierto. Sytec10 (`D:\proyecto triple`) no fue accedida; PostgreSQL está READY, OpenSearch no está instalado y la migración V4 no empezó. No iniciar allí hasta que el bootstrap fresh sea certificado y promovido.
+- **Oficina:** Sytec10 (`D:\proyecto triple`) no fue accedida en esta misión. El paquete local `office-runtime-transfer.rar` es un snapshot de datos con un dump DEV y los blobs de Corpus; no contiene secretos. Usar el código del SHA final de DEV como fuente y revisar el manifiesto/checksums antes del traspaso. No iniciar la migración de oficina hasta ejecutar su misión y sus validaciones propias.
 
 ## Producto integrado
 
