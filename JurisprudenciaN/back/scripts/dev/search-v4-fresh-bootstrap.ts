@@ -21,17 +21,24 @@ import {
   type SearchProjectionCounts,
 } from '../../src/busqueda/opensearch/opensearch-index.service';
 import { readOpenSearchConfig } from '../../src/busqueda/opensearch/opensearch-config';
+import {
+  assertFreshV4Topology,
+  classifyOpenSearchAlias,
+  classifyOpenSearchIndex,
+} from '../../src/busqueda/opensearch/opensearch-fresh-topology';
 
 const EXPECTED_BUILD = '97d3c13bf22a4a72ac11dc503fe44c97662b9161';
 const EXPECTED_SEARCH_VERSION = '2.19.6';
 const EXPECTED_ICU_VERSION = '2.19.6';
 const EXPECTED_HEAP_BYTES = 2_147_483_648;
 const EXPECTED_DATABASE = 'buscador_juridico_civil_dev';
+const EXPECTED_DEEP_QA_DATABASE = 'buscador_juridico_civil_deepqa';
 const EXPECTED_ROLE = 'bjc_dev';
 const EXPECTED_DATABASE_PORT = 55432;
+const EXPECTED_DEEP_QA_DATABASE_PORT = 55434;
 // Keep each source+MGET comparison comfortably below the memory cost of the
 // largest historical source documents on the local DEV corpus.
-const SOURCE_PARITY_PAGE_SIZE = 25;
+const SOURCE_PARITY_PAGE_SIZE = 100;
 
 type Phase = 'dry-run' | 'apply' | 'resume' | 'status' | 'activate';
 type BootstrapStage =
@@ -301,6 +308,14 @@ function validateOperatorConfig() {
 }
 
 async function verifyDatabaseIdentity(): Promise<DatabaseIdentity> {
+  const isolatedQaEnabled =
+    process.env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true';
+  const expectedDatabase = isolatedQaEnabled
+    ? EXPECTED_DEEP_QA_DATABASE
+    : EXPECTED_DATABASE;
+  const expectedDatabasePort = isolatedQaEnabled
+    ? EXPECTED_DEEP_QA_DATABASE_PORT
+    : EXPECTED_DATABASE_PORT;
   const pg = new PgClient({
     ...getRuntimeDatabasePoolConfig(),
     connectionTimeoutMillis: 5000,
@@ -322,10 +337,10 @@ async function verifyDatabaseIdentity(): Promise<DatabaseIdentity> {
     `);
     const identity = result.rows[0];
     if (
-      identity.database !== EXPECTED_DATABASE ||
+      identity.database !== expectedDatabase ||
       identity.role !== EXPECTED_ROLE ||
       identity.host !== '127.0.0.1' ||
-      Number(identity.port) !== EXPECTED_DATABASE_PORT ||
+      Number(identity.port) !== expectedDatabasePort ||
       Number(identity.server.split('.')[0]) !== 16
     ) {
       throw new Error('SEARCH_FRESH_V4_DATABASE_IDENTITY_REJECTED');
@@ -346,7 +361,12 @@ async function verifyDatabaseIdentity(): Promise<DatabaseIdentity> {
   }
 }
 
-async function inspectRuntime(client: Client, marker: RuntimeMarker) {
+async function inspectRuntime(
+  client: Client,
+  marker: RuntimeMarker,
+  indexPrefix: string,
+  activeAlias: string,
+) {
   const [
     infoResponse,
     healthResponse,
@@ -437,6 +457,13 @@ async function inspectRuntime(client: Client, marker: RuntimeMarker) {
   const transportPort = Number(
     node?.settings?.['transport.port'] ?? marker.transportPort,
   );
+  const physicalIndices = indices
+    .map((entry) => entry.index)
+    .filter((value): value is string => Boolean(value));
+  const aliasEntries = aliases.filter(
+    (entry): entry is { alias: string; index: string } =>
+      typeof entry.alias === 'string' && typeof entry.index === 'string',
+  );
   const summary = {
     endpoint: marker.endpoint,
     version: info.version?.number ?? null,
@@ -455,18 +482,38 @@ async function inspectRuntime(client: Client, marker: RuntimeMarker) {
     dataPath,
     httpPort,
     transportPort,
-    indices: indices
-      .map((entry) => entry.index)
-      .filter((value): value is string => Boolean(value)),
-    applicationIndices: indices
-      .map((entry) => entry.index)
-      .filter(
-        (value): value is string =>
-          typeof value === 'string' &&
-          !value.startsWith('.') &&
-          !value.startsWith('top_queries-'),
-      ),
-    aliases,
+    indexPrefix,
+    activeAlias,
+    indices: physicalIndices,
+    applicationIndices: physicalIndices.filter(
+      (value) =>
+        classifyOpenSearchIndex(value, indexPrefix) === 'BJC_APPLICATION_INDEX',
+    ),
+    internalIndices: physicalIndices.filter(
+      (value) =>
+        classifyOpenSearchIndex(value, indexPrefix) ===
+        'OPENSEARCH_INTERNAL_INDEX',
+    ),
+    unknownNonBjcIndices: physicalIndices.filter(
+      (value) =>
+        classifyOpenSearchIndex(value, indexPrefix) === 'UNKNOWN_NON_BJC_INDEX',
+    ),
+    aliases: aliasEntries,
+    applicationAliases: aliasEntries.filter(
+      (entry) =>
+        classifyOpenSearchAlias(entry.alias, activeAlias) ===
+        'BJC_APPLICATION_ALIAS',
+    ),
+    internalAliases: aliasEntries.filter(
+      (entry) =>
+        classifyOpenSearchAlias(entry.alias, activeAlias) ===
+        'OPENSEARCH_INTERNAL_ALIAS',
+    ),
+    unknownNonBjcAliases: aliasEntries.filter(
+      (entry) =>
+        classifyOpenSearchAlias(entry.alias, activeAlias) ===
+        'UNKNOWN_NON_BJC_ALIAS',
+    ),
   };
   const normalize = (value: string) =>
     path.resolve(value).replace(/\\/gu, '/').toLowerCase();
@@ -500,24 +547,15 @@ async function assertClusterState(
   allowActiveAlias = false,
   alias = 'galilei-search-active',
 ) {
-  const expectedIndices = target ? [target] : [];
-  const applicationIndices = summary.applicationIndices;
-  if (
-    applicationIndices.length !== expectedIndices.length ||
-    expectedIndices.some((index) => !applicationIndices.includes(index))
-  ) {
-    throw new Error('SEARCH_FRESH_V4_UNEXPECTED_INDICES');
-  }
-  if (summary.aliases.length === 0 && !allowActiveAlias) return;
-  if (
-    allowActiveAlias &&
-    summary.aliases.length === 1 &&
-    summary.aliases[0].alias === alias &&
-    summary.aliases[0].index === target
-  ) {
-    return;
-  }
-  throw new Error('SEARCH_FRESH_V4_UNEXPECTED_ALIAS_STATE');
+  assertFreshV4Topology(
+    { indices: summary.indices, aliases: summary.aliases },
+    {
+      indexPrefix: summary.indexPrefix,
+      activeAlias: alias,
+      expectedIndex: target,
+      expectedAliasTarget: allowActiveAlias ? target : undefined,
+    },
+  );
 }
 
 function createIndexService(
@@ -656,7 +694,12 @@ async function runBootstrap(args: Args) {
       if (existsSync(stateFile)) {
         throw new Error('SEARCH_FRESH_V4_STATE_ALREADY_EXISTS_USE_RESUME');
       }
-      const runtime = await inspectRuntime(client, marker);
+      const runtime = await inspectRuntime(
+        client,
+        marker,
+        config.indexPrefix,
+        config.alias,
+      );
       await assertClusterState(runtime);
       const outboxBefore = await repository.outboxStatus();
       state = initialState(
@@ -698,7 +741,12 @@ async function runBootstrap(args: Args) {
       }
       state.stage = 'VERIFIED';
       writeState(stateFile, state);
-      const runtimeFinal = await inspectRuntime(client, marker);
+      const runtimeFinal = await inspectRuntime(
+        client,
+        marker,
+        config.indexPrefix,
+        config.alias,
+      );
       await assertClusterState(runtimeFinal, target, false);
       const outboxAfter = await repository.outboxStatus();
       console.log(
@@ -725,12 +773,19 @@ async function runBootstrap(args: Args) {
     }
 
     state = readState(stateFile);
-    const runtime = await inspectRuntime(client, marker);
+    const runtime = await inspectRuntime(
+      client,
+      marker,
+      config.indexPrefix,
+      config.alias,
+    );
     assertStateMatches(state, target, endpoint, runtime, marker, database);
-    const aliasActive =
-      runtime.aliases.length === 1 &&
-      runtime.aliases[0].alias === config.alias &&
-      runtime.aliases[0].index === target;
+    if (state.stage === 'EMPTY' && runtime.applicationIndices.length > 0) {
+      throw new Error('SEARCH_FRESH_V4_EMPTY_STATE_HAS_INDEX');
+    }
+    const aliasActive = runtime.aliases.some(
+      (entry) => entry.alias === config.alias && entry.index === target,
+    );
     if (aliasActive) {
       await assertClusterState(runtime, target, true, config.alias);
       if (state.stage !== 'COMPLETE') {
@@ -801,9 +856,10 @@ async function runBootstrap(args: Args) {
       }
     }
     if (state.stage === 'EMPTY') {
-      if (runtime.indices.length !== 0) {
+      if (runtime.applicationIndices.length !== 0) {
         throw new Error('SEARCH_FRESH_V4_EMPTY_STATE_HAS_INDEX');
       }
+      await assertClusterState(runtime);
       state.highWatermarkBoot = await index.captureFreshV4HighWatermark();
       const created = await index.createFreshV4Index(target);
       state.collationPipeline = created.collationPipeline;
@@ -853,7 +909,12 @@ async function runBootstrap(args: Args) {
       writeState(stateFile, state);
     }
     if (state.stage === 'VERIFIED' && args.phase === 'resume') {
-      const verifiedRuntime = await inspectRuntime(client, marker);
+      const verifiedRuntime = await inspectRuntime(
+        client,
+        marker,
+        config.indexPrefix,
+        config.alias,
+      );
       await assertClusterState(verifiedRuntime, target, false);
       console.log(
         JSON.stringify({
@@ -877,7 +938,12 @@ async function runBootstrap(args: Args) {
         target,
         state.highWatermarkBoot ?? '0',
         async () => {
-          const finalRuntime = await inspectRuntime(client, marker);
+          const finalRuntime = await inspectRuntime(
+            client,
+            marker,
+            config.indexPrefix,
+            config.alias,
+          );
           if (
             finalRuntime.clusterUuid !== state.clusterUuid ||
             finalRuntime.clusterName !== state.clusterName
@@ -893,7 +959,12 @@ async function runBootstrap(args: Args) {
       state.stage = 'COMPLETE';
       writeState(stateFile, state);
     }
-    const runtimeFinal = await inspectRuntime(client, marker);
+    const runtimeFinal = await inspectRuntime(
+      client,
+      marker,
+      config.indexPrefix,
+      config.alias,
+    );
     await assertClusterState(runtimeFinal, target, true, config.alias);
     console.log(
       JSON.stringify({
@@ -927,7 +998,12 @@ async function runDryRun(args: Args) {
     getRuntimeDatabasePoolConfig(),
   );
   try {
-    const search = await inspectRuntime(client, marker);
+    const search = await inspectRuntime(
+      client,
+      marker,
+      config.indexPrefix,
+      config.alias,
+    );
     await assertClusterState(search);
     const outbox = await repository.outboxStatus();
     const highWatermark = await repository.withMutationBarrier(
@@ -965,7 +1041,12 @@ async function runStatus(args: Args) {
   const database = await verifyDatabaseIdentity();
   const client = new Client(config.clientOptions);
   try {
-    const runtime = await inspectRuntime(client, marker);
+    const runtime = await inspectRuntime(
+      client,
+      marker,
+      config.indexPrefix,
+      config.alias,
+    );
     if (!args.stateFile) {
       await assertClusterState(runtime);
       console.log(
@@ -986,10 +1067,9 @@ async function runStatus(args: Args) {
     const state = readState(args.stateFile);
     const target = parseTarget(args.target ?? state.target, config.indexPrefix);
     assertStateMatches(state, target, endpoint, runtime, marker, database);
-    const aliasActive =
-      runtime.aliases.length === 1 &&
-      runtime.aliases[0].alias === config.alias &&
-      runtime.aliases[0].index === target;
+    const aliasActive = runtime.aliases.some(
+      (entry) => entry.alias === config.alias && entry.index === target,
+    );
     if (aliasActive)
       await assertClusterState(runtime, target, true, config.alias);
     else

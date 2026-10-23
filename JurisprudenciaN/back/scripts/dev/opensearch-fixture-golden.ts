@@ -11,10 +11,14 @@ import { BusquedaService } from '../../src/busqueda/busqueda.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { PrismaModule } from '../../src/prisma/prisma.module';
 import { OpenSearchRuntimeService } from '../../src/busqueda/opensearch/opensearch-runtime.service';
+import { OpenSearchDocumentRepository } from '../../src/busqueda/opensearch/opensearch-document.repository';
+import { projectCorpusSearchDocument } from '../../src/busqueda/opensearch/opensearch-search-document';
+import { SEARCH_INDEX_SCHEMA_VERSION_V4 } from '../../src/busqueda/opensearch/opensearch-mapping';
 import { parseSearchQuery } from '../../src/busqueda/utils/search-parser';
 import { normalizeSearchText } from '../../src/busqueda/utils/search-normalizer';
 import { CorpusSearchSourceAdapter } from '../../src/corpus/corpus-search.adapter';
 import type { SearchContext } from '../../src/busqueda/adapters/search-source.adapter';
+import { validateDevelopmentDatabaseUrl } from './database-url-guard.cjs';
 
 type GoldenCase = {
   id: string;
@@ -98,6 +102,7 @@ loadLocalEnvironment();
 async function main() {
   const prisma = new PrismaService();
   const runtime = new OpenSearchRuntimeService();
+  let fixtureRepository: OpenSearchDocumentRepository | undefined;
   let hydrator: CorpusSearchSourceAdapter | undefined;
   const runId = `${Date.now()}_${process.pid}`;
   const ids = grammarDocuments.map(
@@ -128,6 +133,13 @@ async function main() {
     filters: { tipoFallo: 'OPENSEARCH-INT1-SYNTHETIC' },
   };
   let runtimeStarted = false;
+  const physicalQaFixtureMode =
+    process.env.BJC_SEARCH_V4_GOLDEN_PHYSICAL_FIXTURES === 'true' &&
+    runtime.config.readOnlyCandidate &&
+    runtime.config.topology === 'fresh-v4' &&
+    /^galilei-search-v004-\d{8}t\d{9}z-[a-f0-9]{8}$/u.test(
+      runtime.config.searchTarget,
+    );
   let collectionId: string | undefined;
   let httpApp: { app: INestApplication; baseUrl: string } | undefined;
   try {
@@ -192,7 +204,7 @@ async function main() {
       })),
     });
 
-    runtime.onModuleInit();
+    await runtime.onModuleInit();
     runtimeStarted = true;
     const corpusHydrator = new CorpusSearchSourceAdapter();
     hydrator = corpusHydrator;
@@ -202,7 +214,37 @@ async function main() {
         corpusHydrator.search(query, searchContext, candidateIds),
       () => corpusHydrator.close(),
     );
-    await waitForOutbox(runtime);
+    if (physicalQaFixtureMode) {
+      fixtureRepository = new OpenSearchDocumentRepository();
+      const baselineCount = await runtime.client.count({
+        index: runtime.config.searchTarget,
+      });
+      const baselineCountBody =
+        (baselineCount as unknown as { body?: { count?: number } }).body ??
+        (baselineCount as unknown as { count?: number });
+      if (Number(baselineCountBody.count ?? -1) !== 69313) {
+        throw new Error('OPENSEARCH_FIXTURE_BASELINE_COUNT_INVALID');
+      }
+      for (const id of allIds) {
+        const row = await fixtureRepository.getCorpusDocument(id);
+        if (!row) throw new Error('OPENSEARCH_FIXTURE_SOURCE_ROW_MISSING');
+        const document = projectCorpusSearchDocument(
+          row,
+          SEARCH_INDEX_SCHEMA_VERSION_V4,
+        );
+        await runtime.client.index({
+          index: runtime.config.searchTarget,
+          id: document.id,
+          body: document,
+          refresh: false,
+        });
+      }
+      await runtime.client.indices.refresh({
+        index: runtime.config.searchTarget,
+      });
+    } else {
+      await waitForOutbox(runtime);
+    }
     httpApp = await createHttpApp();
     httpApp.app.get(BusquedaService).trackAdvancedV2 = () => undefined;
 
@@ -548,15 +590,54 @@ async function main() {
       await prisma.digestoCollection
         .deleteMany({ where: { id: collectionId } })
         .catch(() => undefined);
+    if (physicalQaFixtureMode) {
+      for (const id of allIds) {
+        try {
+          await runtime.client.delete({
+            index: runtime.config.searchTarget,
+            id,
+            refresh: false,
+          });
+        } catch (error) {
+          const candidate = error as {
+            statusCode?: number;
+            meta?: { statusCode?: number };
+          };
+          if ((candidate.statusCode ?? candidate.meta?.statusCode) !== 404) {
+            console.error('OPENSEARCH_FIXTURE_DELETE_FAILED');
+            process.exitCode = 1;
+          }
+        }
+      }
+      await runtime.client.indices.refresh({
+        index: runtime.config.searchTarget,
+      });
+      const fixtureEvents = await prisma.searchIndexOutbox.findMany({
+        where: { documentKey: { in: allIds.map((id) => `CORPUS:${id}`) } },
+        select: { id: true },
+      });
+      if (fixtureEvents.length) {
+        await prisma.searchIndexOutbox.updateMany({
+          where: { id: { in: fixtureEvents.map((event) => event.id) } },
+          data: {
+            processedAt: new Date(),
+            failedAt: null,
+            leaseUntil: null,
+            lastError: null,
+          },
+        });
+      }
+    }
     if (hydrator) await hydrator.close().catch(() => undefined);
     if (runtimeStarted) {
-      await waitForOutbox(runtime).catch(() => undefined);
       await runtime.onModuleDestroy().catch(() => undefined);
     } else {
       await runtime.index.close().catch(() => undefined);
       await runtime.client.close().catch(() => undefined);
     }
     await prisma.$disconnect().catch(() => undefined);
+    if (fixtureRepository)
+      await fixtureRepository.close().catch(() => undefined);
   }
 }
 
@@ -602,17 +683,15 @@ async function createHttpApp(): Promise<{
 }
 
 function assertDevDatabase(databaseUrl?: string) {
-  if (!databaseUrl) throw new Error('DEV_DB_GUARD_DATABASE_URL_REQUIRED');
-  const target = new URL(databaseUrl);
-  if (
-    target.protocol !== 'postgresql:' ||
-    target.hostname !== '127.0.0.1' ||
-    target.port !== '55432' ||
-    target.pathname !== '/buscador_juridico_civil_dev' ||
-    target.username !== 'bjc_dev'
-  ) {
-    throw new Error('DEV_DB_GUARD_TARGET_INVALID');
-  }
+  const allowIsolatedQa =
+    process.env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true';
+  const validation = validateDevelopmentDatabaseUrl(databaseUrl, {
+    allowIsolatedQa,
+    deploymentEnvironment: allowIsolatedQa
+      ? process.env.BJC_DEPLOYMENT_ENV
+      : 'development',
+  });
+  if (!validation.valid) throw new Error('DEV_DB_GUARD_TARGET_INVALID');
 }
 
 function buildGoldenCases(documentIds: string[]): GoldenCase[] {
@@ -738,12 +817,10 @@ function percentile(values: number[], ratio: number) {
 }
 
 void main().catch((error: unknown) => {
-  const message =
-    error instanceof Error ? error.message : 'OPENSEARCH_FIXTURE_GOLDEN_FAILED';
-  console.error(
-    message.startsWith('OPENSEARCH_') || message.startsWith('DEV_')
-      ? message
-      : 'OPENSEARCH_FIXTURE_GOLDEN_FAILED',
-  );
+  const message = error instanceof Error ? error.message : 'UNKNOWN_ERROR';
+  const safeCode = /^[A-Z][A-Z0-9_]{2,96}$/u.test(message)
+    ? message
+    : 'UNEXPECTED_ERROR';
+  console.error(`OPENSEARCH_FIXTURE_GOLDEN_FAILED: ${safeCode}`);
   process.exitCode = 1;
 });
