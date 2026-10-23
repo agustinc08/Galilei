@@ -4,6 +4,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const {
+  validateDevelopmentDatabaseUrl,
+} = require('./dev/database-url-guard.cjs');
 
 const defaultEnvFile = path.resolve(__dirname, '..', '.env.development.local');
 const configuredEnvFile = process.env.BJC_DEV_DB_GUARD_ENV_FILE;
@@ -35,29 +38,20 @@ if (!match) {
 }
 
 const rawUrl = match[1].replace(/^(["'])(.*)\1$/, '$2');
-let target;
-try {
-  target = new URL(rawUrl);
-} catch {
-  console.error('DEV_DB_GUARD=ABORT; DATABASE_URL is invalid.');
-  process.exit(2);
-}
+const allowIsolatedQa =
+  process.env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true';
+const validation = validateDevelopmentDatabaseUrl(rawUrl, {
+  allowIsolatedQa,
+  deploymentEnvironment: allowIsolatedQa
+    ? process.env.BJC_DEPLOYMENT_ENV
+    : process.env.BJC_DEPLOYMENT_ENV || process.env.NODE_ENV || 'development',
+});
 
-const valid =
-  target.protocol === 'postgresql:' &&
-  target.hostname === '127.0.0.1' &&
-  target.port === '55432' &&
-  target.pathname === '/buscador_juridico_civil_dev' &&
-  target.username === 'bjc_dev' &&
-  target.search === '' &&
-  target.hash === '' &&
-  !rawUrl.includes('?') &&
-  !rawUrl.includes('#') &&
-  Boolean(target.password);
-
-if (!valid) {
+if (!validation.valid) {
   console.error(
-    'DEV_DB_GUARD=ABORT; expected bjc_dev@127.0.0.1:55432/buscador_juridico_civil_dev.',
+    allowIsolatedQa
+      ? 'DEEP_QA_DB_GUARD=ABORT; expected development bjc_dev@127.0.0.1:55434/buscador_juridico_civil_deepqa.'
+      : 'DEV_DB_GUARD=ABORT; expected bjc_dev@127.0.0.1:55432/buscador_juridico_civil_dev.',
   );
   process.exit(2);
 }
@@ -651,7 +645,7 @@ const childEnv = {
           .filter(Boolean)
           .join(' ')
       : action === 'search-v4-fresh-bootstrap'
-        ? [process.env.NODE_OPTIONS, '--expose-gc', '--max-old-space-size=512']
+        ? [process.env.NODE_OPTIONS, '--expose-gc', '--max-old-space-size=1024']
             .filter(Boolean)
             .join(' ')
         : action === 'sprint15-postgres-tests' ||
@@ -779,7 +773,9 @@ if (action === 'sprint151-ui-tests') {
   fs.mkdirSync(childEnv.BJC_CORPUS_STORAGE_PATH, { recursive: true });
 }
 console.log(
-  'DEV_DB_GUARD=PASS; host=127.0.0.1; port=55432; database=buscador_juridico_civil_dev; role=bjc_dev',
+  allowIsolatedQa
+    ? 'DEEP_QA_DB_GUARD=PASS; host=127.0.0.1; port=55434; database=buscador_juridico_civil_deepqa; role=bjc_dev'
+    : 'DEV_DB_GUARD=PASS; host=127.0.0.1; port=55432; database=buscador_juridico_civil_dev; role=bjc_dev',
 );
 
 const child = spawn(

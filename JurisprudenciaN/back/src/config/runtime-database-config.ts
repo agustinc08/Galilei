@@ -18,15 +18,16 @@ export function getRuntimeDatabasePoolConfig(
     if (!databaseUrl?.trim()) {
       throw new Error('DATABASE_URL no esta definida en el .env');
     }
-    return getDevelopmentDatabaseConfig(databaseUrl.trim());
+    return getDevelopmentDatabaseConfig(databaseUrl.trim(), env);
   }
   return getApprovedDatabaseConfig(env, environment)
     .pgConfig as ApprovedRuntimePgConfig;
 }
 
-/** Parse DEV input once, reject every URL option, and give pg explicit fields only. */
+/** Parse local DEV or explicitly enabled isolated deep-QA input and give pg explicit fields only. */
 export function getDevelopmentDatabaseConfig(
   databaseUrl: string,
+  env: NodeJS.ProcessEnv = process.env,
 ): ApprovedRuntimePgConfig {
   let target: URL;
   try {
@@ -35,17 +36,38 @@ export function getDevelopmentDatabaseConfig(
     throw new Error('DATABASE_URL no es una URL válida para el entorno local.');
   }
 
+  const isolatedQaEnabled = env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true';
+  if (isolatedQaEnabled && env.BJC_DEPLOYMENT_ENV !== 'development') {
+    throw new Error('DEEP_QA_DATABASE_REQUIRES_DEVELOPMENT_RUNTIME');
+  }
   if (
-    target.protocol !== 'postgresql:' ||
-    target.hostname !== '127.0.0.1' ||
-    target.port !== '55432' ||
-    target.pathname !== '/buscador_juridico_civil_dev' ||
-    target.username !== 'bjc_dev' ||
-    target.search !== '' ||
-    target.hash !== '' ||
-    databaseUrl.includes('?') ||
-    databaseUrl.includes('#') ||
-    !target.password
+    isolatedQaEnabled &&
+    (target.protocol !== 'postgresql:' ||
+      target.hostname !== '127.0.0.1' ||
+      target.port !== '55434' ||
+      target.pathname !== '/buscador_juridico_civil_deepqa' ||
+      target.username !== 'bjc_dev' ||
+      target.search !== '' ||
+      target.hash !== '' ||
+      databaseUrl.includes('?') ||
+      databaseUrl.includes('#') ||
+      !target.password)
+  ) {
+    throw new Error('DEEP_QA_DATABASE_TARGET_REJECTED');
+  }
+
+  if (
+    !isolatedQaEnabled &&
+    (target.protocol !== 'postgresql:' ||
+      target.hostname !== '127.0.0.1' ||
+      target.port !== '55432' ||
+      target.pathname !== '/buscador_juridico_civil_dev' ||
+      target.username !== 'bjc_dev' ||
+      target.search !== '' ||
+      target.hash !== '' ||
+      databaseUrl.includes('?') ||
+      databaseUrl.includes('#') ||
+      !target.password)
   ) {
     throw new Error(
       'El backend fuera de producción sólo puede conectarse a bjc_dev@127.0.0.1:55432/buscador_juridico_civil_dev.',
@@ -68,8 +90,10 @@ export function getDevelopmentDatabaseConfig(
 
   return {
     host: '127.0.0.1',
-    port: 55432,
-    database: 'buscador_juridico_civil_dev',
+    port: isolatedQaEnabled ? 55434 : 55432,
+    database: isolatedQaEnabled
+      ? 'buscador_juridico_civil_deepqa'
+      : 'buscador_juridico_civil_dev',
     user: 'bjc_dev',
     password,
   } as ApprovedRuntimePgConfig;
@@ -88,7 +112,7 @@ export function resolveSearchDatabasePoolConfig(
     if (env.BJC_SPRINT121_TEMP_DB_TEST === '1') {
       return getMigrationFixtureDatabaseConfig(input.trim(), env);
     }
-    return getDevelopmentDatabaseConfig(input.trim());
+    return getDevelopmentDatabaseConfig(input.trim(), env);
   }
   if (input) return input;
   return getRuntimeDatabasePoolConfig(env);

@@ -37,6 +37,67 @@ describe('canonical runtime PostgreSQL pool configuration', () => {
     expect(config.ssl).toBeUndefined();
   });
 
+  it('allows only the exact isolated deep-QA identity behind an explicit local flag', () => {
+    const config = getRuntimeDatabasePoolConfig({
+      NODE_ENV: 'development',
+      BJC_DEPLOYMENT_ENV: 'development',
+      BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE: 'true',
+      DATABASE_URL:
+        'postgresql://bjc_dev:synthetic@127.0.0.1:55434/buscador_juridico_civil_deepqa',
+    });
+    expect(config).toMatchObject({
+      host: '127.0.0.1',
+      port: 55434,
+      database: 'buscador_juridico_civil_deepqa',
+      user: 'bjc_dev',
+      password: 'synthetic',
+    });
+  });
+
+  it('requires an explicit development deployment mode for isolated deep-QA', () => {
+    expect(() =>
+      getRuntimeDatabasePoolConfig({
+        NODE_ENV: 'development',
+        BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE: 'true',
+        DATABASE_URL:
+          'postgresql://bjc_dev:synthetic@127.0.0.1:55434/buscador_juridico_civil_deepqa',
+      }),
+    ).toThrow('DEEP_QA_DATABASE_REQUIRES_DEVELOPMENT_RUNTIME');
+  });
+  it('rejects all non-QA database identities while isolated deep-QA mode is enabled', () => {
+    expect(() =>
+      getRuntimeDatabasePoolConfig({
+        NODE_ENV: 'development',
+        BJC_DEPLOYMENT_ENV: 'development',
+        BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE: 'true',
+        DATABASE_URL:
+          'postgresql://bjc_dev:synthetic@127.0.0.1:55432/buscador_juridico_civil_dev',
+      }),
+    ).toThrow('DEEP_QA_DATABASE_TARGET_REJECTED');
+    expect(() =>
+      getRuntimeDatabasePoolConfig({
+        NODE_ENV: 'development',
+        BJC_DEPLOYMENT_ENV: 'development',
+        BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE: 'true',
+        DATABASE_URL:
+          'postgresql://bjc_dev:synthetic@remote.invalid:55434/buscador_juridico_civil_deepqa',
+      }),
+    ).toThrow('DEEP_QA_DATABASE_TARGET_REJECTED');
+  });
+
+  it('rejects the isolated deep-QA identity without its explicit local flag', () => {
+    expect(() =>
+      getRuntimeDatabasePoolConfig({
+        NODE_ENV: 'development',
+        BJC_DEPLOYMENT_ENV: 'development',
+        DATABASE_URL:
+          'postgresql://bjc_dev:synthetic@127.0.0.1:55434/buscador_juridico_civil_deepqa',
+      }),
+    ).toThrow(
+      'El backend fuera de producción sólo puede conectarse a bjc_dev@127.0.0.1:55432/buscador_juridico_civil_dev.',
+    );
+  });
+
   it.each([
     {
       environment: 'preprod' as const,
