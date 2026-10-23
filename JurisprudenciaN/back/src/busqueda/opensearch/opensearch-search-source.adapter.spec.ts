@@ -93,6 +93,60 @@ describe('OpenSearchSearchSourceAdapter', () => {
     expect(hydratedIds).toEqual(['22', '11']);
   });
 
+  it('chunks large PostgreSQL hydration pages and restores the full Search order', async () => {
+    const ids = Array.from({ length: 205 }, (_, index) => String(index + 1));
+    const search = jest.fn().mockResolvedValue({
+      body: {
+        hits: {
+          total: { value: ids.length, relation: 'eq' },
+          hits: ids.map((id) => ({
+            _id: `JURISPRUDENCIA:SUMARIO:${id}`,
+            _score: Number(id),
+          })),
+        },
+      },
+    });
+    const hydrated = jest.fn<
+      Promise<SearchResultPage>,
+      Parameters<SearchCandidateHydrator>
+    >((_query, _context, batchIds) =>
+      Promise.resolve({
+        total: batchIds.length,
+        page: 1,
+        pageSize: batchIds.length,
+        results: [...batchIds].reverse().map((id) => hit(id, 0)),
+      }),
+    );
+    const adapter = new OpenSearchSearchSourceAdapter(
+      { search } as unknown as Client,
+      'galilei-search-active',
+      'JURISPRUDENCIA',
+      hydrated,
+    );
+
+    const result = await adapter.search(
+      parseSearchQuery('"responsabilidad civil"'),
+      {
+        ...context,
+        page: 1,
+        pageSize: ids.length,
+      },
+    );
+
+    expect(hydrated).toHaveBeenCalledTimes(3);
+    expect(hydrated.mock.calls.map((call) => call[2].length)).toEqual([
+      100, 100, 5,
+    ]);
+    expect(hydrated.mock.calls[0]?.[1]).toMatchObject({
+      page: 1,
+      pageSize: 100,
+    });
+    expect(result.total).toBe(ids.length);
+    expect(result.results.map((item) => item.sourceId)).toEqual(ids);
+    expect(result.results[0]?.score).toBe(1);
+    expect(result.results.at(-1)?.score).toBe(205);
+  });
+
   it.each([
     ['sala', 'asc', '_first'],
     ['sala', 'desc', '_last'],

@@ -127,10 +127,12 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
       expect(result.totalExact).toBe(true);
       expect(query).toHaveBeenCalledTimes(1);
       expect(query.mock.calls[0][0]).toContain('d."id" = ANY');
-      expect(query.mock.calls[0][0]).not.toContain('AS "snippetText"');
       expect(query.mock.calls[0][0]).toContain(
-        'COALESCE(e."text", \'\') AS "extractedText"',
+        'd."searchText" AS "snippetSource"',
       );
+      expect(query.mock.calls[0][0]).not.toContain('AS "snippetText"');
+      expect(query.mock.calls[0][0]).not.toContain('AS "extractedText"');
+      expect(query.mock.calls[0][0]).not.toContain('regexp_replace');
       expect(adapter.getLastSearchProfile()?.queryCount).toBe(1);
     } finally {
       await adapter.close();
@@ -164,8 +166,7 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
           instance: null,
           caseNumber: null,
           visibility: 'INTERNAL',
-          searchText: '',
-          extractedText,
+          snippetSource: extractedText,
           fileId: null,
           fileMimeType: null,
           checksum: null,
@@ -200,6 +201,9 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
       expect(result.results).toHaveLength(1);
       expect(result.results[0]?.snippet).toContain('Responsabilidad civil');
       expect(result.results[0]?.snippet).toContain('Antecedente');
+      const [sql] = (pool.query as jest.Mock).mock.calls[0] as [string];
+      expect(sql).toContain('d."searchText" AS "snippetSource"');
+      expect(sql).not.toContain('AS "extractedText"');
     } finally {
       await adapter.close();
     }

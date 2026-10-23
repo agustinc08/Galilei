@@ -52,6 +52,21 @@ type PrivateSortCriterion = {
   missing: 'first' | 'last';
 };
 
+function containsExactPhrase(node: SearchQueryAst['root']): boolean {
+  if (!node) return false;
+  switch (node.type) {
+    case 'phrase':
+      return true;
+    case 'and':
+    case 'or':
+      return node.operands.some(containsExactPhrase);
+    case 'not':
+      return containsExactPhrase(node.operand);
+    case 'term':
+      return false;
+  }
+}
+
 function compareUtf8OrderedStrings(left: string, right: string) {
   let leftIndex = 0;
   let rightIndex = 0;
@@ -68,6 +83,7 @@ function compareUtf8OrderedStrings(left: string, right: string) {
 const MAX_PRIVATE_PIT_REQUESTS = 10_000;
 const MAX_PRIVATE_PIT_CANDIDATES = (MAX_PRIVATE_PIT_REQUESTS - 1) * 500;
 const MAX_PRIVATE_CURSOR_FINGERPRINT_LENGTH = 4096;
+const MAX_POSTGRES_HYDRATION_BATCH_SIZE = 100;
 
 function privateSortCriteria(sort: unknown[]): PrivateSortCriterion[] {
   if (!Array.isArray(sort) || sort.length === 0)
@@ -274,11 +290,7 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
     const pageIdExtractionMs = performance.now() - pageIdExtractionStarted;
     const hydrationStarted = performance.now();
     const hydrated = ids.length
-      ? await this.hydrate(
-          query,
-          { ...context, page: 1, pageSize: ids.length },
-          ids,
-        )
+      ? await this.hydrateCandidateIds(query, context, ids)
       : { total: 0, page: 1, pageSize, results: [] };
     const postgresHydrationMs = performance.now() - hydrationStarted;
     const reorderStarted = performance.now();
@@ -318,6 +330,57 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
       hasMore: from + hits.length < exactTotal,
       page,
       pageSize,
+      results,
+    };
+  }
+
+  /**
+   * Keep PostgreSQL hydration bounded even when the Search page contains the
+   * maximum 500 candidates. The caller restores OpenSearch order by ID after
+   * hydration, so sequential chunks preserve the exact hit set and ordering.
+   */
+  private async hydrateCandidateIds(
+    query: SearchQueryAst,
+    context: SearchContext,
+    ids: string[],
+  ): Promise<SearchResultPage> {
+    const pageContext = { ...context, page: 1, pageSize: ids.length };
+    const phraseQuery =
+      containsExactPhrase(query.root) ||
+      Boolean(context.filters?.exactPhrase?.trim());
+    if (!phraseQuery || ids.length <= MAX_POSTGRES_HYDRATION_BATCH_SIZE) {
+      return this.hydrate(query, pageContext, ids);
+    }
+
+    const results: SearchResult[] = [];
+    let total = 0;
+    let totalExact = true;
+    let hasMore = false;
+    for (
+      let offset = 0;
+      offset < ids.length;
+      offset += MAX_POSTGRES_HYDRATION_BATCH_SIZE
+    ) {
+      const batch = ids.slice(
+        offset,
+        offset + MAX_POSTGRES_HYDRATION_BATCH_SIZE,
+      );
+      const hydrated = await this.hydrate(
+        query,
+        { ...context, page: 1, pageSize: batch.length },
+        batch,
+      );
+      results.push(...hydrated.results);
+      total += hydrated.total ?? hydrated.results.length;
+      totalExact = totalExact && hydrated.totalExact !== false;
+      hasMore = hasMore || hydrated.hasMore === true;
+    }
+    return {
+      total,
+      totalExact,
+      hasMore,
+      page: 1,
+      pageSize: ids.length,
       results,
     };
   }
@@ -468,11 +531,7 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
           throw new Error('SEARCH_PRIVATE_CANDIDATE_SCAN_INCOMPLETE');
 
         const authorizationStarted = performance.now();
-        const hydrated = await this.hydrate(
-          query,
-          { ...context, page: 1, pageSize: ids.length },
-          ids,
-        );
+        const hydrated = await this.hydrateCandidateIds(query, context, ids);
         authorizationMs += performance.now() - authorizationStarted;
         authorizationBatchCount += 1;
         const hydratedById = new Map(

@@ -38,6 +38,7 @@ type SearchRow = {
   instance: string | null;
   caseNumber: string | null;
   visibility: string;
+  snippetSource?: string;
   searchText?: string;
   extractedText?: string;
   snippetText?: string | null;
@@ -538,6 +539,8 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const shortTermWindow = !candidateDocumentIds && useTokenProjection && query.root?.type === 'term' && !query.root.field &&
       query.root.matchMode === 'contains' && [...normalizeSearchText(query.root.value)].length < 3;
     const deferredSinglePhrase = !candidateDocumentIds && useTokenProjection && query.root?.type === 'phrase';
+    const candidateSinglePhraseHydration =
+      Boolean(candidateDocumentIds) && query.root?.type === 'phrase';
     const candidateValuesStart = values.length + 1;
     const candidateBuildStartedAt = performance.now();
     const candidateCte = !candidateDocumentIds && this.candidateStrategy === 'set-algebra-v2' && !shortTermWindow
@@ -610,8 +613,8 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const phraseSnippetParam = deferredSinglePhrase && query.root?.type === 'phrase'
       ? `$${values.push(normalizeSearchText(query.root.value))}`
       : null;
-    const phraseSnippetSource = `btrim(regexp_replace(COALESCE(NULLIF(e."text", ''), d."searchText", ''), '[[:space:]]+', ' ', 'g'))`;
-    const phraseSnippetNormalized = `btrim(regexp_replace(translate(lower(${phraseSnippetSource}), 'áéíóúü', 'aeiouu'), '[^[:alnum:]ñ/.-]+', ' ', 'g'))`;
+    const phraseSnippetSource = `COALESCE(NULLIF(e."text", ''), d."searchText", '')`;
+    const phraseSnippetNormalized = `translate(lower(${phraseSnippetSource}), 'áéíóúü', 'aeiouu')`;
     const phraseSnippetPosition = phraseSnippetParam ? `strpos(${phraseSnippetNormalized}, ${phraseSnippetParam})` : null;
     const phraseSnippetStart = phraseSnippetPosition
       ? `GREATEST(1, COALESCE(NULLIF(${phraseSnippetPosition}, 0), 1) - 90)`
@@ -719,10 +722,10 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
               `${candidateCte ? `${deferredSinglePhrase ? candidateCte.replace(/^WITH\s+/u, 'WITH RECURSIVE ') : candidateCte},` : 'WITH'} ${candidateWindowCtes}
                SELECT d."id", d."title", d."subtitle", d."decisionDate", d."documentType", d."jurisdiction",
                       d."court", d."chamber", d."instance", d."caseNumber", d."visibility",
-                      ${deferredSinglePhrase && phraseSnippetProjection ? `${phraseSnippetProjection} AS "snippetText"` : 'd."searchText"'} ,
+                      ${deferredSinglePhrase && phraseSnippetProjection ? `${phraseSnippetProjection} AS "snippetText"` : candidateSinglePhraseHydration ? `d."searchText" AS "snippetSource"` : `COALESCE(NULLIF(e."text", ''), d."searchText", '') AS "snippetSource"`} ,
                       stats."total", stats."hasMore", stats."totalExact", stats."candidateCount", stats."probeCount",
                       ${deferredSinglePhrase ? 'stats."candidateWindowSizes", stats."exactHitsByWindow",' : ''}
-                      ${deferredSinglePhrase ? '' : `COALESCE(e."text", '') AS "extractedText",`} f."id" AS "fileId", f."mimeType" AS "fileMimeType",
+                      f."id" AS "fileId", f."mimeType" AS "fileMimeType",
                       f."sha256" AS "checksum", f."originalFilename" AS "filename", src."code" AS "sourceCode",
                       ing."externalId", ing."sourceReference",
                       ARRAY(SELECT link."targetId" FROM "CorpusDocumentLink" link WHERE link."documentId"=d."id" AND link."targetDomain"='JURISPRUDENCIA') AS "linkedResultIds",
@@ -779,8 +782,9 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
               LIMIT ${limit} OFFSET ${offset}
            )
            SELECT d."id", d."title", d."subtitle", d."decisionDate", d."documentType", d."jurisdiction",
-                  d."court", d."chamber", d."instance", d."caseNumber", d."visibility", d."searchText",
-                  ''::text AS "total", false AS "hasMore", COALESCE(e."text", '') AS "extractedText", f."id" AS "fileId", f."mimeType" AS "fileMimeType",
+                  d."court", d."chamber", d."instance", d."caseNumber", d."visibility",
+                  COALESCE(NULLIF(e."text", ''), d."searchText", '') AS "snippetSource",
+                  ''::text AS "total", false AS "hasMore", f."id" AS "fileId", f."mimeType" AS "fileMimeType",
                   f."sha256" AS "checksum", f."originalFilename" AS "filename", src."code" AS "sourceCode",
                   ing."externalId", ing."sourceReference",
                   ARRAY(SELECT link."targetId" FROM "CorpusDocumentLink" link WHERE link."documentId" = d."id" AND link."targetDomain" = 'JURISPRUDENCIA') AS "linkedResultIds",
@@ -894,7 +898,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const snippetGenerationMsByRow: number[] = [];
     const snippetSourceCharsByRow: number[] = [];
     const mappedResults = hydratedRows.map((row): SearchResult => {
-      const snippetSource = row.extractedText || row.searchText || '';
+      const snippetSource = row.snippetSource ?? row.extractedText ?? row.searchText ?? '';
       const snippetStartedAt = performance.now();
       const resultSnippet =
         row.snippetText ?? snippet(snippetSource, literals);
