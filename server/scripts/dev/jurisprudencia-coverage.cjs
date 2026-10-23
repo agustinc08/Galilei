@@ -135,7 +135,7 @@ function aggregateSource(source, corpus = {}) {
     scope: 'Coverage within the supplied census only; do not interpret as total Civil coverage unless the source is a complete official census.' };
 }
 function main(args) {
-  const base = path.resolve(process.cwd(), '..', '..');
+  const base = path.resolve(process.cwd(), '..');
   const opts = Object.fromEntries(args.reduce((all, arg, index) => {
     const match = arg.match(/^--([^=]+)=(.*)$/u);
     if (match) all.push([match[1], match[2]]);

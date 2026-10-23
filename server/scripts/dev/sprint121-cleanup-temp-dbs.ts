@@ -13,7 +13,7 @@ async function main() {
   const target = new URL(raw);
   if (target.protocol !== 'postgresql:' || target.hostname !== '127.0.0.1' || target.port !== '55432' || target.pathname !== '/buscador_juridico_civil_dev' || target.username !== 'bjc_dev') throw new Error('CLEANUP_SOURCE_TARGET_REJECTED');
 
-  const root = resolve(process.cwd(), '..', '..');
+  const root = resolve(process.cwd(), '..');
   const [restore, migration] = await Promise.all([
     readFile(resolve(root, '_recovery-work/sprint121/backups/restore-verification.json'), 'utf8').then((value) => JSON.parse(value)),
     readFile(resolve(root, '_recovery-work/sprint121/performance/migration-from-zero.json'), 'utf8').then((value) => JSON.parse(value)),

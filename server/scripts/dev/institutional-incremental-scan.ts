@@ -9,7 +9,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { classifyIncrementalFile, findMissingIncrementalFiles } from '../../src/corpus/institutional-incremental-delta';
 
 const execFileAsync = promisify(execFile);
-const workspaceRoot = path.resolve(process.cwd(), '..', '..');
+const workspaceRoot = path.resolve(process.cwd(), '..');
 const originalManifestPath = path.join(workspaceRoot, '_recovery-work', 'sprint8', 'inventory', '1a063011-f3a3-421f-bd11-1ecdf3896bb2', 'institutional-pdf-inventory.json');
 const rootsPath = path.resolve(__dirname, 'institutional-pdf-roots.json');
 const outputRoot = path.join(workspaceRoot, '_recovery-work', 'sprint9', 'inventory');

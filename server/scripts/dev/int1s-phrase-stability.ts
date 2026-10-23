@@ -41,7 +41,7 @@ type SearchResponse = {
   hasMore?: unknown;
 };
 
-const repositoryRoot = resolve(process.cwd(), '..', '..');
+const repositoryRoot = resolve(process.cwd(), '..');
 const artifactPath = resolve(
   repositoryRoot,
   '_recovery-work/integration-int1s-search/stability-30-runs.json',

@@ -51,7 +51,7 @@ async function main() {
       outboxAfter: after,
       result: 'PASS_EXACT_SYNTHETIC_EVENT_CLEANUP',
     };
-    const evidenceRoot = path.resolve(process.cwd(), '..', '..', '..', 'jurisprudencia-collation-v4-implement1');
+    const evidenceRoot = path.resolve(process.cwd(), '..', '_recovery-work', 'jurisprudencia-collation-v4-implement1');
     fs.writeFileSync(path.join(evidenceRoot, 'db-cleanup-after-acl-attempt.json'), JSON.stringify(artifact, null, 2) + '\n', 'utf8');
     console.log(JSON.stringify({ result: artifact.result, deletedRows: deleted.rowCount, outboxAfter: after, evidence: 'db-cleanup-after-acl-attempt.json' }, null, 2));
   } catch (error) {

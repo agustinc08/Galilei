@@ -93,9 +93,7 @@ async function main() {
     const evidenceRoot = path.resolve(
       process.cwd(),
       '..',
-      '..',
-      '..',
-      '..',
+      '_recovery-work',
       'jurisprudencia-collation-v4-finalize-dev1',
       '00-recovery',
     );

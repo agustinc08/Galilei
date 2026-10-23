@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { resolve } from 'node:path';
 
 const execFileAsync = promisify(execFile);
-const root = resolve(process.cwd(), '..', '..');
+const root = resolve(process.cwd(), '..');
 const sprintLabel = process.env.BJC_SPRINT_INT1 === 'true' ? 'integration-int1' : process.env.BJC_SPRINT152 === 'true' ? 'sprint152' : process.env.BJC_SPRINT149 === 'true' ? 'sprint149' : process.env.BJC_SPRINT123 === 'true' ? 'sprint123' : 'sprint122';
 const sprintNumber = sprintLabel === 'integration-int1' ? 'INT1' : sprintLabel.replace('sprint', '');
 const backupRoot = resolve(root, '_recovery-work', sprintLabel, 'backups');

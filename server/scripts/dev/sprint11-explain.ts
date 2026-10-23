@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Client } from 'pg';
 
-const root = path.resolve(process.cwd(), '..', '..');
+const root = path.resolve(process.cwd(), '..');
 
 async function main() {
   const raw = process.env.DATABASE_URL;

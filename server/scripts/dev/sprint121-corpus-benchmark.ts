@@ -81,7 +81,7 @@ async function main() {
       latencyMs: { medianFamilyP50: sortedAll[Math.floor(sortedAll.length / 2)] },
       cases: caseReports,
     };
-    const destination = resolve(process.cwd(), '..', '..', '_recovery-work', process.env.BJC_SPRINT122 === 'true' ? 'sprint122' : 'sprint121', 'performance');
+    const destination = resolve(process.cwd(), '..', '_recovery-work', process.env.BJC_SPRINT122 === 'true' ? 'sprint122' : 'sprint121', 'performance');
     await mkdir(destination, { recursive: true });
     await writeFile(resolve(destination, 'corpus-adapter.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
     console.log(JSON.stringify(report, null, 2));

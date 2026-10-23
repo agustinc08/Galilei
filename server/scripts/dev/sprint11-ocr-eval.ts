@@ -7,7 +7,7 @@ import { LocalDocumentStorageAdapter } from '../../src/corpus/document-storage.a
 import { PrismaService } from '../../src/prisma/prisma.service';
 
 const execFileAsync = promisify(execFile);
-const workspaceRoot = path.resolve(process.cwd(), '..', '..');
+const workspaceRoot = path.resolve(process.cwd(), '..');
 const targetDocumentId = 'cmuz0ei0z01ohfg8vr2dswghg';
 const expectedSha256 = '0708cd3d85100fc9376e8945cbea2bbbfa1b747cc035bf4f244fdf2f36e81a2b';
 const tesseract = 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe';

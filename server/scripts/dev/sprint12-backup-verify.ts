@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { resolve } from 'node:path';
 
 const execFileAsync = promisify(execFile);
-const root = resolve(process.cwd(), '..', '..');
+const root = resolve(process.cwd(), '..');
 
 async function main() {
   const archive = process.env.BJC_SPRINT12_BACKUP_PATH;

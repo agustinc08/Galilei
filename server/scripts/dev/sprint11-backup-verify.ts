@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 
 const execFileAsync = promisify(execFile);
-const root = path.resolve(process.cwd(), '..', '..');
+const root = path.resolve(process.cwd(), '..');
 async function main() {
   const archive = process.env.BJC_SPRINT11_BACKUP_PATH;
   if (!archive) throw new Error('BACKUP_PATH_MISSING');

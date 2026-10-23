@@ -28,7 +28,7 @@ type FileAssociation = {
   candidateSentenceIds: number[];
 };
 
-const workspaceRoot = path.resolve(process.cwd(), '..', '..');
+const workspaceRoot = path.resolve(process.cwd(), '..');
 const outputRoot = path.resolve(
   workspaceRoot,
   '_recovery-work',

@@ -31,7 +31,7 @@ async function main() {
       fixtureSearch: 'PASS; synthetic record removed',
     };
     if (targetRow.database !== 'buscador_juridico_civil_migration_test' || targetRow.role !== 'bjc_dev' || targetRow.address !== '127.0.0.1/32' || Number(targetRow.port) !== 55432 || report.migrationCount !== 17 || report.appliedMigrationCount !== 17 || report.applicationTables < 1 || !report.pgTrgmVersion || report.corpusDocumentsAfterFixtureCleanup !== 0 || !report.experimentalIndexesAbsent) throw new Error('MIGRATION_DATABASE_VERIFY_FAILED');
-    const output = resolve(process.cwd(), '..', '..', '_recovery-work', 'sprint121', 'performance', 'migration-from-zero.json');
+    const output = resolve(process.cwd(), '..', '_recovery-work', 'sprint121', 'performance', 'migration-from-zero.json');
     await mkdir(resolve(output, '..'), { recursive: true });
     await writeFile(output, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
     console.log(JSON.stringify(report, null, 2));

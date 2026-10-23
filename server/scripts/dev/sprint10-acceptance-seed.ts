@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { PrismaService } from '../../src/prisma/prisma.service';
 
-const workspaceRoot = path.resolve(process.cwd(), '..', '..');
+const workspaceRoot = path.resolve(process.cwd(), '..');
 const credentialPath = path.join(workspaceRoot, '_recovery-work', 'sprint10', 'acceptance', 'credentials.json');
 const accounts = [
   { key: 'admin', role: 'ADMIN', name: 'Sprint 10 Admin', email: 'sprint10.admin@example.invalid', description: 'Cuenta sintética temporal para pruebas locales de administración.' },

@@ -67,7 +67,7 @@ async function main() {
       passwordPersisted: false,
     };
     if (!report.allTableCountsEqual || !sampleHashesEqual || report.migrationHistory.total !== 17 || report.migrationHistory.applied !== 17 || !report.pgTrgmVersion || !report.searchSmoke.passed) throw new Error('RESTORE_VERIFICATION_GATE_FAILED');
-    const output = resolve(process.cwd(), '..', '..', '_recovery-work', 'sprint121', 'backups', 'restore-verification.json');
+    const output = resolve(process.cwd(), '..', '_recovery-work', 'sprint121', 'backups', 'restore-verification.json');
     await mkdir(resolve(output, '..'), { recursive: true });
     await writeFile(output, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
     console.log(JSON.stringify(report, null, 2));

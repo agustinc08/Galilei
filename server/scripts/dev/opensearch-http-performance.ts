@@ -27,7 +27,7 @@ process.env.OPENSEARCH_ALLOW_INSECURE_LOCAL = 'true';
 
 async function main() {
   assertDevDatabase(process.env.DATABASE_URL);
-  const root = resolve(process.cwd(), '..', '..');
+  const root = resolve(process.cwd(), '..');
   const artifactRoot = resolve(
     root,
     '_recovery-work',

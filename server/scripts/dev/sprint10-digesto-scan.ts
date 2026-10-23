@@ -4,7 +4,7 @@ import path from 'node:path';
 import { BasicDocumentTextExtractor, InvalidPdfError } from '../../src/corpus/document-text-extractor';
 import { PrismaService } from '../../src/prisma/prisma.service';
 
-const workspaceRoot = path.resolve(process.cwd(), '..', '..');
+const workspaceRoot = path.resolve(process.cwd(), '..');
 const sourceRoot = path.join(workspaceRoot, 'digesto', 'server', 'pdfs');
 const reportRoot = path.join(workspaceRoot, '_recovery-work', 'sprint10', 'digesto');
 

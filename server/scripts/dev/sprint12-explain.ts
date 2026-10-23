@@ -4,7 +4,7 @@ import { Client } from 'pg';
 import { CorpusSearchSourceAdapter } from '../../src/corpus/corpus-search.adapter';
 import { parseSearchQuery } from '../../src/busqueda/utils/search-parser';
 
-const root = resolve(process.cwd(), '..', '..');
+const root = resolve(process.cwd(), '..');
 type ExplainCase = { family: string; query: string; filters?: Record<string, string> };
 
 async function main() {

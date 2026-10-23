@@ -9,7 +9,7 @@ import { FederatedSearchService } from '../../src/busqueda/federated-search.serv
 import { parseSearchQuery } from '../../src/busqueda/utils/search-parser';
 
 type Credentials = { accounts: Record<'admin', { email: string; password: string }> };
-const root = resolve(process.cwd(), '..', '..');
+const root = resolve(process.cwd(), '..');
 
 async function main() {
   assertDevDatabase(process.env.DATABASE_URL);

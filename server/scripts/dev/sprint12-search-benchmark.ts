@@ -24,7 +24,7 @@ type Profile = {
   legacyProfile?: Record<string, unknown> | null;
 };
 
-const root = resolve(process.cwd(), '..', '..');
+const root = resolve(process.cwd(), '..');
 const repetitions = Number(process.env.BJC_SEARCH_BENCHMARK_REPETITIONS ?? 10);
 if (!Number.isInteger(repetitions) || repetitions < 3 || repetitions > 10) {
   throw new Error('SEARCH_BENCHMARK_REPETITIONS_REJECTED');

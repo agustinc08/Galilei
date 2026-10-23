@@ -17,7 +17,7 @@ import type {
 } from '../../src/busqueda/adapters/search-source.adapter';
 
 loadLocalEnvironment();
-const root = resolve(process.cwd(), '..', '..');
+const root = resolve(process.cwd(), '..');
 const evalRoot = resolve(root, '_recovery-work', 'search-engine-eval2');
 const artifactRoot = resolve(
   root,

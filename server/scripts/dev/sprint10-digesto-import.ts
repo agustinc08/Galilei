@@ -8,7 +8,7 @@ import { BasicDocumentTextExtractor, InvalidPdfError } from '../../src/corpus/do
 import { LocalDocumentStorageAdapter } from '../../src/corpus/document-storage.adapter';
 import { PrismaService } from '../../src/prisma/prisma.service';
 
-const workspaceRoot = path.resolve(process.cwd(), '..', '..');
+const workspaceRoot = path.resolve(process.cwd(), '..');
 const sourceRoot = path.join(workspaceRoot, 'digesto', 'server', 'pdfs');
 const reportRoot = path.join(workspaceRoot, '_recovery-work', 'sprint10', 'digesto');
 const reportPath = path.join(reportRoot, 'local-scan.json');

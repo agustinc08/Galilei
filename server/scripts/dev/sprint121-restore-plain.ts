@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { resolve } from 'node:path';
 
 const execFileAsync = promisify(execFile);
-const root = resolve(process.cwd(), '..', '..');
+const root = resolve(process.cwd(), '..');
 const backupRoot = resolve(root, '_recovery-work', 'sprint121', 'backups');
 let currentStage = 'target-validation';
 

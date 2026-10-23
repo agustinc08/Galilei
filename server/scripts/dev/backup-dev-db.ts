@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 
 const execFileAsync = promisify(execFile);
-const workspaceRoot = path.resolve(process.cwd(), '..', '..');
+const workspaceRoot = path.resolve(process.cwd(), '..');
 const recoveryRoot = path.join(workspaceRoot, '_recovery-work');
 const backupRoot = process.env.BJC_DEV_BACKUP_DIR
   ? path.resolve(process.env.BJC_DEV_BACKUP_DIR)

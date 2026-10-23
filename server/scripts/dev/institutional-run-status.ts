@@ -148,7 +148,7 @@ async function main() {
             crossDomainLinks,
             databaseBytes: dbSize[0]?.bytes.toString() ?? '0',
             storageRoot: path.relative(
-              path.resolve(process.cwd(), '..', '..'),
+              path.resolve(process.cwd(), '..'),
               storage.root,
             ),
             storage: storageStats,

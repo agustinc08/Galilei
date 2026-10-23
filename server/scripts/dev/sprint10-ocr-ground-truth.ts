@@ -7,7 +7,7 @@ import { LocalDocumentStorageAdapter } from '../../src/corpus/document-storage.a
 import { PrismaService } from '../../src/prisma/prisma.service';
 
 const execFileAsync = promisify(execFile);
-const workspaceRoot = path.resolve(process.cwd(), '..', '..');
+const workspaceRoot = path.resolve(process.cwd(), '..');
 const outputRoot = path.join(workspaceRoot, '_recovery-work', 'sprint10', 'ocr');
 const tesseract = 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe';
 const tessdata = path.join(workspaceRoot, '_recovery-work', 'sprint9', 'ocr', 'tessdata');

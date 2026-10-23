@@ -23,7 +23,7 @@ async function main() {
   if (!Number.isInteger(requestsPerUser) || requestsPerUser < 1 || requestsPerUser > 20) {
     throw new Error('SPRINT121_CONCURRENCY_REQUEST_COUNT_REJECTED');
   }
-  const root = resolve(process.cwd(), '..', '..');
+  const root = resolve(process.cwd(), '..');
   const credentials = JSON.parse(await readFile(resolve(root, '_recovery-work/sprint10/acceptance/credentials.json'), 'utf8')) as Credentials;
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication();

@@ -67,7 +67,7 @@ type Inventory = {
   };
 };
 
-const workspaceRoot = path.resolve(process.cwd(), '..', '..');
+const workspaceRoot = path.resolve(process.cwd(), '..');
 const configPath = path.resolve(__dirname, 'institutional-pdf-roots.json');
 const outputRoot = path.resolve(
   workspaceRoot,

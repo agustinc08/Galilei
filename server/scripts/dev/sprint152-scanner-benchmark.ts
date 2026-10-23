@@ -8,7 +8,7 @@ import {
   type SourceFileSnapshot,
 } from '../../src/corpus/document-source-scanner';
 
-const root = resolve(process.cwd(), '..', '..');
+const root = resolve(process.cwd(), '..');
 const scanner = new DocumentSourceScanner();
 
 async function main() {

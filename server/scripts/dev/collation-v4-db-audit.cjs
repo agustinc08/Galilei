@@ -43,7 +43,7 @@ async function main() {
     const osBody = await osResponse.json();
     const result = { capturedAt: new Date().toISOString(), identity, baselineAfterH1: h1.toISOString(), outbox: totals, rowsAfterH1: recentOutbox, syntheticResidue, v4SyntheticDocumentHits: osBody.hits?.total?.value ?? null, readOnly: true };
     await client.query('COMMIT');
-    const evidenceRoot = path.resolve(process.cwd(), '..', '..', '..', 'jurisprudencia-collation-v4-implement1');
+    const evidenceRoot = path.resolve(process.cwd(), '..', '_recovery-work', 'jurisprudencia-collation-v4-implement1');
     fs.writeFileSync(path.join(evidenceRoot, 'db-audit-after-cleanup.json'), JSON.stringify(result, null, 2) + '\n', 'utf8');
     console.log(JSON.stringify({ capturedAt: result.capturedAt, identity, outbox: totals, recentRows: recentOutbox.length, firstId: recentOutbox[0]?.id ?? null, lastId: recentOutbox.at(-1)?.id ?? null, distinctSyntheticKeys: ids.length, allSyntheticSourceDocsDeleted: recentOutbox.every(row => !row.corpus_document_exists), syntheticResidue, v4SyntheticDocumentHits: result.v4SyntheticDocumentHits, evidence: 'db-audit-after-cleanup.json', readOnly: true }, null, 2));
   } catch (error) {

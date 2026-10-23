@@ -47,7 +47,7 @@ async function main() {
     return;
   }
 
-  const root = resolve(process.cwd(), '..', '..');
+  const root = resolve(process.cwd(), '..');
   const artifactRoot = resolve(
     root,
     '_recovery-work',
@@ -412,7 +412,7 @@ async function main() {
 }
 
 async function recoverInterruptedCollection() {
-  const root = resolve(process.cwd(), '..', '..');
+  const root = resolve(process.cwd(), '..');
   const artifactRoot = resolve(
     root,
     '_recovery-work',

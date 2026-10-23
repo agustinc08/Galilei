@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Client } from 'pg';
 
-const destination = resolve(process.cwd(), '..', '..', '_recovery-work', 'sprint121', 'performance');
+const destination = resolve(process.cwd(), '..', '_recovery-work', 'sprint121', 'performance');
 const sql = `SELECT count(*)::int AS total
 FROM "CorpusDocument" d
 WHERE d."visibility" = ANY($1::text[])

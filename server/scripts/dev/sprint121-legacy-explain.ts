@@ -32,7 +32,7 @@ async function main() {
   process.env.BJC_SEARCH_PROFILE = 'true';
   process.env.BJC_SEARCH_EXPLAIN_CAPTURE = 'true';
   process.env.BJC_SEARCH_STATEMENT_TIMEOUT_MS = '4500';
-  const root = resolve(process.cwd(), '..', '..');
+  const root = resolve(process.cwd(), '..');
   const credentials = JSON.parse(await readFile(resolve(root, '_recovery-work/sprint10/acceptance/credentials.json'), 'utf8')) as { accounts: { admin: { email: string; password: string } } };
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication();

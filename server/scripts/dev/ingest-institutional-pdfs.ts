@@ -76,7 +76,7 @@ type Counters = {
   bytesProcessed: bigint;
 };
 
-const workspaceRoot = path.resolve(process.cwd(), '..', '..');
+const workspaceRoot = path.resolve(process.cwd(), '..');
 const rootConfigPath = path.resolve(__dirname, 'institutional-pdf-roots.json');
 const sourceCode = 'JURISPRUDENCIA_LOCAL_PDF';
 
