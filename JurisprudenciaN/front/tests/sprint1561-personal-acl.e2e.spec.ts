@@ -390,7 +390,7 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   expect(firstUploadPayload.results[0]?.duplicate).toBe(false);
   manifest.documentIds.push(firstUploadPayload.results[0].documentId);
   saveManifest();
-  await expect(page.getByText(uiUploadName, { exact: false })).toBeVisible();
+  await expect(page.getByText(uiUploadName, { exact: true }).first()).toBeVisible();
 
   const duplicateUploadResponse = page.waitForResponse((response) =>
     response.request().method() === 'POST' && new URL(response.url()).pathname.endsWith(`/api/workspaces/${workspaceA}/documents/upload`),
