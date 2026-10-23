@@ -30,7 +30,7 @@ Informe de medición: `_recovery-work/galilei-project-structure-normalize1/root-
 
 | Path original | Tamaño inicial → actual | Propósito y uso | Git / ignorado | Decisión / destino |
 |---|---:|---|---|---|
-| `.git/` | 1.945.356.839 → 1.945.209.954 B | Repositorio compartido por los worktrees; contiene historial y refs. | Metadatos Git, no un path versionado. | Preservado. No hacer prune agresivo ni compactación durante esta misión. |
+| `.git/` | 1.945.356.839 → 1.945.367.505 B | Repositorio compartido por los worktrees; contiene historial y refs. | Metadatos Git, no un path versionado. | Preservado. No hacer prune agresivo ni compactación durante esta misión. |
 | `JurisprudenciaN/` | 7.025.145.697 → igual | Checkout original con `front/`, `back/`, dependencias/builds y datos locales históricos. Es el checkout protegido de cinco archivos. | Código rastreado en el checkout original; datos y dependencias locales ignorados. | Preservado sin mover, resetear ni limpiar. En el árbol publicado, el código vive en `client/` y `server/`; los cinco cambios locales no se incorporaron. |
 | `digesto/` | 200.066.849 → igual | App CRA/Nest histórica y PDFs locales. El dominio Digesto vigente está integrado en el producto actual; no hay dependencia activa de la app CRA/Nest. | El código es rastreado por el checkout original; PDFs locales ignorados. | Checkout histórico preservado. El código antiguo se quitó de la rama normalizada; la historia Git lo conserva. Los PDFs no se movieron ni borraron. |
 | `Copernic/` | 612.496.208 B → **ausente** | Seis instaladores de Copernic Desktop Search; sin índice, export, configuración de producto ni proceso activo. No corresponde a la funcionalidad Copernic de Galilei. | No rastreado; local. | Eliminado tras inventariar SHA-256: eran descargas reproducibles, sin datos únicos. |
@@ -38,7 +38,7 @@ Informe de medición: `_recovery-work/galilei-project-structure-normalize1/root-
 | `_dev-corpus-storage/` | 3.667.203.658 → igual | Storage local real para Viewer/descarga; 17.078 documentos y 17.098 archivos registrados en PostgreSQL DEV, con blobs verificados por tamaño y SHA-256. | Local, ignorado por Git; el backend lo resuelve por configuración/default. | `REAL_CORPUS_REQUIRED`: preservado. No mover ni versionar. |
 | `_dev-corpus-storage-test/` | Ausente → ausente | Storage sintético de tests ya retirado. | No existe. | `OBSOLETE_DELETE`: ausente / previamente limpiado. |
 | `_local-setup/` | 7.519.319.046 → 3.282.074.789 B | Scripts y paquete único de transferencia a oficina. El RAR contiene dump DEV y blobs; checksums y manifests laterales. | Local e ignorado. | Se retuvieron el RAR verificado, checksums, manifests y scripts. Se eliminaron la copia expandida (3.667.203.473 B lógicos) y el dump expandido duplicado (570.040.784 B), ambos verificados dentro del RAR. |
-| `_recovery-work/` | 68.768.444.005 → 67.599.569.685 B | Evidencia de misiones, runtimes, Search principal y QA del release con gates P1 pendientes. | Local, ignorado por Git. | Conservado selectivamente. Se eliminó el worktree limpio terminado `galilei-project-structure-normalize1/worktree` (1.027.932.978 B lógicos); permanecen informes. Se preservan Search principal y runtimes QA del release. |
+| `_recovery-work/` | 68.768.444.005 → 67.601.663.430 B | Evidencia de misiones, runtimes, Search principal y QA del release con gates P1 pendientes. | Local, ignorado por Git. | Conservado selectivamente. Se eliminó el worktree limpio terminado `galilei-project-structure-normalize1/worktree` (1.027.932.978 B lógicos); permanecen informes. Se preservan Search principal y runtimes QA del release. |
 | `_recovery-backups/` | 2.312.140.330 → igual | Snapshot local único/justificado; contiene datos de recuperación. | Local, ignorado. | `UNIQUE_BACKUP`: preservado. |
 | `_legacy-audit-work/` | 1.057.736.720 → igual | Extracción y evidencia histórica de auditoría jurisprudencial. | Local, ignorado. | `LEGACY_REFERENCE_REQUIRED`: preservado fuera de Git; no es runtime de producto. |
 | `.gitattributes` | 62 → igual | Reglas compartidas de texto/atributos Git. | Rastreado. | Permanece en la raíz canónica. |
@@ -78,4 +78,10 @@ No contiene `JurisprudenciaN/`, `digesto/`, `legacy/`, corpus, backups, PostgreS
 ## Artefactos locales
 
 Los conteos y clasificaciones completos están fuera de Git, bajo `_recovery-work/galilei-project-structure-normalize1/` y `_recovery-work/galilei-pre-office-root-cleanup1/`. Incluyen hashes, resultados de verificación del paquete, inventario de worktrees, movimientos, borrados y mediciones antes/después.
+
+## Medición física final
+
+Rescan completo de `C:\proyecto triple` en AGUSTINNOTEBOOK, 2026-10-23 16:21 -03: 87.092.949.184 B lógicos, 87.092.949.184 B en disco, 442.182 archivos, 58.940 directorios y cero errores. C: quedó en 68,46% usado, con 161.001.140.224 B libres.
+
+Hijos directos actuales, ordenados por tamaño: `_recovery-work/` 67.601.663.430 B (principal Search y QA de release preservados); `JurisprudenciaN/` 7.025.145.697 B (checkout histórico protegido); `_dev-corpus-storage/` 3.667.203.658 B (corpus real requerido); `_local-setup/` 3.282.074.789 B (paquete único para oficina); `_recovery-backups/` 2.312.140.330 B (backup único validado); `.git/` 1.945.367.505 B (historial compartido); `_legacy-audit-work/` 1.057.736.720 B (evidencia histórica); `digesto/` 200.066.849 B (PDFs locales del checkout histórico); `docs-integracion/` 1.533.879 B (copia histórica de documentación); y 16.327 B en tres archivos raíz. No quedaron `Copernic/` ni `_dev-corpus-storage-test/`.
 

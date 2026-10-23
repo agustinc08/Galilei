@@ -115,6 +115,22 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       await prisma.corpusDocument.deleteMany({
         where: { id: { in: documentIds } },
       });
+    const syntheticDocumentKeys = [
+      ...new Set(documentIds.map((id) => `CORPUS:${id}`)),
+    ];
+    for (
+      let offset = 0;
+      offset < syntheticDocumentKeys.length;
+      offset += 2000
+    ) {
+      await prisma.searchIndexOutbox.deleteMany({
+        where: {
+          documentKey: {
+            in: syntheticDocumentKeys.slice(offset, offset + 2000),
+          },
+        },
+      });
+    }
     if (dependencyIds.length)
       await prisma.documentDependency.deleteMany({
         where: { id: { in: dependencyIds } },
@@ -125,10 +141,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
     if (previousStoragePath === undefined)
       delete process.env.BJC_CORPUS_STORAGE_PATH;
     else process.env.BJC_CORPUS_STORAGE_PATH = previousStoragePath;
-    const safeRoot = path.resolve(
-      process.cwd(),
-      '../_dev-corpus-storage-test',
-    );
+    const safeRoot = path.resolve(process.cwd(), '../_dev-corpus-storage-test');
     if (testStorage.startsWith(`${safeRoot}${path.sep}`))
       await rm(testStorage, { recursive: true, force: true });
   });

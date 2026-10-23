@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { basename, dirname, resolve } from 'node:path';
 import { Client } from '@opensearch-project/opensearch';
 import { OpenSearchDocumentRepository } from '../../src/busqueda/opensearch/opensearch-document.repository';
 import { OpenSearchIndexService } from '../../src/busqueda/opensearch/opensearch-index.service';
@@ -80,7 +81,30 @@ async function main() {
 }
 
 function loadLocalEnvironment() {
-  const file = resolve(process.cwd(), '.env.development.local');
+  const localFile = resolve(process.cwd(), '.env.development.local');
+  let file = localFile;
+  if (!existsSync(localFile)) {
+    let canonicalRepositoryRoot = resolve(process.cwd(), '..');
+    try {
+      const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+        cwd: canonicalRepositoryRoot,
+        encoding: 'utf8',
+      }).trim();
+      const resolvedCommonDir = resolve(canonicalRepositoryRoot, commonDir);
+      if (basename(resolvedCommonDir).toLowerCase() === '.git') {
+        canonicalRepositoryRoot = dirname(resolvedCommonDir);
+      }
+    } catch {
+      // Outside a Git checkout, use only the package-local environment file.
+    }
+    file = resolve(
+      canonicalRepositoryRoot,
+      'JurisprudenciaN',
+      'back',
+      '.env.development.local',
+    );
+  }
+
   let contents: string;
   try {
     contents = readFileSync(file, 'utf8');
@@ -94,8 +118,7 @@ function loadLocalEnvironment() {
     const quoted =
       (rawValue.startsWith('"') && rawValue.endsWith('"')) ||
       (rawValue.startsWith("'") && rawValue.endsWith("'"));
-    const value = quoted ? rawValue.slice(1, -1) : rawValue;
-    process.env[match[1]] = value;
+    process.env[match[1]] = quoted ? rawValue.slice(1, -1) : rawValue;
   }
 }
 
