@@ -1,0 +1,141 @@
+# Fuentes de datos — estado y estrategia
+
+> **Contexto INT-1 (2026-10-14):** Este contrato forma parte de Galilei integrado en la rama de integración. La interfaz presenta Jurisprudencia, Mi Sala / Juzgado y Mis documentos; Copernic queda como nombre interno. El estado global es PARTIAL y no habilita actualizar origin/dev: el snapshot local de publicación no coincide con el certificado y faltan los manifiestos J7/J8. Ver BJC-ESTADO-ACTUAL.md; los cortes y resultados históricos debajo conservan la fecha/sprint que los generó.
+
+
+## Auditoría profunda Civil — corte 2026-10-13
+
+| Universo oficial | Qué se confirmó | Conteo / cobertura | Automatización y límite |
+|---|---|---|---|
+| PJN Cuantificación Civil | Inventario local de resultados temáticos en 10 temas, con Sala, fecha, expediente, carátula, ID y enlace al visor. | 15.478 filas; 12.819 IDs; 14.142 expedientes distintos; 14.154 grupos expediente-año. No es censo oficial completo. De 10.600 enlaces al visor hay 5.738 clasificados: 5.710 accesibles, 10 no disponibles, 17 challenge, 1 error técnico, 4.862 sin intento. | El visor puede entregar PDF, respuesta HTML de error o challenge. No tratar `200 application/pdf` sin firma como PDF; mantener sin intento como desconocido. La descarga nueva no se amplió en esta auditoría. |
+| CSJN — Tribunales Federales y Nacionales (TFN) | Anuncio oficial de 2025-09-05 dice que la búsqueda suma decisiones de primera instancia; régimen de Cámaras y tribunales orales desde 2013. Filtros visibles: jurisdicción, expediente, Sala/órgano, instancia, fecha, carátula y texto. | Total Civil, fecha más antigua de primera instancia y conteo por juzgado no publicados en el anuncio. Corpus actual: 1 documento de juzgado Civil; existen 109 etiquetas de juzgado de origen en metadatos de fallos de Cámara, no equivalentes a publicaciones de primera instancia. | No se confirmó API/cursor incremental soportado. Las rutas de documentos disallow no se consultaron ni descargaron. Prioridad P0: solicitar inventario/export autorizado y ruta documental normal. |
+| Secretaría de Jurisprudencia CSJN | Buscador de fallos completos 1994–2026, sumarios 1863–2026, tomos Fallos 1863–2026; filtro de materia Civil visible en Fallos Destacados 2015–2026. | No hay total Civil publicado confirmado. En el Corpus actual hay 0 documentos identificados con órgano CSJN. | P2: pequeño censo de metadatos de la materia Civil mediante páginas públicas ordinarias y con políticas de acceso verificadas. No descargar rutas bloqueadas ni tratar tomos completos como una sentencia sin segmentación. |
+| CIJ histórico | Robots permite algunas páginas generales, pero bloquea rutas de búsqueda y adjuntos; sitemap observado anteriormente contenía 873 URLs hacia `cij7.test:8081`. | 0 cruces confirmados en el reconciliation local de esta misión; 0 PDFs nuevos. No equivale a cero fallos publicados. | P3; solicitar canal institucional. No sustituir el host interno, sondear rutas prohibidas ni iniciar crawl. |
+| Datos Abiertos CSJN | Discovery anterior vio 307 conjuntos en el portal y no encontró dataset específico de fallos tras cinco términos. `/api/` y `/revision/` disallow; `Crawl-Delay: 10`. | Ningún conjunto Civil identificado; no se emite total. | Sólo páginas públicas permitidas; no consultar API/revision disallow ni inferir inexistencia por búsquedas de catálogo sin resultados. |
+
+El universo de 15.478 filas y la cuota 4.758/14.154 = 33,6% corresponden a una base temática y emparejamiento conservador de claves recuperadas; **no representan el porcentaje de cobertura de toda la jurisprudencia Civil oficial**. Los 6.070 documentos Civil del snapshot DEV (6.069 Cámara, 1 primera instancia) contienen fuentes/cohortes distintas y no son un denominador comparable. Evidencia estructurada no versionada: `_recovery-work/jurisprudencia-discovery/{sources,coverage,gap-matrix,endpoint-inventory,sample-results,pdf-health,duplicate-analysis,future-sync,final-summary}.json`.
+
+Fuentes oficiales consultadas:
+
+- [Portal oficial de sitios del PJN](https://servicios.pjn.gov.ar/portal/sitios.php) enlaza al buscador actual `sj.pjn.gov.ar`.
+- [Anuncio CSJN sobre la búsqueda TFN](https://w2.csjn.gov.ar/novedades/detalle/10964), 2025-09-05.
+- [Buscador de jurisprudencia de la Secretaría CSJN](https://sj.csjn.gov.ar/) y [fallos destacados](https://sjconsulta.csjn.gov.ar/sjconsulta/fallosDestacados/consulta.html).
+- [Consulta oficial de fallos completos](https://sjconsulta.csjn.gov.ar/sjconsulta/fallos/consulta.html) y [tomos Fallos](https://sjconsulta.csjn.gov.ar/sj/tomosFallos.do?method=iniciar).
+- [Robots de CIJ](https://www.cij.gov.ar/robots.txt); la ruta restringida permanece fuera de automatización.
+
+## Actualización Sprint 14.3 (2026-10-09)
+
+| Fuente | Estado verificado |
+|---|---|
+| TFN actual — listado público | GET server-rendered sin desafío en el listado inicial; 20 tarjetas visibles, 1 Civil en la muestra, sin paginación GET. `civil:sync` ingirió 1 sentencia real de primera instancia. Sync limitado/no exhaustivo. |
+| TFN actual — filtro/backfill | HUMAN_CHALLENGE_REQUIRED para 21/08/2013–09/10/2026: el POST `acc=searchFallos` usa `cap-widget`; no fue enviado. |
+| TFN — sesión humana | `civil:import:session` permite que una persona guarde el HTML/PDFs luego de una búsqueda normal y los procese offline bajo DEV guard; el helper no hace requests externos ni reutiliza CAPTCHA. |
+| CIJ / Archivo CIJ | Dos notas civiles de 2018 y una referencia PDF indexada para expte. 24.971/2024; cero cruces confirmados y cero descargas por rutas prohibidas en robots. Requiere referencias autorizadas para reconciliar. |
+| Corpus local Civil | 1.255 documentos: Cámara 1.254 (2008, 2009, 2013), primera instancia 1 (2026). Ver desglose por año en `BJC-ADQUISICION-JURISPRUDENCIA.md`. |
+
+Para la metadata, hashes, conteos anuales y límites operativos actuales, usar el master de adquisición. Los párrafos históricos Sprint 14.2 que siguen describen el corte de esa fecha.
+
+## Actualización Sprint 14 (2026-10-08)
+
+| Fuente | Estado actual verificado |
+|---|---|
+| Secretaría CSJN — tomos | 421 enlaces PDF únicos / 349 números publicados. 0 descargas; búsqueda de Fallos/Sumarios incluye reCAPTCHA. `robots.txt` del host de tomos no entregó reglas legibles. El ejecutor rechazó guardar el PDF de muestra antes de ejecución. Doc 148. |
+| CIJ | Sitemap permitido devuelve 873 URLs de `cij7.test:8081`, no inventario de sentencias. `sentencias.html`, `/d/`, `/scp/d/` y adjuntos PDF disallow. Doc 149. |
+| TFN | Sigue `BLOCKED`: robots actual disallow página inicial y rutas PDF. Discovery M7 es histórico, no repetido. Doc 150. |
+| Datos Abiertos CSJN | Cinco búsquedas públicas sin conjuntos específicos; portal declara 307 conjuntos. `/api/` y `/revision/` disallow, crawl-delay 10. Doc 151. |
+| Corpus local | Se tomó el último snapshot documentado; no se reescaneó. Sprint 14 no escribió DB ni cambió archivos. Doc 156. |
+
+Los resultados no significan que no existan más fallos; los conteos individuales y gaps de cobertura siguen desconocidos. Ver docs 146–158.
+
+| Fuente | Uso previsto | Estado | Estrategia |
+|---|---|---|---|
+| CSJN — Tribunales Federales y Nacionales | Superficie actual para fallos nacionales/federales, incluidos Civil | IDENTIFICADA; NO GO para descarga automática | La URL CIJ de sentencias redirige aquí. Buscador desde 21/08/2013; primera instancia anunciada desde 2025. PDF observado bajo `/tribunales-federales-nacionales/d/`, prohibido por robots CSJN. Sin adapter ni piloto; informes 41–46. |
+| CIJ histórico / fallos anteriores | Investigar cobertura civil histórica | MECANISMO INSUFICIENTE / BLOQUEADO | La URL vieja redirige en la búsqueda actual. `/archivo-cij/adj/pdfs/` aparece disallow en robots. La página “fallos anteriores” muestra total agregado, no inventario Civil. Requiere canal oficial autorizado. |
+| Lex100 | Flujo institucional de resoluciones | PENDIENTE; integración sólo con mecanismo autorizado | No automatizar acceso ni conectarse sin autorización institucional expresa. |
+| SQLite legacy Jurisprudencia | Referencia y migración controlada | CONFIRMADO como referencia local | Sólo read-only/immutable/query_only; no usar como arquitectura final. Fixture benchmark conocido en mapa técnico. |
+| MicroISIS (`tb_microisis`) | Preservar/reconciliar conocimiento legado | PENDIENTE | No importar automáticamente sus 52.375 filas ni crear entidad productiva en esta misión. |
+| PDFs/archivos locales de Jurisprudencia | Documentos asociados a sentencias | Inventariados; relación/cobertura requiere trabajo | Registrar checksum, ruta segura y procedencia; no confundir archivo disponible con publicación. |
+| Roots locales de PDFs institucionales de Jurisprudencia | Corpus institucional DEV | INGESTADOS Sprint 8 | 23.829 archivos físicos en 3 roots read-only, 10.732 hashes únicos; originales intactos. 10.332 indexados, 399 OCR_REQUIRED, 1 INVALID_PDF. Vínculos/temas son sugerencias o unresolved; nunca publicación automática. Docs 53–60. |
+| Servidor institucional | Documentos compartidos autorizados | FUTURO; no conectado | Indexación sólo con autorización y reglas ACL; texto encontrable, documento legible y navegación a coincidencias. |
+| Digesto | Documentos administrativos y conocimiento compartido | Sistema separado analizado | Importación/autorización pendiente; conservar tipos, dependencias, colecciones y permisos propios. |
+| Carga manual | Incorporación controlada | Capacidad futura | Validación, checksum, autoría, metadatos, estado editorial y auditoría. |
+| Manual / fixture local | Pipeline reproducible de Corpus | IMPLEMENTADO en DEV sintético (M6) | `ManualFixtureSourceAdapter`; sin dependencia de red y con provenance/checksum. No representa autorización de documentos reales. |
+| Carpeta local | Scan puntual tipo Copernic | ADAPTER IMPLEMENTADO; sin watcher | PDF/TXT, scan explícito, symlinks omitidos, path relativo sólo como procedencia. No se escanearon carpetas institucionales. |
+| Copernic | Referencia de experiencia de búsqueda de archivos | No hay índice/configuración local comprobada | Usar como referencia de requisitos, no como fuente de datos ni componente del backend. |
+
+## Reglas de procedencia
+
+Guardar fuente, tabla/colección de origen, ID legacy, fecha de obtención y checksum cuando sea pertinente. Debe poder reconstruirse `fuente legacy + legacyId → registro destino`. No equiparar fuente de obtención con órgano judicial. Un duplicado binario no implica que dos registros jurídicos sean la misma decisión.
+
+M6 implementó infraestructura documental genérica; M7.1 agregó paquetes JSON/CSV/carpeta; Sprint 8 cargó roots locales autorizados/read-only en PostgreSQL DEV. Esto no equivale a habilitar servidores institucionales remotos, fuente pública CSJN/CIJ, producción, publicación o ACL definitiva. Ver informes 36–40, 47–52 y 53–60 para evidencia y límites.
+
+Misión 7 realizó únicamente discovery público de baja intensidad. `package_search` de Datos Abiertos para `fallos`, `sentencia` y `jurisprudencia` devolvió cero coincidencias; esto no demuestra inexistencia bajo cualquier otro nombre. No automatizar descargas de rutas disallow; no convertir disponibilidad pública en autorización masiva.
+
+## Digesto local tras Sprint 10
+
+El directorio `digesto/server/pdfs` se inventarió read-only y se integraron 276 PDFs únicos (`DIGESTO_LOCAL`, INTERNAL) al Corpus compartido en DEV. Hubo 278 rutas físicas, 2 duplicados, 264 PDFs con texto y 14 `OCR_REQUIRED`. No se halló export local con IDs/metadata de colecciones/temas/tags/dependencias. Esto sólo cubre archivos locales: no conecta Digesto institucional remoto ni confirma ownership, identidad, ACL o semántica editorial. Crosswalk: `71-CROSSWALK-DIGESTO-LEGACY-CORPUS.md`.
+
+## Export Digesto y OCR tras Sprint 11
+
+La especificación pedible de export está en `80-ESPECIFICACION-EXPORT-DIGESTO.md`: paquete local autorizado, manifiesto/hash, source IDs estables, documentos/taxonomía/memberships/relaciones y visibilidad propuesta explícita. No se encontró el paquete; no conectar a remoto ni inferir crosswalk. OCR segunda medición sólo probó dos páginas existentes con Tesseract; originales y capas extraídas permanecen intactos y el estado indexado no se actualiza.
+
+## Estado Sprint 12 — disponibilidad de metadata
+
+No se obtuvo export institucional ni crosswalk de Digesto; su metadata histórica continúa PENDING. Sprint 12 sólo validó filtros contra taxonomía local ya implementada, sin inferir IDs ni acceder a servicios remotos. CIJ/CSJN continúa NO GO para adquisición automatizada. Ver informes 97–98.
+
+## Gate de datos Sprint 13
+
+No se aprobó ni importó un corpus específico de preproducción porque no hay destino separado ni autorización de copia registrada. DEV existente es sólo referencia. Export/crosswalk Digesto sigue PENDING según doc 80; owners deben decidir si es requerido para piloto. Originales y roots continúan read-only; no hubo scan incremental ni cambios de proyección en Sprint 13. CIJ/CSJN automatizado continúa NO GO.
+
+
+## TFN Civil — Sprint 14.2
+
+El master operativo está en `BJC-ADQUISICION-JURISPRUDENCIA.md`. Histórico: búsqueda `buscador-de-fallos.html`, filtro Cámara Civil `tid=18`, 1.277 fichas confirmadas en 64 páginas y descarga normal `showFile` → redirect PDF; backfill global completado con 226.770 filas y 11.339 páginas. Actual: `sentencias.html` y catálogo público dinámico `C_1`, con 110 Juzgados Civiles y 14 opciones de Sala; el widget CAPTCHA impide automatizar búsquedas. Los PDFs civiles del histórico fueron reconciliados e ingeridos en DEV.
+
+El piloto Sprint 14.2 descargó e ingirió el primer paquete TFN histórico Civil en DEV (98 hashes únicos; el total de origen filtrado es 1.277). El barrido global no terminó: consultar el checkpoint SQLite y el master de adquisición.
+
+## Corte de procedencia y cobertura — Sprint J1 (2026-10-13)
+
+Los 4.596 documentos de Cuantificación antes sin instancia tienen procedencia `CIVIL_CUANTIFICACION_DANOS` y `metadataOriginal.sourceRecord.court` exacto `Cámara Nacional de Apelaciones en lo Civil`, más Sala A–M. Se clasificaron como `SECOND_INSTANCE`; la procedencia fuente original quedó intacta y la regla/evidencia normalizada quedó en metadata derivada y artefactos J1. El registro único de Juzgado Civil 64 sigue como `FIRST_INSTANCE`; no se infirieron fallos de primera instancia desde nombres de juzgados de origen.
+
+La cola 452 no se fusionó: 328 conflictos (285 `PDF_SHA_LINKS_MULTIPLE_LEGAL_IDENTITIES`, 31 con además `SAME_LEGAL_KEY_AND_SHA_REPEATED`, 4 discrepancias fecha-firma PDF, 3 SHA contra metadata contradictoria y las combinaciones de colisión restantes detalladas en el artefacto), 106 candidatos, 15 identidades/archivos distintos, 2 identidades jurídicas con SHA distintos y 1 PDF corrupto. Los dos últimos matches no se enlazaron: no se encontró `Sentencia` destino y el servicio actual sólo liga una fuente a Corpus si coincide SHA.
+
+La matriz reproducible por año y Sala compara el universo temático conocido (14.154 grupos expediente-año) con 4.756 documentos enlazados por SHA exacto. Otros 2 PDFs tienen identidad jurídica coincidente con SHA distinto y siguen sin vínculo. La proporción 4.756/14.154 = 33,6% sólo mide coincidencia conservadora dentro de ese set temático; no hay censo oficial completo para Cámara Civil, primera instancia y CSJN Civil, así que **no existe porcentaje de cobertura total**. El script `server/scripts/dev/jurisprudencia-coverage.cjs` admite futuros censos CSV/JSON y emite cortes por año/Sala/instancia/órgano.
+
+
+## Corte vigente — TFN histórico Civil, Sprint 14.2
+
+La fuente oficial histórica confirmó 1.277 decisiones de Cámara Civil (2008–2013). Los 1.277 flids recibieron estado terminal: 1.263 PDFs verificados, 13 ya locales, 1 HTTP 404 persistente. Tras deduplicación SHA se incorporaron 1.254 documentos nuevos al Corpus DEV como INTERNAL. El backfill general cerró con 226.770/226.770 filas, 11.339/11.339 páginas y cero páginas fallidas. El buscador actual enumera 110 juzgados y 14 salas, pero no permite consultas sin intervención humana ante el widget. CIJ sin nueva ingesta. Ver `BJC-ADQUISICION-JURISPRUDENCIA.md` para comandos y evidencia.
+
+## Sprint J2 — mapa de primera instancia Civil (2026-10-14)
+
+El buscador CSJN Tribunales Federales y Nacionales es una fuente oficial pública CONFIRMED para consultar fallos de distintas instancias, incluida primera instancia desde su ampliación anunciada el 05/09/2025. La interfaz muestra campos de jurisdicción, expediente, tipo de oficina, tribunal, carátula, palabra clave y fecha; la página informa fecha desde 21/08/2013, con consulta aparte para fallos anteriores, y ofrece Descargar/Ver Fallo en resultados. La fuente no documenta censo total Civil, export, paginación/total de hits, ID estable o permiso de automatización: esas dimensiones quedan NOT_DOCUMENTED/NOT_ESTABLISHED. No se solicitó ni accedió a endpoints internos.
+
+El censo local DEV fue auditado de forma read-only y confirma 1 documento Civil `FIRST_INSTANCE`, órgano observado `JUZGADO CIVIL 64 - SECRETARIA Nº 94`; 6.069 `SECOND_INSTANCE`; 0 instancia desconocida. La búsqueda de evidencia `JUZGADO ... PRIMERA/1RA INSTANCIA ... CIVIL` en `metadataOriginal` de filas `SECOND_INSTANCE` encontró 0. Este órgano observado no es un roster vigente completo. Denominador oficial, lista total de juzgados y fecha inicial histórica: UNKNOWN.
+
+### Snapshot de fuentes del Corpus — Sprint J7 (2026-10-14)
+
+El mapa read-only local del Corpus Civil registra `CIVIL_CUANTIFICACION_DANOS` 4.815 documentos/archivos (2015–2026 principalmente), `CSJN_TFN_HISTORICAL` 1.254 (2008–2013) y `TFN_ACTUAL_CIVIL` 1 (2026); provenance completa en los 6.070. Esto describe exclusivamente el snapshot DEV, no cobertura total ni equivalencia entre etiquetas de fuente. J7 detectó 341 filas SHA con más de un source record, sin fusionarlas; 4 documentos tienen múltiples claves jurídicas candidatas. La matriz por año/Sala/fuente y aliases aparentes está en `_recovery-work/jurisprudencia-j7/source-map.json` y `corpus-distribution.json` (local/ignorado). No se infirieron fuentes faltantes ni se modificó metadata.
+
+Fuentes oficiales, consultadas 14/10/2026: [CSJN — buscador Tribunales Federales y Nacionales](https://www.csjn.gov.ar/tribunales-federales-nacionales/inicio.html), [Consejo de la Magistratura — incorporación de primera instancia (05/09/2025)](https://consejomagistratura.gov.ar/index.php/2025/09/05/la-corte-suprema-amplia-el-acceso-a-las-decisiones-judiciales/) y [PJN](https://pjn.gov.ar/). La portada PJN enlaza Consulta Jurisprudencia, pero la cobertura/export de primera instancia no se pudo confirmar allí de forma independiente. El archivo CIJ oficial se encuentra rotulado histórico tras su disolución por Acordada 10/2025.
+
+### Contraste J7.1 del snapshot local (2026-10-14)
+
+Los 1.254 documentos sin Sala son exactamente los 1.254 registros `CSJN_TFN_HISTORICAL`; todos corresponden a años de decisión 2008 (1.210), 2009 (2) o 2013 (42). Esto muestra un patrón de importación/fuente, no que el órgano publicara necesariamente una Sala por cada registro. Cuatro valores se encontraron de forma inequívoca en evidencia del documento y quedan sólo como propuestas dry-run; un quinto valor requiere confirmación, uno contradice evidencia, y 1.248 carecen de evidencia suficiente. La fuente histórica retiene `flid` en `externalId`/`sourceReference`; esa referencia no equivale a un campo `portalId` universal. Los 1.090 inválidos históricos se dividen entre 1.087 límites del normalizador y tres casos singulares (multi-causa, campo desalineado y valor malformado); además hay dos formatos no normalizados en `CIVIL_CUANTIFICACION_DANOS`. No se infiere cobertura fuera de este snapshot.
+
+## Sprint J3 — ingestión de censo autorizado
+
+El intake implementado no consulta las URLs del export ni accede a fuentes institucionales. Sólo analiza archivos locales recibidos por un canal autorizado, conservando hash, procedencia, declaración de alcance y filas de origen. Los campos faltantes legítimamente opcionales se conservan nulos; un tipo de tribunal desconocido queda en revisión y no se elimina. Una URL declarada no equivale a documento disponible ni a PDF verificado. No hay export real recibido ni permiso de automatización confirmado; completeness oficial continúa UNKNOWN.
+
+## Formatos de expediente observados — J7.1.1 (2026-10-14)
+
+El inventario DEV contiene 1.089 entradas previamente limitadas por parsing: ocho firmas estructurales, concentradas en `CSJN_TFN_HISTORICAL` (1.087) y con dos casos en `CIVIL_CUANTIFICACION_DANOS`. Las siete más frecuentes cubren 1.088 filas. La regla observada de mayor volumen es un número Civil con agrupación por punto y sin año en el campo; el año de decisión no reemplaza al año de expediente. Los 1.079 números agrupados reconocidos quedan legacy con año nulo. Los otros diez son formas sin confirmación suficiente y no se coaccionan. Dos formas ya válidas muestran año agrupado `2.007` corroborado por `caseYear=2007`, y un punto terminal; ambos se soportan sólo con el campo de año concordante. No extrapolar estas reglas a otras jurisdicciones ni usar fuente/texto para completar metadata.
+
+
+### Perfil histórico de Salas — J7.1.2 (2026-10-14)
+
+El segmento CSJN_TFN_HISTORICAL reúne 1.254 documentos sin chamber: 1.210 de 2008, 2 de 2009 y 42 de 2013. Se revisaron todas las 4.453 páginas de texto ya existentes; 1.253 documentos tenían texto suficiente y uno carecía de texto utilizable. Se descubrieron 53 rutas de metadata raw; ninguna contiene un campo Sala explícito, los source IDs tienen forma prefijada y las referencias contienen flid/expediente, sin semántica demostrada para derivar Sala. Los filenames tampoco codifican Sala. La extracción textual deja 365 propuestas para revisión, 39 ambiguas y 849 sin Sala propia recuperable. No inferir Sala desde año, expediente, composición histórica ni distribución estadística. En futuras ingestas, conservar provenance raw y evaluar una regla de encabezado sólo después de validarla sin falsos positivos en corpus conocido. Artefactos detallados/snippets reales permanecen locales en _recovery-work/jurisprudencia-j712/.
+
+## Certificación de procedencia del corpus adquirido — J8
+
+La revalidación read-only confirmó provenance completa en 6.070/6.070: `CIVIL_CUANTIFICACION_DANOS` 4.815, `CSJN_TFN_HISTORICAL` 1.254 y `TFN_ACTUAL_CIVIL` 1. No hubo source records, URLs de origen ni ingestas faltantes, conflictivos o desconocidos. Los 1.254 casos sin Sala permanecen como gap histórico; no se derivaron Salas de referencias del portal ni se modificaron documentos. Esta certificación describe el corpus adquirido y no demuestra cobertura total del universo Civil. Ver `BJC-CERTIFICACION-CORPUS-CIVIL.md`.

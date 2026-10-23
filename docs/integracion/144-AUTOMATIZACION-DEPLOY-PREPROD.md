@@ -1,0 +1,113 @@
+# 144 — Automatización y operación de deploy preprod
+
+**Estado:** preparada, no ejecutada; no existe target institucional al corte. Todos los comandos DB requieren configuración y aprobación preprod explícitas. No se deben ejecutar en DEV como ensayo.
+
+## Guardas y comandos disponibles
+
+Desde `C:\proyecto triple\server`, con variables cargadas desde el vault institucional y storage existente:
+
+```powershell
+node scripts/with-preprod-db-guard.cjs check
+node scripts/with-preprod-db-guard.cjs target-verify
+node scripts/with-preprod-db-guard.cjs backup-plan '<archivo-dump-nuevo>'
+node scripts/with-preprod-db-guard.cjs migrate-status
+node scripts/with-preprod-db-guard.cjs migrate-deploy
+node scripts/with-preprod-db-guard.cjs db-report
+node scripts/with-preprod-db-guard.cjs projection-verify
+node scripts/with-preprod-db-guard.cjs projection-rebuild
+node scripts/with-preprod-db-guard.cjs projection-repair
+```
+
+`check` no abre conexión. Las demás acciones validan primero `NODE_ENV=production`, `BJC_DEPLOYMENT_ENV=preprod`, aprobación explícita, DB/rol coincidentes, TLS/CA, HTTPS, JWT, storage aislado y límites de runtime. Toda acción conectante ejecuta antes `target-verify`, que usa el `pgConfig` canónico (sin reinterpretar `DATABASE_URL`), comprueba DB, rol, puerto y dirección efectiva PostgreSQL, y aborta ante loopback. Prisma CLI recibe una URL canónica construida a partir de la misma identidad aprobada (`sslmode=verify-full`, `sslcert=<CA>`, `sslaccept=strict`); nunca usa la cadena ambigua original después del guard. No ejecutar el script de proyección DEV.
+
+## Secuencia automatizada
+
+`scripts/deploy-preprod.ps1` compila el validador, hace `check`, verifica hashes del backup aprobado, consulta migraciones, aplica migraciones explícitas, construye backend/frontend, llama al script institucional de inicio, espera readiness, verifica la proyección y corre el smoke de Playwright. El script del service manager se entrega por host; no se inventa un método universal de Windows/Linux.
+
+Para producir el manifiesto de backup en un host Windows aprobado, el operador carga `PGPASSFILE` desde el vault (archivo ACL restringido, nunca contenido en comando/chat) y PostgreSQL client tools en PATH, y ejecuta contra un directorio de salida nuevo fuera del storage. El guard calcula la identidad del dump desde la configuración PostgreSQL canónica y no reutiliza la URL raw:
+
+```powershell
+& '.\scripts\backup-preprod.ps1' -OutputDirectory '<directorio-nuevo-backup>'
+```
+
+El script corre `check`, `target-verify` y `backup-plan`; limpia `PGHOST`, `PGHOSTADDR`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGSERVICE`, `PGOPTIONS` y otros overrides heredados; fija `PGSSLMODE=verify-full`, `PGSSLROOTCERT` y `PGPASSFILE`; y crea dump custom con `pg_dump --no-password` y target explícito. Luego valida el archivo con `pg_restore --list`, crea snapshot de lectura del storage con `tar`, valida el archive y escribe SHA-256/`backup-manifest.json` con `tlsMode=verify-full`. No pasa password/URL a argumentos ni registra secretos; no modifica originales. Si la plataforma aprobada es Linux u otra, infraestructura debe usar herramienta equivalente y entregar el mismo manifiesto/verificación antes de deploy. Este código no prueba un dump real mientras `pg_dump`/PREPROD no estén disponibles.
+
+Formato mínimo del manifiesto de backup que recibe el deploy script:
+
+```json
+{
+  "verification": "PASS",
+  "target": {
+    "host": "<fqdn-preprod>", "port": 5432,
+    "database": "buscador_juridico_civil_preprod", "role": "<rol-preprod>"
+  },
+  "databaseBackup": { "path": "<ruta del dump aprobado>", "sha256": "<64 hex>" },
+  "storageBackup": { "path": "<ruta del archivo/paquete aprobado>", "sha256": "<64 hex>" }
+}
+```
+
+Infraestructura genera esos archivos con su herramienta aprobada; el script valida existencia y SHA-256 antes de migrar. El manifiesto no debe contener URL de conexión ni secretos. Uso futuro:
+
+```powershell
+$env:NODE_ENV = 'production'
+$env:BJC_DEPLOYMENT_ENV = 'preprod'
+$env:BJC_PREPROD_DATABASE_APPROVED = 'true'
+& '.\scripts\deploy-preprod.ps1' `
+  -BackupManifestPath '<backup-verificado.json>' `
+  -ServiceStartScript '<inicio-aprobado-por-infra.ps1>' `
+  -ReleaseManifestPath '<destino-nuevo>\release-manifest.json'
+```
+
+Los restantes valores se inyectan desde el vault y no se guardan en el repositorio. El preflight aborta si DB apunta a DEV/loopback, falta storage o no coinciden target/manifest. `migrate deploy` no ocurre al iniciar Nest.
+
+Antes de iniciar debe cargarse también `BJC_PREPROD_API_ORIGIN`, `BJC_PREPROD_FRONTEND_ORIGIN`, `BJC_PREPROD_SMOKE_EMAIL`, `BJC_PREPROD_SMOKE_PASSWORD`, `BJC_PREPROD_SMOKE_DOCUMENT_ID`, `BJC_RELEASE_ID`, `BJC_BACKEND_BUILD_ID`, `BJC_FRONTEND_BUILD_ID` y una ruta absoluta/nueva `BJC_PREPROD_REPORT_PATH`. El script los valida antes de tocar migraciones; cuenta/password/document ID deben corresponder a una cuenta y documento aprobados por el owner.
+
+## Bootstrap del corpus y proyección
+
+DB vacía → migraciones revisadas → usuarios UAT sólo por owner de identidad → modalidad de corpus aprobada (A completo, B subset o C fixtures) → import autorizado/dry-run → manifest (document/file count, bytes, SHA-256, source, timestamp) → `projection-rebuild` si está justificado → `projection-verify` → smoke. No copiar corpus ahora; mantener raíces fuente read-only y derivados content-addressed. No iniciar rebuild automáticamente con la aplicación.
+
+## Smoke y reporte
+
+`front/playwright.preprod.config.ts` requiere origins HTTPS no loopback, marcadores preprod/aprobación, cuenta institucional de smoke, ID de documento aprobado, release/build IDs y ruta absoluta nueva para el reporte. Ejecutar:
+
+```powershell
+pnpm exec playwright test --config=playwright.preprod.config.ts
+```
+
+El smoke comprueba readiness, login, TERM/PHRASE/PREFIX/SUFFIX/SHORT/AND/OR/NOT, apertura del ID autorizado, HTTP Range 206 y logout. El JSON registra environment, release/build, migraciones, conteos de corpus/proyección, estado health, latencias por familia y errores sin query, cuerpo, título ni credenciales. Requiere acceso al DB-report mediante la guarda preprod.
+
+Carga de 1/5/10 usuarios: planificada y **no ejecutada**; acordar ventana, límites y SLO antes de correrla. Guardar p50/p95, errores y host/capacidad con el acceptance report.
+
+Harness preparado, separado del deploy estándar (`front/scripts/preprod-load-smoke.mjs`). Sólo después de autorizar ventana, cuenta de carga y límite institucional, cargar `BJC_PREPROD_LOAD_APPROVED=true`, `BJC_PREPROD_LOAD_EMAIL/PASSWORD` desde el vault, usar una nueva ruta `BJC_PREPROD_REPORT_PATH` y ejecutar desde `client`:
+
+```powershell
+pnpm exec node scripts/preprod-load-smoke.mjs
+```
+
+Envía una consulta común por cliente concurrente en olas de 1, 5 y 10, mide p50/p95 y errores y persiste un JSON sanitizado. No es carga de certificación ni se ejecuta automáticamente con el deploy.
+
+## Backup, restore y monitoreo
+
+Respaldar DB y storage juntos, registrar SHA-256 y verificar ambos artifacts. Ejecutar restore drill sólo sobre destino temporal aislado con aprobación y registrar RPO/RTO. Sprint 12.1 documenta restore/migration-from-zero aprobados en DB temporales DEV (docs 103–104); no repetir ni restaurar sobre DEV, y esa evidencia no sustituye el restore preprod.
+
+Mínimo operativo: readiness/API, DB, storage, respuestas 5xx, slow Search sin persistir texto de consulta, disco/cuota, backup success/failure y alerta al owner. Infraestructura define dashboard/alertas y retención antes de habilitar UAT; no instalar stack de monitoreo sin host.
+
+## Release y rollback
+
+Release inicial sugerido: `BJC PREPROD RC1`. Registrar version/date, backend/frontend build IDs, commit SHA si disponible, count/status de migraciones y versión/estado de projection. Guardar el acceptance report resultante. Ante regresión de servicio, usar deployment anterior sólo si es compatible; una migración aplicada requiere fix-forward o restore aprobado a DB de reemplazo aislada. No prometer downgrade automático.
+
+Digesto export/crosswalk sigue PENDING hasta recibir paquete institucional autorizado; no consultar endpoint remoto. CIJ/CSJN public mass automated download continúa NO GO.
+
+## Adenda PREPROD-UAT-PREP-1 (2026-10-18)
+
+Los scripts y guards son preparación revisada; **no se ejecutaron** contra infraestructura institucional. `deploy-preprod.ps1` ahora comprueba source SHA y checkout limpio, alinea `FRONTEND_URL` con el origin preprod, valida el destino de bundle Next antes de conectar DB, y verifica backup/manifest/hash antes de migraciones. El backend exige Search OpenSearch, alias/prefijo preprod, DB con `sslmode=verify-full`, API loopback, CORS HTTPS, storage separado, rate limit habilitado y una réplica.
+
+`front/scripts/preprod-build-env.mjs` cuenta con tests sintéticos y bloquea API URL HTTP/loopback/local/origen divergente. El backend configura shutdown hooks y oculta Swagger en producción. `opensearch-index.service.ts` usa el prefijo físico configurado, con default compatible para DEV, y aborta la promoción si existe cualquier target ajeno o más de un target. El startup recupera estado de scans/OCR y arranca outbox; por ello DB, Search, storage y backup deben estar healthy antes de levantar la aplicación. La topología soportada es proxy TLS en el mismo host hacia API loopback; proxy en contenedor separado queda NOT CERTIFIED. El inventario contiene exactamente 10 `*.integration.spec.ts`: nueve requieren DB y se excluyen de la suite segura; `document-local-processors.integration.spec.ts` corre dentro de ella. Además, `legacy-sqlite-search.adapter.spec.ts` es un test opt-in y queda excluido aparte. La corrida PREPROD-FIX-1 registró 42 suites PASS, 272 tests PASS y 7 omitidos; su evidencia está en `_recovery-work/preprod-fix1/safe-suite.json`.
+
+No hay contenedor preprod de aplicación y Docker/Podman no están instalados. El compose heredado `JurisprudenciaN/docker-compose.yml` fue corregido para exigir password por variable y bind loopback en puerto 55433; no se inició ni construyó. El compose DEV separado usa 55432 y no debe correrse junto al PostgreSQL nativo DEV.
+
+El despliegue automático mantiene acciones deliberadas de alto impacto (migraciones, arranque de servicios, smoke con cuenta aprobada) y requiere owner/infra, backup real y acceso al vault; no es un comando para correr en este workspace ni una autorización a ejecutar producción.
+
+### Evidencia reproducible de source/build (2026-10-18)
+
+En worktree limpio del commit `25b6a83ed5867bce8e6b296d0da108db0b3ae7c4`: pnpm frozen install PASS en ambos paquetes; Prisma Client 7.8.0 generado sin conectar; build Nest y Next PASS; 5 tests del guard frontend PASS; suite segura (sin las ocho suites que requieren DB y el test opt-in SQLite ausente) 36 suites/231 tests PASS, un suite/9 tests SKIP. El Jest total requiere una DB temporal aislada y no se ejecutó contra `buscador_juridico_civil_dev`. El deployment, restore, readiness y smoke contra PREPROD siguen sin ejecutarse por falta de target.

@@ -1,68 +1,84 @@
-﻿# Dependencies
+# Dependencias de paquetes independientes
 **/node_modules/
 **/.pnpm-store/
 
-# Builds / caches
-**/.next/
-**/.turbo/
-**/dist/
-**/build/
-**/out/
-**/coverage/
-**/.cache/
-**/*.tsbuildinfo
-
-# Secrets
+# Secretos y entornos locales
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.*.example
 !**/.env.template
 !**/.env.sample
 
-# Logs
-**/*.log
-**/*.pid
-/logs/
-**/runtime/logs/
-**/.logs/
+# Salidas generadas concretas; no ignorar directorios fuente genéricos
+/client/.next/
+/client/out/
+/client/coverage/
+/client/.turbo/
+/client/test-results/
+/client/playwright-report/
+/server/dist/
+/server/build/
+/server/coverage/
+/server/.cache/
+/server/generated/
+/legacy/digesto/client/build/
+/legacy/digesto/server/dist/
+**/*.tsbuildinfo
 
-# IDE / OS
+# Datos locales y runtimes del checkout
+/server/logs/
+/server/uploads/
+/server/tmp/
+/server/data/pdfs/
+/server/data/*.sqlite
+/server/data/*.sqlite3
+/server/data/*.db
+/JurisprudenciaN/front/.next/
+/JurisprudenciaN/front/out/
+/JurisprudenciaN/front/coverage/
+/JurisprudenciaN/front/test-results/
+/JurisprudenciaN/front/playwright-report/
+/JurisprudenciaN/back/dist/
+/JurisprudenciaN/back/build/
+/JurisprudenciaN/back/coverage/
+/JurisprudenciaN/back/logs/
+/JurisprudenciaN/back/generated/
+/JurisprudenciaN/back/tmp/
+/digesto/client/build/
+/digesto/server/dist/
+/digesto/server/logs/
+/digesto/server/uploads/
+/JurisprudenciaN/back/data/
+/JurisprudenciaN/back/uploads/
+/digesto/server/pdfs/
+/legacy/digesto/server/pdfs/
+/_dev-corpus-storage/
+/_dev-corpus-storage-test/
+/_recovery-work/
+/_recovery-backups/
+/_legacy-audit-work/
+/_local-setup/
+/Copernic/
+
+# Backups locales en ruta de datos runtime
+/server/data/*.sqlite-*
+/server/data/*.db-*
+/server/data/*.dump
+/server/data/*.backup
+/server/data/*.sql.gz
+
+# Logs y diagnósticos de herramientas
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/pnpm-debug.log*
+**/*.pid
+
+# Editores y sistema operativo
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 desktop.ini
-
-# BJC local data / recovery
-_recovery-work/
-_recovery-backups/
-_legacy-audit-work/
-_dev-corpus-storage/
-_dev-corpus-storage-test/
-JurisprudenciaN/back/data/legacy-pdfs/
-digesto/server/pdfs/
-
-# Runtime data
-**/storage/
-**/uploads/
-**/tmp/
-**/temp/
-
-# Local DB / checkpoints
-**/*.sqlite
-**/*.sqlite3
-**/*.db
-**/*.db-journal
-**/*.sqlite-journal
-**/*.sqlite-wal
-**/*.sqlite-shm
-
-# DB backups
-**/*.dump
-**/*.backup
-**/*.bak
-**/*.sql.gz
-
-# Legacy/application binaries
-Copernic/**/*.exe
-Copernic/**/*.msi
+*.pem
