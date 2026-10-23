@@ -151,7 +151,9 @@ test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', asy
   await page.getByRole('button', { name: 'Buscar', exact: true }).last().click();
   await expect(page.getByRole('heading', { name: 'Coincidencias' })).toBeVisible();
   const activeMark = page.locator('.bjc-pdf-match-current');
-  const mappingFallback = page.getByText(/Coincidencia encontrada en el texto indexado/u);
+  const mappingFallback = page.getByText(
+    /Encontramos la coincidencia en el texto del documento, pero no pudimos señalarla en la página/u,
+  );
   await expect.poll(async () => (await activeMark.count()) > 0 || (await mappingFallback.count()) > 0, { timeout: 30_000 }).toBe(true);
   const hasHighlight = (await activeMark.count()) > 0;
   if (hasHighlight) await expect(activeMark.first()).toBeVisible();
