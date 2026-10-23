@@ -1577,6 +1577,46 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         filenamePresent: false,
         filenameLeaked: false,
       });
+      const personalPdfFileRow =
+        await prisma.corpusDocumentFile.findFirstOrThrow({
+          where: { documentId: personalPdfDocumentId },
+          select: { storageKey: true },
+        });
+      const missingBlobPath = path.resolve(
+        storageRoot,
+        personalPdfFileRow.storageKey,
+      );
+      await rm(missingBlobPath);
+      viewerRequestUser = grantee;
+      const missingBlobServer =
+        activeHttpApp.getHttpServer() as unknown as Server;
+      const missingBlobResponse = await request(missingBlobServer).get(
+        `/personal/documents/${personalPdfDocumentId}/file`,
+      );
+      const missingBlobBody = [
+        missingBlobResponse.text ?? '',
+        JSON.stringify(missingBlobResponse.body),
+      ].join('\n');
+      const missingBlobHttp = {
+        status: missingBlobResponse.status,
+        genericNotFound:
+          missingBlobResponse.status === 404 &&
+          missingBlobBody.includes('Archivo no encontrado.'),
+        filesystemPathLeaked:
+          missingBlobBody.includes(storageRoot) ||
+          missingBlobBody.includes(missingBlobPath),
+      };
+      await mkdir(path.dirname(missingBlobPath), { recursive: true });
+      await writeFile(missingBlobPath, validPdfFixture);
+      const restoredBlobHttp = await request(missingBlobServer).get(
+        `/personal/documents/${personalPdfDocumentId}/file`,
+      );
+      expect(missingBlobHttp).toEqual({
+        status: 404,
+        genericNotFound: true,
+        filesystemPathLeaked: false,
+      });
+      expect(restoredBlobHttp.status).toBe(200);
       const adminSearch = await runSearch(token, {
         ...privateSearchContext,
         documentScope: {
@@ -1965,6 +2005,9 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
                   .digest('hex'),
                 authorizedOwner: personalPdfOwnerHttp,
                 unauthorizedUser: personalPdfUnauthorizedHttp,
+                missingBlob: missingBlobHttp,
+                applicationRecoveredAfterMissingBlob:
+                  restoredBlobHttp.status === 200,
               },
               endpoints: [
                 'GET /personal/documents/:id',
@@ -1986,6 +2029,9 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
                 .digest('hex'),
               authorizedOwner: personalPdfOwnerHttp,
               unauthorizedUser: personalPdfUnauthorizedHttp,
+              missingBlob: missingBlobHttp,
+              applicationRecoveredAfterMissingBlob:
+                restoredBlobHttp.status === 200,
               result: 'PASS',
             },
           ],

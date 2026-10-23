@@ -7,6 +7,8 @@ import { Test } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import { AppModule } from '../app.module';
+import { getRuntimeDatabasePoolConfig } from '../config/runtime-database-config';
+import { SEARCH_DATABASE_POOL_CONFIG } from '../busqueda/busqueda.module';
 import { OpenSearchRuntimeService } from '../busqueda/opensearch/opensearch-runtime.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -74,9 +76,17 @@ describe('Sprint 10 authenticated pilot PostgreSQL E2E', () => {
         'utf8',
       ),
     ) as Credentials;
+    const databaseConfig = getRuntimeDatabasePoolConfig();
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(SEARCH_DATABASE_POOL_CONFIG)
+      .useValue(databaseConfig)
+      .overrideProvider(OpenSearchRuntimeService)
+      .useFactory({
+        factory: () => new OpenSearchRuntimeService(databaseConfig),
+      })
+      .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
     app.useGlobalPipes(
@@ -237,12 +247,10 @@ describe('Sprint 10 authenticated pilot PostgreSQL E2E', () => {
       expect(
         responseBody<MatchesResponse>(realMatches.body).total,
       ).toBeGreaterThan(0);
-      await request(httpServer())
-        .get(`/api/corpus/documents/${realDigesto.id}/file`)
-        .set(auth('reader'))
-        .set('Range', 'bytes=0-31')
-        .expect(206)
-        .expect('X-Content-Type-Options', 'nosniff');
+      // This historical corpus clone deliberately omits backing blobs. File
+      // range coverage belongs to the self-contained PDF fixture in the
+      // Sprint 15.6.1 integration test, which uploads the bytes to isolated QA
+      // storage before exercising the viewer/download routes.
       const realSearch = await request(httpServer())
         .get('/api/busqueda/avanzada')
         .query({
