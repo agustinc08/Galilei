@@ -18,6 +18,10 @@ import { BusquedaService } from '../busqueda/busqueda.service';
 import type { SearchResultPage } from '../busqueda/adapters/search-source.adapter';
 import { OpenSearchRuntimeService } from '../busqueda/opensearch/opensearch-runtime.service';
 import {
+  SEARCH_INDEX_SCHEMA_VERSION,
+  SEARCH_INDEX_SCHEMA_VERSION_V4,
+} from '../busqueda/opensearch/opensearch-mapping';
+import {
   mimeTypesForCorpusTypes,
   validateCorpusTypes,
   validateSearchDateRange,
@@ -1988,7 +1992,12 @@ export class WorkspaceDocumentService {
         throw new ServiceUnavailableException(
           'La búsqueda no está disponible temporalmente.',
         );
-      if ((await this.searchRuntime.activeSchemaVersion()) !== 3)
+      const activeSchemaVersion =
+        await this.searchRuntime.activeSchemaVersion();
+      if (
+        activeSchemaVersion !== SEARCH_INDEX_SCHEMA_VERSION &&
+        activeSchemaVersion !== SEARCH_INDEX_SCHEMA_VERSION_V4
+      )
         throw new ServiceUnavailableException(
           'La búsqueda no está disponible temporalmente.',
         );
