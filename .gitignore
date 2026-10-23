@@ -34,24 +34,6 @@
 /server/data/*.sqlite
 /server/data/*.sqlite3
 /server/data/*.db
-/JurisprudenciaN/front/.next/
-/JurisprudenciaN/front/out/
-/JurisprudenciaN/front/coverage/
-/JurisprudenciaN/front/test-results/
-/JurisprudenciaN/front/playwright-report/
-/JurisprudenciaN/back/dist/
-/JurisprudenciaN/back/build/
-/JurisprudenciaN/back/coverage/
-/JurisprudenciaN/back/logs/
-/JurisprudenciaN/back/generated/
-/JurisprudenciaN/back/tmp/
-/digesto/client/build/
-/digesto/server/dist/
-/digesto/server/logs/
-/digesto/server/uploads/
-/JurisprudenciaN/back/data/
-/JurisprudenciaN/back/uploads/
-/digesto/server/pdfs/
 /legacy/digesto/server/pdfs/
 /_dev-corpus-storage/
 /_dev-corpus-storage-test/
@@ -59,7 +41,6 @@
 /_recovery-backups/
 /_legacy-audit-work/
 /_local-setup/
-/Copernic/
 
 # Backups locales en ruta de datos runtime
 /server/data/*.sqlite-*

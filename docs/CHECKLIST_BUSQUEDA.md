@@ -21,18 +21,18 @@ Usar estos casos en `/consulta` y, con sesion iniciada, en `/busqueda-avanzada`.
 Comandos de validacion:
 
 ```bash
-cd back
-npm run build
+cd server
+pnpm build
 
-cd ../front
-npm run lint
-npm run build
+cd ../client
+pnpm lint
+pnpm build
 ```
 
 Mantenimiento PDF:
 
 ```bash
-cd back
-npm run mantenimiento:recalcular-pdfs:dry
-npm run mantenimiento:recalcular-pdfs
+cd server
+pnpm run mantenimiento:recalcular-pdfs:dry
+pnpm run mantenimiento:recalcular-pdfs
 ```
