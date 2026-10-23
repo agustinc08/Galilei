@@ -18,12 +18,28 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ROLES } from '../auth/constants';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
-import { safeContentDisposition, singleByteRange } from './corpus-document-access.service';
+import {
+  safeContentDisposition,
+  singleByteRange,
+} from './corpus-document-access.service';
 import { WorkspaceDocumentService } from './workspace-document.service';
+
+const PERSONAL_DOCUMENT_UPLOAD_LIMITS = {
+  fileSize: 20 * 1024 * 1024,
+  files: 20,
+  fieldArrayIndexLimit: 20,
+};
 
 @ApiTags('personal-documents')
 @ApiBearerAuth()
-@Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.LECTOR, ROLES.REVISOR, ROLES.JURISPRUDENCIA, ROLES.DIGESTO)
+@Roles(
+  ROLES.ADMIN,
+  ROLES.OPERADOR,
+  ROLES.LECTOR,
+  ROLES.REVISOR,
+  ROLES.JURISPRUDENCIA,
+  ROLES.DIGESTO,
+)
 @Controller('personal')
 export class PersonalDocumentController {
   constructor(private readonly documents: WorkspaceDocumentService) {}
@@ -34,7 +50,9 @@ export class PersonalDocumentController {
   }
 
   @Post('folders')
-  @ApiOperation({ summary: 'Crea una carpeta personal sólo visible para quien inició sesión' })
+  @ApiOperation({
+    summary: 'Crea una carpeta personal sólo visible para quien inició sesión',
+  })
   createFolder(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { name: string; parentId?: string | null },
@@ -56,15 +74,31 @@ export class PersonalDocumentController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('folderId') folderId?: string,
   ) {
-    return this.documents.personalDocuments(user, folderId === 'ROOT' ? null : folderId ?? null);
+    return this.documents.personalDocuments(
+      user,
+      folderId === 'ROOT' ? null : (folderId ?? null),
+    );
   }
 
   @Post('documents/upload')
-  @UseInterceptors(FilesInterceptor('files', 20, { limits: { fileSize: 20 * 1024 * 1024, files: 20 } }))
-  @ApiOperation({ summary: 'Carga documentos personales; el propietario siempre es la identidad autenticada' })
+  @UseInterceptors(
+    FilesInterceptor('files', 20, {
+      limits: PERSONAL_DOCUMENT_UPLOAD_LIMITS,
+    }),
+  )
+  @ApiOperation({
+    summary:
+      'Carga documentos personales; el propietario siempre es la identidad autenticada',
+  })
   upload(
     @CurrentUser() user: AuthenticatedUser,
-    @UploadedFiles() files: Array<{ originalname: string; mimetype: string; buffer: Buffer; size: number }>,
+    @UploadedFiles()
+    files: Array<{
+      originalname: string;
+      mimetype: string;
+      buffer: Buffer;
+      size: number;
+    }>,
     @Query('folderId') folderId?: string,
   ) {
     return this.documents.uploadPersonal(user, files, folderId);
@@ -88,11 +122,19 @@ export class PersonalDocumentController {
   }
 
   @Patch('documents/:id/share')
-  @ApiOperation({ summary: 'Comparte un documento personal con una dependencia tras confirmación explícita' })
+  @ApiOperation({
+    summary:
+      'Comparte un documento personal con una dependencia tras confirmación explícita',
+  })
   share(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { workspaceId: string; folderId?: string | null; confirmAccessChange: boolean },
+    @Body()
+    body: {
+      workspaceId: string;
+      folderId?: string | null;
+      confirmAccessChange: boolean;
+    },
   ) {
     return this.documents.sharePersonalDocument(id, user, body);
   }
@@ -103,7 +145,11 @@ export class PersonalDocumentController {
     @Query('pageNumber') page: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.documents.personalMetadata(id, user, page ? positiveInt(page, 1) : undefined);
+    return this.documents.personalMetadata(
+      id,
+      user,
+      page ? positiveInt(page, 1) : undefined,
+    );
   }
 
   @Get('documents/:id/matches')
@@ -129,17 +175,24 @@ export class PersonalDocumentController {
     response.setHeader('Accept-Ranges', 'bytes');
     response.setHeader('Cache-Control', 'private, no-store');
     response.setHeader('Content-Type', result.mimeType);
-    response.setHeader('Content-Disposition', safeContentDisposition(result.filename, download !== 'true'));
+    response.setHeader(
+      'Content-Disposition',
+      safeContentDisposition(result.filename, download !== 'true'),
+    );
     if (byteRange.status === 416) {
       response.setHeader('Content-Range', `bytes */${result.content.length}`);
       return response.status(416).send();
     }
-    const content = byteRange.status === 206
-      ? result.content.subarray(byteRange.start, byteRange.end + 1)
-      : result.content;
+    const content =
+      byteRange.status === 206
+        ? result.content.subarray(byteRange.start, byteRange.end + 1)
+        : result.content;
     response.setHeader('Content-Length', String(content.length));
     if (byteRange.status === 206)
-      response.setHeader('Content-Range', `bytes ${byteRange.start}-${byteRange.end}/${result.content.length}`);
+      response.setHeader(
+        'Content-Range',
+        `bytes ${byteRange.start}-${byteRange.end}/${result.content.length}`,
+      );
     return response.status(byteRange.status).send(content);
   }
 }

@@ -29,6 +29,12 @@ import {
 } from './corpus-document-access.service';
 import { WorkspaceDocumentService } from './workspace-document.service';
 
+const WORKSPACE_DOCUMENT_UPLOAD_LIMITS = {
+  fileSize: 20 * 1024 * 1024,
+  files: 20,
+  fieldArrayIndexLimit: 20,
+};
+
 @ApiTags('document-workspaces')
 @ApiBearerAuth()
 @Roles(
@@ -159,7 +165,8 @@ export class WorkspaceDocumentController {
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { folderId?: string | null; confirmVisibilityChange?: boolean },
+    @Body()
+    body: { folderId?: string | null; confirmVisibilityChange?: boolean },
   ) {
     return this.workspaces.moveDocument(
       workspaceId,
@@ -183,7 +190,7 @@ export class WorkspaceDocumentController {
   @Post(':workspaceId/documents/upload')
   @UseInterceptors(
     FilesInterceptor('files', 20, {
-      limits: { fileSize: 20 * 1024 * 1024, files: 20 },
+      limits: WORKSPACE_DOCUMENT_UPLOAD_LIMITS,
     }),
   )
   upload(
