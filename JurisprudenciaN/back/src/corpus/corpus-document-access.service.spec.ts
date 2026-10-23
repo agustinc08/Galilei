@@ -118,4 +118,45 @@ describe('Corpus document access helpers', () => {
       get.mockRestore();
     }
   });
+  it('returns a controlled 404 for a missing blob without exposing its path', async () => {
+    const leakedPath = 'C:\\private\\qa\\missing.pdf';
+    const missing = Object.assign(new Error('open ' + leakedPath), {
+      code: 'ENOENT',
+    });
+    const get = jest
+      .spyOn(LocalDocumentStorageAdapter.prototype, 'get')
+      .mockRejectedValue(missing);
+    const prisma = {
+      corpusDocument: {
+        findFirst: jest.fn().mockResolvedValue({
+          files: [
+            {
+              storageKey: 'ab/' + 'a'.repeat(64) + '.pdf',
+              originalFilename: 'fixture.pdf',
+              mimeType: 'application/pdf',
+              sha256: 'a'.repeat(64),
+            },
+          ],
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new CorpusDocumentAccessService(prisma);
+
+    try {
+      const result = await service.file('fixture-id', 'ADMIN').then(
+        () => ({ fulfilled: true as const }),
+        (reason: unknown) => ({
+          fulfilled: false as const,
+          error: reason as Error & { status?: number },
+        }),
+      );
+      expect(result.fulfilled).toBe(false);
+      if (result.fulfilled) throw new Error('Expected missing blob to reject.');
+      expect(result.error.status).toBe(404);
+      expect(result.error.message).toBe('Archivo no encontrado.');
+      expect(result.error.message).not.toContain(leakedPath);
+    } finally {
+      get.mockRestore();
+    }
+  });
 });

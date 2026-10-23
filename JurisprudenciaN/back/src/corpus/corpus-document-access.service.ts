@@ -128,7 +128,15 @@ export class CorpusDocumentAccessService {
     );
     const file = document.files[0];
     if (!file) throw new NotFoundException('Archivo no encontrado.');
-    const content = await this.storage.get(file.storageKey);
+    let content: Buffer;
+    try {
+      content = await this.storage.get(file.storageKey);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new NotFoundException('Archivo no encontrado.');
+      }
+      throw new InternalServerErrorException('No se pudo acceder al archivo.');
+    }
     const actual = createHash('sha256').update(content).digest('hex');
     if (actual !== file.sha256)
       throw new InternalServerErrorException(
