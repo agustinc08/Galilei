@@ -1,4 +1,11 @@
-import { access as pathAccess, mkdir, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import {
+  access as pathAccess,
+  mkdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import type { Server } from 'node:http';
 import path from 'node:path';
 import { Client } from '@opensearch-project/opensearch';
@@ -25,12 +32,32 @@ import { SEARCH_INDEX_SCHEMA_VERSION_V4 } from '../busqueda/opensearch/opensearc
 import { parseSearchQuery } from '../busqueda/utils/search-parser';
 import { CorpusDocumentAccessService } from './corpus-document-access.service';
 import { CorpusSearchSourceAdapter } from './corpus-search.adapter';
+import {
+  BasicDocumentTextExtractor,
+  type ExtractionResult,
+} from './document-text-extractor';
 import { LocalDocumentStorageAdapter } from './document-storage.adapter';
 import { WorkspaceDocumentController } from './workspace-document.controller';
 import { PersonalDocumentController } from './personal-document.controller';
 import { WorkspaceDocumentService } from './workspace-document.service';
 
 const enabled = process.env.SPRINT1561_POSTGRES_TEST === '1';
+const requestedDependencyType = process.env.SPRINT1561_DEPENDENCY_TYPE?.trim();
+if (
+  requestedDependencyType &&
+  requestedDependencyType !== 'SALA' &&
+  requestedDependencyType !== 'JUZGADO'
+) {
+  throw new Error('SPRINT1561_DEPENDENCY_TYPE_INVALID');
+}
+const primaryDependencyType =
+  requestedDependencyType === 'SALA'
+    ? WorkspaceDependencyType.SALA
+    : WorkspaceDependencyType.JUZGADO;
+const crossDependencyType =
+  primaryDependencyType === WorkspaceDependencyType.SALA
+    ? WorkspaceDependencyType.JUZGADO
+    : WorkspaceDependencyType.SALA;
 const openSearchNode =
   process.env.OPENSEARCH_NODE?.trim() ?? 'http://127.0.0.1:9200';
 const freshV4Topology = process.env.BJC_SEARCH_TOPOLOGY === 'fresh-v4';
@@ -479,7 +506,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       const workspace = await documents.createWorkspace(admin, {
         code: `S1561${suffix}`,
         name: 'Sprint 15.6.1 synthetic dependency',
-        type: WorkspaceDependencyType.JUZGADO,
+        type: primaryDependencyType,
       });
       workspaceIds.push(workspace.id);
       const dependency = await prisma.documentDependency.findUniqueOrThrow({
@@ -569,7 +596,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       const sharedWorkspace = await documents.createWorkspace(admin, {
         code: `S1561SH${suffix}`,
         name: 'Sprint 15.6.1 synthetic shared dependency',
-        type: WorkspaceDependencyType.JUZGADO,
+        type: crossDependencyType,
       });
       workspaceIds.push(sharedWorkspace.id);
       const sharedDependency =
@@ -675,6 +702,51 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       documentIds.push(personalDocumentId);
       expect(personalDocumentId).not.toBe(workspaceDocumentId);
       expect(personalDocumentId).not.toBe(sharedDocumentId);
+      const validPdfFixture = await readFile(
+        path.resolve(
+          process.cwd(),
+          'scripts/dev/fixtures/corpus/fallo-fixture.pdf',
+        ),
+      );
+      expect(validPdfFixture.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+      const personalPdfFilename = `sprint1561-private-${suffix}.pdf`;
+      const pdfExtractorSpy = jest
+        .spyOn(BasicDocumentTextExtractor.prototype, 'extract')
+        .mockResolvedValueOnce({
+          extractor: 'qa-viewer-fixture',
+          extractorVersion: '1',
+          status: 'TEXT_EXTRACTED',
+          text: 'Synthetic private PDF viewer fixture.',
+          pages: [
+            { pageNumber: 1, text: 'Synthetic private PDF viewer fixture.' },
+          ],
+          formatDetected: 'PDF',
+          mimeDetected: 'application/pdf',
+          extensionOriginal: '.pdf',
+          detectionMethod: 'PDF_SIGNATURE',
+          warnings: [],
+          ocrRequiredPages: [],
+        } satisfies ExtractionResult);
+      const personalPdfUpload = await documents.uploadPersonal(
+        grantee,
+        [
+          {
+            originalname: personalPdfFilename,
+            mimetype: 'application/pdf',
+            buffer: validPdfFixture,
+            size: validPdfFixture.byteLength,
+          },
+        ],
+        personalFolder.id,
+      );
+      pdfExtractorSpy.mockRestore();
+      const personalPdfDocumentId = personalPdfUpload.results[0]?.documentId;
+      expect(personalPdfUpload.results[0]).toMatchObject({
+        status: 'INDEXED',
+        duplicate: false,
+      });
+      expect(personalPdfDocumentId).toBeTruthy();
+      documentIds.push(personalPdfDocumentId);
       const repeatedPersonalUpload = await documents.uploadPersonal(
         grantee,
         [upload],
@@ -1297,6 +1369,8 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         };
         v4PrivateHttpEvidence = {
           candidateIndex: v4CandidateIndex,
+          dependencyType: primaryDependencyType,
+          crossDependencyType,
           schemaVersion: SEARCH_INDEX_SCHEMA_VERSION_V4,
           countWithSyntheticQa: v4ShadowCountWithSyntheticQa,
           routeLatency: privateHttpLatencySummary,
@@ -1379,6 +1453,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         );
       }
       const runViewerHttpChecks = async () => {
+        viewerRequestUser = grantee;
         const base = `/workspaces/${workspace.id}/documents/${workspaceDocumentId}`;
         const server = httpApp!.getHttpServer() as unknown as Server;
         const [metadata, matches, file] = await Promise.all([
@@ -1398,6 +1473,110 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       const privateBefore = await runPrivateSearch();
       const viewerBefore = await runViewerChecks();
       const viewerHttpBefore = await runViewerHttpChecks();
+      const personalPdfHttpChecks = async (user: AuthenticatedUser) => {
+        viewerRequestUser = user;
+        const server = httpApp!.getHttpServer() as unknown as Server;
+        const base = `/personal/documents/${personalPdfDocumentId}`;
+        const [metadata, firstRange, laterRange, download, directFile] =
+          await Promise.all([
+            request(server).get(base),
+            request(server).get(`${base}/file`).set('Range', 'bytes=0-4'),
+            request(server).get(`${base}/file`).set('Range', 'bytes=900-907'),
+            request(server).get(`${base}/file?download=true`),
+            request(server).get(`${base}/file`),
+          ]);
+        const responseBytes = (response: {
+          body: unknown;
+          text?: string;
+        }): Buffer =>
+          Buffer.isBuffer(response.body)
+            ? response.body
+            : Buffer.from(
+                typeof response.text === 'string' ? response.text : '',
+                'binary',
+              );
+        const responseHeader = (
+          response: { headers: unknown },
+          name: string,
+        ): string | null => {
+          if (typeof response.headers !== 'object' || response.headers === null)
+            return null;
+          const value = (response.headers as Record<string, unknown>)[name];
+          return typeof value === 'string' ? value : null;
+        };
+        const privateResponseText = [
+          metadata.text,
+          firstRange.text,
+          laterRange.text,
+          download.text,
+          directFile.text,
+          JSON.stringify([
+            metadata.body,
+            firstRange.body,
+            laterRange.body,
+            download.body,
+            directFile.body,
+          ]),
+        ]
+          .filter((value): value is string => typeof value === 'string')
+          .join('\n');
+        return {
+          metadataStatus: metadata.status,
+          firstRangeStatus: firstRange.status,
+          firstRangeSignature: responseBytes(firstRange).toString('ascii'),
+          firstRangeContentType: responseHeader(firstRange, 'content-type'),
+          firstRangeContentRange: responseHeader(firstRange, 'content-range'),
+          firstRangeNosniff:
+            responseHeader(firstRange, 'x-content-type-options') === 'nosniff',
+          laterRangeStatus: laterRange.status,
+          laterRangeContentRange: responseHeader(laterRange, 'content-range'),
+          downloadStatus: download.status,
+          downloadBytes: responseBytes(download).byteLength,
+          downloadSignature: responseBytes(download)
+            .subarray(0, 5)
+            .toString('ascii'),
+          downloadContentType: responseHeader(download, 'content-type'),
+          downloadDisposition: responseHeader(download, 'content-disposition'),
+          directFileStatus: directFile.status,
+          filenamePresent: privateResponseText.includes(personalPdfFilename),
+          filenameLeaked:
+            user.id !== grantee.id &&
+            privateResponseText.includes(personalPdfFilename),
+        };
+      };
+      const personalPdfOwnerHttp = await personalPdfHttpChecks(grantee);
+      const personalPdfUnauthorizedHttp = await personalPdfHttpChecks(outsider);
+      expect(personalPdfOwnerHttp).toMatchObject({
+        metadataStatus: 200,
+        firstRangeStatus: 206,
+        firstRangeSignature: '%PDF-',
+        firstRangeContentRange: `bytes 0-4/${validPdfFixture.byteLength}`,
+        firstRangeNosniff: true,
+        laterRangeStatus: 206,
+        laterRangeContentRange: `bytes 900-907/${validPdfFixture.byteLength}`,
+        downloadStatus: 200,
+        downloadBytes: validPdfFixture.byteLength,
+        downloadSignature: '%PDF-',
+        directFileStatus: 200,
+        filenamePresent: true,
+        filenameLeaked: false,
+      });
+      expect(personalPdfOwnerHttp.firstRangeContentType).toContain(
+        'application/pdf',
+      );
+      expect(personalPdfOwnerHttp.downloadContentType).toContain(
+        'application/pdf',
+      );
+      expect(personalPdfOwnerHttp.downloadDisposition).toContain('attachment');
+      expect(personalPdfUnauthorizedHttp).toMatchObject({
+        metadataStatus: 404,
+        firstRangeStatus: 404,
+        laterRangeStatus: 404,
+        downloadStatus: 404,
+        directFileStatus: 404,
+        filenamePresent: false,
+        filenameLeaked: false,
+      });
       const adminSearch = await runSearch(token, {
         ...privateSearchContext,
         documentScope: {
@@ -1779,13 +1958,35 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
               before: viewerHttpBefore,
               revoked: viewerHttpRevoked,
               restored: viewerHttpRestored,
+              personalPdf: {
+                fixtureBytes: validPdfFixture.byteLength,
+                fixtureSha256: createHash('sha256')
+                  .update(validPdfFixture)
+                  .digest('hex'),
+                authorizedOwner: personalPdfOwnerHttp,
+                unauthorizedUser: personalPdfUnauthorizedHttp,
+              },
               endpoints: [
+                'GET /personal/documents/:id',
+                'GET /personal/documents/:id/file',
                 'GET /workspaces/:workspaceId/documents/:id',
                 'GET /workspaces/:workspaceId/documents/:id/matches',
                 'GET /workspaces/:workspaceId/documents/:id/file',
               ],
               harness:
                 'actual Nest WorkspaceDocumentController + HTTP server + synthetic authenticated request user',
+            },
+          ],
+          [
+            'download.json',
+            {
+              fixtureBytes: validPdfFixture.byteLength,
+              fixtureSha256: createHash('sha256')
+                .update(validPdfFixture)
+                .digest('hex'),
+              authorizedOwner: personalPdfOwnerHttp,
+              unauthorizedUser: personalPdfUnauthorizedHttp,
+              result: 'PASS',
             },
           ],
           ['folder-adapter-regression.json', folderSearches],
