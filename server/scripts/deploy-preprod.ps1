@@ -10,6 +10,13 @@ $backRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $projectRoot = (Resolve-Path (Join-Path $backRoot '..')).Path
 $frontRoot = Join-Path $projectRoot 'client'
 
+# The frontend is a Vite SPA. Derive its build-time API base from the approved
+# preproduction origin so the backend and frontend cannot drift between env names.
+if ([string]::IsNullOrWhiteSpace($env:VITE_API_URL) -and
+    -not [string]::IsNullOrWhiteSpace($env:BJC_PREPROD_API_ORIGIN)) {
+  $env:VITE_API_URL = "$($env:BJC_PREPROD_API_ORIGIN.TrimEnd('/'))/api"
+}
+
 function Invoke-Checked([string]$Label, [scriptblock]$Command) {
   Write-Host "== $Label =="
   & $Command
@@ -35,7 +42,7 @@ $requiredEnvironment = @(
   'BJC_PREPROD_DB_NAME','BJC_PREPROD_DB_USER','BJC_PREPROD_DB_CA_PATH','DATABASE_URL','JWT_SECRET','BJC_CORPUS_STORAGE_PATH','BJC_DEV_CORPUS_STORAGE_PATH','FRONTEND_URL',
   'BJC_PREPROD_API_ORIGIN','BJC_PREPROD_FRONTEND_ORIGIN','BJC_PREPROD_SMOKE_EMAIL','BJC_PREPROD_SMOKE_PASSWORD',
   'BJC_PREPROD_SMOKE_DOCUMENT_ID','BJC_RELEASE_ID','BJC_BACKEND_BUILD_ID','BJC_FRONTEND_BUILD_ID','BJC_PREPROD_REPORT_PATH',
-  'GIT_COMMIT_SHA','NEXT_PUBLIC_API_URL'
+  'GIT_COMMIT_SHA','VITE_API_URL'
 )
 foreach ($key in $requiredEnvironment) {
   if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($key))) { throw "Missing required process environment variable: $key" }

@@ -8,7 +8,7 @@ Galilei reúne jurisprudencia, corpus documental, Digesto y espacios de trabajo 
 - Gestor: pnpm 12.15.0, fijado en el manifiesto raíz.
 - Cliente: React 19, Vite 8 y React Router 7; genera una SPA en `client/dist`.
 - API: NestJS 12 y Prisma 7.
-- Search: PostgreSQL es la fuente de verdad; OpenSearch 2.19.6 sirve el read model. La generación activa es V4 y V3 se conserva para rollback.
+- Search: PostgreSQL es la fuente de verdad; OpenSearch 2.19.6 sirve el read model. V4 es activa, V3 se conserva para rollback y V1/V2 históricas están retiradas.
 - `docs/`: guías técnicas, historial de migración y runbooks BJC.
 
 Ver [stack técnico](docs/stack-tecnico.md), [migración 2026](docs/migracion-stack-2026.md) y [estructura del proyecto](docs/estructura-proyecto.md).

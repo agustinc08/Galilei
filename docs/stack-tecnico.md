@@ -43,12 +43,13 @@ Los specs `*.integration.spec.ts` quedan fuera de la ejecución Jest predetermin
 - Se conserva TypeScript 6.0.3: typescript-eslint 8.72 declara `<6.1.0` y ts-jest 29.4 declara `<7`.
 - Se conserva `@types/node` 24.x para que los tipos disponibles coincidan con el runtime Node 24; el major 26 describe APIs de otro runtime.
 - Se conserva Prisma 7.10.1, la versión GA compatible con esta aplicación. Prisma 8 aparece como release candidate en el registro consultado y no se habilita en este cambio.
+- `server/tsconfig.json` configura `ts-node.experimentalResolver` para que los scripts TypeScript en ejecución directa resuelvan los imports `.js` que genera el cliente Prisma 7.
 - `@opensearch-project/opensearch` 3.9.0 sólo actualiza el cliente JavaScript; el servidor permanece 2.19.6.
 
 Las auditorías `pnpm audit --prod` y `pnpm audit` no encontraron vulnerabilidades conocidas durante esta validación. Los avisos de paquetes transitivos obsoletos se registran aparte; no hay dependencias directas deprecated sin explicación.
 
 ## Search y datos
 
-PostgreSQL es la fuente de verdad. OpenSearch es un read model: V4 es el target activo y writer; V3 se reserva como rollback. El cleanup ordinario sólo evalúa índices de la generación configurada, por lo que no puede retirar V3 mientras el servicio opera en V4. V1/V2 requieren un manifiesto físico exacto y un paso explícito de retiro; no se borran por wildcard.
+PostgreSQL es la fuente de verdad. OpenSearch es un read model: V4 es el target activo y writer; V3 se reserva como rollback. El cleanup ordinario sólo evalúa índices de la generación configurada, por lo que no puede retirar V3 mientras el servicio opera en V4. V1/V2 fueron retirados el 24-10-2026 con seis solicitudes por nombre físico exacto; se conservaron V3/V4 y se liberaron 9,49 GiB. El manifiesto y postcheck están en la evidencia local ignorada de `galilei-stack-modernization1`.
 
 Para operaciones PostgreSQL de desarrollo, el guard sólo admite `127.0.0.1:55432`, base `buscador_juridico_civil_dev`, rol `bjc_dev`. Ningún comando de esta migración aplica migraciones ni modifica el corpus real.

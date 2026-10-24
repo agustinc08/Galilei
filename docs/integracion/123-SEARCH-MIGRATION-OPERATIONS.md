@@ -4,12 +4,14 @@
 
 - Alias de lectura/escritura principal: `galilei-search-active` → generación V4.
 - Rollback retenido: generación V3.
-- V1/V2 son generaciones históricas; no deben usarse como alias activo ni como target de una recuperación nueva.
+- V1/V2 fueron retirados el 24 de octubre de 2026 después del preflight exacto; no deben recrearse ni usarse como target de recuperación.
 - Los scripts de recuperación deben nombrar el source y target V3/V4 explícitamente y fallar cerrados ante cualquier otra topología. No usar delete/cutover por wildcard.
 - `cleanupOldIndexes()` sólo considera índices del `schemaVersion` configurado. En runtime V4 no toca V3 ni generaciones históricas; V3 se conserva para rollback.
-- El retiro físico de V1/V2 es una acción separada: registrar cada índice, UUID, generación, cantidad de documentos, tamaño y aliases; comprobar que ninguno sea alias/writer y que las herramientas actuales no dependan de él; después borrar nombres exactos y verificar V3/V4, alias, salud y outbox. La prueba debe usar una topología sintética aislada y no reconstruir los 69.313 documentos principales.
+- Toda limpieza física futura sigue requiriendo manifiesto exacto, UUID, generación, cantidad de documentos, tamaño y aliases; verificar que no sea alias/writer ni tenga dependencias operativas; borrar sólo nombres exactos y verificar V3/V4, alias, salud y outbox. No reconstruir los 69.313 documentos principales para probarla.
 
-Validación read-only del 24 de octubre de 2026: OpenSearch 2.19.6, GREEN, 0 shards sin asignar; V3 y V4 con 69.313 documentos y alias único en V4. Los índices V1/V2 aún estaban presentes al guardar esa observación; no forman parte de la recuperación actual.
+Retiro exacto del 24 de octubre de 2026 en el clúster local `galilei-integration-local` (`q9NUDMLNQ1GgXKd_eYvLwQ`): se eliminaron cinco índices V1 y uno V2, todos sin alias. Se liberaron 10.189.407.675 bytes de store reportado (9,49 GiB); el espacio libre de C: aumentó 10.189.885.440 bytes. El manifiesto de nombres, UUIDs y tamaños antes/después está en la evidencia local ignorada `_recovery-work/galilei-stack-modernization1/reports/retirement-final.json`.
+
+Postcheck read-only: OpenSearch 2.19.6 GREEN, 0 shards sin asignar; V1=0, V2=0; V3 `galilei-search-v003-20261017t232432555z-a6af18cb` y V4 `galilei-search-v004-20261020t094732495z-6015e394` siguen con 69.313 documentos cada uno; el único alias `galilei-search-active` y su writer apuntan a V4. PostgreSQL principal `127.0.0.1:55432/buscador_juridico_civil_dev` quedó en 223.815/223.815 procesados, pending=0 y failed=0. No se hizo rebuild, cutover, migración ni escritura PostgreSQL.
 
 ## Destino y guard
 

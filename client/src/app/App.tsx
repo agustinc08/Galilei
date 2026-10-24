@@ -1,9 +1,11 @@
 import { lazy, Suspense, type ComponentType } from 'react';
-import { Navigate, Outlet, useRoutes, type RouteObject } from 'react-router-dom';
+import { Outlet, useRoutes, type RouteObject } from 'react-router-dom';
 import AdminOnlyLayout from '@/app/(admin)/admin/layout';
 import AdminLayout from '@/app/(admin)/layout';
 import RootLayout from '@/app/layout';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Link } from '@/lib/router-compat';
+import styles from './not-found.module.css';
 
 type PageModule = { default: ComponentType };
 type PageLoader = () => Promise<PageModule>;
@@ -67,7 +69,25 @@ const routes: RouteObject[] = [
           },
         ],
       },
-      { path: '*', element: <Navigate to="/" replace /> },
+      {
+        path: '*',
+        element: (
+          <main className={styles.page}>
+            <section className={styles.card} aria-labelledby="not-found-title">
+              <p className={styles.code}>404</p>
+              <h1 className={styles.heading} id="not-found-title">
+                Página no encontrada
+              </h1>
+              <p className={styles.description}>
+                La dirección no corresponde a una sección disponible de Galilei.
+              </p>
+              <Link className={styles.link} href="/">
+                Volver al inicio
+              </Link>
+            </section>
+          </main>
+        ),
+      },
     ],
   },
 ];

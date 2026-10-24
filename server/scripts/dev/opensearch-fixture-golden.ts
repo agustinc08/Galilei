@@ -628,6 +628,14 @@ async function main() {
         });
       }
     }
+    if (runtimeStarted) {
+      try {
+        await waitForOutbox(runtime);
+      } catch {
+        console.error('OPENSEARCH_FIXTURE_OUTBOX_CLEANUP_FAILED');
+        process.exitCode = 1;
+      }
+    }
     if (hydrator) await hydrator.close().catch(() => undefined);
     if (runtimeStarted) {
       await runtime.onModuleDestroy().catch(() => undefined);

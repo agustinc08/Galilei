@@ -4,13 +4,14 @@
 
 | Gate | Estado actual | Evidencia / siguiente paso |
 |---|---|---|
-| DEV y cambios funcionales | **FAST-FORWARD / PASS** | Base de misión `57550e0cece6f8e57fefe21fcdf43285378d8292`; fixes de Sala (`cd5f741`) y foco de autocompletado (`0cd128f`) validados en cliente. `main` intacta (`83947656420a9d6f6c3cfb12b353eb7f2c293a28`). |
+| DEV y cambios funcionales | **BASE CONFIRMADA / PASS** | `git fetch origin --prune` confirmó checkout principal `dev` = `origin/dev` `749ad15fb429beb652863a51dcb6eb5dd906f841`; `origin/main` sigue `83947656420a9d6f6c3cfb12b353eb7f2c293a28`. La candidata de stack está aislada y aún no se promovió. |
 | Checkout principal | **NORMALIZADO / CLEAN** | `client/`, `server/`, `docs/`; checkout histórico de cinco cambios reconciliado y retirado. RAR redundante y runtimes QA terminados eliminados. |
-| Search V4 | **ACTIVO / SALUDABLE** | OpenSearch 2.19.6 GREEN; alias `galilei-search-active` y writer sólo en V4. V3/V4 = 69.313; V1/V2 históricos preservados. |
+| Search V4 | **ACTIVO / SALUDABLE** | OpenSearch 2.19.6 GREEN; alias `galilei-search-active` y writer sólo en V4. V3/V4 = 69.313; V1/V2 retirados por nombre exacto, 9,49 GiB recuperados. |
 | Contrato público | **PASS** | Responsabilidad civil 4.759; frase exacta 3.369; falta de servicio 1.826. Golden 7.694 ASC y DESC, 0 diferencias; sort PASS, 0 timeouts. |
 | Auth / espacios / Viewer | **PASS_WITH_FINDINGS EN QA AISLADA** | Auth/RBAC; ACL 12/12; Viewer/Range/Download/Missing Blob; lifecycle 10 pasos/14 eventos con outbox drenado; API negativa 25/25; concurrencia 48 solicitudes, 0 timeout/5xx; E2E 15/15 y responsive 24/24. Se registraron cuatro 404 de recurso no fatales en denegaciones ACL esperadas; errores de página y 5xx inesperados: 0. QA pesada eliminada. Informe: `_recovery-work/galilei-principal-final-functional-cert1/reports/`. |
-| Cliente | **PASS** | Typecheck, lint, entorno 5/5, UX self 4/4, Playwright público 22/22 y build Next 16.4.2/33 rutas. |
-| PostgreSQL / Corpus | **PASS READ-ONLY** | PostgreSQL 16.15 en `127.0.0.1:55432`, DB `buscador_juridico_civil_dev`, rol `bjc_dev`; 31 migraciones, outbox 0/0. Corpus real preservado. No hubo escrituras principales. |
+| Cliente | **DEV BASE PASS / CANDIDATA VITE** | DEV mantiene su cliente Next hasta promoción. La candidata React/Vite conserva 40/40 rutas y pasó typecheck, lint, test, build y UX público 65/65; quedan ocho journeys autenticados diferidos por falta de credenciales QA. |
+| Stack modernization 1R | **CANDIDATA / NOT PROMOTED** | Rama `refactor/galilei-stack-modernization1`, basada en `749ad15`. Golden producto aislado 325/325 y postcheck QA limpio. Antes de promoción: commit final, worktree limpio con `--frozen-lockfile` y re-review independiente del SHA exacto. Hallazgos P2 documentados: metadata dinámica pública y soft 404 HTTP 200 del SPA fallback. |
+| PostgreSQL / Corpus | **PASS READ-ONLY** | PostgreSQL 16.15 en `127.0.0.1:55432`, DB `buscador_juridico_civil_dev`, rol `bjc_dev`; 31 migraciones, outbox 223.815 procesados, 0 pending/0 failed. No hubo escrituras PostgreSQL ni cambios de corpus en esta misión. |
 | UAT / oficina / producción | **PENDIENTE SEPARADO** | Esta certificación local no implica UAT humana ni aprobación productiva. Sytec10 no fue accedida; preparar ese equipo sólo en una misión específica. |
 
 ## Cronología histórica — decisiones/cortes anteriores
