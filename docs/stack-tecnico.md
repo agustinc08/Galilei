@@ -6,7 +6,7 @@ Estado del stack modernizado, validado el 24 de octubre de 2026 y promovido a DE
 
 | Componente | Versión | Uso |
 | --- | --- | --- |
-| Node.js | 24.22.1 | LTS; `engines` permite `>=24.15.0 <25` |
+| Node.js | 24.19.0 en el cierre local | `engines` permite `>=24.15.0 <25`; el build anterior usó 24.22.1 |
 | pnpm | 12.15.0 | `packageManager` raíz; un lockfile para el workspace |
 | React / React DOM | 19.3.1 | Interfaz SPA |
 | Vite | 8.3.5 | Dev server y build estático en `client/dist` |
@@ -50,9 +50,11 @@ En el candidato final, la instalación congelada se repitió desde un worktree l
 - `server/tsconfig.json` configura `ts-node.experimentalResolver` para que los scripts TypeScript en ejecución directa resuelvan los imports `.js` que genera el cliente Prisma 7.
 - `@opensearch-project/opensearch` 3.9.0 sólo actualiza el cliente JavaScript; el servidor permanece 2.19.6.
 
-Las auditorías `pnpm audit --prod` y `pnpm audit` no encontraron vulnerabilidades conocidas durante esta validación. Los avisos de paquetes transitivos obsoletos se registran aparte; no hay dependencias directas deprecated sin explicación.
+Las auditorías `pnpm audit --prod` y `pnpm audit` no encontraron vulnerabilidades conocidas durante esta validación. `eslint` 9.39.5 emite un aviso de versión deprecated; se mantiene temporalmente porque los rangos peer fijados de los plugins React y JSX accessibility no admiten ESLint 10. Los demás avisos de paquetes transitivos obsoletos se registran aparte.
 
 El `pnpm outdated --recursive` del 24-10-2026 marcó seis dependencias directas: `pdfjs-dist` (alineada con React-PDF), `@eslint/js`/`eslint` (peers de plugins), `@types/node` (major del runtime), TypeScript (peer ranges del toolchain) y Prisma 8 (el tag encontrado era RC). Las razones de compatibilidad están descritas arriba; no se promovió un major incompatible ni una versión prerelease.
+
+En el cierre técnico del 24-10-2026 se retiraron del manifiesto del servidor tres dependencias directas sin uso en código, configuración ni scripts: `@eslint/eslintrc`, `source-map-support` y `ts-loader`. La instalación congelada posterior pasó con pnpm 12.15.0. Después del cambio volvieron a pasar Prisma generate/validate, typecheck, ESLint (266 archivos, 0 errores y 0 warnings), Jest (52 suites, 396 tests; 1 suite y 10 tests omitidos) y el build Nest. No se aplicaron migraciones. La consulta `migrate status` no pudo autenticarse con el placeholder temporal de QA y, por tanto, no se certifica aquí el estado fresco de las migraciones.
 
 ## Search y datos
 
