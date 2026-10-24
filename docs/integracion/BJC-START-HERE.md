@@ -4,7 +4,7 @@ El código vigente está organizado en `client/`, `server/` y `docs/`. La app Di
 
 # Galilei — inicio rápido
 
-**PC principal:** `AgustinNotebook`; raíz `C:\proyecto triple`. Estado actualizado el 2026-10-24 tras limpieza y certificación funcional local. No es una aceptación UAT institucional ni una autorización de producción/oficina.
+**PC principal:** `AgustinNotebook`; raíz `C:\proyecto triple`. Estado actualizado el 2026-10-24 tras limpieza, certificación funcional local y promoción del stack modernizado a DEV (`82aac83c437700ea6dd8bd7310743b6659429789`; follow-up documental posterior). No es una aceptación UAT institucional ni una autorización de producción/oficina.
 
 ## Estado actual
 

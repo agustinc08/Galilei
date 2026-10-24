@@ -1,6 +1,6 @@
 # Stack técnico de Galilei
 
-Estado de la rama de modernización, validado el 24 de octubre de 2026. El checkout principal y sus servicios no se modifican con estas validaciones.
+Estado del stack modernizado, validado el 24 de octubre de 2026 y promovido a DEV por fast-forward normal. El candidato de código es `82aac83c437700ea6dd8bd7310743b6659429789`; `main`, PostgreSQL principal y el corpus permanecen intactos.
 
 ## Versiones fijadas
 
