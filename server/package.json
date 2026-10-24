@@ -100,7 +100,7 @@
     "ia:indexar": "ts-node scripts/indexar-embeddings.ts",
     "ia:indexar:dry": "ts-node scripts/indexar-embeddings.ts --dry-run",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
-    "test": "pnpm run prisma:generate && node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
+    "test": "pnpm run prisma:generate && node --test scripts/deploy-preprod-build-order.test.cjs && node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
     "test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
     "test:debug": "node --experimental-vm-modules --inspect-brk ./node_modules/jest/bin/jest.js --runInBand",

@@ -99,6 +99,9 @@ foreach ($kind in @('databaseBackup','storageBackup')) {
 
 Push-Location $backRoot
 try {
+  # Prisma 7 generates this application's client into an ignored source-tree path.
+  # A clean checkout has no client until generation, so do that before Nest preflight.
+  Invoke-Checked 'Generate Prisma client for backend preflight' { pnpm run prisma:generate }
   # Compile the validator used by the guard, then validate without a DB connection.
   Invoke-Checked 'Compile backend preflight' { pnpm exec nest build }
   Invoke-Checked 'Validate preproduction target' { node scripts/with-preprod-db-guard.cjs check }

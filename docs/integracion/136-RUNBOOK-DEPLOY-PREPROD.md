@@ -47,6 +47,8 @@ La plantilla del backend requiere `sslmode=verify-full`, `sslrootcert` coinciden
 
 El frontend Vite usa `VITE_API_URL=https://<api-aprobada>/api` durante el build. `server/scripts/deploy-preprod.ps1` lo deriva de `BJC_PREPROD_API_ORIGIN` si no fue definido explícitamente; `scripts/preprod-build-env.mjs` aborta si el bundle apunta a HTTP, loopback/local, un origen distinto o una ruta no aprobada.
 
+En un checkout limpio, `deploy-preprod.ps1` genera explícitamente el cliente Prisma antes de compilar el preflight Nest; Prisma 7 coloca ese cliente en una ruta ignorada por Git. La generación no conecta a la base. El guard de destino, el estado de migraciones y la aplicación revisada de migraciones siguen ejecutándose después de esa compilación.
+
 ## PREPROD-FIX-2 — revalidación del contrato y backup
 
 La identidad DB se valida una vez y se adapta separadamente a `pg`, Prisma ORM 7 y libpq; los hijos no vuelven a parsear una URL de otro consumidor. DEV rechaza query strings y fragmentos, y su `pg.Client` se construye con host, puerto, base, rol y TLS explícitos. PREPROD requiere referencias de storage DEV y PROD; PROD requiere DEV y PREPROD. Si una referencia falta o las rutas se tocan, la validación falla cerradamente. Para un destino que aún no existe, se resuelve el padre existente más los componentes declarados; eso demuestra separación de las rutas configuradas, no existencia ni identidad futura del volumen.
