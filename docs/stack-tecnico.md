@@ -37,6 +37,8 @@ pnpm e2e
 
 Los specs `*.integration.spec.ts` quedan fuera de la ejecución Jest predeterminada porque requieren servicios y fixtures QA configurados expresamente. No apuntes esos tests a PostgreSQL u OpenSearch principales.
 
+En el candidato final, la instalación congelada se repitió desde un worktree limpio sin `node_modules` ni cliente Prisma generado. Typecheck, lint, test y build pasaron; el test incluye una regresión que exige generar Prisma antes del preflight Nest en PREPROD. La UI pública pasó Playwright 22/22 y responsive 18/18. Los ocho journeys autenticados siguen pendientes de credenciales QA aisladas.
+
 ## Motivos de compatibilidad
 
 - Se conserva ESLint 9.39.5: los plugins React y JSX accessibility fijados todavía declaran peers hasta ESLint 9.
