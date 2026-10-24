@@ -1,30 +1,27 @@
-# JurisprudenciaN Frontend
+# Galilei Client
 
-Panel administrativo en Next.js + TypeScript para operar jurisprudencia civil.
+Aplicación interna de jurisprudencia civil construida con React, Vite y TypeScript.
 
 ## Configuracion
 
-Crear `front/.env.local`:
+Crear `client/.env.local` solamente si se necesita cambiar el valor por defecto:
 
 ```env
-NEXT_PUBLIC_API_URL=http://10.5.3.138:4000/api
-PORT=4001
+VITE_API_URL=/api
+# Opcional: origen del backend al que el proxy de Vite envía /api.
+BJC_DEV_API_PROXY=http://127.0.0.1:4000
 ```
 
-La variable debe incluir `/api`. El cliente HTTP recibe rutas relativas como `/auth/login`.
-No apuntar `NEXT_PUBLIC_API_URL` al puerto `4001`, porque ese puerto es del frontend.
-Para uso solo desde la misma PC tambien puede configurarse `NEXT_PUBLIC_API_URL=http://localhost:4000/api`.
+`VITE_API_URL` solo admite un origen público seguro o el proxy same-origin `/api`; no debe contener credenciales ni secretos.
 
 ## Ejecucion
 
 ```bash
-cd front
-npm install
-npm run dev
+pnpm install
+pnpm --filter front dev
 ```
 
-`npm run dev` levanta Next en `http://localhost:4001`.
-En LAN se accede por `http://10.5.3.138:4001`.
+El frontend de desarrollo escucha en `http://localhost:4001`. El comando raíz `pnpm dev` inicia también el backend local. En producción, publicar el contenido de `client/dist` en un servidor estático con fallback de rutas SPA a `index.html`; `vite preview` solo sirve para validar localmente.
 
 ## Flujo principal
 
@@ -32,9 +29,9 @@ En LAN se accede por `http://10.5.3.138:4001`.
 2. Validación de sesión con `GET /auth/me`
 3. Rutas protegidas para dashboard, sentencias, sumarios, archivos, favoritos y búsquedas guardadas
 
-Con `NEXT_PUBLIC_API_URL=http://10.5.3.138:4000/api`, el login real llama a:
+Con el proxy local predeterminado, el login real llama a:
 
-- `POST http://10.5.3.138:4000/api/auth/login`
+- `POST /api/auth/login`
 
 ## Consulta pública sin login
 
@@ -61,10 +58,7 @@ La búsqueda publica e interna compara texto normalizado, pero muestra el texto 
 - `niño` / `nino`
 - `cañada` / `canada`
 
-Credenciales iniciales:
-
-- `admin@jurisprudencia.local`
-- `Admin12345`
+No guardar credenciales de prueba en este README. Use únicamente una cuenta DEV gestionada localmente.
 
 ## Paginas
 

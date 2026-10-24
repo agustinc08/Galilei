@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { Navigate } from 'react-router-dom';
 
 export default function BusquedaPage() {
-  redirect('/busqueda-avanzada');
+  return <Navigate to="/busqueda-avanzada" replace />;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router-compat';
 import styles from './wizard.module.css';
 import { DatosBasicosStep } from './DatosBasicosStep';
 import { PdfStep } from './PdfStep';

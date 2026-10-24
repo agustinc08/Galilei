@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { Link } from "@/lib/router-compat";
+import { useSearchParams } from '@/lib/router-compat';
 import styles from './consulta.module.css';
 import { Button } from '@/components/ui/Button';
 import { HighlightText } from './HighlightText';

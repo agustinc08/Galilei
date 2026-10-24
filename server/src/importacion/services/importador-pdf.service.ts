@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma/client';
 import { randomUUID } from 'crypto';
 import { copyFile, mkdir, stat } from 'fs/promises';
 import { basename, extname, join, resolve } from 'path';

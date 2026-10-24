@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import dynamic from "@/lib/router-compat"
+import { Link } from "@/lib/router-compat";
+import { useParams, useSearchParams } from "@/lib/router-compat";
 import { api, ApiError } from "@/lib/api";
 import { downloadBlob } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -219,7 +219,7 @@ export default function WorkspaceDocumentViewer() {
       <nav aria-label="Ruta del documento">
         <Link href={backHref}>← Volver a los documentos</Link>
         <span>
-          　›　{workspaceName ?? "Documentos de la dependencia"}　›　
+          › {workspaceName ?? "Documentos de la dependencia"} ›
           {document?.file?.filename ?? "Documento"}
         </span>
       </nav>

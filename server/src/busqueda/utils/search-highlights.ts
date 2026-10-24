@@ -74,7 +74,11 @@ function getSnippet(
   )}${suffix}`;
 }
 
-function highlightSnippet(snippet: string, primaryMatch: string, extraTerms: string[] = []) {
+function highlightSnippet(
+  snippet: string,
+  primaryMatch: string,
+  extraTerms: string[] = [],
+) {
   const terms = [primaryMatch, ...extraTerms]
     .map((term) => term.trim())
     .filter(Boolean)
@@ -98,12 +102,10 @@ export function buildHighlight(
   }
 
   const normalizedSource = normalizeSearchText(source);
-  let bestMatch:
-    | {
-        term: string;
-        index: number;
-      }
-    | null = null;
+  let bestMatch: {
+    term: string;
+    index: number;
+  } | null = null;
 
   for (const term of searchTerms) {
     const normalizedTerm = normalizeSearchText(term);

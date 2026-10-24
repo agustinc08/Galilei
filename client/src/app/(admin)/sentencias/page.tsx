@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/lib/router-compat";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/router-compat";
 import styles from "@/components/sentencias/sentencias.module.css";
 import { SentenciasFilters } from "@/components/sentencias/SentenciasFilters";
 import { Button } from "@/components/ui/Button";

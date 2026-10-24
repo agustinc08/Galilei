@@ -7,7 +7,7 @@ import { Test } from '@nestjs/testing';
 import {
   WorkspaceDependencyType,
   WorkspaceVisibilityScope,
-} from '@prisma/client';
+} from '../../src/generated/prisma/client';
 import type { NextFunction, Request, Response } from 'express';
 import type { AuthenticatedUser } from '../../src/auth/types/authenticated-user.type';
 import { BusquedaModule } from '../../src/busqueda/busqueda.module';

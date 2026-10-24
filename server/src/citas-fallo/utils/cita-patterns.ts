@@ -17,7 +17,10 @@ const PATTERNS: PatternConfig[] = [
     tipo: 'FALLOS',
     regex: /\bFallos\s*:?\s*(\d{2,4}:\d{1,5})\b/gi,
     normalize: (match) =>
-      match.replace(/\s+/g, ' ').replace(/\s*:\s*/g, ':').trim(),
+      match
+        .replace(/\s+/g, ' ')
+        .replace(/\s*:\s*/g, ':')
+        .trim(),
   },
   {
     tipo: 'CSJ',
@@ -39,7 +42,10 @@ const PATTERNS: PatternConfig[] = [
     regex:
       /\b(?:Expte\.?|Expediente(?:\s+N[°º])?|causa(?:\s+N[°º])?)\s*:?\s*([0-9]{1,6}\/\d{4}(?:\/[A-Z0-9]+)?)\b/gi,
     normalize: (match) =>
-      match.replace(/\s+/g, ' ').replace(/\s*:\s*/g, ': ').trim(),
+      match
+        .replace(/\s+/g, ' ')
+        .replace(/\s*:\s*/g, ': ')
+        .trim(),
   },
   {
     tipo: 'SALA',
@@ -86,7 +92,11 @@ export function detectCitasInText(text: string) {
         tipo: pattern.tipo,
         referencia,
         textoOriginal,
-        contexto: buildContext(text, match.index, match.index + match[0].length),
+        contexto: buildContext(
+          text,
+          match.index,
+          match.index + match[0].length,
+        ),
         pagina: null,
       });
 

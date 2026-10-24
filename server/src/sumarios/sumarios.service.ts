@@ -4,8 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { buildSumarioSearchData, normalizeSearchText } from '../busqueda/utils/search-normalizer';
+import { Prisma } from '../generated/prisma/client';
+import {
+  buildSumarioSearchData,
+  normalizeSearchText,
+} from '../busqueda/utils/search-normalizer';
 import { LogsService } from '../logs/logs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSumarioDto } from './dto/create-sumario.dto';
@@ -21,17 +24,6 @@ const sentenciaResumenSelect = {
   actor: true,
   demandado: true,
 } satisfies Prisma.SentenciaSelect;
-
-function normalizarBusqueda(...parts: Array<string | undefined>) {
-  return parts
-    .filter(Boolean)
-    .join(' ')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
 
 @Injectable()
 export class SumariosService {
@@ -132,7 +124,11 @@ export class SumariosService {
     }
   }
 
-  async update(id: number, updateSumarioDto: UpdateSumarioDto, usuarioId?: number) {
+  async update(
+    id: number,
+    updateSumarioDto: UpdateSumarioDto,
+    usuarioId?: number,
+  ) {
     await this.ensureExists(id);
 
     const existing = await this.prisma.sumario.findUniqueOrThrow({
@@ -173,7 +169,9 @@ export class SumariosService {
 
   async setPublicado(id: number, publicado: boolean, usuarioId?: number) {
     await this.ensureExists(id);
-    const before = await this.prisma.sumario.findUniqueOrThrow({ where: { id } });
+    const before = await this.prisma.sumario.findUniqueOrThrow({
+      where: { id },
+    });
 
     const sumario = await this.prisma.sumario.update({
       where: { id },
@@ -198,7 +196,9 @@ export class SumariosService {
 
   async remove(id: number, usuarioId?: number) {
     await this.ensureExists(id);
-    const before = await this.prisma.sumario.findUniqueOrThrow({ where: { id } });
+    const before = await this.prisma.sumario.findUniqueOrThrow({
+      where: { id },
+    });
 
     const sumario = await this.prisma.sumario.update({
       where: { id },

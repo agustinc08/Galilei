@@ -87,8 +87,16 @@ describe('Sprint 15.2 document sources PostgreSQL integration', () => {
       new LocalFixtureScanner(),
     );
     const [adminRole, readerRole] = await Promise.all([
-      prisma.rol.findUniqueOrThrow({ where: { nombre: 'ADMIN' } }),
-      prisma.rol.findUniqueOrThrow({ where: { nombre: 'LECTOR' } }),
+      prisma.rol.upsert({
+        where: { nombre: 'ADMIN' },
+        update: {},
+        create: { nombre: 'ADMIN', descripcion: 'QA role seed' },
+      }),
+      prisma.rol.upsert({
+        where: { nombre: 'LECTOR' },
+        update: {},
+        create: { nombre: 'LECTOR', descripcion: 'QA role seed' },
+      }),
     ]);
     const [a, b, viewer] = await Promise.all([
       prisma.usuario.create({
@@ -160,10 +168,7 @@ describe('Sprint 15.2 document sources PostgreSQL integration', () => {
     if (previousStoragePath === undefined)
       delete process.env.BJC_CORPUS_STORAGE_PATH;
     else process.env.BJC_CORPUS_STORAGE_PATH = previousStoragePath;
-    const allowed = path.resolve(
-      process.cwd(),
-      '../_dev-corpus-storage-test',
-    );
+    const allowed = path.resolve(process.cwd(), '../_dev-corpus-storage-test');
     if (testStorage.startsWith(`${allowed}${path.sep}`))
       await rm(testStorage, { recursive: true, force: true });
     for (const root of tempRoots)

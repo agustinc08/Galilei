@@ -34,8 +34,7 @@ async function bootstrap() {
     const startedAt = performance.now();
     response.on('finish', () => {
       const routeMetadata = request.route as unknown as
-        | { path?: unknown }
-        | undefined;
+        { path?: unknown } | undefined;
       const routePath = routeMetadata?.path;
       const route = typeof routePath === 'string' ? routePath : 'unmatched';
       const durationMs =

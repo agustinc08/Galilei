@@ -43,7 +43,9 @@ export class ReferenciasNormativasController {
   }
 
   @Post('sentencias/:id/referencias-normativas/detectar')
-  @ApiOperation({ summary: 'Detecta normas y artículos en PDF, sumarios y reseña' })
+  @ApiOperation({
+    summary: 'Detecta normas y artículos en PDF, sumarios y reseña',
+  })
   detectar(
     @Param('id', ParseIntPipe) sentenciaId: number,
     @CurrentUser() user: AuthenticatedUser,

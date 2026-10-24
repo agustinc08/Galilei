@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter } from '@/lib/router-compat';
 import { useAuth } from '@/hooks/use-auth';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { StatusMessage } from '../ui/StatusMessage';

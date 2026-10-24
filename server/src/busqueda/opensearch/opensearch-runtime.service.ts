@@ -71,7 +71,7 @@ export function isSearchTargetReady(
   const targets = responseBody<Record<string, unknown>>(response);
   return (
     Object.keys(targets).length === 1 &&
-    Object.prototype.hasOwnProperty.call(targets, config.searchTarget)
+    Object.hasOwn(targets, config.searchTarget)
   );
 }
 

@@ -238,7 +238,7 @@ describe('Search HTTP controllers in OpenSearch product mode', () => {
       throw new Error('JSON export unexpectedly returned text');
 
     expect(service.exportar.mock.calls).toHaveLength(0);
-    expect(service.federatedSearch).toHaveBeenCalledWith(
+    expect(service.federatedSearch.mock.calls).toContainEqual([
       'responsabilidad',
       undefined,
       expect.objectContaining({
@@ -248,7 +248,7 @@ describe('Search HTTP controllers in OpenSearch product mode', () => {
         page: 1,
         pageSize: 500,
       }),
-    );
+    ]);
     expect(search).toHaveBeenCalledTimes(2);
     expect(search.mock.calls.map((call) => call[2].page)).toEqual([1, 2]);
     expect(exported.data).toHaveLength(501);
@@ -287,7 +287,7 @@ describe('Search HTTP controllers in OpenSearch product mode', () => {
     const response = await controller.cita('A-123', user);
 
     expect(service.buscarPorCita.mock.calls).toHaveLength(0);
-    expect(service.federatedSearch).toHaveBeenCalledWith(
+    expect(service.federatedSearch.mock.calls).toContainEqual([
       'A-123',
       undefined,
       expect.objectContaining({
@@ -295,8 +295,8 @@ describe('Search HTTP controllers in OpenSearch product mode', () => {
         sourceSystems: ['JURISPRUDENCIA'],
         documentKinds: ['SENTENCIA'],
       }),
-    );
-    expect(service.trackCitationV2).toHaveBeenCalledWith('A-123', 7, 1);
+    ]);
+    expect(service.trackCitationV2.mock.calls).toContainEqual(['A-123', 7, 1]);
     expect(response.data[0].sentencia.id).toBe(8142);
   });
 
@@ -340,11 +340,11 @@ describe('Search HTTP controllers in OpenSearch product mode', () => {
 
     const response = await controller.publica({});
 
-    expect(service.federatedSearch).toHaveBeenCalledWith(
+    expect(service.federatedSearch.mock.calls).toContainEqual([
       undefined,
       undefined,
       expect.objectContaining({ sort: { field: 'fecha', order: 'desc' } }),
-    );
+    ]);
     expect(response.meta.sortUsed).toBe('fecha');
   });
 

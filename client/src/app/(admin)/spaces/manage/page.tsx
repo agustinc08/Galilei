@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { Link } from "@/lib/router-compat";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -1490,7 +1490,6 @@ export default function PrivateSpacesPage() {
                           onChange={(event) =>
                             setRenamedFolder(event.target.value)
                           }
-                          autoFocus
                         />
                         <button disabled={busy || !renamedFolder.trim()}>
                           Guardar
@@ -2071,9 +2070,9 @@ export default function PrivateSpacesPage() {
 
       {manageAccessFolderId && folderForAccessModal ? (
           <div className={styles.modalBackdrop} role="presentation">
-            <section
+            <dialog
+              open
               className={`${styles.modal} ${styles.accessModal}`}
-              role="dialog"
               aria-modal="true"
               aria-labelledby="folder-access-title"
               aria-describedby="folder-access-description"
@@ -2146,7 +2145,7 @@ export default function PrivateSpacesPage() {
                   Guardar acceso
                 </button>
               </div>
-            </section>
+            </dialog>
           </div>
       ) : null}
 

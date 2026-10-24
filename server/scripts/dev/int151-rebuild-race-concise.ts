@@ -25,7 +25,6 @@ const coreFiles = [
   'src/busqueda/opensearch/opensearch-sync.worker.ts',
   'src/busqueda/opensearch/opensearch-search-document.ts',
   'src/busqueda/opensearch/opensearch-mapping.ts',
-  'scripts/dev/opensearch-race-certify.ts',
 ];
 const previousArtifacts = [
   '../_recovery-work/search-engine-integration1/rebuild-race-fixture.json',
@@ -102,8 +101,8 @@ async function main() {
     if (initialOutbox.pending !== 0 || initialOutbox.failed !== 0)
       throw new Error('RACE_INITIAL_OUTBOX_NOT_CLEAN');
     mainAliasBefore = await activePhysical(client, 'galilei-search-active');
-    if (!mainAliasBefore?.startsWith('galilei-search-v001-'))
-      throw new Error('RACE_ACTIVE_ALIAS_MUST_REMAIN_V1');
+    if (!mainAliasBefore?.startsWith('galilei-search-v004-'))
+      throw new Error('RACE_ACTIVE_ALIAS_MUST_REMAIN_V4');
     const candidateAliasExists = await client.indices.existsAlias({
       name: candidateAlias,
     });
@@ -234,9 +233,10 @@ async function main() {
     const oldCount = await exactQueryCount(client, candidateAlias, oldTerm);
     const newCount = await exactQueryCount(client, candidateAlias, newTerm);
     const finalOutbox = await repository.outboxStatus();
-    const activeStillV1 =
+    const activeStillV4 =
       (await activePhysical(client, 'galilei-search-active')) ===
-      mainAliasBefore;
+        mainAliasBefore &&
+      mainAliasBefore.startsWith('galilei-search-v004-');
     const updateReplayed =
       mutationCommitted &&
       activeAfter === physicalIndex &&
@@ -287,13 +287,13 @@ async function main() {
         staleVersionAbsent: oldCount === 0,
         candidateAliasPromotedAtomically:
           aliasPromoted && activeAfter === physicalIndex,
-        mainActiveAliasUntouched: activeStillV1,
+        mainActiveAliasUntouched: activeStillV4,
         deletePropagated,
         pendingFinal: cleanupOutbox.pending,
         failedFinal: cleanupOutbox.failed,
       },
       pass:
-        updateReplayed && deletePropagated && aliasPromoted && activeStillV1,
+        updateReplayed && deletePropagated && aliasPromoted && activeStillV4,
     };
   } catch (error) {
     report.error =

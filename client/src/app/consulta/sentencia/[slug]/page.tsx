@@ -1,8 +1,8 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { useParams } from '@/lib/router-compat';
+import { useSearchParams } from '@/lib/router-compat';
+import { Link } from "@/lib/router-compat";
 import { useEffect, useState } from 'react';
 import styles from '@/components/sentencias/sentencias.module.css';
 import { CopyButton } from '@/components/ui/CopyButton';

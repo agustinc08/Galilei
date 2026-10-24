@@ -39,9 +39,7 @@ export type ExtractedPage = {
 };
 
 export type ExtractionStatus =
-  | 'TEXT_EXTRACTED'
-  | 'EXTRACTED_TRUNCATED'
-  | 'OCR_REQUIRED';
+  'TEXT_EXTRACTED' | 'EXTRACTED_TRUNCATED' | 'OCR_REQUIRED';
 
 export type ExtractionResult = {
   extractor: string;

@@ -6,7 +6,7 @@ export class CreateBusquedaGuardadaDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(150)
-  nombre: string;
+  nombre!: string;
 
   @ApiProperty({
     example: {
@@ -16,5 +16,5 @@ export class CreateBusquedaGuardadaDto {
     },
   })
   @IsObject()
-  queryJson: Record<string, unknown>;
+  queryJson!: Record<string, unknown>;
 }

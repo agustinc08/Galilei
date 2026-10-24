@@ -11,25 +11,22 @@ export class ReferenciasDoctrinariasService {
     private readonly logsService: LogsService,
   ) {}
 
-  private get client() {
-    return this.prisma as unknown as {
-      referenciaDoctrinaria: any;
-      sentencia: any;
-    };
-  }
-
   async findBySentencia(sentenciaId: number) {
     await this.ensureSentenciaExists(sentenciaId);
-    const data = await this.client.referenciaDoctrinaria.findMany({
+    const data = await this.prisma.referenciaDoctrinaria.findMany({
       where: { sentenciaId },
       orderBy: [{ anio: 'desc' }, { id: 'desc' }],
     });
     return { data };
   }
 
-  async create(sentenciaId: number, dto: CreateReferenciaDoctrinariaDto, usuarioId?: number) {
+  async create(
+    sentenciaId: number,
+    dto: CreateReferenciaDoctrinariaDto,
+    usuarioId?: number,
+  ) {
     await this.ensureSentenciaExists(sentenciaId);
-    const data = await this.client.referenciaDoctrinaria.create({
+    const data = await this.prisma.referenciaDoctrinaria.create({
       data: { sentenciaId, ...dto },
     });
     if (usuarioId) {
@@ -45,9 +42,13 @@ export class ReferenciasDoctrinariasService {
     return { data };
   }
 
-  async update(id: number, dto: UpdateReferenciaDoctrinariaDto, usuarioId?: number) {
+  async update(
+    id: number,
+    dto: UpdateReferenciaDoctrinariaDto,
+    usuarioId?: number,
+  ) {
     const before = await this.ensureExists(id);
-    const data = await this.client.referenciaDoctrinaria.update({
+    const data = await this.prisma.referenciaDoctrinaria.update({
       where: { id },
       data: dto,
     });
@@ -67,7 +68,7 @@ export class ReferenciasDoctrinariasService {
 
   async remove(id: number, usuarioId?: number) {
     const before = await this.ensureExists(id);
-    await this.client.referenciaDoctrinaria.delete({ where: { id } });
+    await this.prisma.referenciaDoctrinaria.delete({ where: { id } });
     if (usuarioId) {
       await this.logsService.registrarAccion({
         usuarioId,
@@ -82,7 +83,7 @@ export class ReferenciasDoctrinariasService {
   }
 
   private async ensureSentenciaExists(sentenciaId: number) {
-    const sentencia = await this.client.sentencia.findUnique({
+    const sentencia = await this.prisma.sentencia.findUnique({
       where: { id: sentenciaId },
       select: { id: true },
     });
@@ -92,7 +93,7 @@ export class ReferenciasDoctrinariasService {
   }
 
   private async ensureExists(id: number) {
-    const referencia = await this.client.referenciaDoctrinaria.findUnique({
+    const referencia = await this.prisma.referenciaDoctrinaria.findUnique({
       where: { id },
     });
     if (!referencia) {

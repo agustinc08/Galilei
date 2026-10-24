@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '../generated/prisma/client';
 import { LogsService } from '../logs/logs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCitaFalloDto } from './dto/create-cita-fallo.dto';
@@ -35,7 +35,11 @@ export class CitasFalloService {
     return { data };
   }
 
-  async create(sentenciaId: number, dto: CreateCitaFalloDto, usuarioId?: number) {
+  async create(
+    sentenciaId: number,
+    dto: CreateCitaFalloDto,
+    usuarioId?: number,
+  ) {
     await this.ensureSentenciaExists(sentenciaId);
 
     try {
@@ -79,7 +83,9 @@ export class CitasFalloService {
       const data = await this.client.citaFallo.update({
         where: { id },
         data: {
-          ...(dto.tipo !== undefined && { tipo: dto.tipo.trim().toUpperCase() }),
+          ...(dto.tipo !== undefined && {
+            tipo: dto.tipo.trim().toUpperCase(),
+          }),
           ...(dto.referencia !== undefined && {
             referencia: dto.referencia.trim(),
           }),
@@ -165,7 +171,12 @@ export class CitasFalloService {
       sentencia.expediente,
       sentencia.numeroSentencia,
       ...sentencia.sumarios.map((sumario) =>
-        [sumario.tema, sumario.texto, sumario.resumenBusqueda, sumario.textoBusqueda]
+        [
+          sumario.tema,
+          sumario.texto,
+          sumario.resumenBusqueda,
+          sumario.textoBusqueda,
+        ]
           .filter(Boolean)
           .join('\n'),
       ),

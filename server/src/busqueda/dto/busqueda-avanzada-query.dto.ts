@@ -21,10 +21,15 @@ function toStringArray(value: unknown): string[] | undefined {
   }
 
   if (Array.isArray(value)) {
-    return value.flatMap((item) => String(item).split(',')).map((item) => item.trim()).filter(Boolean);
+    return value
+      .flatMap((item) => (typeof item === 'string' ? item.split(',') : []))
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 
-  return String(value)
+  if (typeof value !== 'string') return undefined;
+
+  return value
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
@@ -36,17 +41,23 @@ export class BusquedaAvanzadaQueryDto extends PaginationQueryDto {
   @IsString()
   q?: string;
 
-  @ApiPropertyOptional({ description: 'Limita los resultados Corpus a una colección Digesto' })
+  @ApiPropertyOptional({
+    description: 'Limita los resultados Corpus a una colección Digesto',
+  })
   @IsOptional()
   @IsString()
   digestoCollectionId?: string;
 
-  @ApiPropertyOptional({ description: 'Limita los resultados Corpus a un tema Digesto local' })
+  @ApiPropertyOptional({
+    description: 'Limita los resultados Corpus a un tema Digesto local',
+  })
   @IsOptional()
   @IsString()
   digestoTopicId?: string;
 
-  @ApiPropertyOptional({ description: 'Limita los resultados Corpus a una etiqueta Digesto local' })
+  @ApiPropertyOptional({
+    description: 'Limita los resultados Corpus a una etiqueta Digesto local',
+  })
   @IsOptional()
   @IsString()
   digestoTagId?: string;
@@ -164,7 +175,10 @@ export class BusquedaAvanzadaQueryDto extends PaginationQueryDto {
   @IsBoolean()
   soloConPdf?: boolean;
 
-  @ApiPropertyOptional({ enum: ['todos', 'conPdf', 'sinPdf'], example: 'todos' })
+  @ApiPropertyOptional({
+    enum: ['todos', 'conPdf', 'sinPdf'],
+    example: 'todos',
+  })
   @IsOptional()
   @IsIn(['todos', 'conPdf', 'sinPdf'])
   pdf?: 'todos' | 'conPdf' | 'sinPdf';
@@ -195,7 +209,10 @@ export class BusquedaAvanzadaQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => toStringArray(value))
   buscarEn?: string[];
 
-  @ApiPropertyOptional({ enum: ['fecha', 'relevancia', 'sala', 'numeroSentencia'], example: 'relevancia' })
+  @ApiPropertyOptional({
+    enum: ['fecha', 'relevancia', 'sala', 'numeroSentencia'],
+    example: 'relevancia',
+  })
   @IsOptional()
   @IsIn(['fecha', 'relevancia', 'sala', 'numeroSentencia'])
   sortBy?: 'fecha' | 'relevancia' | 'sala' | 'numeroSentencia';

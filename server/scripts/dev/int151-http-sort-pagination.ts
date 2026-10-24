@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import type { API } from '@opensearch-project/opensearch';
 import type { SearchContext } from '../../src/busqueda/adapters/search-source.adapter';
 import { BusquedaModule } from '../../src/busqueda/busqueda.module';
 import { OpenSearchRuntimeService } from '../../src/busqueda/opensearch/opensearch-runtime.service';
@@ -13,6 +14,7 @@ import { PrismaModule } from '../../src/prisma/prisma.module';
 import { parseSearchQuery } from '../../src/busqueda/utils/search-parser';
 
 const legacyCandidate = 'galilei-search-v003-20261017t232432555z-a6af18cb';
+type SearchAfter = NonNullable<API.Search_RequestBody['search_after']>;
 const freshAlias = 'galilei-search-active';
 const pageSize = 100;
 const query = 'responsabilidad civil';
@@ -118,19 +120,21 @@ async function main() {
     let pitId: string | undefined;
     try {
       const pitResponse = await runtime.client.createPit({
-        index: candidate,
+        index: [candidate],
         keep_alive: '2m',
       });
       pitId = (pitResponse as unknown as { body?: { pit_id?: string } }).body
         ?.pit_id;
       if (!pitId) throw new Error('REFERENCE_PIT_CREATE_FAILED');
-      let searchAfter: unknown[] | undefined;
+      let searchAfter: SearchAfter | undefined;
       for (let referencePage = 0; referencePage < 100; referencePage += 1) {
+        const currentPitId = pitId;
+        if (!currentPitId) throw new Error('REFERENCE_PIT_CREATE_FAILED');
         const pageResponse = await runtime.client.search({
           body: {
             size: pageSize,
             track_total_hits: referenceTotal === null,
-            pit: { id: pitId, keep_alive: '2m' },
+            pit: { id: currentPitId, keep_alive: '2m' },
             _source: ['chamber'],
             query: referenceQuery,
             sort: referenceSort,

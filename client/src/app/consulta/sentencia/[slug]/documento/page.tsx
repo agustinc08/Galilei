@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from '@/lib/router-compat';
 import { useEffect, useMemo, useState } from 'react';
 import { DocumentoSidePanel } from '@/components/documento/DocumentoSidePanel';
 import { DocumentoViewerLayout } from '@/components/documento/DocumentoViewerLayout';

@@ -5,35 +5,35 @@ This is a reusable browser smoke harness for the Galilei / BJC frontend. It exer
 ## Preconditions
 
 - Install the frontend's existing dependencies with the repository's pnpm workspace workflow. Playwright is already a development dependency; this harness adds no package.
-- By default the runner starts a temporary Next.js Webpack preview and a synthetic API fixture on dynamically assigned loopback ports, then stops only those processes it started. Webpack is selected because the local Windows Turbopack preview panics while compiling routes.
+- By default the runner starts a temporary Vite development server and a synthetic API fixture on dynamically assigned loopback ports, then stops only those processes it started.
 - To reuse an existing preview, set `UX_QA_BASE_URL` to its loopback URL. The test config rejects non-loopback URLs.
-- Browser API calls are intercepted and answered by synthetic fixtures. For an existing app, keep its server-side `NEXT_PUBLIC_API_URL` local and isolated; do not point it at production or institutional services.
+- Browser API calls are intercepted and answered by synthetic fixtures through Vite's `/api` proxy. Do not point that proxy at production or institutional services.
 - Chromium must be installed for the existing Playwright version.
 
 PowerShell, standalone run:
 
 ```powershell
-npm run qa:ux
+pnpm --filter front qa:ux
 ```
 
 PowerShell, reusing an existing local preview:
 
 ```powershell
 $env:UX_QA_BASE_URL = 'http://127.0.0.1:<preview-port>'
-npm run qa:ux
+pnpm --filter front qa:ux
 ```
 
 `UX_QA_REPORT_DIR` optionally changes the run output directory. By default reports and screenshots go to the ignored `_recovery-work/ux-qa-automation-prep1/runs/latest/` directory. Screenshot filenames are stable per scenario and viewport.
 
 ## Commands
 
-- `npm run qa:ux` — helper self-tests and the public browser suite; no credentials required.
-- `npm run qa:ux:public` — public home, login, Search, help dialog, pagination, and Viewer shell.
-- `npm run qa:ux:responsive` — public responsive matrix.
-- `npm run qa:ux:viewer` — Viewer shell responsive journeys.
-- `npm run qa:ux:self` — quick helper and fixture checks without a browser or running preview.
-- `npm run lint:ux` — lint only the new harness and its specs.
-- `npm run qa:ux:auth` — opt-in future suite. Requires `UX_QA_AUTH_ENABLED=1`, `UX_QA_AUTH_USER`, and `UX_QA_AUTH_PASSWORD`; values stay environment-only. The scenarios remain deferred until the reconciled authenticated routes and permitted auth fixture exist.
+- `pnpm --filter front qa:ux` — helper self-tests and the public browser suite; no credentials required.
+- `pnpm --filter front qa:ux:public` — public home, login, Search, help dialog, pagination, and Viewer shell.
+- `pnpm --filter front qa:ux:responsive` — public responsive matrix.
+- `pnpm --filter front qa:ux:viewer` — Viewer shell responsive journeys.
+- `pnpm --filter front qa:ux:self` — quick helper and fixture checks without a browser or running preview.
+- `pnpm --filter front lint:ux` — lint only the harness and its specs.
+- `pnpm --filter front qa:ux:auth` — opt-in suite requiring environment-only test credentials.
 
 The existing `test:e2e` command retains its separate DB-backed configuration and is not used by this harness. No CI workflow is changed.
 

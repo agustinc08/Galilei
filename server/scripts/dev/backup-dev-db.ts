@@ -117,7 +117,7 @@ function hashFile(filePath: string) {
   return new Promise<string>((resolve, reject) => {
     const digest = createHash('sha256');
     const input = createReadStream(filePath);
-    input.on('data', (chunk: Buffer) => digest.update(chunk));
+    input.on('data', (chunk: string | Buffer) => { digest.update(chunk); });
     input.on('error', reject);
     input.on('end', () => resolve(digest.digest('hex')));
   });

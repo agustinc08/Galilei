@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { EventosConsultaService } from '../estadisticas/eventos-consulta.service';
 import { PrismaService } from '../prisma/prisma.service';
 

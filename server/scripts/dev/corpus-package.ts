@@ -454,7 +454,7 @@ function isInside(root: string, target: string) {
   );
 }
 
-if (require.main === module) {
+if (typeof require !== 'undefined' && require.main === module) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

@@ -1,6 +1,6 @@
 import { enqueueLocalOcrJob } from './ocr-job-queue';
 import type { LocalPdfOcrProcessor } from './document-local-processors';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../generated/prisma/client';
 
 function partial(value: Record<string, unknown>) {
   return expect.objectContaining(value) as unknown as Record<string, unknown>;

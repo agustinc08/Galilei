@@ -10,8 +10,8 @@ import {
   SourceFileStatus,
   SourceScanRunStatus,
   WorkspaceRole,
-} from '@prisma/client';
-import type { SourceScanRun } from '@prisma/client';
+} from '../generated/prisma/client';
+import type { SourceScanRun } from '../generated/prisma/client';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';

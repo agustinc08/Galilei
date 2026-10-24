@@ -9,7 +9,7 @@ import {
   Prisma,
   Sentencia,
   Sumario,
-} from '@prisma/client';
+} from '../generated/prisma/client';
 import { obtenerPdfsReales } from '../archivos/pdf-real.util';
 import {
   buildSentenciaSearchData,

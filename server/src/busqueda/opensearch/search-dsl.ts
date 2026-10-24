@@ -1,3 +1,4 @@
+import type { API } from '@opensearch-project/opensearch';
 import type { SearchContext } from '../adapters/search-source.adapter';
 import type {
   SearchFieldName,
@@ -22,7 +23,7 @@ const fieldPaths: Record<SearchFieldName, string> = {
   numeroSumario: 'numeroSumario',
 };
 
-type Clause = Record<string, unknown>;
+type Clause = NonNullable<API.Search_RequestBody['query']>;
 type FilterOptions = {
   source: 'CORPUS' | 'JURISPRUDENCIA';
   /** Private Corpus ACL/folder access is checked live by PostgreSQL per candidate batch. */

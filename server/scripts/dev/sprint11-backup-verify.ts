@@ -23,7 +23,7 @@ function hashFile(file: string) {
   return new Promise<string>((resolve, reject) => {
     const digest = createHash('sha256');
     const stream = createReadStream(file);
-    stream.on('data', (chunk: Buffer) => digest.update(chunk));
+    stream.on('data', (chunk: string | Buffer) => { digest.update(chunk); });
     stream.on('error', reject);
     stream.on('end', () => resolve(digest.digest('hex')));
   });

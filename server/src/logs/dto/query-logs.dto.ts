@@ -1,12 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import {
-  IsDate,
-  IsInt,
-  IsOptional,
-  IsString,
-  Min,
-} from 'class-validator';
+import { IsDate, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class QueryLogsDto {
   @ApiPropertyOptional()
@@ -26,7 +20,9 @@ export class QueryLogsDto {
   @IsString()
   accion?: string;
 
-  @ApiPropertyOptional({ description: 'ID de documento Corpus asociado al evento' })
+  @ApiPropertyOptional({
+    description: 'ID de documento Corpus asociado al evento',
+  })
   @IsOptional()
   @IsString()
   documentId?: string;

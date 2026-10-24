@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../auth/constants';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -17,10 +18,7 @@ import { SentenciasService } from './sentencias.service';
 describe('Sprint J9 jurisprudencia workflow', () => {
   it('permits the jurisprudence editor to upload and publish but denies a reader', () => {
     const guard = new RolesGuard(new Reflector());
-    const contextFor = (
-      handler: object,
-      role: string,
-    ): ExecutionContext =>
+    const contextFor = (handler: object, role: string): ExecutionContext =>
       ({
         getHandler: () => handler,
         getClass: () => ArchivosController,
@@ -171,7 +169,7 @@ describe('Sprint J9 jurisprudencia workflow', () => {
     );
     const buffer = readFileSync(
       path.resolve(
-        __dirname,
+        path.dirname(fileURLToPath(import.meta.url)),
         '../../scripts/dev/fixtures/corpus/fallo-fixture.pdf',
       ),
     );

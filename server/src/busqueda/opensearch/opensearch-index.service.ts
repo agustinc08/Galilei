@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import type { Client } from '@opensearch-project/opensearch';
+import type { API, Client } from '@opensearch-project/opensearch';
 import { OpenSearchDocumentRepository } from './opensearch-document.repository';
 import {
   SEARCH_INDEX_DEFINITIONS,
@@ -94,7 +94,7 @@ type SearchHitsResponse = {
     total?: { value: number; relation: 'eq' | 'gte' };
     hits?: Array<{
       _id: string;
-      sort?: unknown[];
+      sort?: NonNullable<API.Search_RequestBody['search_after']>;
       _source?: { publicationStatus?: string };
     }>;
   };
@@ -784,8 +784,9 @@ export class OpenSearchIndexService {
     const owned = rows
       .filter(
         (row) =>
-          row.index?.startsWith(`${this.indexPrefix}-v`) &&
-          row.index !== active,
+          row.index !== undefined &&
+          row.index !== active &&
+          this.isPhysicalIndex(row.index, this.schemaVersion),
       )
       .map((row) => ({
         index: row.index!,
@@ -1199,10 +1200,11 @@ export class OpenSearchIndexService {
     const sumarios: string[] = [];
     const sentencias: string[] = [];
     const publishedSentencias: string[] = [];
-    let searchAfter: unknown[] | undefined;
+    let searchAfter:
+      NonNullable<API.Search_RequestBody['search_after']> | undefined;
     for (;;) {
       const response = await this.client.search({
-        index,
+        index: [index],
         body: {
           size: 1000,
           track_total_hits: true,
@@ -1461,7 +1463,10 @@ function createBulkFailure(
           categories.add('unsupported-operation');
         else if (reason) categories.add('other');
         if (error.caused_by) queue.push(error.caused_by);
-        if (Array.isArray(error.root_cause)) queue.push(...error.root_cause);
+        if (Array.isArray(error.root_cause)) {
+          const causes: unknown[] = error.root_cause;
+          queue.push(...causes);
+        }
       }
       return [
         {

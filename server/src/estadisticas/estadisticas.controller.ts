@@ -126,7 +126,9 @@ export class EstadisticasController {
   }
 
   @Get('publicacion')
-  @ApiOperation({ summary: 'Indicadores de publicación y sentencias destacadas' })
+  @ApiOperation({
+    summary: 'Indicadores de publicación y sentencias destacadas',
+  })
   publicacion() {
     return this.estadisticasService.publicacion();
   }
@@ -216,11 +218,10 @@ export class EstadisticasController {
   }
 
   @Post('eventos')
-  @ApiOperation({ summary: 'Registra un evento autenticado del frontend interno' })
-  evento(
-    @Body() body: TrackEventoDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  @ApiOperation({
+    summary: 'Registra un evento autenticado del frontend interno',
+  })
+  evento(@Body() body: TrackEventoDto, @CurrentUser() user: AuthenticatedUser) {
     this.eventosConsultaService.trackSafe({
       tipoEvento: body.tipoEvento,
       usuarioId: user.id,
@@ -253,7 +254,9 @@ export class EstadisticasController {
 @Public()
 @Controller('public')
 export class PublicEventosController {
-  constructor(private readonly eventosConsultaService: EventosConsultaService) {}
+  constructor(
+    private readonly eventosConsultaService: EventosConsultaService,
+  ) {}
 
   @Post('eventos')
   @ApiOperation({ summary: 'Registra un evento público del frontend' })

@@ -1,4 +1,11 @@
-import { Controller, Get, Param, ParseIntPipe, Query, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Query,
+  Res,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ROLES } from '../auth/constants';
@@ -20,11 +27,16 @@ export class LogsController {
   }
 
   @Get('export.csv')
-  @ApiOperation({ summary: 'Exporta hasta 5000 eventos de auditoría filtrados a CSV' })
+  @ApiOperation({
+    summary: 'Exporta hasta 5000 eventos de auditoría filtrados a CSV',
+  })
   async exportCsv(@Query() query: QueryLogsDto, @Res() response: Response) {
     const csv = await this.logsService.exportCsv(query);
     response.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    response.setHeader('Content-Disposition', 'attachment; filename="audit-log.csv"');
+    response.setHeader(
+      'Content-Disposition',
+      'attachment; filename="audit-log.csv"',
+    );
     response.setHeader('Cache-Control', 'no-store');
     return response.send(`\uFEFF${csv}`);
   }

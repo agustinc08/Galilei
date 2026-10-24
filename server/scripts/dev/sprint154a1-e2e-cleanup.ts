@@ -1,6 +1,6 @@
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../src/generated/prisma/client';
 import { PrismaService } from '../../src/prisma/prisma.service';
 
 type WorkspaceManifest = {

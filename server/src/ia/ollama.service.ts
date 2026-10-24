@@ -12,7 +12,9 @@ type EmbeddingResponse = {
 @Injectable()
 export class OllamaService {
   readonly baseUrl =
-    process.env.OLLAMA_BASE_URL ?? process.env.OLLAMA_URL ?? 'http://localhost:11434';
+    process.env.OLLAMA_BASE_URL ??
+    process.env.OLLAMA_URL ??
+    'http://localhost:11434';
   readonly generationModel =
     process.env.OLLAMA_GENERATION_MODEL ?? process.env.OLLAMA_MODEL ?? 'llama3';
   readonly embeddingModel =
@@ -22,7 +24,11 @@ export class OllamaService {
 
   async health() {
     try {
-      const response = await this.fetchWithTimeout('/api/tags', { method: 'GET' }, 4001);
+      const response = await this.fetchWithTimeout(
+        '/api/tags',
+        { method: 'GET' },
+        4001,
+      );
       if (!response.ok) {
         return {
           ok: false,
@@ -110,13 +116,19 @@ export class OllamaService {
     const payload = (await response.json()) as EmbeddingResponse;
     const embedding = payload.embedding ?? payload.embeddings?.[0] ?? [];
     if (!Array.isArray(embedding) || embedding.length === 0) {
-      throw new ServiceUnavailableException('Ollama no devolvio un embedding valido.');
+      throw new ServiceUnavailableException(
+        'Ollama no devolvio un embedding valido.',
+      );
     }
 
     return embedding;
   }
 
-  private async fetchWithTimeout(path: string, init: RequestInit, timeoutMs: number) {
+  private async fetchWithTimeout(
+    path: string,
+    init: RequestInit,
+    timeoutMs: number,
+  ) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {

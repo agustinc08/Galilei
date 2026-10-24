@@ -2,7 +2,7 @@
 
 function classifyConsoleMessage(type, message) {
   const text = String(message || '');
-  if (/nextjs-portal|Next\.js Dev Tools|Download the React DevTools/i.test(text)) return 'NEXT_DEV_TOOLING';
+  if (/Download the React DevTools/i.test(text)) return 'REACT_DEV_TOOLING';
   if (type === 'error' && /Failed to load resource: the server responded with a status of 503 \(Service Unavailable\)/i.test(text)) return 'EXPECTED_SYNTHETIC_SERVICE_UNAVAILABLE';
   if (/favicon\.ico|net::ERR_ABORTED|ResizeObserver loop/i.test(text)) return 'BROWSER_NOISE';
   if (type === 'warning' && /Warning: React|Each child in a list|validateDOMNesting|hydration/i.test(text)) return 'REACT_WARNING';
@@ -25,7 +25,9 @@ function isExpectedNetworkStatus(url, status) {
         parsed.pathname.endsWith('/api/public/busqueda') &&
         parsed.searchParams.get('q') === 'UX_QA_SERVICE_UNAVAILABLE'
       ) return true;
-    } catch {}
+    } catch {
+      // The request URL can be malformed in synthetic browser failures.
+    }
   }
   return Number(status) >= 400 && /\.map(?:\?|$)|favicon\.ico/i.test(String(url));
 }

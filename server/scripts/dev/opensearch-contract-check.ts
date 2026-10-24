@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { Client } from '@opensearch-project/opensearch';
+import { Client, type API } from '@opensearch-project/opensearch';
 import { Client as PgClient } from 'pg';
 import { CorpusSearchSourceAdapter } from '../../src/corpus/corpus-search.adapter';
 import { OpenSearchSearchSourceAdapter } from '../../src/busqueda/opensearch/opensearch-search-source.adapter';
@@ -15,6 +15,9 @@ import type {
   SearchContext,
   SearchSourceAdapter,
 } from '../../src/busqueda/adapters/search-source.adapter';
+
+type SearchAfter = NonNullable<API.Search_RequestBody['search_after']>;
+type SearchQuery = NonNullable<API.Search_RequestBody['query']>;
 
 loadLocalEnvironment();
 const root = resolve(process.cwd(), '..');
@@ -809,16 +812,20 @@ async function collectIntegratedEvidence(
   searchContext: SearchContext,
 ) {
   const ids: string[] = [];
-  let searchAfter: unknown[] | undefined;
+  let searchAfter: SearchAfter | undefined;
   let total: number | undefined;
   for (;;) {
     const response = await client.search({
-      index,
+      index: [index],
       body: {
         size: 1000,
         track_total_hits: true,
         _source: false,
-        query: buildSearchQueryDsl(query, searchContext, { source: 'CORPUS' }),
+        query: buildSearchQueryDsl(
+          query,
+          searchContext,
+          { source: 'CORPUS' },
+        ) as SearchQuery,
         sort: [{ id: { order: 'asc' } }],
         ...(searchAfter ? { search_after: searchAfter } : {}),
       },
@@ -829,7 +836,7 @@ async function collectIntegratedEvidence(
           body?: {
             hits?: {
               total?: { value?: number; relation?: 'eq' | 'gte' };
-              hits?: Array<{ _id: string; sort?: unknown[] }>;
+              hits?: Array<{ _id: string; sort?: SearchAfter }>;
             };
           };
         }
@@ -837,7 +844,7 @@ async function collectIntegratedEvidence(
       (response as unknown as {
         hits?: {
           total?: { value?: number; relation?: 'eq' | 'gte' };
-          hits?: Array<{ _id: string; sort?: unknown[] }>;
+          hits?: Array<{ _id: string; sort?: SearchAfter }>;
         };
       });
     const totalInfo = body.hits?.total;

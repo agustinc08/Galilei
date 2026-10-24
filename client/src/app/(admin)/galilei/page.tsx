@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { Link } from "@/lib/router-compat";
 import styles from './galilei.module.css';
 
 const destinations = [

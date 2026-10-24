@@ -16,31 +16,27 @@ export class ReferenciasNormativasService {
     private readonly logsService: LogsService,
   ) {}
 
-  private get client() {
-    return this.prisma as unknown as {
-      referenciaNormativa: any;
-      normaArticulo: any;
-      sentencia: any;
-    };
-  }
-
   async findBySentencia(sentenciaId: number) {
     await this.ensureSentenciaExists(sentenciaId);
-    const data = await this.client.referenciaNormativa.findMany({
+    const data = await this.prisma.referenciaNormativa.findMany({
       where: { sentenciaId },
       orderBy: [{ tipoNorma: 'asc' }, { id: 'desc' }],
     });
     return { data };
   }
 
-  async create(sentenciaId: number, dto: CreateReferenciaNormativaDto, usuarioId?: number) {
+  async create(
+    sentenciaId: number,
+    dto: CreateReferenciaNormativaDto,
+    usuarioId?: number,
+  ) {
     await this.ensureSentenciaExists(sentenciaId);
     const norma = dto.normaArticuloId
-      ? await this.client.normaArticulo.findUnique({
+      ? await this.prisma.normaArticulo.findUnique({
           where: { id: dto.normaArticuloId },
         })
       : null;
-    const data = await this.client.referenciaNormativa.create({
+    const data = await this.prisma.referenciaNormativa.create({
       data: {
         sentenciaId,
         normaArticuloId: dto.normaArticuloId,
@@ -66,9 +62,13 @@ export class ReferenciasNormativasService {
     return { data };
   }
 
-  async update(id: number, dto: UpdateReferenciaNormativaDto, usuarioId?: number) {
+  async update(
+    id: number,
+    dto: UpdateReferenciaNormativaDto,
+    usuarioId?: number,
+  ) {
     const before = await this.ensureExists(id);
-    const data = await this.client.referenciaNormativa.update({
+    const data = await this.prisma.referenciaNormativa.update({
       where: { id },
       data: dto,
     });
@@ -88,7 +88,7 @@ export class ReferenciasNormativasService {
 
   async remove(id: number, usuarioId?: number) {
     const before = await this.ensureExists(id);
-    await this.client.referenciaNormativa.delete({ where: { id } });
+    await this.prisma.referenciaNormativa.delete({ where: { id } });
     if (usuarioId) {
       await this.logsService.registrarAccion({
         usuarioId,
@@ -103,7 +103,7 @@ export class ReferenciasNormativasService {
   }
 
   async detectar(sentenciaId: number, usuarioId?: number) {
-    const sentencia = await this.client.sentencia.findUnique({
+    const sentencia = await this.prisma.sentencia.findUnique({
       where: { id: sentenciaId },
       include: {
         sumarios: { where: { activo: true }, orderBy: { id: 'asc' } },
@@ -120,24 +120,29 @@ export class ReferenciasNormativasService {
       sentencia.resena,
       sentencia.resumenIa,
       sentencia.objeto,
-      ...sentencia.sumarios.map((sumario: any) => [sumario.tema, sumario.texto].join('\n')),
+      ...sentencia.sumarios.map((sumario) =>
+        [sumario.tema, sumario.texto].join('\n'),
+      ),
     ]
       .filter(Boolean)
       .join('\n\n');
 
-    const archivo = sentencia.archivosPdf.find((item) => archivoPdfEsReal(item));
-    const textoPdf =
-      archivo
-        ? await this.pdfService.extraerTexto(archivo.rutaArchivo)
-        : '';
+    const archivo = sentencia.archivosPdf.find((item) =>
+      archivoPdfEsReal(item),
+    );
+    const textoPdf = archivo
+      ? await this.pdfService.extraerTexto(archivo.rutaArchivo)
+      : '';
 
-    const detectadas = this.normasDetectorService.detectar([textoBase, textoPdf].join('\n\n'));
+    const detectadas = this.normasDetectorService.detectar(
+      [textoBase, textoPdf].join('\n\n'),
+    );
     let creadas = 0;
     let duplicadas = 0;
     const creadasItems: unknown[] = [];
 
     for (const item of detectadas) {
-      const exists = await this.client.referenciaNormativa.findFirst({
+      const exists = await this.prisma.referenciaNormativa.findFirst({
         where: {
           sentenciaId,
           tipoNorma: item.tipoNorma,
@@ -152,7 +157,7 @@ export class ReferenciasNormativasService {
         continue;
       }
 
-      const creada = await this.client.referenciaNormativa.create({
+      const creada = await this.prisma.referenciaNormativa.create({
         data: {
           sentenciaId,
           tipoNorma: item.tipoNorma,
@@ -187,7 +192,7 @@ export class ReferenciasNormativasService {
   }
 
   private async ensureSentenciaExists(sentenciaId: number) {
-    const sentencia = await this.client.sentencia.findUnique({
+    const sentencia = await this.prisma.sentencia.findUnique({
       where: { id: sentenciaId },
       select: { id: true },
     });
@@ -197,7 +202,7 @@ export class ReferenciasNormativasService {
   }
 
   private async ensureExists(id: number) {
-    const referencia = await this.client.referenciaNormativa.findUnique({
+    const referencia = await this.prisma.referenciaNormativa.findUnique({
       where: { id },
     });
     if (!referencia) {

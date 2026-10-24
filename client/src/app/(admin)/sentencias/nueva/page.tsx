@@ -1,8 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { Link } from "@/lib/router-compat";
+import { useRouter } from '@/lib/router-compat';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';

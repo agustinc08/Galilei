@@ -39,7 +39,11 @@ export class ReferenciasDoctrinariasController {
     @Body() dto: CreateReferenciaDoctrinariaDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.referenciasDoctrinariasService.create(sentenciaId, dto, user.id);
+    return this.referenciasDoctrinariasService.create(
+      sentenciaId,
+      dto,
+      user.id,
+    );
   }
 
   @Patch('referencias-doctrinarias/:id')

@@ -85,9 +85,9 @@ async function main() {
       throw new Error('DEV_DATABASE_TARGET_REJECTED');
 
     const indexResponse = await client.cat.indices({
-      index: 'galilei-search-v003-*',
+      index: ['galilei-search-v003-*'],
       format: 'json',
-      h: 'index',
+      h: ['index'],
     });
     const indices = unwrap<Array<{ index?: string }>>(indexResponse);
     const candidate =

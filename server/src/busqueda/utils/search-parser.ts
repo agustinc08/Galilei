@@ -36,8 +36,25 @@ export class SearchQueryParseError extends Error {
 }
 
 type Token =
-  | { type: 'term' | 'phrase'; value: string; sourceText: string; field?: SearchFieldName; offset: number }
-  | { type: 'and' | 'or' | 'not' | 'legacy-and' | 'legacy-or' | 'minus' | 'left-paren' | 'right-paren'; offset: number };
+  | {
+      type: 'term' | 'phrase';
+      value: string;
+      sourceText: string;
+      field?: SearchFieldName;
+      offset: number;
+    }
+  | {
+      type:
+        | 'and'
+        | 'or'
+        | 'not'
+        | 'legacy-and'
+        | 'legacy-or'
+        | 'minus'
+        | 'left-paren'
+        | 'right-paren';
+      offset: number;
+    };
 
 const FIELD_ALIASES: Readonly<Record<string, SearchFieldName>> = {
   tema: 'tema',
@@ -48,7 +65,7 @@ const FIELD_ALIASES: Readonly<Record<string, SearchFieldName>> = {
   tribunalorigen: 'tribunalOrigen',
   expediente: 'expediente',
   caratula: 'caratula',
-  'carátula': 'caratula',
+  carátula: 'caratula',
   actor: 'actor',
   demandado: 'demandado',
   objeto: 'objeto',
@@ -64,29 +81,45 @@ function isSpace(value: string) {
 }
 
 function isTermBoundary(value: string) {
-  return isSpace(value) || value === '(' || value === ')' || value === '*' || value === '+' || value === '"';
+  return (
+    isSpace(value) ||
+    value === '(' ||
+    value === ')' ||
+    value === '*' ||
+    value === '+' ||
+    value === '"'
+  );
 }
 
 function cleanTerm(value: string) {
   return value.replace(/^[^\p{L}\p{N}%]+|[^\p{L}\p{N}%]+$/gu, '');
 }
 
-function parseWildcard(raw: string): { value: string; matchMode: SearchMatchMode } {
+function parseWildcard(raw: string): {
+  value: string;
+  matchMode: SearchMatchMode;
+} {
   const leading = raw.startsWith('%');
   const trailing = raw.endsWith('%');
   const value = raw.replace(/^%|%$/g, '');
 
   if (!value || value.includes('%')) {
-    throw new SearchQueryParseError('El comodín % solo puede aparecer al inicio o al final de un término no vacío.');
+    throw new SearchQueryParseError(
+      'El comodín % solo puede aparecer al inicio o al final de un término no vacío.',
+    );
   }
 
   return {
     value,
-    matchMode: leading === trailing ? 'contains' : leading ? 'suffix' : 'prefix',
+    matchMode:
+      leading === trailing ? 'contains' : leading ? 'suffix' : 'prefix',
   };
 }
 
-function readQuoted(source: string, start: number): { value: string; next: number } {
+function readQuoted(
+  source: string,
+  start: number,
+): { value: string; next: number } {
   let value = '';
   let index = start + 1;
 
@@ -99,7 +132,10 @@ function readQuoted(source: string, start: number): { value: string; next: numbe
     }
     if (char === '"') {
       const trimmed = value.trim();
-      if (!trimmed) throw new SearchQueryParseError('La frase entre comillas no puede estar vacía.');
+      if (!trimmed)
+        throw new SearchQueryParseError(
+          'La frase entre comillas no puede estar vacía.',
+        );
       return { value: trimmed, next: index + 1 };
     }
     value += char;
@@ -109,11 +145,17 @@ function readQuoted(source: string, start: number): { value: string; next: numbe
   throw new SearchQueryParseError('Falta cerrar las comillas de la frase.');
 }
 
-function readTerm(source: string, start: number): { value: string; next: number } {
+function readTerm(
+  source: string,
+  start: number,
+): { value: string; next: number } {
   let index = start;
   while (index < source.length && !isTermBoundary(source[index])) index += 1;
   const value = cleanTerm(source.slice(start, index));
-  if (!value) throw new SearchQueryParseError(`Término vacío cerca de la posición ${start + 1}.`);
+  if (!value)
+    throw new SearchQueryParseError(
+      `Término vacío cerca de la posición ${start + 1}.`,
+    );
   return { value, next: index };
 }
 
@@ -154,10 +196,20 @@ function tokenize(source: string): Token[] {
       const rawName = fieldMatch[1];
       const alias = rawName.toLocaleLowerCase('es');
       field = FIELD_ALIASES[alias];
-      if (!field) throw new SearchQueryParseError(`Campo de búsqueda no admitido: ${rawName}.`);
+      if (!field)
+        throw new SearchQueryParseError(
+          `Campo de búsqueda no admitido: ${rawName}.`,
+        );
       index += fieldMatch[0].length;
-      if (index >= source.length || isSpace(source[index]) || source[index] === ')' || source[index] === '(') {
-        throw new SearchQueryParseError(`El campo ${rawName} necesita un valor.`);
+      if (
+        index >= source.length ||
+        isSpace(source[index]) ||
+        source[index] === ')' ||
+        source[index] === '('
+      ) {
+        throw new SearchQueryParseError(
+          `El campo ${rawName} necesita un valor.`,
+        );
       }
     }
 
@@ -166,7 +218,10 @@ function tokenize(source: string): Token[] {
       tokens.push({
         type: 'phrase',
         value: quoted.value,
-        sourceText: source.slice(fieldMatchStart(source, index, field), quoted.next),
+        sourceText: source.slice(
+          fieldMatchStart(source, index, field),
+          quoted.next,
+        ),
         field,
         offset: field ? index - rawFieldLength(source, index) : index,
       });
@@ -178,7 +233,8 @@ function tokenize(source: string): Token[] {
     const parsed = readTerm(source, start);
     index = parsed.next;
     const upper = parsed.value.toLocaleUpperCase('es');
-    const operator = !field && (upper === 'AND' || upper === 'OR' || upper === 'NOT');
+    const operator =
+      !field && (upper === 'AND' || upper === 'OR' || upper === 'NOT');
     if (operator) {
       tokens.push({
         type: upper.toLowerCase() as 'and' | 'or' | 'not',
@@ -191,12 +247,15 @@ function tokenize(source: string): Token[] {
     tokens.push({
       type: 'term',
       value: wildcard.value,
-      sourceText: source.slice(field ? start - rawFieldLength(source, start) : start, parsed.next),
+      sourceText: source.slice(
+        field ? start - rawFieldLength(source, start) : start,
+        parsed.next,
+      ),
       field,
       offset: field ? start - rawFieldLength(source, start) : start,
       // The mode is attached below without widening the token union.
       ...({ matchMode: wildcard.matchMode } as object),
-    } as Token & { matchMode: SearchMatchMode });
+    });
   }
 
   return tokens;
@@ -204,15 +263,23 @@ function tokenize(source: string): Token[] {
 
 // These helpers recover the start of an already-consumed field prefix for explanations.
 function rawFieldLength(source: string, valueStart: number) {
-  const prefix = source.slice(0, valueStart).match(/[\p{L}][\p{L}\p{N}_]*:$/u)?.[0];
+  const prefix = source
+    .slice(0, valueStart)
+    .match(/[\p{L}][\p{L}\p{N}_]*:$/u)?.[0];
   return prefix?.length ?? 0;
 }
 
-function fieldMatchStart(source: string, valueStart: number, field?: SearchFieldName) {
+function fieldMatchStart(
+  source: string,
+  valueStart: number,
+  field?: SearchFieldName,
+) {
   return field ? valueStart - rawFieldLength(source, valueStart) : valueStart;
 }
 
-type ValueToken = Extract<Token, { type: 'term' | 'phrase' }> & { matchMode?: SearchMatchMode };
+type ValueToken = Extract<Token, { type: 'term' | 'phrase' }> & {
+  matchMode?: SearchMatchMode;
+};
 
 class Parser {
   private cursor = 0;
@@ -223,7 +290,9 @@ class Parser {
     defaultOperator: 'AND' | 'OR',
   ) {
     const hasExplicitOperator = tokens.some((token) =>
-      ['and', 'or', 'not', 'legacy-and', 'legacy-or', 'minus'].includes(token.type),
+      ['and', 'or', 'not', 'legacy-and', 'legacy-or', 'minus'].includes(
+        token.type,
+      ),
     );
     this.defaultOr = defaultOperator === 'OR' && !hasExplicitOperator;
   }
@@ -233,8 +302,13 @@ class Parser {
     const root = this.parseOr();
     const remaining = this.peek();
     if (remaining) {
-      if (remaining.type === 'right-paren') throw new SearchQueryParseError('Hay un paréntesis de cierre sin abrir.');
-      throw new SearchQueryParseError(`No se pudo interpretar la consulta cerca de la posición ${remaining.offset + 1}.`);
+      if (remaining.type === 'right-paren')
+        throw new SearchQueryParseError(
+          'Hay un paréntesis de cierre sin abrir.',
+        );
+      throw new SearchQueryParseError(
+        `No se pudo interpretar la consulta cerca de la posición ${remaining.offset + 1}.`,
+      );
     }
     return root;
   }
@@ -253,7 +327,9 @@ class Parser {
       }
       break;
     }
-    return operands.length === 1 ? operands[0] : ({ type: 'or', operands } satisfies SearchOrNode);
+    return operands.length === 1
+      ? operands[0]
+      : ({ type: 'or', operands } satisfies SearchOrNode);
   }
 
   private parseAnd(): SearchNode {
@@ -270,7 +346,9 @@ class Parser {
       }
       break;
     }
-    return operands.length === 1 ? operands[0] : ({ type: 'and', operands } satisfies SearchAndNode);
+    return operands.length === 1
+      ? operands[0]
+      : ({ type: 'and', operands } satisfies SearchAndNode);
   }
 
   private parseUnary(): SearchNode {
@@ -283,9 +361,13 @@ class Parser {
 
   private parsePrimary(): SearchNode {
     if (this.match('left-paren')) {
-      if (this.match('right-paren')) throw new SearchQueryParseError('Los paréntesis no pueden estar vacíos.');
+      if (this.match('right-paren'))
+        throw new SearchQueryParseError(
+          'Los paréntesis no pueden estar vacíos.',
+        );
       const expression = this.parseOr();
-      if (!this.match('right-paren')) throw new SearchQueryParseError('Falta cerrar un paréntesis.');
+      if (!this.match('right-paren'))
+        throw new SearchQueryParseError('Falta cerrar un paréntesis.');
       return expression;
     }
 
@@ -296,7 +378,10 @@ class Parser {
     this.cursor += 1;
     const valueToken = token as ValueToken;
     const normalizedValue = normalizeSearchText(valueToken.value);
-    if (!normalizedValue) throw new SearchQueryParseError('El término de búsqueda queda vacío al normalizarse.');
+    if (!normalizedValue)
+      throw new SearchQueryParseError(
+        'El término de búsqueda queda vacío al normalizarse.',
+      );
 
     if (token.type === 'phrase') {
       return {
@@ -320,21 +405,30 @@ class Parser {
 
   private requireExpression(operator: string) {
     if (!this.canStartExpression(this.peek())) {
-      throw new SearchQueryParseError(`Operador ${operator} sin término a la derecha.`);
+      throw new SearchQueryParseError(
+        `Operador ${operator} sin término a la derecha.`,
+      );
     }
   }
 
   private operatorError(token?: Token): string {
     if (!token) return 'La consulta termina antes de completar un operador.';
-    if (token.type === 'right-paren') return 'Falta un término antes del paréntesis de cierre.';
-    if (['and', 'legacy-and'].includes(token.type)) return 'Operador AND sin término a la izquierda.';
-    if (['or', 'legacy-or'].includes(token.type)) return 'Operador OR sin término a la izquierda.';
-    if (['not', 'minus'].includes(token.type)) return 'Operador NOT sin término a la izquierda.';
+    if (token.type === 'right-paren')
+      return 'Falta un término antes del paréntesis de cierre.';
+    if (['and', 'legacy-and'].includes(token.type))
+      return 'Operador AND sin término a la izquierda.';
+    if (['or', 'legacy-or'].includes(token.type))
+      return 'Operador OR sin término a la izquierda.';
+    if (['not', 'minus'].includes(token.type))
+      return 'Operador NOT sin término a la izquierda.';
     return `Consulta inválida cerca de la posición ${token.offset + 1}.`;
   }
 
   private canStartExpression(token?: Token): boolean {
-    return Boolean(token && ['term', 'phrase', 'left-paren', 'not', 'minus'].includes(token.type));
+    return Boolean(
+      token &&
+      ['term', 'phrase', 'left-paren', 'not', 'minus'].includes(token.type),
+    );
   }
 
   private peek() {
@@ -361,11 +455,17 @@ function createLegacyProjection(root: SearchNode | null) {
       node.operands.forEach((operand) => walk(operand, negated));
       return;
     }
-    const target = node.type === 'phrase'
-      ? (negated ? excludedPhrases : exactPhrases)
-      : (negated ? excludedTerms : terms);
+    const target =
+      node.type === 'phrase'
+        ? negated
+          ? excludedPhrases
+          : exactPhrases
+        : negated
+          ? excludedTerms
+          : terms;
     if (!node.field) target.push(node.value);
-    else if (!negated) fieldTerms[node.field] = [...(fieldTerms[node.field] ?? []), node.value];
+    else if (!negated)
+      fieldTerms[node.field] = [...(fieldTerms[node.field] ?? []), node.value];
   };
   walk(root);
 
@@ -378,7 +478,10 @@ function createLegacyProjection(root: SearchNode | null) {
   };
 }
 
-export function parseSearchQuery(raw?: string | null, options: ParseSearchOptions = {}): ParsedSearchQuery {
+export function parseSearchQuery(
+  raw?: string | null,
+  options: ParseSearchOptions = {},
+): ParsedSearchQuery {
   const originalQuery = raw ?? '';
   const source = originalQuery.trim();
   const tokens = tokenize(source);

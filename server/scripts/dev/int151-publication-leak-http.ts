@@ -85,9 +85,9 @@ async function main() {
       throw new Error('PUBLICATION_CANDIDATE_ALIAS_MISMATCH');
     if (
       Object.keys(active.body).length !== 1 ||
-      !Object.keys(active.body)[0].startsWith('galilei-search-v001-')
+      !Object.keys(active.body)[0].startsWith('galilei-search-v004-')
     )
-      throw new Error('PUBLICATION_ACTIVE_ALIAS_MUST_REMAIN_V1');
+      throw new Error('PUBLICATION_ACTIVE_ALIAS_MUST_REMAIN_V4');
 
     searchRuntime.onModuleInit();
     await app.listen(0, '127.0.0.1');
@@ -176,7 +176,7 @@ async function main() {
       target: 'bjc_dev@127.0.0.1:55432/buscador_juridico_civil_dev',
       candidate: index,
       alias: candidateAlias,
-      mainAlias: { name: activeAlias, remainsV1: true },
+      mainAlias: { name: activeAlias, remainsV4: true },
       route: 'GET /api/public/busqueda',
       census: {
         activeSentencias,

@@ -2,7 +2,10 @@ import { Module } from '@nestjs/common';
 import { EstadisticasModule } from '../estadisticas/estadisticas.module';
 import { IaModule } from '../ia/ia.module';
 import { LogsModule } from '../logs/logs.module';
-import { ArchivosController, PublicArchivosController } from './archivos.controller';
+import {
+  ArchivosController,
+  PublicArchivosController,
+} from './archivos.controller';
 import { ArchivosService } from './archivos.service';
 
 @Module({

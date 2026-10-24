@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmbeddingsService } from './embeddings.service';
 import { OllamaService } from './ollama.service';
@@ -32,8 +33,10 @@ export class RagService {
   ) {}
 
   async buscarSimilares(texto: string, top = 5): Promise<DocumentoSimilar[]> {
-    const embedding = await this.embeddingsService.generarEmbedding(this.limitText(texto, 2000));
-    const documentos = await (this.prisma as any).embeddingDocumento.findMany({
+    const embedding = await this.embeddingsService.generarEmbedding(
+      this.limitText(texto, 2000),
+    );
+    const documentos = await this.prisma.embeddingDocumento.findMany({
       select: {
         id: true,
         sentenciaId: true,
@@ -45,22 +48,37 @@ export class RagService {
     });
 
     return documentos
-      .map((documento: any) => ({
+      .map((documento) => ({
         id: documento.id,
         sentenciaId: documento.sentenciaId,
         fuente: documento.fuente,
         fuenteId: documento.fuenteId,
         textoResumen: documento.textoResumen,
-        similitud: this.cosineSimilarity(embedding, this.toNumberArray(documento.embedding)),
+        similitud: this.cosineSimilarity(
+          embedding,
+          this.toNumberArray(documento.embedding),
+        ),
       }))
-      .filter((documento: DocumentoSimilar) => Number.isFinite(documento.similitud))
-      .sort((left: DocumentoSimilar, right: DocumentoSimilar) => right.similitud - left.similitud)
+      .filter((documento: DocumentoSimilar) =>
+        Number.isFinite(documento.similitud),
+      )
+      .sort(
+        (left: DocumentoSimilar, right: DocumentoSimilar) =>
+          right.similitud - left.similitud,
+      )
       .slice(0, top);
   }
 
-  async buscarFallosSimilares(texto: string, limit = 10, excludeSentenciaId?: number) {
+  async buscarFallosSimilares(
+    texto: string,
+    limit = 10,
+    excludeSentenciaId?: number,
+  ) {
     try {
-      const similares = await this.buscarSimilares(texto, Math.max(limit * 3, limit));
+      const similares = await this.buscarSimilares(
+        texto,
+        Math.max(limit * 3, limit),
+      );
       return this.enrichSimilares(
         similares.filter((item) => item.sentenciaId !== excludeSentenciaId),
         limit,
@@ -73,7 +91,9 @@ export class RagService {
   async buscarFallosSimilaresPorSentencia(sentenciaId: number, limit = 10) {
     const sentencia = await this.prisma.sentencia.findUnique({
       where: { id: sentenciaId },
-      include: { sumarios: { where: { activo: true }, orderBy: { id: 'asc' } } },
+      include: {
+        sumarios: { where: { activo: true }, orderBy: { id: 'asc' } },
+      },
     });
 
     if (!sentencia) {
@@ -86,12 +106,18 @@ export class RagService {
       sentencia.actor,
       sentencia.demandado,
       sentencia.resena,
-      ...sentencia.sumarios.map((sumario) => [sumario.tema, sumario.texto].join(' ')),
+      ...sentencia.sumarios.map((sumario) =>
+        [sumario.tema, sumario.texto].join(' '),
+      ),
     ]
       .filter(Boolean)
       .join('\n');
 
-    const porEmbedding = await this.buscarFallosSimilares(texto, limit, sentenciaId);
+    const porEmbedding = await this.buscarFallosSimilares(
+      texto,
+      limit,
+      sentenciaId,
+    );
     if (porEmbedding.length) {
       return porEmbedding;
     }
@@ -106,7 +132,9 @@ export class RagService {
   ) {
     const maxChars = Number(process.env.IA_MAX_CHARS ?? 30000);
     const textoLimitado = textoFallo.trim().slice(0, maxChars);
-    const similares = await this.buscarSimilares(textoLimitado, 5).catch(() => []);
+    const similares = await this.buscarSimilares(textoLimitado, 5).catch(
+      (): DocumentoSimilar[] => [],
+    );
     const contexto = similares.length
       ? similares
           .map(
@@ -127,7 +155,9 @@ export class RagService {
       'Explicá: 1. conflicto o cuestión tratada; 2. decisión adoptada; 3. criterio jurídico relevante.',
       'Máximo 250 palabras.',
       'Lenguaje formal, apto para Secretaría de Jurisprudencia.',
-      datos.length ? `Datos de sentencia:\n${datos.filter(Boolean).join('\n')}` : '',
+      datos.length
+        ? `Datos de sentencia:\n${datos.filter(Boolean).join('\n')}`
+        : '',
       'Estos son fallos similares y sus sumarios:',
       contexto || 'No hay ejemplos similares disponibles.',
       'Ahora generá una reseña para este nuevo fallo:',
@@ -140,7 +170,10 @@ export class RagService {
     };
   }
 
-  async enrichSimilares(similares: DocumentoSimilar[], limit = 10): Promise<FalloSimilar[]> {
+  async enrichSimilares(
+    similares: DocumentoSimilar[],
+    limit = 10,
+  ): Promise<FalloSimilar[]> {
     const bestBySentencia = new Map<number, DocumentoSimilar>();
     for (const item of similares) {
       const current = bestBySentencia.get(item.sentenciaId);
@@ -156,7 +189,9 @@ export class RagService {
 
     const sentencias = await this.prisma.sentencia.findMany({
       where: { id: { in: ids }, activo: true },
-      include: { sumarios: { where: { activo: true }, orderBy: { id: 'asc' }, take: 1 } },
+      include: {
+        sumarios: { where: { activo: true }, orderBy: { id: 'asc' }, take: 1 },
+      },
     });
 
     return sentencias
@@ -182,7 +217,10 @@ export class RagService {
       .slice(0, limit);
   }
 
-  async fallbackSimilares(sentenciaId: number, limit = 10): Promise<FalloSimilar[]> {
+  async fallbackSimilares(
+    sentenciaId: number,
+    limit = 10,
+  ): Promise<FalloSimilar[]> {
     const sentencia = await this.prisma.sentencia.findUnique({
       where: { id: sentenciaId },
       select: { id: true, sala: true, objeto: true, tipoFallo: true },
@@ -191,11 +229,14 @@ export class RagService {
       return [];
     }
 
-    const or = [
-      sentencia.sala ? { sala: sentencia.sala } : undefined,
-      sentencia.objeto ? { objeto: { contains: sentencia.objeto, mode: 'insensitive' } } : undefined,
-      sentencia.tipoFallo ? { tipoFallo: sentencia.tipoFallo } : undefined,
-    ].filter(Boolean) as any;
+    const or: Prisma.SentenciaWhereInput[] = [];
+    if (sentencia.sala) or.push({ sala: sentencia.sala });
+    if (sentencia.objeto) {
+      or.push({
+        objeto: { contains: sentencia.objeto, mode: 'insensitive' },
+      });
+    }
+    if (sentencia.tipoFallo) or.push({ tipoFallo: sentencia.tipoFallo });
 
     if (!or.length) {
       return [];
@@ -203,7 +244,9 @@ export class RagService {
 
     const similares = await this.prisma.sentencia.findMany({
       where: { id: { not: sentenciaId }, activo: true, OR: or },
-      include: { sumarios: { where: { activo: true }, orderBy: { id: 'asc' }, take: 1 } },
+      include: {
+        sumarios: { where: { activo: true }, orderBy: { id: 'asc' }, take: 1 },
+      },
       orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
       take: limit,
     });
@@ -216,13 +259,17 @@ export class RagService {
       fecha: item.fecha,
       temaPrincipal: item.sumarios[0]?.tema ?? item.objeto,
       scoreSimilitud: 0,
-      sumarioBreve: item.sumarios[0]?.texto ? this.limitText(item.sumarios[0].texto, 45) : null,
+      sumarioBreve: item.sumarios[0]?.texto
+        ? this.limitText(item.sumarios[0].texto, 45)
+        : null,
     }));
   }
 
   private toNumberArray(value: unknown): number[] {
     return Array.isArray(value)
-      ? value.map((item) => Number(item)).filter((item) => Number.isFinite(item))
+      ? value
+          .map((item) => Number(item))
+          .filter((item) => Number.isFinite(item))
       : [];
   }
 

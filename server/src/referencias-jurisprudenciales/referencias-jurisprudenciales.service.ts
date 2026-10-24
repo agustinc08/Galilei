@@ -11,16 +11,9 @@ export class ReferenciasJurisprudencialesService {
     private readonly logsService: LogsService,
   ) {}
 
-  private get client() {
-    return this.prisma as unknown as {
-      referenciaJurisprudencial: any;
-      sentencia: any;
-    };
-  }
-
   async findBySentencia(sentenciaId: number) {
     await this.ensureSentenciaExists(sentenciaId);
-    const data = await this.client.referenciaJurisprudencial.findMany({
+    const data = await this.prisma.referenciaJurisprudencial.findMany({
       where: { sentenciaId },
       include: {
         falloRelacionado: {
@@ -39,9 +32,13 @@ export class ReferenciasJurisprudencialesService {
     return { data };
   }
 
-  async create(sentenciaId: number, dto: CreateReferenciaJurisprudencialDto, usuarioId?: number) {
+  async create(
+    sentenciaId: number,
+    dto: CreateReferenciaJurisprudencialDto,
+    usuarioId?: number,
+  ) {
     await this.ensureSentenciaExists(sentenciaId);
-    const data = await this.client.referenciaJurisprudencial.create({
+    const data = await this.prisma.referenciaJurisprudencial.create({
       data: { sentenciaId, ...dto },
       include: {
         falloRelacionado: {
@@ -69,9 +66,13 @@ export class ReferenciasJurisprudencialesService {
     return { data };
   }
 
-  async update(id: number, dto: UpdateReferenciaJurisprudencialDto, usuarioId?: number) {
+  async update(
+    id: number,
+    dto: UpdateReferenciaJurisprudencialDto,
+    usuarioId?: number,
+  ) {
     const before = await this.ensureExists(id);
-    const data = await this.client.referenciaJurisprudencial.update({
+    const data = await this.prisma.referenciaJurisprudencial.update({
       where: { id },
       data: dto,
       include: {
@@ -103,7 +104,7 @@ export class ReferenciasJurisprudencialesService {
 
   async remove(id: number, usuarioId?: number) {
     const before = await this.ensureExists(id);
-    await this.client.referenciaJurisprudencial.delete({ where: { id } });
+    await this.prisma.referenciaJurisprudencial.delete({ where: { id } });
     if (usuarioId) {
       await this.logsService.registrarAccion({
         usuarioId,
@@ -118,7 +119,7 @@ export class ReferenciasJurisprudencialesService {
   }
 
   private async ensureSentenciaExists(sentenciaId: number) {
-    const sentencia = await this.client.sentencia.findUnique({
+    const sentencia = await this.prisma.sentencia.findUnique({
       where: { id: sentenciaId },
       select: { id: true },
     });
@@ -128,7 +129,7 @@ export class ReferenciasJurisprudencialesService {
   }
 
   private async ensureExists(id: number) {
-    const referencia = await this.client.referenciaJurisprudencial.findUnique({
+    const referencia = await this.prisma.referenciaJurisprudencial.findUnique({
       where: { id },
     });
     if (!referencia) {

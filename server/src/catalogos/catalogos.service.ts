@@ -1,5 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCatalogoItemDto } from './dto/create-catalogo-item.dto';
 import { UpdateCatalogoItemDto } from './dto/update-catalogo-item.dto';
@@ -10,13 +14,9 @@ type CatalogKind = 'salas' | 'tipos-fallo' | 'tribunales-origen';
 export class CatalogosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private get client() {
-    return this.prisma as any;
-  }
-
   async getSalas(includeInactive = false) {
     return {
-      data: await this.client.sala.findMany({
+      data: await this.prisma.sala.findMany({
         where: includeInactive ? undefined : { activa: true },
         orderBy: [{ orden: 'asc' }, { nombre: 'asc' }],
       }),
@@ -25,7 +25,7 @@ export class CatalogosService {
 
   async getTiposFallo(includeInactive = false) {
     return {
-      data: await this.client.tipoFallo.findMany({
+      data: await this.prisma.tipoFallo.findMany({
         where: includeInactive ? undefined : { activo: true },
         orderBy: [{ orden: 'asc' }, { nombre: 'asc' }],
       }),
@@ -34,7 +34,7 @@ export class CatalogosService {
 
   async getTribunalesOrigen(includeInactive = false) {
     return {
-      data: await this.client.tribunalOrigen.findMany({
+      data: await this.prisma.tribunalOrigen.findMany({
         where: includeInactive ? undefined : { activo: true },
         orderBy: [{ orden: 'asc' }, { nombre: 'asc' }],
       }),
@@ -72,13 +72,13 @@ export class CatalogosService {
   }) {
     const [sala, tipoFallo, tribunalOrigen] = await Promise.all([
       input.salaId
-        ? this.client.sala.findUnique({ where: { id: input.salaId } })
+        ? this.prisma.sala.findUnique({ where: { id: input.salaId } })
         : Promise.resolve(null),
       input.tipoFalloId
-        ? this.client.tipoFallo.findUnique({ where: { id: input.tipoFalloId } })
+        ? this.prisma.tipoFallo.findUnique({ where: { id: input.tipoFalloId } })
         : Promise.resolve(null),
       input.tribunalOrigenId
-        ? this.client.tribunalOrigen.findUnique({
+        ? this.prisma.tribunalOrigen.findUnique({
             where: { id: input.tribunalOrigenId },
           })
         : Promise.resolve(null),
@@ -91,7 +91,9 @@ export class CatalogosService {
       throw new NotFoundException('Tipo de fallo de catalogo no encontrado');
     }
     if (input.tribunalOrigenId && !tribunalOrigen) {
-      throw new NotFoundException('Tribunal de origen de catalogo no encontrado');
+      throw new NotFoundException(
+        'Tribunal de origen de catalogo no encontrado',
+      );
     }
 
     return { sala, tipoFallo, tribunalOrigen };
@@ -100,7 +102,7 @@ export class CatalogosService {
   private async createItem(kind: CatalogKind, dto: CreateCatalogoItemDto) {
     try {
       if (kind === 'salas') {
-        return await this.client.sala.create({
+        return await this.prisma.sala.create({
           data: {
             nombre: dto.nombre.trim(),
             codigo: dto.codigo?.trim() || null,
@@ -111,7 +113,7 @@ export class CatalogosService {
       }
 
       if (kind === 'tipos-fallo') {
-        return await this.client.tipoFallo.create({
+        return await this.prisma.tipoFallo.create({
           data: {
             nombre: dto.nombre.trim(),
             codigo: dto.codigo?.trim() || null,
@@ -121,7 +123,7 @@ export class CatalogosService {
         });
       }
 
-      return await this.client.tribunalOrigen.create({
+      return await this.prisma.tribunalOrigen.create({
         data: {
           nombre: dto.nombre.trim(),
           codigo: dto.codigo?.trim() || null,
@@ -134,14 +136,20 @@ export class CatalogosService {
     }
   }
 
-  private async updateItem(kind: CatalogKind, id: number, dto: UpdateCatalogoItemDto) {
+  private async updateItem(
+    kind: CatalogKind,
+    id: number,
+    dto: UpdateCatalogoItemDto,
+  ) {
     try {
       if (kind === 'salas') {
-        return await this.client.sala.update({
+        return await this.prisma.sala.update({
           where: { id },
           data: {
             ...(dto.nombre !== undefined && { nombre: dto.nombre.trim() }),
-            ...(dto.codigo !== undefined && { codigo: dto.codigo.trim() || null }),
+            ...(dto.codigo !== undefined && {
+              codigo: dto.codigo.trim() || null,
+            }),
             ...(dto.orden !== undefined && { orden: dto.orden }),
             ...(dto.activo !== undefined && { activa: dto.activo }),
           },
@@ -149,28 +157,35 @@ export class CatalogosService {
       }
 
       if (kind === 'tipos-fallo') {
-        return await this.client.tipoFallo.update({
+        return await this.prisma.tipoFallo.update({
           where: { id },
           data: {
             ...(dto.nombre !== undefined && { nombre: dto.nombre.trim() }),
-            ...(dto.codigo !== undefined && { codigo: dto.codigo.trim() || null }),
+            ...(dto.codigo !== undefined && {
+              codigo: dto.codigo.trim() || null,
+            }),
             ...(dto.orden !== undefined && { orden: dto.orden }),
             ...(dto.activo !== undefined && { activo: dto.activo }),
           },
         });
       }
 
-      return await this.client.tribunalOrigen.update({
+      return await this.prisma.tribunalOrigen.update({
         where: { id },
         data: {
           ...(dto.nombre !== undefined && { nombre: dto.nombre.trim() }),
-          ...(dto.codigo !== undefined && { codigo: dto.codigo.trim() || null }),
+          ...(dto.codigo !== undefined && {
+            codigo: dto.codigo.trim() || null,
+          }),
           ...(dto.orden !== undefined && { orden: dto.orden }),
           ...(dto.activo !== undefined && { activo: dto.activo }),
         },
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
         throw new NotFoundException('Registro de catalogo no encontrado');
       }
       this.handleUniqueError(error);
@@ -178,8 +193,13 @@ export class CatalogosService {
   }
 
   private handleUniqueError(error: unknown): never {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new ConflictException('Ya existe un registro de catalogo con ese nombre o codigo');
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ConflictException(
+        'Ya existe un registro de catalogo con ese nombre o codigo',
+      );
     }
     throw error;
   }

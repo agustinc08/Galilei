@@ -23,9 +23,9 @@ test('public and authenticated routes have explicit availability', () => {
   ]);
 });
 
-test('console and network classifiers separate React warnings, Next tooling, and expected blob aborts', () => {
+test('console and network classifiers separate React warnings, React tooling, and expected blob aborts', () => {
   assert.equal(classifyConsoleMessage('warning', 'Warning: React state update'), 'REACT_WARNING');
-  assert.equal(classifyConsoleMessage('error', 'Next.js Dev Tools portal'), 'NEXT_DEV_TOOLING');
+  assert.equal(classifyConsoleMessage('warning', 'Download the React DevTools'), 'REACT_DEV_TOOLING');
   assert.equal(classifyConsoleMessage('error', 'Failed to load resource: the server responded with a status of 503 (Service Unavailable)'), 'EXPECTED_SYNTHETIC_SERVICE_UNAVAILABLE');
   assert.equal(classifyRequestFailure('blob:http://local/doc', 'net::ERR_ABORTED'), 'EXPECTED_BLOB_ABORT');
   assert.equal(classifyRequestFailure('https://api.invalid/search', 'net::ERR_CONNECTION_REFUSED'), 'NETWORK_FAILURE');

@@ -1,9 +1,7 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# Client development
 
-## This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
+- Client is a React + Vite + TypeScript SPA. Keep browser-safe configuration under `VITE_*`; never put credentials or server secrets in client env variables.
+- The API base is `VITE_API_URL` (defaults to same-origin `/api`). Development routes `/api` through the Vite proxy configured by `BJC_DEV_API_PROXY`.
+- Keep browser routing in React Router and preserve authenticated guards, query strings, direct-link paths, and role checks.
+- Run client changes through `pnpm typecheck`, `pnpm lint`, `pnpm test`, and the relevant Playwright/UX checks.
+- Production hosting serves `client/dist` as static files and rewrites unknown application paths to `index.html`; `vite preview` is for local verification only.

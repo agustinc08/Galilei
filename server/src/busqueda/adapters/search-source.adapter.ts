@@ -4,8 +4,7 @@ import type { CorpusFileType } from '../utils/search-filters';
 export type SearchVisibility = 'PUBLIC' | 'INTERNAL' | 'ADMIN' | 'RESTRICTED';
 export type SearchDialect = 'modern' | 'legacy-reference';
 export type SearchPublicationPolicy =
-  | 'published-active-only'
-  | 'legacy-active-only';
+  'published-active-only' | 'legacy-active-only';
 
 export type SearchContext = {
   visibility: SearchVisibility;

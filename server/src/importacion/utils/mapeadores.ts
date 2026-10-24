@@ -19,11 +19,21 @@ type Accessor = {
 
 const SENTENCIA_COLUMNS = {
   legacyId: ['id_sentencia', 'idsentencia', 'id', 'codigo'],
-  numeroSentencia: ['codigo_sentencia', 'numerosentencia', 'numero_sentencia', 'nro_sentencia'],
+  numeroSentencia: [
+    'codigo_sentencia',
+    'numerosentencia',
+    'numero_sentencia',
+    'nro_sentencia',
+  ],
   tipoFallo: ['tipofallo', 'tipo_fallo', 'fallo', 'tipo'],
   sala: ['sala', 'camara', 'tribunal'],
   fecha: ['fecha', 'fecha_sentencia', 'fecha_fallo'],
-  expediente: ['nro_expte', 'expediente', 'nro_expediente', 'numero_expediente'],
+  expediente: [
+    'nro_expte',
+    'expediente',
+    'nro_expediente',
+    'numero_expediente',
+  ],
   juez: ['juez', 'jueza'],
   tribunalOrigen: ['tribunal_origen', 'tribunalorigen', 'juzgado_origen'],
   actor: ['actor', 'caratula_actor', 'demandante'],
@@ -114,11 +124,15 @@ export function mapLegacySentencia(row: LegacyRow) {
   const tribunalOrigen = normalizeNullableString(
     accessor.get(...SENTENCIA_COLUMNS.tribunalOrigen),
   );
-  const actor = normalizeNullableString(accessor.get(...SENTENCIA_COLUMNS.actor));
+  const actor = normalizeNullableString(
+    accessor.get(...SENTENCIA_COLUMNS.actor),
+  );
   const demandado = normalizeNullableString(
     accessor.get(...SENTENCIA_COLUMNS.demandado),
   );
-  const objeto = normalizeNullableString(accessor.get(...SENTENCIA_COLUMNS.objeto));
+  const objeto = normalizeNullableString(
+    accessor.get(...SENTENCIA_COLUMNS.objeto),
+  );
   const juez = normalizeNullableString(accessor.get(...SENTENCIA_COLUMNS.juez));
   const magistrados =
     normalizeNullableString(accessor.get(...SENTENCIA_COLUMNS.magistrados)) ??
@@ -128,23 +142,26 @@ export function mapLegacySentencia(row: LegacyRow) {
     accessor.get(...SENTENCIA_COLUMNS.pdf),
   );
   const falloCompletoPath =
-    typeof falloCompletoRaw === 'string' && !['0', '1'].includes(falloCompletoRaw.trim())
+    typeof falloCompletoRaw === 'string' &&
+    !['0', '1'].includes(falloCompletoRaw.trim())
       ? normalizeNullableString(falloCompletoRaw)
       : undefined;
   const legacyLink = normalizeNullableString(
     accessor.get(...SENTENCIA_COLUMNS.legacyLink),
   );
-  const explicitPdfPath =
-    explicitPdfValue ??
-    falloCompletoPath ??
-    legacyLink;
+  const explicitPdfPath = explicitPdfValue ?? falloCompletoPath ?? legacyLink;
   const publicado = accessor.hasAny(...SENTENCIA_COLUMNS.publicarSentencia)
-    ? normalizeBoolean(accessor.get(...SENTENCIA_COLUMNS.publicarSentencia), true)
+    ? normalizeBoolean(
+        accessor.get(...SENTENCIA_COLUMNS.publicarSentencia),
+        true,
+      )
     : normalizeBoolean(accessor.get(...SENTENCIA_COLUMNS.publicado), true);
-  const activo = normalizeBoolean(accessor.get(...SENTENCIA_COLUMNS.activo), true);
+  const activo = normalizeBoolean(
+    accessor.get(...SENTENCIA_COLUMNS.activo),
+    true,
+  );
   const tienePdf =
-    Boolean(explicitPdfPath) ||
-    normalizeBoolean(falloCompletoRaw, false);
+    Boolean(explicitPdfPath) || normalizeBoolean(falloCompletoRaw, false);
   const searchData = buildSentenciaSearchData({
     numeroSentencia,
     tipoFallo,

@@ -4,7 +4,7 @@ import { validatePreprodBuildEnvironment } from './preprod-build-env.mjs';
 
 const valid = {
   BJC_PREPROD_API_ORIGIN: 'https://api-preprod.example.invalid',
-  NEXT_PUBLIC_API_URL: 'https://api-preprod.example.invalid/api',
+  VITE_API_URL: 'https://api-preprod.example.invalid/api',
 };
 
 test('accepts a public HTTPS origin and the exact /api base', () => {
@@ -43,7 +43,7 @@ test('rejects localhost, IPv4 loopback, IPv6 loopback, and mapped loopback', () 
     assert.throws(
       () => validatePreprodBuildEnvironment({
         BJC_PREPROD_API_ORIGIN,
-        NEXT_PUBLIC_API_URL: `${BJC_PREPROD_API_ORIGIN}/api`,
+        VITE_API_URL: `${BJC_PREPROD_API_ORIGIN}/api`,
       }),
       /PREPROD_FRONTEND_API_MUST_MATCH_APPROVED_HTTPS_ORIGIN/,
     );
@@ -51,7 +51,7 @@ test('rejects localhost, IPv4 loopback, IPv6 loopback, and mapped loopback', () 
 });
 
 test('requires the browser API base to match the approved origin and /api path', () => {
-  for (const NEXT_PUBLIC_API_URL of [
+  for (const VITE_API_URL of [
     'https://other.example.invalid/api',
     'https://api-preprod.example.invalid/v2/api',
     'https://user:pass@api-preprod.example.invalid/api',
@@ -60,7 +60,7 @@ test('requires the browser API base to match the approved origin and /api path',
     'http://api-preprod.example.invalid/api',
   ]) {
     assert.throws(
-      () => validatePreprodBuildEnvironment({ ...valid, NEXT_PUBLIC_API_URL }),
+      () => validatePreprodBuildEnvironment({ ...valid, VITE_API_URL }),
       /PREPROD_FRONTEND_API_MUST_MATCH_APPROVED_HTTPS_ORIGIN/,
     );
   }
@@ -69,7 +69,7 @@ test('requires the browser API base to match the approved origin and /api path',
 test('normalizes hostname case and rejects incomplete config', () => {
   assert.equal(validatePreprodBuildEnvironment({
     BJC_PREPROD_API_ORIGIN: 'https://API-PREPROD.example.invalid',
-    NEXT_PUBLIC_API_URL: 'https://api-preprod.example.invalid/api',
+    VITE_API_URL: 'https://api-preprod.example.invalid/api',
   }).apiOrigin, 'https://api-preprod.example.invalid');
   assert.throws(() => validatePreprodBuildEnvironment({}), /BJC_PREPROD_API_ORIGIN_REQUIRED/);
 });

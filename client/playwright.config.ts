@@ -45,11 +45,14 @@ export default defineConfig({
       },
     },
     {
-      command: `.\\node_modules\\.bin\\next.cmd start -H 127.0.0.1 -p ${frontendPort}`,
+      command: `pnpm.cmd run dev:qa -- --port ${frontendPort}`,
       url: `http://127.0.0.1:${frontendPort}/login`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
-      env: { NEXT_PUBLIC_API_URL: `http://127.0.0.1:${backendPort}/api` },
+      env: {
+        VITE_API_URL: '/api',
+        BJC_DEV_API_PROXY: `http://127.0.0.1:${backendPort}`,
+      },
     },
   ],
 });

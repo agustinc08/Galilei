@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { Link } from "@/lib/router-compat";
+import { useParams } from '@/lib/router-compat';
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';

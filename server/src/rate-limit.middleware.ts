@@ -14,10 +14,22 @@ export class LocalApiRateLimiter {
     this.windowMs = positiveInteger(env.API_RATE_LIMIT_WINDOW_MS, 60_000);
     this.enabled = env.API_RATE_LIMIT_ENABLED !== 'false';
     this.limits = {
-      auth: { name: 'auth', maximum: positiveInteger(env.API_RATE_LIMIT_AUTH_MAX, 15) },
-      search: { name: 'search', maximum: positiveInteger(env.API_RATE_LIMIT_SEARCH_MAX, 120) },
-      matches: { name: 'matches', maximum: positiveInteger(env.API_RATE_LIMIT_MATCHES_MAX, 120) },
-      download: { name: 'download', maximum: positiveInteger(env.API_RATE_LIMIT_DOWNLOAD_MAX, 120) },
+      auth: {
+        name: 'auth',
+        maximum: positiveInteger(env.API_RATE_LIMIT_AUTH_MAX, 15),
+      },
+      search: {
+        name: 'search',
+        maximum: positiveInteger(env.API_RATE_LIMIT_SEARCH_MAX, 120),
+      },
+      matches: {
+        name: 'matches',
+        maximum: positiveInteger(env.API_RATE_LIMIT_MATCHES_MAX, 120),
+      },
+      download: {
+        name: 'download',
+        maximum: positiveInteger(env.API_RATE_LIMIT_DOWNLOAD_MAX, 120),
+      },
     };
   }
 
@@ -35,17 +47,25 @@ export class LocalApiRateLimiter {
       }
       bucket.count += 1;
       if (bucket.count <= this.limits[limit].maximum) return next();
-      const retryAfterSeconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((bucket.resetAt - now) / 1000),
+      );
       response.setHeader('Retry-After', String(retryAfterSeconds));
-      response.status(429).json({ statusCode: 429, code: 'RATE_LIMITED', message: 'Demasiadas solicitudes. Esperá antes de reintentar.' });
+      response.status(429).json({
+        statusCode: 429,
+        code: 'RATE_LIMITED',
+        message: 'Demasiadas solicitudes. Esperá antes de reintentar.',
+      });
       if (this.buckets.size > 10_000) this.prune(now);
     };
   }
 
   private prune(now: number) {
-    for (const [key, bucket] of this.buckets) if (bucket.resetAt <= now) this.buckets.delete(key);
+    for (const [key, bucket] of this.buckets)
+      if (bucket.resetAt <= now) this.buckets.delete(key);
     if (this.buckets.size > 10_000) {
-      const first = this.buckets.keys().next().value as string | undefined;
+      const first = this.buckets.keys().next().value;
       if (first) this.buckets.delete(first);
     }
   }
@@ -54,9 +74,24 @@ export class LocalApiRateLimiter {
 function classifyRequest(request: Request): Category | null {
   const path = request.path;
   if (request.method === 'POST' && path === '/api/auth/login') return 'auth';
-  if (request.method === 'GET' && (path === '/api/busqueda/avanzada' || path === '/api/busqueda/simple' || path === '/api/busqueda/publica')) return 'search';
-  if (request.method === 'GET' && /^\/api\/(?:public\/)?corpus\/documents\/[^/]+\/matches$/u.test(path)) return 'matches';
-  if (request.method === 'GET' && (/^\/api\/(?:public\/)?corpus\/documents\/[^/]+\/file$/u.test(path) || /^\/api\/(?:public\/)?sentencias\/[^/]+\/pdf$/u.test(path))) return 'download';
+  if (
+    request.method === 'GET' &&
+    (path === '/api/busqueda/avanzada' ||
+      path === '/api/busqueda/simple' ||
+      path === '/api/busqueda/publica')
+  )
+    return 'search';
+  if (
+    request.method === 'GET' &&
+    /^\/api\/(?:public\/)?corpus\/documents\/[^/]+\/matches$/u.test(path)
+  )
+    return 'matches';
+  if (
+    request.method === 'GET' &&
+    (/^\/api\/(?:public\/)?corpus\/documents\/[^/]+\/file$/u.test(path) ||
+      /^\/api\/(?:public\/)?sentencias\/[^/]+\/pdf$/u.test(path))
+  )
+    return 'download';
   return null;
 }
 

@@ -31,7 +31,7 @@ export class IaService {
 
     let indexed = 0;
     for (const sumario of sentencia.sumarios) {
-      const exists = await (this.prisma as any).embeddingDocumento.findUnique({
+      const exists = await this.prisma.embeddingDocumento.findUnique({
         where: {
           sentenciaId_fuente_fuenteId: {
             sentenciaId,
@@ -45,7 +45,7 @@ export class IaService {
       }
       const texto = [sumario.tema, sumario.texto].filter(Boolean).join('\n');
       const embedding = await this.embeddingsService.generarEmbedding(texto);
-      await (this.prisma as any).embeddingDocumento.create({
+      await this.prisma.embeddingDocumento.create({
         data: {
           sentenciaId,
           fuente: 'SUMARIO',
@@ -57,9 +57,11 @@ export class IaService {
       indexed += 1;
     }
 
-    const archivo = sentencia.archivosPdf.find((item) => archivoPdfEsReal(item));
+    const archivo = sentencia.archivosPdf.find((item) =>
+      archivoPdfEsReal(item),
+    );
     if (archivo) {
-      const exists = await (this.prisma as any).embeddingDocumento.findUnique({
+      const exists = await this.prisma.embeddingDocumento.findUnique({
         where: {
           sentenciaId_fuente_fuenteId: {
             sentenciaId,
@@ -69,11 +71,14 @@ export class IaService {
         },
       });
       if (!exists) {
-        const textoPdf = await this.pdfService.extraerTexto(archivo.rutaArchivo);
+        const textoPdf = await this.pdfService.extraerTexto(
+          archivo.rutaArchivo,
+        );
         const fragmento = this.limitText(textoPdf, 1200);
         if (fragmento) {
-          const embedding = await this.embeddingsService.generarEmbedding(fragmento);
-          await (this.prisma as any).embeddingDocumento.create({
+          const embedding =
+            await this.embeddingsService.generarEmbedding(fragmento);
+          await this.prisma.embeddingDocumento.create({
             data: {
               sentenciaId,
               fuente: 'PDF_FRAGMENTO',
@@ -100,17 +105,27 @@ export class IaService {
     });
 
     if (!sentencia) {
-      return { data: { resenaIa: '', similares: [], advertencias: ['Sentencia no encontrada.'] } };
+      return {
+        data: {
+          resenaIa: '',
+          similares: [],
+          advertencias: ['Sentencia no encontrada.'],
+        },
+      };
     }
 
     const advertencias: string[] = [];
-    const archivo = sentencia.archivosPdf.find((item) => archivoPdfEsReal(item));
+    const archivo = sentencia.archivosPdf.find((item) =>
+      archivoPdfEsReal(item),
+    );
     let texto = '';
 
     if (archivo) {
       texto = await this.pdfService.extraerTexto(archivo.rutaArchivo);
     } else {
-      advertencias.push('La sentencia no tiene PDF disponible; se usaron datos cargados y sumarios.');
+      advertencias.push(
+        'La sentencia no tiene PDF disponible; se usaron datos cargados y sumarios.',
+      );
       texto = [
         sentencia.caratula,
         sentencia.actor,
@@ -118,7 +133,9 @@ export class IaService {
         sentencia.objeto,
         sentencia.magistrados,
         sentencia.resena,
-        ...sentencia.sumarios.map((sumario) => [sumario.tema, sumario.texto].join('\n')),
+        ...sentencia.sumarios.map((sumario) =>
+          [sumario.tema, sumario.texto].join('\n'),
+        ),
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -138,17 +155,24 @@ export class IaService {
       sentencia.numeroSentencia ? `Número: ${sentencia.numeroSentencia}` : '',
       sentencia.sala ? `Sala: ${sentencia.sala}` : '',
       sentencia.tipoFallo ? `Tipo de fallo: ${sentencia.tipoFallo}` : '',
-      sentencia.fecha ? `Fecha: ${sentencia.fecha.toISOString().slice(0, 10)}` : '',
+      sentencia.fecha
+        ? `Fecha: ${sentencia.fecha.toISOString().slice(0, 10)}`
+        : '',
       sentencia.caratula ? `Carátula: ${sentencia.caratula}` : '',
       sentencia.objeto ? `Objeto: ${sentencia.objeto}` : '',
       sentencia.sumarios.length
         ? `Sumarios:\n${sentencia.sumarios
-            .map((sumario) => `- ${sumario.tema ?? 'Sin tema'}: ${sumario.texto}`)
+            .map(
+              (sumario) => `- ${sumario.tema ?? 'Sin tema'}: ${sumario.texto}`,
+            )
             .join('\n')}`
         : '',
     ];
 
-    const fallbackSimilares = await this.ragService.fallbackSimilares(sentenciaId, 5);
+    const fallbackSimilares = await this.ragService.fallbackSimilares(
+      sentenciaId,
+      5,
+    );
     const fallbackContexto = fallbackSimilares
       .map((item) =>
         [
@@ -162,9 +186,18 @@ export class IaService {
       )
       .filter(Boolean);
 
-    const result = await this.ragService.generarResenaConRAG(texto, datos, fallbackContexto);
-    const similaresPorEmbedding = await this.ragService.enrichSimilares(result.documentos, 5);
-    const similares = similaresPorEmbedding.length ? similaresPorEmbedding : fallbackSimilares;
+    const result = await this.ragService.generarResenaConRAG(
+      texto,
+      datos,
+      fallbackContexto,
+    );
+    const similaresPorEmbedding = await this.ragService.enrichSimilares(
+      result.documentos,
+      5,
+    );
+    const similares = similaresPorEmbedding.length
+      ? similaresPorEmbedding
+      : fallbackSimilares;
 
     await this.prisma.sentencia.update({
       where: { id: sentenciaId },
@@ -208,13 +241,18 @@ export class IaService {
       select: { id: true, slugPublico: true },
     });
     const publicIds = new Set(publicas.map((item) => item.id));
-    const slugById = new Map(publicas.map((item) => [item.id, item.slugPublico]));
+    const slugById = new Map(
+      publicas.map((item) => [item.id, item.slugPublico]),
+    );
 
     return {
       data: similares
         .filter((item) => publicIds.has(item.id))
         .slice(0, limit)
-        .map((item) => ({ ...item, slugPublico: slugById.get(item.id) ?? null })),
+        .map((item) => ({
+          ...item,
+          slugPublico: slugById.get(item.id) ?? null,
+        })),
     };
   }
 

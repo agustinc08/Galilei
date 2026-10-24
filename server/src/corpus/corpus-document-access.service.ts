@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   LocalDocumentStorageAdapter,
@@ -21,7 +21,11 @@ export class CorpusDocumentAccessService {
     this.storage = new LocalDocumentStorageAdapter();
   }
 
-  canReadWorkspaceDocument(documentId: string, workspaceId: string, userId: number) {
+  canReadWorkspaceDocument(
+    documentId: string,
+    workspaceId: string,
+    userId: number,
+  ) {
     return canReadWorkspaceDocument(this.prisma, documentId, {
       kind: 'WORKSPACE',
       workspaceId,
@@ -95,9 +99,9 @@ export class CorpusDocumentAccessService {
               ? `/api/workspaces/${workspaceId}/documents/${document.id}/file`
               : userId
                 ? `/api/personal/documents/${document.id}/file`
-              : document.visibility === 'PUBLIC'
-                ? `/api/public/corpus/documents/${document.id}/file`
-                : `/api/corpus/documents/${document.id}/file`,
+                : document.visibility === 'PUBLIC'
+                  ? `/api/public/corpus/documents/${document.id}/file`
+                  : `/api/corpus/documents/${document.id}/file`,
           }
         : null,
       extraction: latestExtraction
@@ -506,7 +510,11 @@ export class CorpusDocumentAccessService {
         ...(workspaceId
           ? { workspaceDocuments: { some: { workspaceId } } }
           : userId
-            ? { workspaceDocuments: { some: { workspaceId: null, ownerUserId: userId } } }
+            ? {
+                workspaceDocuments: {
+                  some: { workspaceId: null, ownerUserId: userId },
+                },
+              }
             : {}),
         visibility: { in: allowed },
         status: { in: ['INDEXED', 'OCR_REQUIRED'] },

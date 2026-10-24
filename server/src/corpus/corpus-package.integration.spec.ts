@@ -26,6 +26,27 @@ const context = {
   pageSize: 20,
 };
 
+type FixtureManifest = Record<string, unknown> & {
+  documents: Array<Record<string, unknown>>;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseFixtureManifest(contents: string): FixtureManifest {
+  const parsed: unknown = JSON.parse(contents);
+  if (!isRecord(parsed) || !Array.isArray(parsed.documents)) {
+    throw new Error('CORPUS_TEST_MANIFEST_INVALID');
+  }
+  const documents: unknown[] = parsed.documents;
+  const records = documents.filter(isRecord);
+  if (records.length !== documents.length) {
+    throw new Error('CORPUS_TEST_MANIFEST_DOCUMENT_INVALID');
+  }
+  return { ...parsed, documents: records };
+}
+
 describe('BJC institutional ingestion package PostgreSQL end-to-end', () => {
   const prisma = new PrismaService();
   const validator = new DocumentIngestionPackageValidator();
@@ -160,7 +181,7 @@ describe('BJC institutional ingestion package PostgreSQL end-to-end', () => {
       expect(result.receipt.status).toBe('SUCCESS');
       expect(result.receipt.imported).toBe(3);
       expect(result.receipt.skipped).toBe(1);
-      expect(await verifyReceipt(result.receipt)).toBe(true);
+      expect(verifyReceipt(result.receipt)).toBe(true);
 
       const repeated = await importPackage(prepared, {
         command: 'import',
@@ -254,7 +275,7 @@ describe('BJC institutional ingestion package PostgreSQL end-to-end', () => {
   (enabled ? it : it.skip)(
     'records a changed file version without overwriting the original',
     async () => {
-      const firstManifest = JSON.parse(
+      const firstManifest = parseFixtureManifest(
         await readFile(path.join(packageRoot, 'manifest.json'), 'utf8'),
       );
       const secondRoot = path.join(packageRoot, 'version-two');
@@ -289,7 +310,7 @@ describe('BJC institutional ingestion package PostgreSQL end-to-end', () => {
         path.join(fixtureRoot, 'version-b', 'mismo-nombre.pdf'),
         path.join(secondRoot, 'files', 'same.pdf'),
       );
-      const secondManifest = JSON.parse(
+      const secondManifest = parseFixtureManifest(
         await readFile(path.join(secondRoot, 'manifest.json'), 'utf8'),
       );
       await writeFile(
@@ -328,7 +349,7 @@ describe('BJC institutional ingestion package PostgreSQL end-to-end', () => {
   );
 });
 
-async function verifyReceipt(receipt: ImportReceipt) {
+function verifyReceipt(receipt: ImportReceipt) {
   const copy = { ...receipt };
   delete copy.receiptSha256;
   return sha256(stableJson(copy)) === receipt.receiptSha256;

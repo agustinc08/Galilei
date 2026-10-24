@@ -2,20 +2,18 @@ import type { Client } from '@opensearch-project/opensearch';
 import type {
   SearchContext,
   SearchResult,
-  SearchResultPage,
 } from '../adapters/search-source.adapter';
-import { parseSearchQuery } from '../utils/search-parser';
-import { FederatedSearchService } from '../federated-search.service';
+import type { SearchCandidateHydrator } from './opensearch-search-source.adapter';
+import { jest } from '@jest/globals';
 
-jest.mock('../../prisma/create-prisma-client', () => ({
+jest.unstable_mockModule('../../prisma/create-prisma-client.js', () => ({
   getPrismaPoolDiagnostics: jest.fn().mockReturnValue(null),
 }));
-import {
-  OpenSearchSearchSourceAdapter,
-  searchSort,
-  type SearchCandidateHydrator,
-} from './opensearch-search-source.adapter';
-
+const { parseSearchQuery } = await import('../utils/search-parser.js');
+const { FederatedSearchService } =
+  await import('../federated-search.service.js');
+const { OpenSearchSearchSourceAdapter, searchSort } =
+  await import('./opensearch-search-source.adapter.js');
 const privateContext: SearchContext = {
   visibility: 'ADMIN',
   dialect: 'modern',
@@ -81,10 +79,7 @@ function harness(search: jest.Mock) {
   const deletePit = jest.fn().mockResolvedValue({
     body: { succeeded: true },
   });
-  const hydrate = jest.fn<
-    Promise<SearchResultPage>,
-    Parameters<SearchCandidateHydrator>
-  >((_query, context, ids) =>
+  const hydrate = jest.fn<SearchCandidateHydrator>((_query, context, ids) =>
     Promise.resolve({
       total: ids.length,
       page: 1,

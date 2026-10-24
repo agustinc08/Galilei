@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 import { readFileSync } from 'node:fs';
-import { Client } from '@opensearch-project/opensearch';
+import { Client, type API } from '@opensearch-project/opensearch';
 import { readOpenSearchConfig } from '../../src/busqueda/opensearch/opensearch-config';
 
 const V3 = 'galilei-search-v003-20261017t232432555z-a6af18cb';
@@ -8,11 +8,12 @@ const V4 = 'galilei-search-v004-20261020t094732495z-6015e394';
 const PAGE_SIZE = 25;
 const SEARCH_REQUEST_PAUSE_MS = 100;
 const MAX_THROTTLE_RETRIES = 8;
+type SearchAfter = NonNullable<API.Search_RequestBody['search_after']>;
 
 type Hit = {
   _id: string;
   _source?: Record<string, unknown>;
-  sort?: unknown[];
+  sort?: SearchAfter;
 };
 
 type SearchBody = {
@@ -27,7 +28,7 @@ type Stream = {
   index: string;
   hits: Hit[];
   position: number;
-  after?: unknown[];
+  after?: SearchAfter;
   done: boolean;
   total?: number;
   previousId?: string;
@@ -60,8 +61,8 @@ function bodyOf<T>(response: unknown): T {
 async function nextHit(client: Client, stream: Stream): Promise<Hit | null> {
   while (stream.position >= stream.hits.length) {
     if (stream.done) return null;
-    const search = {
-      index: stream.index,
+    const search: API.Search_Request = {
+      index: [stream.index],
       body: {
         size: PAGE_SIZE,
         track_total_hits: false,

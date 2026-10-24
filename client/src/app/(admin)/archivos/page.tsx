@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { Link } from "@/lib/router-compat";
 import { ArchivosPanel } from '@/components/archivos/ArchivosPanel';
 import styles from '@/components/sentencias/sentencias.module.css';
 import { Button } from '@/components/ui/Button';

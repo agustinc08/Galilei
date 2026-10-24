@@ -50,6 +50,53 @@ describe('OpenSearchIndexService managed aliases', () => {
     await expect(service.hasActiveIndex()).resolves.toBe(true);
   });
 
+  it('keeps V1, V2, and V3 rollback indices outside V4 cleanup', async () => {
+    const alias = 'galilei-search-active';
+    const activeV4 = 'galilei-search-v004-20261020t094732495z-6015e394';
+    const oldV4 = 'galilei-search-v004-20261019t094732495z-6015e394';
+    const deleteIndex = jest
+      .fn()
+      .mockResolvedValue({ body: { acknowledged: true } });
+    const client = {
+      indices: {
+        getAlias: jest.fn().mockResolvedValue({ body: { [activeV4]: {} } }),
+        delete: deleteIndex,
+      },
+      cat: {
+        indices: jest.fn().mockResolvedValue({
+          body: [
+            { index: 'galilei-search-v001-20261016t145733714z-daad4e4b' },
+            { index: 'galilei-search-v002-20261016t190258637z-0e68affa' },
+            { index: 'galilei-search-v003-20261017t232432555z-a6af18cb' },
+            { index: oldV4 },
+            { index: activeV4 },
+          ],
+        }),
+      },
+    } as unknown as Client;
+    const service = new OpenSearchIndexService(
+      client,
+      {} as OpenSearchDocumentRepository,
+      alias,
+      'galilei-search',
+      4,
+      false,
+      alias,
+      false,
+      true,
+    );
+
+    const result = await service.cleanupOldIndexes(0, 0);
+
+    expect(deleteIndex).toHaveBeenCalledTimes(1);
+    expect(deleteIndex).toHaveBeenCalledWith({ index: oldV4 });
+    expect(result).toEqual({
+      activeIndexRetained: activeV4,
+      removed: [oldV4],
+      retainedPrevious: 0,
+    });
+  });
+
   it('writes V4 documents to the trusted physical target while the active alias stays on V3', async () => {
     const target = 'galilei-search-v004-20261020t094732495z-6015e394';
     const index = jest.fn().mockResolvedValue({ body: { result: 'created' } });
@@ -482,7 +529,8 @@ describe('OpenSearchIndexService fresh V4 operator lifecycle', () => {
       state: 'INDEX_CREATED',
     });
     expect(create).toHaveBeenCalledTimes(1);
-    const request = create.mock.calls[0][0] as {
+    const createCalls = create.mock.calls as unknown as Array<[unknown]>;
+    const request = createCalls[0]?.[0] as {
       index: string;
       body: Record<string, unknown>;
     };
@@ -491,7 +539,10 @@ describe('OpenSearchIndexService fresh V4 operator lifecycle', () => {
     };
     expected.settings.refresh_interval = '-1';
     expect(request).toEqual({ index: target, body: expected });
-    expect(pipelineRequests.mock.calls.map(([request]) => request)).toEqual([
+    const requestCalls = pipelineRequests.mock.calls as unknown as Array<
+      [unknown]
+    >;
+    expect(requestCalls.map(([request]) => request)).toEqual([
       {
         method: 'GET',
         path: `/_ingest/pipeline/${SEARCH_V4_COLLATION_PIPELINE_ID}`,
@@ -956,12 +1007,12 @@ describe('OpenSearchIndexService fresh V4 operator lifecycle', () => {
         .mockResolvedValue({ pending: 0, failed: 0 }),
     };
     let aliasActive = false;
-    const updateAliases = jest.fn(async () => {
+    const updateAliases = jest.fn(() => {
       order.push('ALIAS_CREATED');
       aliasActive = true;
-      return { body: { acknowledged: true } };
+      return Promise.resolve({ body: { acknowledged: true } });
     });
-    const getAlias = jest.fn(async () => ({
+    const getAlias = jest.fn(() => ({
       body: aliasActive ? { [target]: {} } : {},
     }));
     const client = {
@@ -994,10 +1045,11 @@ describe('OpenSearchIndexService fresh V4 operator lifecycle', () => {
     const checkpoint = await service.reconcileAndActivateFreshV4(
       target,
       '218900',
-      async () => {
-        expect(order).toEqual(['LOCKED']);
-        order.push('PRECONDITIONS_VERIFIED');
-      },
+      () =>
+        Promise.resolve().then(() => {
+          expect(order).toEqual(['LOCKED']);
+          order.push('PRECONDITIONS_VERIFIED');
+        }),
     );
     expect(checkpoint.highWatermark).toBe('218910');
     expect(checkpoint.pendingThrough).toBe(0);

@@ -11,7 +11,7 @@ import {
 } from '../../src/busqueda/opensearch/search-dsl';
 import { parseSearchQuery } from '../../src/busqueda/utils/search-parser';
 
-const expectedCandidate = 'galilei-search-v002-20261016t190258637z-0e68affa';
+const expectedCandidate = 'galilei-search-active';
 const legacyIds = new Set(['32470', '35132']);
 const artifactRoot = resolve(
   process.cwd(),
@@ -31,6 +31,20 @@ async function main() {
   const repository = new OpenSearchDocumentRepository();
   const client = new Client(config.clientOptions);
   try {
+    const activeResponse = await client.indices.getAlias({
+      name: expectedCandidate,
+    });
+    const activeBody =
+      (activeResponse as unknown as { body?: Record<string, unknown> }).body ??
+      (activeResponse as unknown as Record<string, unknown>);
+    const activeTargets = Object.keys(activeBody);
+    if (
+      activeTargets.length !== 1 ||
+      !activeTargets[0].startsWith('galilei-search-v004-')
+    ) {
+      throw new Error('SEARCH_ACTIVE_V4_ALIAS_REQUIRED');
+    }
+
     const parsed = parseSearchQuery('responsabilidad civil');
     const terms = parsed.root?.type === 'and' ? parsed.root.operands : [];
     const expectedTerms = ['responsabilidad', 'civil'];

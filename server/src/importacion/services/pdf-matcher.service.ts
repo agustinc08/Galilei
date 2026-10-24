@@ -1,7 +1,10 @@
 import { existsSync } from 'fs';
 import { readdir } from 'fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve } from 'path';
-import { normalizeFilenameKey, normalizeNullableString } from '../utils/normalizadores';
+import {
+  normalizeFilenameKey,
+  normalizeNullableString,
+} from '../utils/normalizadores';
 
 type CandidateValue = string | undefined;
 
@@ -68,7 +71,10 @@ export class PdfMatcherService {
     for (const file of this.files) {
       const topDir = file.relativePath.split(/[\\/]/)[0] ?? '.';
       topLevelCount.set(topDir, (topLevelCount.get(topDir) ?? 0) + 1);
-      filenamesCount.set(file.filename, (filenamesCount.get(file.filename) ?? 0) + 1);
+      filenamesCount.set(
+        file.filename,
+        (filenamesCount.get(file.filename) ?? 0) + 1,
+      );
 
       if (/^\d+\.pdf$/i.test(file.filename)) {
         patterns.numeric_filename += 1;
@@ -76,7 +82,10 @@ export class PdfMatcherService {
       if (/sen_/i.test(file.filename) || /sen_/i.test(file.relativePath)) {
         patterns.contains_sen += 1;
       }
-      if (/expte|exped/i.test(file.filename) || /expte|exped/i.test(file.relativePath)) {
+      if (
+        /expte|exped/i.test(file.filename) ||
+        /expte|exped/i.test(file.relativePath)
+      ) {
         patterns.contains_expte += 1;
       }
       if (/^\d+$/.test(topDir)) {
@@ -86,7 +95,10 @@ export class PdfMatcherService {
 
     return {
       totalPdfs: this.files.length,
-      topLevelDirectories: this.sortDirectoryCounts(topLevelCount).slice(0, limit),
+      topLevelDirectories: this.sortDirectoryCounts(topLevelCount).slice(
+        0,
+        limit,
+      ),
       samplePaths: this.files.slice(0, limit).map((file) => file.relativePath),
       commonFilenames: this.sortFilenameCounts(filenamesCount).slice(0, limit),
       detectedPatterns: patterns,
@@ -119,9 +131,13 @@ export class PdfMatcherService {
       }
     }
 
-    const normalizedNumeroSentencia = normalizeFilenameKey(input.numeroSentencia);
+    const normalizedNumeroSentencia = normalizeFilenameKey(
+      input.numeroSentencia,
+    );
     const normalizedLegacyId = normalizeFilenameKey(input.legacyId);
-    const normalizedExpediente = normalizeFilenameKey(this.cleanExpediente(input.expediente));
+    const normalizedExpediente = normalizeFilenameKey(
+      this.cleanExpediente(input.expediente),
+    );
 
     const exactMatches: Array<[CandidateValue, PdfMatchStrategy]> = [
       [normalizedNumeroSentencia, 'codigo-sentencia'],
@@ -171,7 +187,9 @@ export class PdfMatcherService {
       const filename = entry.name;
       const filenameKey = normalizeFilenameKey(basename(filename, '.pdf'));
       const pathKey = normalizeFilenameKey(relativePath);
-      const directoryKey = normalizeFilenameKey(relativePath.replace(filename, ''));
+      const directoryKey = normalizeFilenameKey(
+        relativePath.replace(filename, ''),
+      );
 
       const file: PdfFileEntry = {
         fullPath,
@@ -209,7 +227,9 @@ export class PdfMatcherService {
     }
 
     return candidates.map((candidate) =>
-      isAbsolute(candidate) ? resolve(candidate) : resolve(this.basePath, candidate),
+      isAbsolute(candidate)
+        ? resolve(candidate)
+        : resolve(this.basePath, candidate),
     );
   }
 
@@ -224,7 +244,11 @@ export class PdfMatcherService {
     const file = matches.find((item) => item.fullPath === resolve(candidate));
 
     return file
-      ? { file, strategy: 'legacy-link-exacto' as const, candidatesCount: matches.length }
+      ? {
+          file,
+          strategy: 'legacy-link-exacto' as const,
+          candidatesCount: matches.length,
+        }
       : undefined;
   }
 
@@ -234,7 +258,11 @@ export class PdfMatcherService {
     const file = matches[0];
 
     return file
-      ? { file, strategy: 'legacy-link-basename' as const, candidatesCount: matches.length }
+      ? {
+          file,
+          strategy: 'legacy-link-basename' as const,
+          candidatesCount: matches.length,
+        }
       : undefined;
   }
 
@@ -242,7 +270,9 @@ export class PdfMatcherService {
     const matches = this.exactIndex.get(value) ?? [];
     const file = matches[0];
 
-    return file ? { file, strategy, candidatesCount: matches.length } : undefined;
+    return file
+      ? { file, strategy, candidatesCount: matches.length }
+      : undefined;
   }
 
   private findContains(value: string, strategy: PdfMatchStrategy) {
@@ -271,12 +301,16 @@ export class PdfMatcherService {
   private sortDirectoryCounts(map: Map<string, number>) {
     return [...map.entries()]
       .map(([directory, total]) => ({ directory, total }))
-      .sort((a, b) => b.total - a.total || a.directory.localeCompare(b.directory));
+      .sort(
+        (a, b) => b.total - a.total || a.directory.localeCompare(b.directory),
+      );
   }
 
   private sortFilenameCounts(map: Map<string, number>) {
     return [...map.entries()]
       .map(([filename, total]) => ({ filename, total }))
-      .sort((a, b) => b.total - a.total || a.filename.localeCompare(b.filename));
+      .sort(
+        (a, b) => b.total - a.total || a.filename.localeCompare(b.filename),
+      );
   }
 }

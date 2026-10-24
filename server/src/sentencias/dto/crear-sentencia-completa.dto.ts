@@ -108,7 +108,8 @@ export class CrearSentenciaCompletaDto {
 
   @ApiPropertyOptional({
     type: OpcionesPublicacionDto,
-    description: 'Opciones de publicación y estado final para la sentencia creada',
+    description:
+      'Opciones de publicación y estado final para la sentencia creada',
   })
   @IsOptional()
   @ValidateNested()

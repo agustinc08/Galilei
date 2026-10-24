@@ -8,9 +8,9 @@ import {
   useState,
 } from "react";
 import type { ReactNode, KeyboardEvent as ReactKeyboardEvent } from "react";
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "@/lib/router-compat"
+import { Link } from "@/lib/router-compat";
+import { useRouter, useSearchParams } from "@/lib/router-compat";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { downloadBlob } from "@/lib/utils";
@@ -889,26 +889,21 @@ export function CopernicWorkspaceSearch() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [navigateMatch, preview, selectedId, setSelection]);
 
-  const onResultsKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter") {
-      const selectedButton = resultsListRef.current?.querySelector<HTMLButtonElement>(
-        "button[aria-pressed='true']",
-      );
-      if (selectedButton) {
-        event.preventDefault();
-        selectedButton.focus();
-        selectedButton.click();
-      }
-      return;
-    }
+  const onResultsKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     if (!hits.length) return;
     event.preventDefault();
-    const currentIndex = hits.findIndex((hit) => hit.documentId === selectedId);
+    const buttons = Array.from(
+      resultsListRef.current?.querySelectorAll<HTMLButtonElement>(".resultSelect") ?? [],
+    );
+    const selectedIndex = hits.findIndex((hit) => hit.documentId === selectedId);
+    const focusedIndex = buttons.indexOf(event.currentTarget);
+    const currentIndex = focusedIndex >= 0 ? focusedIndex : selectedIndex;
     const nextIndex = event.key === "ArrowDown"
       ? Math.min(hits.length - 1, currentIndex + 1)
       : Math.max(0, currentIndex < 0 ? 0 : currentIndex - 1);
     setSelection(hits[nextIndex].documentId);
+    buttons[nextIndex]?.focus();
   };
 
   const fullViewerHref = selectedHit
@@ -1206,7 +1201,10 @@ export function CopernicWorkspaceSearch() {
                     if (event.key === "ArrowDown" && hits.length) {
                       event.preventDefault();
                       if (!selectedId) setSelection(hits[0].documentId);
-                      resultsListRef.current?.focus();
+                      const selectedButton = resultsListRef.current?.querySelector<HTMLButtonElement>(
+                        "button[aria-pressed='true']",
+                      );
+                      (selectedButton ?? resultsListRef.current?.querySelector<HTMLButtonElement>("button"))?.focus();
                     }
                   }}
                   placeholder="Palabra, frase o nombre de archivo…"
@@ -1347,16 +1345,14 @@ export function CopernicWorkspaceSearch() {
                   ref={resultsListRef}
                   className={styles.resultList}
                   aria-label="Resultados por contenido y nombre"
-                  tabIndex={0}
-                  onKeyDown={onResultsKeyDown}
+                  role="list"
                 >
                   {hits.map((hit) => {
                     const selected = hit.documentId === selectedId;
                     return (
-                      <article
+                      <div
                         className={`${styles.resultRow} ${selected ? styles.resultRowSelected : ""}`}
-                        role="option"
-                        aria-selected={selected}
+                        role="listitem"
                         key={hit.documentId}
                       >
                         <button
@@ -1364,6 +1360,7 @@ export function CopernicWorkspaceSearch() {
                           className={styles.resultSelect}
                           aria-label={`Vista previa de ${hit.filename}`}
                           aria-pressed={selected}
+                          onKeyDown={onResultsKeyDown}
                           onClick={() => setSelection(hit.documentId)}
                           onDoubleClick={() => openFullViewer(hit)}
                         >
@@ -1406,7 +1403,7 @@ export function CopernicWorkspaceSearch() {
                             </button>
                           </div>
                         </details>
-                      </article>
+                      </div>
                     );
                   })}
                 </div>

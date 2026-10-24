@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
+import { Link } from "@/lib/router-compat";
 import { useCallback, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams } from '@/lib/router-compat';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { api } from '@/lib/api';
@@ -65,10 +65,10 @@ export default function RevisionPage() {
     </div>
     {kind === 'classification' ? <Card>
       <div className={styles.actions}><span>{selected.length} seleccionadas (máximo 20 por acción)</span><button disabled={!selected.length || busy} onClick={() => void reviewBatch('APPROVED')}>Aprobar seleccionadas</button><button disabled={!selected.length || busy} onClick={() => void reviewBatch('REJECTED')}>Rechazar seleccionadas</button></div>
-      {suggestions.length ? <div className={styles.list}>{suggestions.map((item) => <label key={item.id} className={styles.row}>
-        <input type="checkbox" checked={selected.includes(item.id)} disabled={!selected.includes(item.id) && selected.length >= 20} onChange={(event) => setSelected((ids) => event.target.checked ? [...ids, item.id] : ids.filter((id) => id !== item.id))} />
+      {suggestions.length ? <div className={styles.list}>{suggestions.map((item) => <div key={item.id} className={styles.row}>
+        <input type="checkbox" aria-label={`Seleccionar sugerencia ${item.value}`} checked={selected.includes(item.id)} disabled={!selected.includes(item.id) && selected.length >= 20} onChange={(event) => setSelected((ids) => event.target.checked ? [...ids, item.id] : ids.filter((id) => id !== item.id))} />
         <span><strong>{item.value}</strong><small>{item.category} · {item.origin} · confianza {item.confidence == null ? '—' : `${Math.round(item.confidence * 100)}%`}</small><Link href={`/corpus/${encodeURIComponent(item.doc.id)}`}>{item.doc.title}</Link><button type="button" disabled={busy} onClick={() => void editClassification(item)}>Editar y aprobar</button></span>
-      </label>)}</div> : <p>No hay temas sugeridos pendientes en esta página.</p>}
+      </div>)}</div> : <p>No hay temas sugeridos pendientes en esta página.</p>}
     </Card> : kind === 'candidate' ? <Card>
       <p>{queue?.total.toLocaleString('es-AR') ?? '—'} documentos con sugerencias de asociación. HIGH_CONFIDENCE requiere revisión humana igual que CANDIDATE.</p>
       {associations.length ? <div className={styles.list}>{associations.map((item) => <article key={item.id} className={styles.row}>

@@ -175,12 +175,6 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/opensearch-outage-certify.ts prepare',
   'opensearch-outage-recover':
     'pnpm.cmd exec ts-node scripts/dev/opensearch-outage-certify.ts recover',
-  'opensearch-race-prepare':
-    'pnpm.cmd exec ts-node scripts/dev/opensearch-race-certify.ts prepare',
-  'opensearch-race-mutate':
-    'pnpm.cmd exec ts-node scripts/dev/opensearch-race-certify.ts mutate',
-  'opensearch-race-verify':
-    'pnpm.cmd exec ts-node scripts/dev/opensearch-race-certify.ts verify',
   'int12-search-census':
     'pnpm.cmd exec ts-node scripts/dev/search-integration-census.ts',
   test: 'pnpm.cmd test --runInBand',

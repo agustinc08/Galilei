@@ -27,9 +27,13 @@ export class ReferenciasJurisprudencialesController {
   ) {}
 
   @Get('sentencias/:id/referencias-jurisprudenciales')
-  @ApiOperation({ summary: 'Lista referencias jurisprudenciales por sentencia' })
+  @ApiOperation({
+    summary: 'Lista referencias jurisprudenciales por sentencia',
+  })
   findBySentencia(@Param('id', ParseIntPipe) sentenciaId: number) {
-    return this.referenciasJurisprudencialesService.findBySentencia(sentenciaId);
+    return this.referenciasJurisprudencialesService.findBySentencia(
+      sentenciaId,
+    );
   }
 
   @Post('sentencias/:id/referencias-jurisprudenciales')
@@ -39,7 +43,11 @@ export class ReferenciasJurisprudencialesController {
     @Body() dto: CreateReferenciaJurisprudencialDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.referenciasJurisprudencialesService.create(sentenciaId, dto, user.id);
+    return this.referenciasJurisprudencialesService.create(
+      sentenciaId,
+      dto,
+      user.id,
+    );
   }
 
   @Patch('referencias-jurisprudenciales/:id')

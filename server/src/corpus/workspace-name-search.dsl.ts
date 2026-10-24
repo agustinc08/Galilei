@@ -1,8 +1,11 @@
+import type { API } from '@opensearch-project/opensearch';
 import { mimeTypesForCorpusTypes } from '../busqueda/utils/search-filters';
 import type {
   CorpusFileType,
   SearchDateRange,
 } from '../busqueda/utils/search-filters';
+
+type QueryContainer = NonNullable<API.Search_RequestBody['query']>;
 
 export function buildWorkspaceNameSearchDsl(input: {
   workspaceId: string;
@@ -15,7 +18,7 @@ export function buildWorkspaceNameSearchDsl(input: {
   dateRange: SearchDateRange;
 }) {
   const escaped = input.term.replace(/[\\*?]/gu, '\\$&');
-  const filters: Array<Record<string, unknown>> = [
+  const filters: QueryContainer[] = [
     { term: { sourceSystem: 'CORPUS' } },
     { term: { documentScope: 'PRIVATE_WORKSPACE' } },
     { term: { workspaceId: input.workspaceId } },
@@ -67,39 +70,40 @@ export function buildWorkspaceNameSearchDsl(input: {
     }
     filters.push({ range: { decisionDate: dateRange } });
   }
+  const nameMatches: QueryContainer[] = [
+    {
+      wildcard: {
+        'workspaceNameFields.title': {
+          value: `*${escaped}*`,
+          case_insensitive: true,
+        },
+      },
+    },
+    {
+      wildcard: {
+        'workspaceNameFields.filename': {
+          value: `*${escaped}*`,
+          case_insensitive: true,
+        },
+      },
+    },
+  ];
   return {
     bool: {
       filter: filters,
       must: [
         {
           bool: {
-            should: [
-              {
-                wildcard: {
-                  'workspaceNameFields.title': {
-                    value: `*${escaped}*`,
-                    case_insensitive: true,
-                  },
-                },
-              },
-              {
-                wildcard: {
-                  'workspaceNameFields.filename': {
-                    value: `*${escaped}*`,
-                    case_insensitive: true,
-                  },
-                },
-              },
-            ],
+            should: nameMatches,
             minimum_should_match: 1,
           },
         },
       ],
     },
-  };
+  } satisfies QueryContainer;
 }
 
-function sourceFolderFilter(sourceFolder: string) {
+function sourceFolderFilter(sourceFolder: string): QueryContainer {
   const folder = sourceFolder.replace(/\\+$/u, '');
   return {
     bool: {

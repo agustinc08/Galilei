@@ -21,7 +21,7 @@ import {
   WorkspaceDependencyType,
   WorkspaceRole,
   WorkspaceVisibilityScope,
-} from '@prisma/client';
+} from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { OpenSearchDocumentRepository } from '../busqueda/opensearch/opensearch-document.repository';
@@ -101,7 +101,7 @@ function personalResultDocumentIds(rows: unknown): string[] {
 }
 
 describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL integration', () => {
-  const prisma = new PrismaService();
+  let prisma: PrismaService;
   let searchSource: CorpusSearchSourceAdapter;
   let documents: WorkspaceDocumentService;
   let access: CorpusDocumentAccessService;
@@ -121,6 +121,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
 
   beforeAll(async () => {
     if (!enabled) return;
+    prisma = new PrismaService();
     await mkdir(storageRoot, { recursive: true });
     process.env.BJC_CORPUS_STORAGE_PATH = storageRoot;
     await prisma.$connect();
@@ -409,10 +410,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
     if (previousStoragePath === undefined)
       delete process.env.BJC_CORPUS_STORAGE_PATH;
     else process.env.BJC_CORPUS_STORAGE_PATH = previousStoragePath;
-    const safeRoot = path.resolve(
-      process.cwd(),
-      '../_dev-corpus-storage-test',
-    );
+    const safeRoot = path.resolve(process.cwd(), '../_dev-corpus-storage-test');
     if (storageRoot.startsWith(`${safeRoot}${path.sep}`))
       await rm(storageRoot, { recursive: true, force: true });
     const storageRootExists = await pathAccess(storageRoot)

@@ -5,7 +5,11 @@ import type {
   SearchResultPage,
   SearchSourceAdapter,
 } from './search-source.adapter';
-import type { SearchLiteralNode, SearchNode, SearchQueryAst } from '../utils/search-ast';
+import type {
+  SearchLiteralNode,
+  SearchNode,
+  SearchQueryAst,
+} from '../utils/search-ast';
 
 type SqlRow = {
   id_sumario: number;
@@ -14,8 +18,6 @@ type SqlRow = {
   tema: string | null;
   fecha: string | null;
 };
-
-type CompiledSql = { sql: string; values: Array<string | number> };
 
 const LEGACY_TERM_COLUMNS: Readonly<Record<string, string>> = {
   tema: 's.tema',
@@ -52,7 +54,10 @@ function escapeLike(value: string) {
   return value.replace(/[\\%_]/gu, '\\$&');
 }
 
-function makeLikePattern(node: SearchLiteralNode, dialect: SearchContext['dialect']) {
+function makeLikePattern(
+  node: SearchLiteralNode,
+  dialect: SearchContext['dialect'],
+) {
   const value = escapeLike(normalizeLegacyValue(node.value));
   if (node.type === 'phrase') return `% ${value} %`;
 
@@ -67,19 +72,33 @@ function makeLikePattern(node: SearchLiteralNode, dialect: SearchContext['dialec
   return `%${value}%`;
 }
 
-function compileLiteral(node: SearchLiteralNode, context: SearchContext, values: Array<string | number>) {
+function compileLiteral(
+  node: SearchLiteralNode,
+  context: SearchContext,
+  values: Array<string | number>,
+) {
   if (context.dialect === 'legacy-reference' && node.field) {
-    values.push(makeLikePattern({ ...node, value: node.sourceText, field: undefined }, context.dialect));
+    values.push(
+      makeLikePattern(
+        { ...node, value: node.sourceText, field: undefined },
+        context.dialect,
+      ),
+    );
     return "s.resumen LIKE ? ESCAPE '\\'";
   }
 
   const column = node.field ? LEGACY_TERM_COLUMNS[node.field] : 's.resumen';
-  if (!column) throw new Error(`Campo no permitido en adaptador SQLite: ${node.field}`);
+  if (!column)
+    throw new Error(`Campo no permitido en adaptador SQLite: ${node.field}`);
   values.push(makeLikePattern(node, context.dialect));
   return `${column} LIKE ? ESCAPE '\\'`;
 }
 
-function compileNode(node: SearchNode | null, context: SearchContext, values: Array<string | number>): string {
+function compileNode(
+  node: SearchNode | null,
+  context: SearchContext,
+  values: Array<string | number>,
+): string {
   if (!node) return '1 = 1';
 
   switch (node.type) {
@@ -95,20 +114,24 @@ function compileNode(node: SearchNode | null, context: SearchContext, values: Ar
   }
 }
 
-function compileFilters(context: SearchContext, values: Array<string | number>) {
+function compileFilters(
+  context: SearchContext,
+  values: Array<string | number>,
+) {
   const clauses = ['s.activo = 1', 't.activo = 1'];
-  if (context.publicationPolicy === 'published-active-only') clauses.push('s.publicado = 1');
+  if (context.publicationPolicy === 'published-active-only')
+    clauses.push('s.publicado = 1');
 
   if (context.filters?.sala) {
     clauses.push('t.sala = ?');
     values.push(context.filters.sala);
   }
   if (context.filters?.fechaDesde) {
-    clauses.push("date(t.fecha) >= date(?)");
+    clauses.push('date(t.fecha) >= date(?)');
     values.push(context.filters.fechaDesde);
   }
   if (context.filters?.fechaHastaExclusive) {
-    clauses.push("date(t.fecha) < date(?)");
+    clauses.push('date(t.fecha) < date(?)');
     values.push(context.filters.fechaHastaExclusive);
   }
   return clauses;
@@ -116,16 +139,24 @@ function compileFilters(context: SearchContext, values: Array<string | number>) 
 
 export class LegacySqliteSearchAdapter implements SearchSourceAdapter {
   constructor(private readonly databasePath: string) {
-    if (!databasePath.trim()) throw new Error('Se requiere una ruta explícita al fixture SQLite.');
+    if (!databasePath.trim())
+      throw new Error('Se requiere una ruta explícita al fixture SQLite.');
   }
 
-  async search(query: SearchQueryAst, context: SearchContext): Promise<SearchResultPage> {
+  async search(
+    query: SearchQueryAst,
+    context: SearchContext,
+  ): Promise<SearchResultPage> {
     const page = Math.max(1, Math.trunc(context.page ?? 1));
-    const pageSize = Math.min(300, Math.max(1, Math.trunc(context.pageSize ?? 25)));
+    const pageSize = Math.min(
+      300,
+      Math.max(1, Math.trunc(context.pageSize ?? 25)),
+    );
     const values: Array<string | number> = [];
     const where = compileFilters(context, values);
     where.push(compileNode(query.root, context, values));
-    const from = 'FROM tb_sumarios s INNER JOIN tb_sentencias t ON t.id_sentencia = s.id_sentencia';
+    const from =
+      'FROM tb_sumarios s INNER JOIN tb_sentencias t ON t.id_sentencia = s.id_sentencia';
     const predicate = where.join(' AND ');
     const countSql = `SELECT COUNT(*) AS total ${from} WHERE ${predicate}`;
     const rowValues = [...values, pageSize, (page - 1) * pageSize];
@@ -149,8 +180,15 @@ export class LegacySqliteSearchAdapter implements SearchSourceAdapter {
           sourceSystem: 'JURISPRUDENCIA' as const,
           sourceType: 'SUMARIO' as const,
           sourceId: String(row.id_sumario),
-          title: row.tema?.trim() || (row.numero_sumario === null ? null : `Sumario ${row.numero_sumario}`),
-          subtitle: row.numero_sumario === null ? null : `Sumario ${row.numero_sumario}`,
+          title:
+            row.tema?.trim() ||
+            (row.numero_sumario === null
+              ? null
+              : `Sumario ${row.numero_sumario}`),
+          subtitle:
+            row.numero_sumario === null
+              ? null
+              : `Sumario ${row.numero_sumario}`,
           date: row.fecha,
           snippet: null,
           matchedFields: ['resumen'],
@@ -166,7 +204,10 @@ export class LegacySqliteSearchAdapter implements SearchSourceAdapter {
   }
 
   /** Returns the complete legacy result-ID universe for parity/benchmark tooling. */
-  async searchIds(query: SearchQueryAst, context: SearchContext): Promise<string[]> {
+  async searchIds(
+    query: SearchQueryAst,
+    context: SearchContext,
+  ): Promise<string[]> {
     const values: Array<string | number> = [];
     const where = compileFilters(context, values);
     where.push(compileNode(query.root, context, values));

@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEquivalenciaNormativaDto } from './dto/create-equivalencia-normativa.dto';
 import { CreateNormaArticuloDto } from './dto/create-norma-articulo.dto';
@@ -13,16 +14,16 @@ import { UpdateNormaArticuloDto } from './dto/update-norma-articulo.dto';
 export class NormasService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private get client() {
-    return this.prisma as any;
-  }
-
   async findAll(query: QueryNormasDto) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
-    const where = {
-      ...(query.codigo && { codigo: { contains: query.codigo, mode: 'insensitive' } }),
-      ...(query.articulo && { articulo: { contains: query.articulo, mode: 'insensitive' } }),
+    const where: Prisma.NormaArticuloWhereInput = {
+      ...(query.codigo && {
+        codigo: { contains: query.codigo, mode: 'insensitive' },
+      }),
+      ...(query.articulo && {
+        articulo: { contains: query.articulo, mode: 'insensitive' },
+      }),
       ...(query.numeroNorma && {
         numeroNorma: { contains: query.numeroNorma, mode: 'insensitive' },
       }),
@@ -39,13 +40,17 @@ export class NormasService {
     };
 
     const [data, total] = await this.prisma.$transaction([
-      this.client.normaArticulo.findMany({
+      this.prisma.normaArticulo.findMany({
         where,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        orderBy: [{ codigo: 'asc' }, { numeroNorma: 'asc' }, { articulo: 'asc' }],
+        orderBy: [
+          { codigo: 'asc' },
+          { numeroNorma: 'asc' },
+          { articulo: 'asc' },
+        ],
       }),
-      this.client.normaArticulo.count({ where }),
+      this.prisma.normaArticulo.count({ where }),
     ]);
 
     return {
@@ -60,7 +65,7 @@ export class NormasService {
   }
 
   async findOne(id: number) {
-    const data = await this.client.normaArticulo.findUnique({
+    const data = await this.prisma.normaArticulo.findUnique({
       where: { id },
       include: {
         equivalenciasOrigen: {
@@ -82,13 +87,13 @@ export class NormasService {
   }
 
   async create(dto: CreateNormaArticuloDto) {
-    const data = await this.client.normaArticulo.create({ data: dto });
+    const data = await this.prisma.normaArticulo.create({ data: dto });
     return { data };
   }
 
   async update(id: number, dto: UpdateNormaArticuloDto) {
     await this.ensureNormaExists(id);
-    const data = await this.client.normaArticulo.update({
+    const data = await this.prisma.normaArticulo.update({
       where: { id },
       data: dto,
     });
@@ -97,7 +102,7 @@ export class NormasService {
 
   async remove(id: number) {
     await this.ensureNormaExists(id);
-    const data = await this.client.normaArticulo.update({
+    const data = await this.prisma.normaArticulo.update({
       where: { id },
       data: { vigente: false },
     });
@@ -106,7 +111,7 @@ export class NormasService {
 
   async findEquivalencias(id: number) {
     await this.ensureNormaExists(id);
-    const data = await this.client.equivalenciaNormativa.findMany({
+    const data = await this.prisma.equivalenciaNormativa.findMany({
       where: {
         OR: [{ articuloOrigenId: id }, { articuloDestinoId: id }],
       },
@@ -123,7 +128,7 @@ export class NormasService {
     await this.ensureNormaExists(id);
     await this.ensureNormaExists(dto.articuloDestinoId);
 
-    const exists = await this.client.equivalenciaNormativa.findFirst({
+    const exists = await this.prisma.equivalenciaNormativa.findFirst({
       where: {
         articuloOrigenId: id,
         articuloDestinoId: dto.articuloDestinoId,
@@ -136,7 +141,7 @@ export class NormasService {
       throw new BadRequestException('La equivalencia normativa ya existe');
     }
 
-    const data = await this.client.equivalenciaNormativa.create({
+    const data = await this.prisma.equivalenciaNormativa.create({
       data: {
         articuloOrigenId: id,
         articuloDestinoId: dto.articuloDestinoId,
@@ -153,7 +158,7 @@ export class NormasService {
   }
 
   async removeEquivalencia(id: number) {
-    const equivalencia = await this.client.equivalenciaNormativa.findUnique({
+    const equivalencia = await this.prisma.equivalenciaNormativa.findUnique({
       where: { id },
       select: { id: true },
     });
@@ -162,12 +167,12 @@ export class NormasService {
       throw new NotFoundException('Equivalencia normativa no encontrada');
     }
 
-    await this.client.equivalenciaNormativa.delete({ where: { id } });
+    await this.prisma.equivalenciaNormativa.delete({ where: { id } });
     return { data: { deleted: true } };
   }
 
   private async ensureNormaExists(id: number) {
-    const norma = await this.client.normaArticulo.findUnique({
+    const norma = await this.prisma.normaArticulo.findUnique({
       where: { id },
       select: { id: true },
     });

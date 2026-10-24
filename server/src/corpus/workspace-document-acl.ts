@@ -1,4 +1,7 @@
-import { Prisma, type WorkspaceVisibilityScope } from '@prisma/client';
+import {
+  Prisma,
+  type WorkspaceVisibilityScope,
+} from '../generated/prisma/client';
 import type { PrismaService } from '../prisma/prisma.service';
 
 export type WorkspaceDocumentAclScope =

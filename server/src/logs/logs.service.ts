@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueryLogsDto } from './dto/query-logs.dto';
 
@@ -43,7 +43,11 @@ function sanitizeForLog(value: unknown): unknown {
     return null;
   }
 
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
     return value;
   }
 
@@ -52,7 +56,7 @@ function sanitizeForLog(value: unknown): unknown {
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => sanitizeForLog(item) ?? null) as Prisma.InputJsonValue;
+    return value.map((item) => sanitizeForLog(item) ?? null);
   }
 
   if (typeof value === 'object') {
@@ -63,7 +67,11 @@ function sanitizeForLog(value: unknown): unknown {
     return Object.fromEntries(entries) as Prisma.InputJsonObject;
   }
 
-  return String(value);
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'symbol') return value.description ?? 'Symbol';
+  if (typeof value === 'function')
+    return `[Function ${value.name || 'anonymous'}]`;
+  return '[unsupported value]';
 }
 
 @Injectable()
@@ -95,9 +103,11 @@ export class LogsService {
         findUnique: (args: {
           where: { id: number };
           include?: Record<string, unknown>;
-        }) => Promise<unknown | null>;
+        }) => Promise<unknown>;
       };
-      $transaction: (args: [Promise<unknown[]>, Promise<number>]) => Promise<[unknown[], number]>;
+      $transaction: (
+        args: [Promise<unknown[]>, Promise<number>],
+      ) => Promise<[unknown[], number]>;
     };
   }
 
@@ -109,8 +119,10 @@ export class LogsService {
         entidadId: input.entidadId ?? null,
         accion: input.accion,
         descripcion: input.descripcion,
-        datosAntes: sanitizeForLog(input.datosAntes) as Prisma.InputJsonValue | undefined,
-        datosDespues: sanitizeForLog(input.datosDespues) as Prisma.InputJsonValue | undefined,
+        datosAntes: sanitizeForLog(input.datosAntes) as
+          Prisma.InputJsonValue | undefined,
+        datosDespues: sanitizeForLog(input.datosDespues) as
+          Prisma.InputJsonValue | undefined,
       },
     });
   }
@@ -153,26 +165,78 @@ export class LogsService {
   }
 
   async exportCsv(query: QueryLogsDto) {
-    const rows = await this.client.accionLog.findMany({
+    const rows = (await this.client.accionLog.findMany({
       where: this.buildWhere(query),
       take: 5000,
       orderBy: { createdAt: 'desc' },
-      include: { usuario: { select: { id: true, nombre: true, apellido: true, email: true, rol: { select: { nombre: true } } } } },
-    }) as Array<Record<string, unknown>>;
-    const columns = ['id', 'createdAt', 'usuario', 'email', 'rol', 'entidad', 'entidadId', 'accion', 'descripcion', 'datosAntes', 'datosDespues'];
-    const lines = [columns.map(csvCell).join(','), ...rows.map((row) => {
-      const user = row.usuario as { nombre?: string; apellido?: string | null; email?: string; rol?: { nombre?: string } } | undefined;
-      const values = [row.id, row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt, [user?.nombre, user?.apellido].filter(Boolean).join(' '), user?.email, user?.rol?.nombre, row.entidad, row.entidadId, row.accion, row.descripcion, row.datosAntes, row.datosDespues];
-      return values.map(csvCell).join(',');
-    })];
+      include: {
+        usuario: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+            email: true,
+            rol: { select: { nombre: true } },
+          },
+        },
+      },
+    })) as Array<Record<string, unknown>>;
+    const columns = [
+      'id',
+      'createdAt',
+      'usuario',
+      'email',
+      'rol',
+      'entidad',
+      'entidadId',
+      'accion',
+      'descripcion',
+      'datosAntes',
+      'datosDespues',
+    ];
+    const lines = [
+      columns.map(csvCell).join(','),
+      ...rows.map((row) => {
+        const user = row.usuario as
+          | {
+              nombre?: string;
+              apellido?: string | null;
+              email?: string;
+              rol?: { nombre?: string };
+            }
+          | undefined;
+        const values = [
+          row.id,
+          row.createdAt instanceof Date
+            ? row.createdAt.toISOString()
+            : row.createdAt,
+          [user?.nombre, user?.apellido].filter(Boolean).join(' '),
+          user?.email,
+          user?.rol?.nombre,
+          row.entidad,
+          row.entidadId,
+          row.accion,
+          row.descripcion,
+          row.datosAntes,
+          row.datosDespues,
+        ];
+        return values.map(csvCell).join(',');
+      }),
+    ];
     return `${lines.join('\r\n')}\r\n`;
   }
 
   private buildWhere(query: QueryLogsDto) {
-    const documentFilter = query.documentId ? { OR: [
-      { datosAntes: { path: ['documentId'], equals: query.documentId } },
-      { datosDespues: { path: ['documentId'], equals: query.documentId } },
-    ] } : undefined;
+    const documentFilter = query.documentId
+      ? {
+          OR: [
+            { datosAntes: { path: ['documentId'], equals: query.documentId } },
+            {
+              datosDespues: { path: ['documentId'], equals: query.documentId },
+            },
+          ],
+        }
+      : undefined;
     return {
       ...(query.usuarioId && { usuarioId: query.usuarioId }),
       ...(query.entidad && { entidad: query.entidad }),
@@ -230,20 +294,29 @@ export class LogsService {
       take: 2000,
     })) as LogRow[];
 
-    const data = rows.filter((row) => this.belongsToSentencia(row, sentenciaId));
+    const data = rows.filter((row) =>
+      this.belongsToSentencia(row, sentenciaId),
+    );
     return { data };
   }
 
   private belongsToSentencia(row: LogRow, sentenciaId: number) {
-    if (row.entidadId === sentenciaId && ['SENTENCIA', 'RESEÑA'].includes(row.entidad)) {
+    if (
+      row.entidadId === sentenciaId &&
+      ['SENTENCIA', 'RESEÑA'].includes(row.entidad)
+    ) {
       return true;
     }
 
     const candidates = [row.datosAntes, row.datosDespues];
-    return candidates.some((payload) => this.extractSentenciaId(payload) === sentenciaId);
+    return candidates.some(
+      (payload) => this.extractSentenciaId(payload) === sentenciaId,
+    );
   }
 
-  private extractSentenciaId(payload?: Record<string, unknown> | null): number | null {
+  private extractSentenciaId(
+    payload?: Record<string, unknown> | null,
+  ): number | null {
     if (!payload || typeof payload !== 'object') {
       return null;
     }
@@ -266,7 +339,26 @@ export class LogsService {
 }
 
 function csvCell(value: unknown) {
-  const raw = value instanceof Date ? value.toISOString() : value && typeof value === 'object' ? JSON.stringify(value) : String(value ?? '');
+  let raw: string;
+  if (value instanceof Date) {
+    raw = value.toISOString();
+  } else if (value === null || value === undefined) {
+    raw = '';
+  } else if (typeof value === 'string') {
+    raw = value;
+  } else if (
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  ) {
+    raw = String(value);
+  } else if (typeof value === 'symbol') {
+    raw = value.description ?? '';
+  } else if (typeof value === 'function') {
+    raw = `[Function ${value.name || 'anonymous'}]`;
+  } else {
+    raw = JSON.stringify(value) ?? '';
+  }
   const safe = /^[=+@-]/u.test(raw) ? `'${raw}` : raw;
   return `"${safe.replace(/"/gu, '""')}"`;
 }

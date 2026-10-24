@@ -13,14 +13,18 @@ export type PdfRealInfo = {
 };
 
 export function archivoPdfEsReal(archivo?: ArchivoPdfLike | null) {
-  return Boolean(archivo?.rutaArchivo?.trim() && existsSync(archivo.rutaArchivo));
+  return Boolean(
+    archivo?.rutaArchivo?.trim() && existsSync(archivo.rutaArchivo),
+  );
 }
 
 export function obtenerPdfsReales<T extends ArchivoPdfLike>(archivos: T[]) {
   return archivos.filter((archivo) => archivoPdfEsReal(archivo));
 }
 
-export function sentenciaTienePdfReal<T extends ArchivoPdfLike>(archivos: T[]): PdfRealInfo {
+export function sentenciaTienePdfReal<T extends ArchivoPdfLike>(
+  archivos: T[],
+): PdfRealInfo {
   const reales = obtenerPdfsReales(archivos);
 
   return {

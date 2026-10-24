@@ -82,7 +82,12 @@ type GoldenQueryCase = {
 
 function buildGoldenQueryCases(documentIds: string[]): GoldenQueryCase[] {
   const cases: GoldenQueryCase[] = [];
-  const add = (id: string, query: string, expected: number[], notes: string) => {
+  const add = (
+    id: string,
+    query: string,
+    expected: number[],
+    notes: string,
+  ) => {
     const expectedDocumentIds = expected
       .map((index) => documentIds[index])
       .sort();
@@ -102,31 +107,112 @@ function buildGoldenQueryCases(documentIds: string[]): GoldenQueryCase[] {
     const token = `zzsprintgoldtoken${alphaCode(index)}`;
     const expected = documentIds
       .map((_, documentIndex) => documentIndex)
-      .filter((documentIndex) =>
-        ((index * 7 + documentIndex * 5) % 12) < 1 + (index % 5),
+      .filter(
+        (documentIndex) =>
+          (index * 7 + documentIndex * 5) % 12 < 1 + (index % 5),
       );
-    add(`G-${String(index + 1).padStart(3, '0')}`, token, expected, 'Unique synthetic TERM token; exact generated set.');
+    add(
+      `G-${String(index + 1).padStart(3, '0')}`,
+      token,
+      expected,
+      'Unique synthetic TERM token; exact generated set.',
+    );
   }
 
-  add('C-TERM', 'zzsprresponsabilidad', [0, 1, 4, 6, 8, 9], 'TERM has exact synthetic result set.');
-  add('C-CASE', 'ZZSPRRESPONSABILIDAD', [0, 1, 4, 6, 8, 9], 'Case insensitive.');
+  add(
+    'C-TERM',
+    'zzsprresponsabilidad',
+    [0, 1, 4, 6, 8, 9],
+    'TERM has exact synthetic result set.',
+  );
+  add(
+    'C-CASE',
+    'ZZSPRRESPONSABILIDAD',
+    [0, 1, 4, 6, 8, 9],
+    'Case insensitive.',
+  );
   add('C-ACCENT', 'zzspracción', [0, 1, 5], 'Vowel accent folding.');
-  add('C-ACCENT-FOLDED', 'zzspraccion', [0, 1, 5], 'Unaccented query equals accented query.');
+  add(
+    'C-ACCENT-FOLDED',
+    'zzspraccion',
+    [0, 1, 5],
+    'Unaccented query equals accented query.',
+  );
   add('C-ENYE', 'zzsprniño', [0, 2], 'Ñ remains distinct from n.');
   add('C-N', 'zzsprnino', [1, 3], 'N is not folded to ñ.');
   add('C-AND', 'zzspraccion * zzsprcivil', [0, 1, 5], 'AND intersection.');
-  add('C-OR', 'zzspraccion + zzsprpenal', [0, 1, 5, 6], 'OR union without duplicate IDs.');
-  add('C-NOT', 'zzsprresponsabilidad - zzsprpenal', [0, 1, 4, 8, 9], 'Exclusion removes matching penal record.');
-  add('C-PRECEDENCE', 'zzspraccion + zzsprresponsabilidad * zzsprpenal', [0, 1, 5, 6], 'NOT > AND > OR contract; AND binds before OR.');
-  add('C-PARENS', '(zzspraccion + zzsprresponsabilidad) * zzsprpenal', [6], 'Parentheses override precedence.');
-  add('C-PHRASE', '"zzsprresponsabilidad zzsprcivil"', [0, 1, 4, 8], 'Adjacent phrase excludes inserted punctuation.');
-  add('C-PHRASE-LINE', '"zzsprlinebreak line break"', [10], 'Whitespace normalization keeps a line break searchable.');
-  add('C-PREFIX', 'zzsprrespons%', [0, 1, 4, 6, 8, 9], 'Prefix searches a token start.');
-  add('C-SUFFIX', '%zzsprresponsabilidad', [0, 1, 4, 6, 8, 9], 'Suffix searches a token end.');
-  add('C-NUMBER', 'zzsprciv12345', [11], 'Numeric and case identifier text is searchable.');
-  add('C-REPEAT-AND', 'zzspraccion * zzspraccion', [0, 1, 5], 'Repeated AND term never duplicates result IDs.');
-  add('C-REPEAT-OR', 'zzspraccion + zzspraccion', [0, 1, 5], 'Repeated OR term never duplicates result IDs.');
-  add('C-WS', '  zzsprresponsabilidad\t ', [0, 1, 4, 6, 8, 9], 'Leading, trailing, and tab whitespace normalization.');
+  add(
+    'C-OR',
+    'zzspraccion + zzsprpenal',
+    [0, 1, 5, 6],
+    'OR union without duplicate IDs.',
+  );
+  add(
+    'C-NOT',
+    'zzsprresponsabilidad - zzsprpenal',
+    [0, 1, 4, 8, 9],
+    'Exclusion removes matching penal record.',
+  );
+  add(
+    'C-PRECEDENCE',
+    'zzspraccion + zzsprresponsabilidad * zzsprpenal',
+    [0, 1, 5, 6],
+    'NOT > AND > OR contract; AND binds before OR.',
+  );
+  add(
+    'C-PARENS',
+    '(zzspraccion + zzsprresponsabilidad) * zzsprpenal',
+    [6],
+    'Parentheses override precedence.',
+  );
+  add(
+    'C-PHRASE',
+    '"zzsprresponsabilidad zzsprcivil"',
+    [0, 1, 4, 8],
+    'Adjacent phrase excludes inserted punctuation.',
+  );
+  add(
+    'C-PHRASE-LINE',
+    '"zzsprlinebreak line break"',
+    [10],
+    'Whitespace normalization keeps a line break searchable.',
+  );
+  add(
+    'C-PREFIX',
+    'zzsprrespons%',
+    [0, 1, 4, 6, 8, 9],
+    'Prefix searches a token start.',
+  );
+  add(
+    'C-SUFFIX',
+    '%zzsprresponsabilidad',
+    [0, 1, 4, 6, 8, 9],
+    'Suffix searches a token end.',
+  );
+  add(
+    'C-NUMBER',
+    'zzsprciv12345',
+    [11],
+    'Numeric and case identifier text is searchable.',
+  );
+  add(
+    'C-REPEAT-AND',
+    'zzspraccion * zzspraccion',
+    [0, 1, 5],
+    'Repeated AND term never duplicates result IDs.',
+  );
+  add(
+    'C-REPEAT-OR',
+    'zzspraccion + zzspraccion',
+    [0, 1, 5],
+    'Repeated OR term never duplicates result IDs.',
+  );
+  add(
+    'C-WS',
+    '  zzsprresponsabilidad\t ',
+    [0, 1, 4, 6, 8, 9],
+    'Leading, trailing, and tab whitespace normalization.',
+  );
 
   return cases;
 }
@@ -151,8 +237,12 @@ describe('Sprint 15.5 Search golden PostgreSQL certification', () => {
     const goldenTokensByDocument = ids.map(() => [] as string[]);
     for (let tokenIndex = 0; tokenIndex < 300; tokenIndex += 1) {
       const token = `zzsprintgoldtoken${alphaCode(tokenIndex)}`;
-      for (let documentIndex = 0; documentIndex < ids.length; documentIndex += 1) {
-        if (((tokenIndex * 7 + documentIndex * 5) % 12) < 1 + (tokenIndex % 5)) {
+      for (
+        let documentIndex = 0;
+        documentIndex < ids.length;
+        documentIndex += 1
+      ) {
+        if ((tokenIndex * 7 + documentIndex * 5) % 12 < 1 + (tokenIndex % 5)) {
           goldenTokensByDocument[documentIndex].push(token);
         }
       }
@@ -167,7 +257,10 @@ describe('Sprint 15.5 Search golden PostgreSQL certification', () => {
         visibility: 'INTERNAL',
         documentScope: 'GENERAL' as const,
         status: 'INDEXED',
-        searchText: normalizeSearchText(document.text, ...goldenTokensByDocument[index]),
+        searchText: normalizeSearchText(
+          document.text,
+          ...goldenTokensByDocument[index],
+        ),
         decisionDate: null,
         createdAt: fixedTimestamp,
         updatedAt: fixedTimestamp,
@@ -193,7 +286,9 @@ describe('Sprint 15.5 Search golden PostgreSQL certification', () => {
   afterAll(async () => {
     if (source) await source.close();
     if (documentIds.length) {
-      await prisma.corpusDocument.deleteMany({ where: { id: { in: documentIds } } });
+      await prisma.corpusDocument.deleteMany({
+        where: { id: { in: documentIds } },
+      });
     }
     await prisma.$disconnect();
   });
@@ -209,7 +304,7 @@ describe('Sprint 15.5 Search golden PostgreSQL certification', () => {
 
       for (const testCase of cases) {
         const startedAt = performance.now();
-        let result;
+        let result: Awaited<ReturnType<CorpusSearchSourceAdapter['search']>>;
         try {
           result = await source.search(parseSearchQuery(testCase.query), {
             visibility: 'INTERNAL',
@@ -220,7 +315,9 @@ describe('Sprint 15.5 Search golden PostgreSQL certification', () => {
             sourceSystems: ['CORPUS'],
           });
         } catch (error) {
-          console.error(`SPRINT155_GOLDEN_QUERY_FAILURE=${JSON.stringify({ id: testCase.id, query: testCase.query })}`);
+          console.error(
+            `SPRINT155_GOLDEN_QUERY_FAILURE=${JSON.stringify({ id: testCase.id, query: testCase.query })}`,
+          );
           throw error;
         }
         const elapsedMs = Number((performance.now() - startedAt).toFixed(2));
@@ -228,8 +325,10 @@ describe('Sprint 15.5 Search golden PostgreSQL certification', () => {
         const actualIds = result.results.map((row) => row.sourceId).sort();
         const orderedIds = result.results.map((row) => row.sourceId);
         const passed =
-          JSON.stringify(actualIds) === JSON.stringify(testCase.expectedDocumentIds) &&
-          JSON.stringify(orderedIds) === JSON.stringify(testCase.expectedOrdering) &&
+          JSON.stringify(actualIds) ===
+            JSON.stringify(testCase.expectedDocumentIds) &&
+          JSON.stringify(orderedIds) ===
+            JSON.stringify(testCase.expectedOrdering) &&
           result.total === testCase.expectedDocumentIds.length &&
           result.totalExact === true;
         const record = {
@@ -250,49 +349,74 @@ describe('Sprint 15.5 Search golden PostgreSQL certification', () => {
         if (!passed) failures.push(record);
       }
 
-      const artifactRoot = path.resolve(process.cwd(), '../_recovery-work/sprint155');
+      const artifactRoot = path.resolve(
+        process.cwd(),
+        '../_recovery-work/sprint155',
+      );
       await mkdir(artifactRoot, { recursive: true });
       await writeFile(
         path.join(artifactRoot, 'golden-suite-results.json'),
-        `${JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          suite: 'Sprint 15.5 Search PostgreSQL golden suite',
-          deterministicQueryCount: 300,
-          totalCaseCount: cases.length,
-          passed: results.filter((row) => row.passed).length,
-          failed: failures.length,
-          failures,
-          queryTimingsMs: {
-            p50: percentile(queryTimings, 0.5),
-            p95: percentile(queryTimings, 0.95),
-            max: Math.max(...queryTimings),
+        `${JSON.stringify(
+          {
+            generatedAt: new Date().toISOString(),
+            suite: 'Sprint 15.5 Search PostgreSQL golden suite',
+            deterministicQueryCount: 300,
+            totalCaseCount: cases.length,
+            passed: results.filter((row) => row.passed).length,
+            failed: failures.length,
+            failures,
+            queryTimingsMs: {
+              p50: percentile(queryTimings, 0.5),
+              p95: percentile(queryTimings, 0.95),
+              max: Math.max(...queryTimings),
+            },
+            cases: results,
           },
-          cases: results,
-        }, null, 2)}\n`,
+          null,
+          2,
+        )}\n`,
         'utf8',
       );
 
-      expect(new Set(cases.map((testCase) => testCase.query)).size).toBe(300 + 19);
+      expect(new Set(cases.map((testCase) => testCase.query)).size).toBe(
+        300 + 19,
+      );
       expect(failures).toEqual([]);
       expect(results.filter((row) => row.passed)).toHaveLength(300 + 19);
 
       const paginationQuery = parseSearchQuery('zzsprpagination');
       const first = await source.search(paginationQuery, {
-        visibility: 'INTERNAL', dialect: 'modern', publicationPolicy: 'published-active-only',
-        page: 1, pageSize: 100, sourceSystems: ['CORPUS'],
+        visibility: 'INTERNAL',
+        dialect: 'modern',
+        publicationPolicy: 'published-active-only',
+        page: 1,
+        pageSize: 100,
+        sourceSystems: ['CORPUS'],
       });
       const pages = [first];
       for (const page of [2, 3, 4]) {
-        pages.push(await source.search(paginationQuery, {
-          visibility: 'INTERNAL', dialect: 'modern', publicationPolicy: 'published-active-only',
-          page, pageSize: 100, sourceSystems: ['CORPUS'],
-        }));
+        pages.push(
+          await source.search(paginationQuery, {
+            visibility: 'INTERNAL',
+            dialect: 'modern',
+            publicationPolicy: 'published-active-only',
+            page,
+            pageSize: 100,
+            sourceSystems: ['CORPUS'],
+          }),
+        );
       }
       const outOfRange = await source.search(paginationQuery, {
-        visibility: 'INTERNAL', dialect: 'modern', publicationPolicy: 'published-active-only',
-        page: 5, pageSize: 100, sourceSystems: ['CORPUS'],
+        visibility: 'INTERNAL',
+        dialect: 'modern',
+        publicationPolicy: 'published-active-only',
+        page: 5,
+        pageSize: 100,
+        sourceSystems: ['CORPUS'],
       });
-      const pageIds = pages.flatMap((page) => page.results.map((row) => row.sourceId));
+      const pageIds = pages.flatMap((page) =>
+        page.results.map((row) => row.sourceId),
+      );
       const expectedPaginationIds = [...paginationIds].sort();
       const pagination = {
         datasetHits: paginationIds.length,
@@ -309,7 +433,8 @@ describe('Sprint 15.5 Search golden PostgreSQL certification', () => {
         returnedUnion: pageIds,
         duplicates: pageIds.length - new Set(pageIds).size,
         missing: expectedPaginationIds.filter((id) => !pageIds.includes(id)),
-        stableOrdering: JSON.stringify(pageIds) === JSON.stringify(expectedPaginationIds),
+        stableOrdering:
+          JSON.stringify(pageIds) === JSON.stringify(expectedPaginationIds),
         outOfRange: {
           page: outOfRange.page,
           returned: outOfRange.results.length,
@@ -325,7 +450,9 @@ describe('Sprint 15.5 Search golden PostgreSQL certification', () => {
       expect(pageIds).toEqual(expectedPaginationIds);
       expect(pagination.duplicates).toBe(0);
       expect(pagination.missing).toEqual([]);
-      expect(pages.map((page) => [page.total, page.totalExact, page.hasMore])).toEqual([
+      expect(
+        pages.map((page) => [page.total, page.totalExact, page.hasMore]),
+      ).toEqual([
         [101, false, true],
         [201, false, true],
         [301, false, true],
@@ -341,5 +468,7 @@ describe('Sprint 15.5 Search golden PostgreSQL certification', () => {
 function percentile(values: number[], fraction: number) {
   if (!values.length) return 0;
   const ordered = [...values].sort((left, right) => left - right);
-  return ordered[Math.min(ordered.length - 1, Math.ceil(ordered.length * fraction) - 1)];
+  return ordered[
+    Math.min(ordered.length - 1, Math.ceil(ordered.length * fraction) - 1)
+  ];
 }

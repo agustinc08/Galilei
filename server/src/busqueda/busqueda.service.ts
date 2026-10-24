@@ -5,7 +5,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { performance } from 'node:perf_hooks';
 import { PrismaService } from '../prisma/prisma.service';
 import {

@@ -29,7 +29,9 @@ export interface DocumentSourceAdapter {
 
 export class ManualFixtureSourceAdapter implements DocumentSourceAdapter {
   constructor(private readonly documents: DiscoveredDocument[]) {}
-  async discover() { return [...this.documents]; }
+  discover(): Promise<DiscoveredDocument[]> {
+    return Promise.resolve([...this.documents]);
+  }
 }
 
 /** Explicit one-shot scan. Symlinks are ignored and folder names remain provenance only. */
@@ -41,21 +43,35 @@ export class LocalFolderDocumentSourceAdapter implements DocumentSourceAdapter {
     const result: DiscoveredDocument[] = [];
     const visit = async (directory: string): Promise<void> => {
       const entries = await readdir(directory, { withFileTypes: true });
-      for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      for (const entry of entries.sort((a, b) =>
+        a.name.localeCompare(b.name),
+      )) {
         const fullPath = path.join(directory, entry.name);
         if (entry.isSymbolicLink()) continue;
-        if (entry.isDirectory()) { await visit(fullPath); continue; }
+        if (entry.isDirectory()) {
+          await visit(fullPath);
+          continue;
+        }
         if (!entry.isFile() || !/\.(pdf|txt)$/iu.test(entry.name)) continue;
         const fileStat = await stat(fullPath);
-        const relative = path.relative(root, fullPath).split(path.sep).join('/');
+        const relative = path
+          .relative(root, fullPath)
+          .split(path.sep)
+          .join('/');
         result.push({
           filename: entry.name,
           sourcePath: relative,
           externalId: relative,
           content: await readFile(fullPath),
-          mimeType: path.extname(entry.name).toLowerCase() === '.pdf' ? 'application/pdf' : 'text/plain',
+          mimeType:
+            path.extname(entry.name).toLowerCase() === '.pdf'
+              ? 'application/pdf'
+              : 'text/plain',
           title: path.basename(entry.name, path.extname(entry.name)),
-          metadataOriginal: { relativePath: relative, sizeBytes: fileStat.size },
+          metadataOriginal: {
+            relativePath: relative,
+            sizeBytes: fileStat.size,
+          },
         });
       }
     };

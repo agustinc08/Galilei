@@ -6,9 +6,12 @@ describe('search highlights and Spanish normalization', () => {
   });
 
   it('highlights vowel-accent variants while preserving source text', () => {
-    expect(buildHighlight('tema', 'Responsabilidad por prescripción', ['prescripcion'])).toMatchObject({
-      campo: 'tema',
-      texto: expect.stringContaining('<mark>prescripción</mark>'),
-    });
+    const highlight = buildHighlight(
+      'tema',
+      'Responsabilidad por prescripción',
+      ['prescripcion'],
+    );
+    expect(highlight?.campo).toBe('tema');
+    expect(highlight?.texto).toContain('<mark>prescripción</mark>');
   });
 });

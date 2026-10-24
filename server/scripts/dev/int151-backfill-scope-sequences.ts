@@ -6,7 +6,7 @@ import { OpenSearchDocumentRepository } from '../../src/busqueda/opensearch/open
 import { phraseSequence } from '../../src/busqueda/opensearch/opensearch-mapping';
 
 const index = 'galilei-search-v003-20261017t232432555z-a6af18cb';
-const v1 = 'galilei-search-v001-20261016t162707813z-1dbe2406';
+const activeV4 = 'galilei-search-v004-20261020t094732495z-6015e394';
 const PAGE_SIZE = 5;
 const outputPath = resolve(
   process.cwd(),
@@ -49,7 +49,7 @@ async function main() {
       await client.indices.getAlias({ name: 'galilei-search-int151-cert' }),
     );
     aliasBefore = Object.keys(mainAlias).join(',');
-    if (aliasBefore !== v1 || Object.keys(certAlias).join(',') !== index)
+    if (aliasBefore !== activeV4 || Object.keys(certAlias).join(',') !== index)
       throw new Error('ALIAS_PRECONDITION_FAILED');
     const backlog = await repository.outboxStatus();
     if (backlog.pending || backlog.failed)
@@ -179,7 +179,7 @@ async function main() {
       pass:
         scanned === 69313 &&
         countAfter.count === 69313 &&
-        aliasAfter === v1 &&
+        aliasAfter === activeV4 &&
         backlogAfter.pending === 0 &&
         backlogAfter.failed === 0,
     };

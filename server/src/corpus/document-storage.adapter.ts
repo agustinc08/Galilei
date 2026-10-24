@@ -1,9 +1,20 @@
 import { createHash } from 'node:crypto';
-import { access, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import {
+  access,
+  mkdir,
+  readFile,
+  rename,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
 
-export type StoredDocument = { storageKey: string; sha256: string; sizeBytes: number };
+export type StoredDocument = {
+  storageKey: string;
+  sha256: string;
+  sizeBytes: number;
+};
 
 export interface DocumentStorageAdapter {
   put(filename: string, content: Buffer): Promise<StoredDocument>;
@@ -13,27 +24,41 @@ export interface DocumentStorageAdapter {
 
 export class LocalDocumentStorageAdapter implements DocumentStorageAdapter {
   readonly root: string;
-  constructor(root = process.env.BJC_CORPUS_STORAGE_PATH || path.resolve(process.cwd(), '../_dev-corpus-storage')) {
+  constructor(
+    root = process.env.BJC_CORPUS_STORAGE_PATH ||
+      path.resolve(process.cwd(), '../_dev-corpus-storage'),
+  ) {
     this.root = path.resolve(root);
   }
 
   async put(filename: string, content: Buffer): Promise<StoredDocument> {
     const sha256 = createHash('sha256').update(content).digest('hex');
-    const ext = path.extname(filename).toLowerCase().replace(/[^.a-z0-9]/gu, '').slice(0, 11) || '.bin';
+    const ext =
+      path
+        .extname(filename)
+        .toLowerCase()
+        .replace(/[^.a-z0-9]/gu, '')
+        .slice(0, 11) || '.bin';
     const storageKey = `${sha256.slice(0, 2)}/${sha256}${ext}`;
     const target = this.resolveKey(storageKey);
     await mkdir(path.dirname(target), { recursive: true });
     try {
       const existing = await readFile(target);
       const existingHash = createHash('sha256').update(existing).digest('hex');
-      if (existingHash !== sha256) throw new Error(`Storage integrity failure for ${storageKey}.`);
+      if (existingHash !== sha256)
+        throw new Error(`Storage integrity failure for ${storageKey}.`);
     } catch {
       const temporary = `${target}.${process.pid}.${Date.now()}.tmp`;
       await writeFile(temporary, content, { flag: 'wx' });
-      try { await rename(temporary, target); }
-      catch (error) {
+      try {
+        await rename(temporary, target);
+      } catch (error) {
         // A concurrent writer may have committed the same content-addressed key.
-        try { await readFile(target); } catch { throw error; }
+        try {
+          await readFile(target);
+        } catch {
+          throw error;
+        }
       }
     }
     return { storageKey, sha256, sizeBytes: content.byteLength };
@@ -59,7 +84,8 @@ export class LocalDocumentStorageAdapter implements DocumentStorageAdapter {
       throw new Error('Storage key inválida.');
     }
     const target = path.resolve(this.root, storageKey);
-    if (!target.startsWith(`${this.root}${path.sep}`)) throw new Error('Storage key fuera de la raíz permitida.');
+    if (!target.startsWith(`${this.root}${path.sep}`))
+      throw new Error('Storage key fuera de la raíz permitida.');
     return target;
   }
 }

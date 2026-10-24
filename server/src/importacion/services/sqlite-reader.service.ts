@@ -84,7 +84,9 @@ export class SqliteReaderService {
 
   async hasColumn(tableName: string, columnCandidates: string[]) {
     const columns = await this.getColumns(tableName);
-    const lower = new Map(columns.map((column) => [column.toLowerCase(), column]));
+    const lower = new Map(
+      columns.map((column) => [column.toLowerCase(), column]),
+    );
 
     for (const candidate of columnCandidates) {
       const match = lower.get(candidate.toLowerCase());
@@ -145,5 +147,4 @@ export class SqliteReaderService {
       offset += batchSize;
     }
   }
-
 }

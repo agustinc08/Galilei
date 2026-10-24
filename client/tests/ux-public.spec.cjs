@@ -115,7 +115,7 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
 
       await page.getByRole('link', { name: 'Ver fallo', exact: true }).first().click();
       await expect(page).toHaveURL(/\/fallos\/ux-qa-001(?:\?|$)/u);
-      await expect(page.getByRole('heading', { name: /Pérez c\/ Gutiérrez/u })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Pérez c/ Gutiérrez s/ daños', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Ocultar panel', exact: true })).toBeVisible();
       await expect(page.getByLabel('Página')).toBeVisible();
       await expect(page.getByLabel('Zoom')).toBeVisible();

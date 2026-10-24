@@ -1,6 +1,9 @@
 import { defineConfig } from '@playwright/test';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import paths from './paths.cjs';
+
+const configDir = path.dirname(fileURLToPath(import.meta.url));
 
 const baseURL = process.env.UX_QA_BASE_URL;
 
@@ -13,17 +16,18 @@ if (!['127.0.0.1', 'localhost', '::1'].includes(baseHost)) {
 }
 
 export default defineConfig({
-  testDir: path.resolve(__dirname, '../tests'),
+  testDir: path.resolve(configDir, '../tests'),
   testMatch: 'ux-*.spec.cjs',
   fullyParallel: false,
   workers: 1,
   timeout: 45_000,
   expect: { timeout: 10_000 },
   outputDir: paths.playwrightOutputDir,
-  reporter: [['list'], [path.resolve(__dirname, 'reporter.cjs')]],
+  reporter: [['list'], [path.resolve(configDir, 'reporter.cjs')]],
   use: {
     baseURL,
     browserName: 'chromium',
+    channel: 'msedge',
     headless: true,
     reducedMotion: 'reduce',
     deviceScaleFactor: 1,

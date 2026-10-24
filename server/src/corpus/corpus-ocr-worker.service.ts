@@ -5,7 +5,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { createHash } from 'node:crypto';
 import {
   LocalDocumentProcessingError,
@@ -45,7 +45,8 @@ type OcrJobClaim = { id: string };
 @Injectable()
 export class CorpusOcrWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CorpusOcrWorkerService.name);
-  private readonly queueName = process.env.BJC_OCR_QUEUE_NAME?.trim() || 'default';
+  private readonly queueName =
+    process.env.BJC_OCR_QUEUE_NAME?.trim() || 'default';
   private timer: NodeJS.Timeout | undefined;
   private recoveryTimer: NodeJS.Timeout | undefined;
   private working = false;

@@ -321,7 +321,7 @@ async function openSearchReference(
     dateRange,
   });
   const response = await client.search({
-    index,
+    index: [index],
     request_cache: false,
     body: {
       from: page?.from ?? 0,

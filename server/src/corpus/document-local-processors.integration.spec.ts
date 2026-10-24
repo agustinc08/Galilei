@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PDFParse } from 'pdf-parse';
 import {
   LibreOfficeLegacyDocExtractor,
@@ -10,7 +11,10 @@ import {
 } from './document-local-processors';
 import { BasicDocumentTextExtractor } from './document-text-extractor';
 
-const fixtureDir = path.join(__dirname, 'fixtures');
+const fixtureDir = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  'fixtures',
+);
 const tempDir = path.join(os.tmpdir(), `galilei-sprint154a1-${process.pid}`);
 const baseConfig = resolveLocalProcessorConfig();
 const processor = new LocalPdfOcrProcessor({

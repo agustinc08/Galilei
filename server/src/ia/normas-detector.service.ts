@@ -18,7 +18,9 @@ export class NormasDetectorService {
 
     const detectadas: NormaDetectada[] = [];
     const context = (index: number) =>
-      source.slice(Math.max(0, index - 80), Math.min(source.length, index + 160)).trim();
+      source
+        .slice(Math.max(0, index - 80), Math.min(source.length, index + 160))
+        .trim();
 
     const articuloRegex =
       /\b(?:arts?\.?|articulos?|artículos?)\s+([0-9]{1,5})(?:\s*(?:,|y)\s*([0-9]{1,5}))?(?:\s+inc\.?\s*([0-9a-zA-Z]+))?(?:\s+(CCyC|CPCCN|Cód(?:igo)?\.?\s+Civil\s+y\s+Comercial|Código\s+Civil\s+y\s+Comercial|Código\s+Procesal\s+Civil\s+y\s+Comercial\s+de\s+la\s+Nación))?/giu;
@@ -60,11 +62,17 @@ export class NormasDetectorService {
     if (!value) {
       return 'NORMA';
     }
-    const normalized = value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+    const normalized = value
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase();
     if (normalized.includes('cpccn') || normalized.includes('procesal')) {
       return 'CPCCN';
     }
-    if (normalized.includes('ccyc') || normalized.includes('civil y comercial')) {
+    if (
+      normalized.includes('ccyc') ||
+      normalized.includes('civil y comercial')
+    ) {
       return 'CCyC';
     }
     return value.trim();
@@ -73,7 +81,12 @@ export class NormasDetectorService {
   private unique(items: NormaDetectada[]) {
     const seen = new Set<string>();
     return items.filter((item) => {
-      const key = [item.tipoNorma, item.numeroNorma ?? '', item.articulo ?? '', item.inciso ?? ''].join('|');
+      const key = [
+        item.tipoNorma,
+        item.numeroNorma ?? '',
+        item.articulo ?? '',
+        item.inciso ?? '',
+      ].join('|');
       if (seen.has(key)) {
         return false;
       }

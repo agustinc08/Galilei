@@ -1,5 +1,5 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/client';
 import { Pool } from 'pg';
 import { getRuntimeDatabasePoolConfig } from '../config/runtime-database-config';
 import { validateRuntimeEnvironment } from '../config/runtime-preflight';

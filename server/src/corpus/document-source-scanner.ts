@@ -109,7 +109,9 @@ export class DocumentSourceScanner {
     const hash = createHash('sha256');
     await new Promise<void>((resolve, reject) => {
       const stream = createReadStream(snapshot.absolutePath);
-      stream.on('data', (chunk: Buffer) => hash.update(chunk));
+      stream.on('data', (chunk: string | Buffer) => {
+        hash.update(chunk);
+      });
       stream.on('error', reject);
       stream.on('end', resolve);
     });

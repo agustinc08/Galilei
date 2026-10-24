@@ -17,6 +17,15 @@ describe('OpenSearch runtime config security', () => {
     expect(config.readOnlyCandidate).toBe(false);
   });
 
+  it.each(['1', '2'])('rejects retired Search generation %s', (version) => {
+    expect(() =>
+      readOpenSearchConfig({
+        ...local,
+        OPENSEARCH_SEARCH_SCHEMA_VERSION: version,
+      }),
+    ).toThrow('OPENSEARCH_SCHEMA_VERSION_INVALID');
+  });
+
   it('allows an explicitly scoped v4 physical target only in read-only candidate mode', () => {
     const config = readOpenSearchConfig({
       ...local,

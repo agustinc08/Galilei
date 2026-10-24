@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../src/generated/prisma/client';
 import { PrismaService } from '../../src/prisma/prisma.service';
 
 type Manifest = { workspaceIds: string[]; workspaceCodes: string[]; documentIds: string[]; folderIds: string[]; userIds: number[]; personalOwnerId?: number; personalFilenames?: string[] };

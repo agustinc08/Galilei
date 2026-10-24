@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { useParams, useSearchParams } from 'next/navigation';
+import { Link } from "@/lib/router-compat";
+import { useParams, useSearchParams } from '@/lib/router-compat';
 import { CorpusPdfViewer } from './CorpusPdfViewer';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';

@@ -126,9 +126,9 @@ async function main() {
     });
     if (
       Object.keys(active.body).length !== 1 ||
-      !Object.keys(active.body)[0].startsWith('galilei-search-v001-')
+      !Object.keys(active.body)[0].startsWith('galilei-search-v004-')
     )
-      throw new Error('ACTIVE_ALIAS_MUST_REMAIN_V1_DURING_CERTIFICATION');
+      throw new Error('ACTIVE_ALIAS_MUST_REMAIN_V4_DURING_CERTIFICATION');
 
     const initialOutbox = await searchRuntime.repository.outboxStatus();
     if (initialOutbox.pending !== 0 || initialOutbox.failed !== 0)

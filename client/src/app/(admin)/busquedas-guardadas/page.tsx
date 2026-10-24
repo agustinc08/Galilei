@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/router-compat';
 import { useEffect, useMemo, useState } from 'react';
 import styles from '@/components/sentencias/sentencias.module.css';
 import { Button } from '@/components/ui/Button';

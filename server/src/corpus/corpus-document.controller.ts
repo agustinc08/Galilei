@@ -14,7 +14,14 @@ import {
 
 @ApiTags('corpus')
 @ApiBearerAuth()
-@Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.LECTOR, ROLES.REVISOR, ROLES.JURISPRUDENCIA, ROLES.DIGESTO)
+@Roles(
+  ROLES.ADMIN,
+  ROLES.OPERADOR,
+  ROLES.LECTOR,
+  ROLES.REVISOR,
+  ROLES.JURISPRUDENCIA,
+  ROLES.DIGESTO,
+)
 @Controller('corpus/documents')
 export class CorpusDocumentController {
   constructor(private readonly documents: CorpusDocumentAccessService) {}

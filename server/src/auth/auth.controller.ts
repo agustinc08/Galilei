@@ -22,7 +22,14 @@ export class AuthController {
   }
 
   @Get('me')
-  @Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.LECTOR, ROLES.REVISOR, ROLES.JURISPRUDENCIA, ROLES.DIGESTO)
+  @Roles(
+    ROLES.ADMIN,
+    ROLES.OPERADOR,
+    ROLES.LECTOR,
+    ROLES.REVISOR,
+    ROLES.JURISPRUDENCIA,
+    ROLES.DIGESTO,
+  )
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Devuelve el usuario autenticado' })
   me(@CurrentUser() user: AuthenticatedUser) {
@@ -30,7 +37,14 @@ export class AuthController {
   }
 
   @Post('change-password')
-  @Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.LECTOR, ROLES.REVISOR, ROLES.JURISPRUDENCIA, ROLES.DIGESTO)
+  @Roles(
+    ROLES.ADMIN,
+    ROLES.OPERADOR,
+    ROLES.LECTOR,
+    ROLES.REVISOR,
+    ROLES.JURISPRUDENCIA,
+    ROLES.DIGESTO,
+  )
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cambia password del usuario autenticado' })
   changePassword(

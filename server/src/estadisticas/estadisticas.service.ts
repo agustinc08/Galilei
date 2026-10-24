@@ -6,7 +6,9 @@ import { sentenciaTienePdfReal } from '../archivos/pdf-real.util';
 
 type EventoMetadata = Record<string, unknown> | null;
 type CountItem = { nombre: string; total: number };
-type AnnualReportData = Awaited<ReturnType<EstadisticasService['anual']>>['data'];
+type AnnualReportData = Awaited<
+  ReturnType<EstadisticasService['anual']>
+>['data'];
 
 const MONTH_LABELS = [
   'Enero',
@@ -55,8 +57,8 @@ export class EstadisticasService {
       data: {
         totalSentencias,
         totalSumarios,
-        totalConPdf: sentenciasConArchivos.filter((item) =>
-          sentenciaTienePdfReal(item.archivosPdf).disponible,
+        totalConPdf: sentenciasConArchivos.filter(
+          (item) => sentenciaTienePdfReal(item.archivosPdf).disponible,
         ).length,
         totalPublicadas,
         totalDestacadas,
@@ -193,16 +195,28 @@ export class EstadisticasService {
       sentenciasSinObjeto,
       sumariosSinTema,
     ] = await Promise.all([
-      this.prisma.sentencia.count({ where: { OR: [{ resumenIa: null }, { resumenIa: '' }] } }),
-      this.prisma.sentencia.count({ where: { OR: [{ resena: null }, { resena: '' }] } }),
+      this.prisma.sentencia.count({
+        where: { OR: [{ resumenIa: null }, { resumenIa: '' }] },
+      }),
+      this.prisma.sentencia.count({
+        where: { OR: [{ resena: null }, { resena: '' }] },
+      }),
       this.prisma.sentencia.findMany({
         select: { archivosPdf: { select: { id: true, rutaArchivo: true } } },
       }),
       this.prisma.sentencia.count({ where: { sumarios: { none: {} } } }),
-      this.prisma.sentencia.count({ where: { OR: [{ actor: null }, { actor: '' }] } }),
-      this.prisma.sentencia.count({ where: { OR: [{ demandado: null }, { demandado: '' }] } }),
-      this.prisma.sentencia.count({ where: { OR: [{ objeto: null }, { objeto: '' }] } }),
-      this.prisma.sumario.count({ where: { OR: [{ tema: null }, { tema: '' }] } }),
+      this.prisma.sentencia.count({
+        where: { OR: [{ actor: null }, { actor: '' }] },
+      }),
+      this.prisma.sentencia.count({
+        where: { OR: [{ demandado: null }, { demandado: '' }] },
+      }),
+      this.prisma.sentencia.count({
+        where: { OR: [{ objeto: null }, { objeto: '' }] },
+      }),
+      this.prisma.sumario.count({
+        where: { OR: [{ tema: null }, { tema: '' }] },
+      }),
     ]);
 
     return {
@@ -284,7 +298,13 @@ export class EstadisticasService {
       }),
       this.prisma.sentencia.findMany({
         where: { fecha: byFecha },
-        select: { id: true, sala: true, tipoFallo: true, tribunalOrigen: true, fecha: true },
+        select: {
+          id: true,
+          sala: true,
+          tipoFallo: true,
+          tribunalOrigen: true,
+          fecha: true,
+        },
       }),
       this.prisma.sumario.findMany({
         where: { createdAt: byCreatedAt },
@@ -311,8 +331,12 @@ export class EstadisticasService {
     const sinPdf = sentenciasCargadas.filter(
       (item) => !sentenciaTienePdfReal(item.archivosPdf).disponible,
     ).length;
-    const sinResena = sentenciasCargadas.filter((item) => !item.resena?.trim()).length;
-    const sinSumarios = sentenciasCargadas.filter((item) => item.sumarios.length === 0).length;
+    const sinResena = sentenciasCargadas.filter(
+      (item) => !item.resena?.trim(),
+    ).length;
+    const sinSumarios = sentenciasCargadas.filter(
+      (item) => item.sumarios.length === 0,
+    ).length;
 
     return {
       data: {
@@ -323,14 +347,28 @@ export class EstadisticasService {
           totalSentenciasCargadas: sentenciasCargadas.length,
           totalSumariosCargados: sumariosCargados.length,
           totalPdfsCargados: pdfsCargados.length,
-          totalPublicadas: sentenciasCargadas.filter((item) => item.publicado).length,
-          totalNoPublicadas: sentenciasCargadas.filter((item) => !item.publicado).length,
-          totalConResena: sentenciasCargadas.filter((item) => Boolean(item.resena?.trim())).length,
-          totalConReferenciasNormativas: new Set(refsNormativas.map((item) => item.sentenciaId)).size,
-          totalConReferenciasJurisprudenciales: new Set(refsJurisprudenciales.map((item) => item.sentenciaId)).size,
-          totalConReferenciasDoctrinarias: new Set(refsDoctrinarias.map((item) => item.sentenciaId)).size,
-          totalAnonimizadas: sentenciasCargadas.filter((item) => item.anonimizado).length,
-          totalDestacadas: sentenciasCargadas.filter((item) => item.destacada).length,
+          totalPublicadas: sentenciasCargadas.filter((item) => item.publicado)
+            .length,
+          totalNoPublicadas: sentenciasCargadas.filter(
+            (item) => !item.publicado,
+          ).length,
+          totalConResena: sentenciasCargadas.filter((item) =>
+            Boolean(item.resena?.trim()),
+          ).length,
+          totalConReferenciasNormativas: new Set(
+            refsNormativas.map((item) => item.sentenciaId),
+          ).size,
+          totalConReferenciasJurisprudenciales: new Set(
+            refsJurisprudenciales.map((item) => item.sentenciaId),
+          ).size,
+          totalConReferenciasDoctrinarias: new Set(
+            refsDoctrinarias.map((item) => item.sentenciaId),
+          ).size,
+          totalAnonimizadas: sentenciasCargadas.filter(
+            (item) => item.anonimizado,
+          ).length,
+          totalDestacadas: sentenciasCargadas.filter((item) => item.destacada)
+            .length,
           calidadDatos: {
             sinPdf,
             sinResena,
@@ -340,14 +378,27 @@ export class EstadisticasService {
         porFechaFallo: {
           totalSentencias: sentenciasFechaFallo.length,
           porSala: this.countBy(sentenciasFechaFallo.map((item) => item.sala)),
-          porTipoFallo: this.countBy(sentenciasFechaFallo.map((item) => item.tipoFallo)),
-          porTribunalOrigen: this.countBy(sentenciasFechaFallo.map((item) => item.tribunalOrigen)),
+          porTipoFallo: this.countBy(
+            sentenciasFechaFallo.map((item) => item.tipoFallo),
+          ),
+          porTribunalOrigen: this.countBy(
+            sentenciasFechaFallo.map((item) => item.tribunalOrigen),
+          ),
         },
         porSala: this.countBy(sentenciasCargadas.map((item) => item.sala)),
-        porTipoFallo: this.countBy(sentenciasCargadas.map((item) => item.tipoFallo)),
-        porTribunalOrigen: this.countBy(sentenciasCargadas.map((item) => item.tribunalOrigen)),
-        porMes: this.countByMonth(sentenciasCargadas.map((item) => item.createdAt)),
-        topTemas: this.countBy(sumariosCargados.map((item) => item.tema)).slice(0, 15),
+        porTipoFallo: this.countBy(
+          sentenciasCargadas.map((item) => item.tipoFallo),
+        ),
+        porTribunalOrigen: this.countBy(
+          sentenciasCargadas.map((item) => item.tribunalOrigen),
+        ),
+        porMes: this.countByMonth(
+          sentenciasCargadas.map((item) => item.createdAt),
+        ),
+        topTemas: this.countBy(sumariosCargados.map((item) => item.tema)).slice(
+          0,
+          15,
+        ),
       },
     };
   }
@@ -378,7 +429,10 @@ export class EstadisticasService {
   }
 
   async usoBusquedas(query?: UsoStatsQueryDto) {
-    const data = await this.eventosConsultaService.groupedByTipo('search_', query);
+    const data = await this.eventosConsultaService.groupedByTipo(
+      'search_',
+      query,
+    );
     return { data };
   }
 
@@ -403,19 +457,29 @@ export class EstadisticasService {
   }
 
   async favoritos(query?: UsoStatsQueryDto) {
-    const data = await this.eventosConsultaService.groupedByTipo('favorite_', query);
+    const data = await this.eventosConsultaService.groupedByTipo(
+      'favorite_',
+      query,
+    );
     return { data };
   }
 
   async compartidos(query?: UsoStatsQueryDto) {
-    const data = await this.eventosConsultaService.groupedByTipo('share_', query);
+    const data = await this.eventosConsultaService.groupedByTipo(
+      'share_',
+      query,
+    );
     return { data };
   }
 
   async usoResumen(query?: UsoStatsQueryDto) {
     const eventos = await this.eventosConsultaService.getEventos(query);
-    const searchPublic = eventos.filter((item) => item.tipoEvento === 'search_public');
-    const searchInternal = eventos.filter((item) => item.tipoEvento === 'search_internal');
+    const searchPublic = eventos.filter(
+      (item) => item.tipoEvento === 'search_public',
+    );
+    const searchInternal = eventos.filter(
+      (item) => item.tipoEvento === 'search_internal',
+    );
     const sinResultados = eventos.filter(
       (item) =>
         item.tipoEvento.startsWith('search_') &&
@@ -427,11 +491,21 @@ export class EstadisticasService {
         busquedasPublicas: searchPublic.length,
         busquedasInternas: searchInternal.length,
         busquedasSinResultados: sinResultados.length,
-        sugerenciasClickeadas: eventos.filter((item) => item.tipoEvento === 'suggestion_click').length,
-        impresionesResultados: eventos.filter((item) => item.tipoEvento === 'print_result').length,
-        impresionesFicha: eventos.filter((item) => item.tipoEvento === 'print_ficha').length,
-        exportaciones: eventos.filter((item) => item.tipoEvento === 'export_results').length,
-        vistasDocumento: eventos.filter((item) => item.tipoEvento === 'view_documento').length,
+        sugerenciasClickeadas: eventos.filter(
+          (item) => item.tipoEvento === 'suggestion_click',
+        ).length,
+        impresionesResultados: eventos.filter(
+          (item) => item.tipoEvento === 'print_result',
+        ).length,
+        impresionesFicha: eventos.filter(
+          (item) => item.tipoEvento === 'print_ficha',
+        ).length,
+        exportaciones: eventos.filter(
+          (item) => item.tipoEvento === 'export_results',
+        ).length,
+        vistasDocumento: eventos.filter(
+          (item) => item.tipoEvento === 'view_documento',
+        ).length,
       },
     };
   }
@@ -456,7 +530,11 @@ export class EstadisticasService {
     return {
       data: [...counter.entries()]
         .map(([termino, total]) => ({ termino, total }))
-        .sort((left, right) => right.total - left.total || left.termino.localeCompare(right.termino))
+        .sort(
+          (left, right) =>
+            right.total - left.total ||
+            left.termino.localeCompare(right.termino),
+        )
         .slice(0, 15),
     };
   }
@@ -469,7 +547,11 @@ export class EstadisticasService {
       if (!item.tipoEvento.startsWith('search_')) {
         continue;
       }
-      const total = this.readNumber(item.metadata, 'cantidadResultados', 'total');
+      const total = this.readNumber(
+        item.metadata,
+        'cantidadResultados',
+        'total',
+      );
       if (total !== 0) {
         continue;
       }
@@ -483,7 +565,11 @@ export class EstadisticasService {
     return {
       data: [...counter.entries()]
         .map(([termino, total]) => ({ termino, total }))
-        .sort((left, right) => right.total - left.total || left.termino.localeCompare(right.termino))
+        .sort(
+          (left, right) =>
+            right.total - left.total ||
+            left.termino.localeCompare(right.termino),
+        )
         .slice(0, 15),
     };
   }
@@ -496,13 +582,22 @@ export class EstadisticasService {
       if (!item.tipoEvento.startsWith('search_')) {
         continue;
       }
-      const filtros = this.readObject(item.metadata, 'filtrosUsados', 'filtersUsed');
+      const filtros = this.readObject(
+        item.metadata,
+        'filtrosUsados',
+        'filtersUsed',
+      );
       if (!filtros) {
         continue;
       }
 
       for (const [key, value] of Object.entries(filtros)) {
-        if (value === undefined || value === null || value === '' || value === false) {
+        if (
+          value === undefined ||
+          value === null ||
+          value === '' ||
+          value === false
+        ) {
           continue;
         }
         counter.set(key, (counter.get(key) ?? 0) + 1);
@@ -512,7 +607,10 @@ export class EstadisticasService {
     return {
       data: [...counter.entries()]
         .map(([filtro, total]) => ({ filtro, total }))
-        .sort((left, right) => right.total - left.total || left.filtro.localeCompare(right.filtro))
+        .sort(
+          (left, right) =>
+            right.total - left.total || left.filtro.localeCompare(right.filtro),
+        )
         .slice(0, 20),
     };
   }
@@ -525,7 +623,11 @@ export class EstadisticasService {
       if (item.tipoEvento !== 'suggestion_click') {
         continue;
       }
-      const value = this.readString(item.metadata, 'value', 'suggestion')?.trim();
+      const value = this.readString(
+        item.metadata,
+        'value',
+        'suggestion',
+      )?.trim();
       if (!value) {
         continue;
       }
@@ -535,7 +637,11 @@ export class EstadisticasService {
     return {
       data: [...counter.entries()]
         .map(([termino, total]) => ({ termino, total }))
-        .sort((left, right) => right.total - left.total || left.termino.localeCompare(right.termino))
+        .sort(
+          (left, right) =>
+            right.total - left.total ||
+            left.termino.localeCompare(right.termino),
+        )
         .slice(0, 15),
     };
   }
@@ -576,10 +682,7 @@ export class EstadisticasService {
     };
   }
 
-  private readString(
-    metadata: EventoMetadata,
-    ...keys: string[]
-  ) {
+  private readString(metadata: EventoMetadata, ...keys: string[]) {
     for (const key of keys) {
       const value = metadata?.[key];
       if (typeof value === 'string') {
@@ -589,10 +692,7 @@ export class EstadisticasService {
     return null;
   }
 
-  private readNumber(
-    metadata: EventoMetadata,
-    ...keys: string[]
-  ) {
+  private readNumber(metadata: EventoMetadata, ...keys: string[]) {
     for (const key of keys) {
       const value = metadata?.[key];
       if (typeof value === 'number') {
@@ -602,10 +702,7 @@ export class EstadisticasService {
     return null;
   }
 
-  private readObject(
-    metadata: EventoMetadata,
-    ...keys: string[]
-  ) {
+  private readObject(metadata: EventoMetadata, ...keys: string[]) {
     for (const key of keys) {
       const value = metadata?.[key];
       if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -623,7 +720,10 @@ export class EstadisticasService {
     }
     return [...counter.entries()]
       .map(([nombre, total]) => ({ nombre, total }))
-      .sort((left, right) => right.total - left.total || left.nombre.localeCompare(right.nombre));
+      .sort(
+        (left, right) =>
+          right.total - left.total || left.nombre.localeCompare(right.nombre),
+      );
   }
 
   private countByMonth(values: Date[]) {
@@ -695,10 +795,7 @@ export class EstadisticasService {
 
   private createSimplePdf(lines: string[]) {
     const escapedLines = lines.map((line) =>
-      line
-        .replace(/\\/g, '\\\\')
-        .replace(/\(/g, '\\(')
-        .replace(/\)/g, '\\)'),
+      line.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)'),
     );
     const content = [
       'BT',

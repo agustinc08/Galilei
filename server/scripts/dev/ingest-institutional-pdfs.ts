@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../src/generated/prisma/client';
 import { CorpusIngestionService } from '../../src/corpus/corpus-ingestion.service';
 import type { DiscoveredDocument } from '../../src/corpus/document-source.adapter';
 import { LocalDocumentStorageAdapter } from '../../src/corpus/document-storage.adapter';

@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ROLES } from '../auth/constants';
 import { Public } from '../auth/decorators/public.decorator';
@@ -30,7 +39,9 @@ export class CatalogosController {
   @Public()
   @ApiOperation({ summary: 'Lista tribunales de origen de catalogo' })
   getTribunales(@Query('includeInactive') includeInactive?: string) {
-    return this.catalogosService.getTribunalesOrigen(includeInactive === 'true');
+    return this.catalogosService.getTribunalesOrigen(
+      includeInactive === 'true',
+    );
   }
 
   @Post('salas')
@@ -45,7 +56,10 @@ export class CatalogosController {
   @ApiBearerAuth()
   @Roles(ROLES.ADMIN, ROLES.OPERADOR)
   @ApiOperation({ summary: 'Actualiza una sala de catalogo' })
-  updateSala(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCatalogoItemDto) {
+  updateSala(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCatalogoItemDto,
+  ) {
     return this.catalogosService.updateSala(id, dto);
   }
 
@@ -61,7 +75,10 @@ export class CatalogosController {
   @ApiBearerAuth()
   @Roles(ROLES.ADMIN, ROLES.OPERADOR)
   @ApiOperation({ summary: 'Actualiza un tipo de fallo de catalogo' })
-  updateTipo(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCatalogoItemDto) {
+  updateTipo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCatalogoItemDto,
+  ) {
     return this.catalogosService.updateTipoFallo(id, dto);
   }
 

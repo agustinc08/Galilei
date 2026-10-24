@@ -90,8 +90,12 @@ export function evaluateSearchNode(
     case 'not':
       return !evaluateSearchNode(node.operand, matches);
     case 'and':
-      return node.operands.every((operand) => evaluateSearchNode(operand, matches));
+      return node.operands.every((operand) =>
+        evaluateSearchNode(operand, matches),
+      );
     case 'or':
-      return node.operands.some((operand) => evaluateSearchNode(operand, matches));
+      return node.operands.some((operand) =>
+        evaluateSearchNode(operand, matches),
+      );
   }
 }

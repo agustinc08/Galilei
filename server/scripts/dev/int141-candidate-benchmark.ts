@@ -128,9 +128,9 @@ const context: SearchContext = {
 
 async function discoverCandidate(client: Client) {
   const response = await client.cat.indices({
-    index: 'galilei-search-v003-*',
+    index: ['galilei-search-v003-*'],
     format: 'json',
-    h: 'index,docs.count,store.size',
+    h: ['index,docs.count,store.size'],
   });
   const body =
     (response as unknown as { body?: Array<Record<string, string>> }).body ??
@@ -446,12 +446,12 @@ async function main() {
     }
 
     const candidateIndexStats = await client.indices.stats({
-      index: candidateIndex,
-      metric: 'store,docs,segments',
+      index: [candidateIndex],
+      metric: ['store', 'docs', 'segments'],
     });
     const baselineIndexStats = await client.indices.stats({
-      index: reference.sourceIndex,
-      metric: 'store,docs,segments',
+      index: [reference.sourceIndex],
+      metric: ['store', 'docs', 'segments'],
     });
     const statsBody = unwrap<Record<string, unknown>>(candidateIndexStats);
     const baselineStatsBody =

@@ -44,7 +44,7 @@ async function waitForPreview(url, child) {
   const deadline = Date.now() + 120_000;
   let lastError;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error(`Next.js preview exited early with code ${child.exitCode}.`);
+    if (child.exitCode !== null) throw new Error(`Vite preview exited early with code ${child.exitCode}.`);
     try {
       const response = await fetch(`${url}/login`, { signal: AbortSignal.timeout(2500) });
       if (response.status === 200) return;
@@ -70,14 +70,14 @@ async function main() {
         mockServer.listen(0, '127.0.0.1', resolve);
       });
       const mockPort = mockServer.address().port;
-      mockOrigin = `http://127.0.0.1:${mockPort}/api`;
+      mockOrigin = `http://127.0.0.1:${mockPort}`;
 
       const frontPort = await freePort();
       baseURL = `http://127.0.0.1:${frontPort}`;
-      const nextCli = path.join(frontDir, 'node_modules', 'next', 'dist', 'bin', 'next');
-      previewProcess = spawn(process.execPath, [nextCli, 'dev', '--webpack', '--hostname', '127.0.0.1', '--port', String(frontPort)], {
+      const viteCli = path.join(frontDir, 'node_modules', 'vite', 'bin', 'vite.js');
+      previewProcess = spawn(process.execPath, [viteCli, '--host', '127.0.0.1', '--port', String(frontPort), '--strictPort'], {
         cwd: frontDir,
-        env: { ...process.env, NEXT_PUBLIC_API_URL: mockOrigin },
+        env: { ...process.env, VITE_API_URL: '/api', BJC_DEV_API_PROXY: mockOrigin },
         stdio: 'inherit',
         windowsHide: true,
       });

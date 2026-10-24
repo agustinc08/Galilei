@@ -1,12 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Pool } from 'pg';
-import { Client } from '@opensearch-project/opensearch';
+import { Client, type API } from '@opensearch-project/opensearch';
 import { sentenciaTienePdfReal } from '../../src/archivos/pdf-real.util';
 import type {
   SearchContext,
   SearchResult,
 } from '../../src/busqueda/adapters/search-source.adapter';
+import type { SearchQueryAst } from '../../src/busqueda/utils/search-ast';
 import {
   OpenSearchSearchSourceAdapter,
   compareLocaleSortHits,
@@ -20,6 +21,13 @@ import {
 import { readOpenSearchConfig } from '../../src/busqueda/opensearch/opensearch-config';
 import { normalizeSearchText } from '../../src/busqueda/utils/search-normalizer';
 import { parseSearchQuery } from '../../src/busqueda/utils/search-parser';
+
+type SearchAfter = NonNullable<API.Search_RequestBody['search_after']>;
+type SearchQuery = NonNullable<API.Search_RequestBody['query']>;
+type SearchSort = Extract<
+  NonNullable<API.Search_RequestBody['sort']>,
+  unknown[]
+>;
 
 type SourceRow = {
   id: number;
@@ -38,7 +46,7 @@ type SourceRow = {
 type EngineHit = {
   _id: string;
   _score: number | null;
-  sort?: unknown[];
+  sort?: SearchAfter;
   _source?: {
     logicalNumericId?: number | null;
     sortFields?: { sala?: string | null; numeroSentencia?: string | null };
@@ -82,9 +90,9 @@ function unwrap<T>(response: unknown): T {
 async function discoverCandidate(client: Client) {
   const body = unwrap<Array<{ index?: string }>>(
     await client.cat.indices({
-      index: 'galilei-search-v003-*',
+      index: ['galilei-search-v003-*'],
       format: 'json',
-      h: 'index',
+      h: ['index'],
     }),
   );
   const indices = body
@@ -105,12 +113,12 @@ async function discoverCandidate(client: Client) {
 async function queryAll(
   client: Client,
   index: string,
-  query: Record<string, unknown>,
-  sort: unknown[] = [{ id: { order: 'asc' } }],
+  query: SearchQuery,
+  sort: SearchSort = [{ id: { order: 'asc' } }],
   source: string[] | false = false,
 ) {
   const response = await client.search({
-    index,
+    index: [index],
     request_cache: false,
     body: {
       from: 0,
@@ -133,13 +141,13 @@ async function queryAll(
 async function queryWindow(
   client: Client,
   index: string,
-  query: Record<string, unknown>,
+  query: SearchQuery,
   from: number,
   size: number,
-  sort: unknown[],
+  sort: SearchSort,
 ) {
   const response = await client.search({
-    index,
+    index: [index],
     request_cache: false,
     body: {
       from,
@@ -352,15 +360,15 @@ async function fetchReferenceRows(pool: Pool): Promise<SourceRow[]> {
 async function collectLocaleHits(
   client: Client,
   index: string,
-  query: Record<string, unknown>,
+  query: SearchQuery,
   field: 'sala' | 'numeroSentencia',
 ) {
   const hits: EngineHit[] = [];
-  let searchAfter: unknown[] | undefined;
+  let searchAfter: SearchAfter | undefined;
   let total: number | null = null;
   for (;;) {
     const response = await client.search({
-      index,
+      index: [index],
       request_cache: false,
       body: {
         size: 1000,
@@ -419,7 +427,11 @@ async function compareSortPages(
       (row) => `JURISPRUDENCIA:SENTENCIA:${row.id}`,
     );
     const context = searchContext({ sort: mode, pageSize });
-    const hydrate = (_query: never, _context: SearchContext, ids: string[]) =>
+    const hydrate = (
+      _query: SearchQueryAst,
+      _context: SearchContext,
+      ids: string[],
+    ) =>
       Promise.resolve({
         total: ids.length,
         totalExact: true,

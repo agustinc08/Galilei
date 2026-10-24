@@ -103,9 +103,9 @@ async function main() {
       throw new Error('UTF16_CANDIDATE_ALIAS_MISMATCH');
     if (
       Object.keys(active.body).length !== 1 ||
-      !Object.keys(active.body)[0].startsWith('galilei-search-v001-')
+      !Object.keys(active.body)[0].startsWith('galilei-search-v004-')
     )
-      throw new Error('UTF16_ACTIVE_ALIAS_MUST_REMAIN_V1');
+      throw new Error('UTF16_ACTIVE_ALIAS_MUST_REMAIN_V4');
 
     searchRuntime.onModuleInit();
     await app.listen(0, '127.0.0.1');

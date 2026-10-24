@@ -19,10 +19,18 @@ export function SearchSyntaxHelp({ compact = false }: Props) {
         </Button>
       </div>
       {open ? (
-        <div className={styles.modalOverlay} onClick={() => setOpen(false)}>
-          <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
+        <dialog
+          open
+          className={styles.modalOverlay}
+          aria-modal="true"
+          aria-labelledby="search-syntax-title"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setOpen(false);
+          }}
+        >
+          <div className={styles.modal}>
             <div className={styles.toolbar}>
-              <strong>Sintaxis de búsqueda</strong>
+              <strong id="search-syntax-title">Sintaxis de búsqueda</strong>
               <Button variant="secondary" onClick={() => setOpen(false)}>
                 Cerrar
               </Button>
@@ -50,7 +58,7 @@ export function SearchSyntaxHelp({ compact = false }: Props) {
               ) : null}
             </div>
           </div>
-        </div>
+        </dialog>
       ) : null}
     </>
   );

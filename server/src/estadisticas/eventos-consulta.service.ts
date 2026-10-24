@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsoStatsQueryDto } from './dto/uso-stats-query.dto';
 
@@ -23,17 +23,14 @@ type EventoConsultaRow = {
 export class EventosConsultaService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private get client() {
-    return this.prisma as any;
-  }
-
   async track(input: TrackEventInput) {
-    return this.client.eventoConsulta.create({
+    return this.prisma.eventoConsulta.create({
       data: {
         tipoEvento: input.tipoEvento,
         usuarioId: input.usuarioId ?? null,
         sentenciaId: input.sentenciaId ?? null,
-        metadata: (input.metadata as Prisma.InputJsonValue | undefined) ?? undefined,
+        metadata:
+          (input.metadata as Prisma.InputJsonValue | undefined) ?? undefined,
       },
     });
   }
@@ -43,7 +40,7 @@ export class EventosConsultaService {
   }
 
   async countByTipo(tipoEvento: string, query?: UsoStatsQueryDto) {
-    return this.client.eventoConsulta.count({
+    return this.prisma.eventoConsulta.count({
       where: this.buildWhere({
         ...query,
         tipoEvento,
@@ -56,7 +53,7 @@ export class EventosConsultaService {
     take = 10,
     query?: UsoStatsQueryDto,
   ) {
-    const grouped = await this.client.eventoConsulta.groupBy({
+    const grouped = await this.prisma.eventoConsulta.groupBy({
       by: ['sentenciaId'],
       where: {
         ...this.buildWhere({
@@ -93,16 +90,22 @@ export class EventosConsultaService {
       },
     });
 
-    return grouped.map((item: { sentenciaId: number | null; _count: { sentenciaId: number } }) => ({
-      sentenciaId: item.sentenciaId,
-      total: item._count.sentenciaId,
-      sentencia:
-        sentencias.find((sentencia) => sentencia.id === item.sentenciaId) ?? null,
-    }));
+    return grouped.map(
+      (item: {
+        sentenciaId: number | null;
+        _count: { sentenciaId: number };
+      }) => ({
+        sentenciaId: item.sentenciaId,
+        total: item._count.sentenciaId,
+        sentencia:
+          sentencias.find((sentencia) => sentencia.id === item.sentenciaId) ??
+          null,
+      }),
+    );
   }
 
   async groupedByTipo(prefix?: string, query?: UsoStatsQueryDto) {
-    const rows = await this.client.eventoConsulta.groupBy({
+    const rows = await this.prisma.eventoConsulta.groupBy({
       by: ['tipoEvento'],
       where: {
         ...this.buildWhere(query),
@@ -120,14 +123,16 @@ export class EventosConsultaService {
       },
     });
 
-    return rows.map((row: { tipoEvento: string; _count: { tipoEvento: number } }) => ({
-      tipoEvento: row.tipoEvento,
-      total: row._count.tipoEvento,
-    }));
+    return rows.map(
+      (row: { tipoEvento: string; _count: { tipoEvento: number } }) => ({
+        tipoEvento: row.tipoEvento,
+        total: row._count.tipoEvento,
+      }),
+    );
   }
 
   async getEventos(query?: UsoStatsQueryDto) {
-    const rows = await this.client.eventoConsulta.findMany({
+    const rows = await this.prisma.eventoConsulta.findMany({
       where: this.buildWhere(query),
       orderBy: { createdAt: 'desc' },
       select: {

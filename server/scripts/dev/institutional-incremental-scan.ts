@@ -172,6 +172,6 @@ function inside(parent: string, child: string) { const rel = path.relative(paren
 function chunks<T>(items: T[], size: number) { const values: T[][] = []; for (let i = 0; i < items.length; i += size) values.push(items.slice(i, i + size)); return values; }
 function countChanges(items: Finding[]) { return Object.fromEntries(['NEW', 'MODIFIED', 'MISSING', 'UNCHANGED'].map((key) => [key, items.filter((item) => item.change === key).length])); }
 function stableJson(value: unknown): string { if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`; if (value && typeof value === 'object') return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${JSON.stringify(k)}:${stableJson(v)}`).join(',')}}`; return JSON.stringify(value); }
-function hashFile(filePath: string) { return new Promise<string>((resolve, reject) => { const digest = createHash('sha256'); const input = createReadStream(filePath); input.on('data', (chunk: Buffer) => digest.update(chunk)); input.on('error', reject); input.on('end', () => resolve(digest.digest('hex'))); }); }
+function hashFile(filePath: string) { return new Promise<string>((resolve, reject) => { const digest = createHash('sha256'); const input = createReadStream(filePath); input.on('data', (chunk: string | Buffer) => { digest.update(chunk); }); input.on('error', reject); input.on('end', () => resolve(digest.digest('hex'))); }); }
 
 if (require.main === module) main().catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; });

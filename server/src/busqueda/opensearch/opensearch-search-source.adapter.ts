@@ -1,4 +1,4 @@
-import type { Client } from '@opensearch-project/opensearch';
+import type { API, Client } from '@opensearch-project/opensearch';
 import { createHash } from 'node:crypto';
 import type {
   SearchContext,
@@ -16,6 +16,12 @@ import {
 
 type SearchableSource = 'CORPUS' | 'JURISPRUDENCIA';
 type LocaleSortField = 'sala' | 'numeroSentencia';
+type SearchAfter = NonNullable<API.Search_RequestBody['search_after']>;
+type SearchSort = Extract<
+  NonNullable<API.Search_RequestBody['sort']>,
+  unknown[]
+>;
+type SearchQuery = NonNullable<API.Search_RequestBody['query']>;
 export type SearchCandidateHydrator = (
   query: SearchQueryAst,
   context: SearchContext,
@@ -25,7 +31,7 @@ export type SearchCandidateHydrator = (
 type OpenSearchHit = {
   _id: string;
   _score: number | null;
-  sort?: unknown[];
+  sort?: SearchAfter;
 };
 type LocaleSortHit = {
   _id: string;
@@ -393,7 +399,7 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
   private async searchPrivateScope(
     query: SearchQueryAst,
     context: SearchContext,
-    searchQuery: Record<string, unknown>,
+    searchQuery: SearchQuery,
     page: number,
     pageSize: number,
     from: number,
@@ -405,7 +411,7 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
     const sortCriteria = privateSortCriteria(sort);
     const scanStarted = performance.now();
     let pitId: string | undefined;
-    let searchAfter: unknown[] | undefined;
+    let searchAfter: SearchAfter | undefined;
     let rawTotal: number | null = null;
     let rawScanned = 0;
     let authorizedTotal = 0;
@@ -420,7 +426,7 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
     try {
       const pitResponse = unwrapSearchResponse(
         await this.client.createPit({
-          index: this.alias,
+          index: [this.alias],
           keep_alive: '1m',
         }),
       );
@@ -668,7 +674,7 @@ export function searchSort(
   context: SearchContext,
   source: SearchableSource,
   schemaVersion: SearchIndexSchemaVersion = SEARCH_INDEX_SCHEMA_VERSION,
-) {
+): SearchSort {
   const requested = context.sort;
   if (source === 'JURISPRUDENCIA') {
     if (!requested || requested.field === 'relevancia') {
@@ -722,7 +728,7 @@ export function searchSort(
         : [{ decisionDate: { order: 'desc', missing: '_last' } }]),
       { logicalNumericId: { order: 'desc', missing: '_last' } },
       { id: { order: 'desc' } },
-    ];
+    ] as SearchSort;
   }
   if (!requested || requested.field === 'relevancia') {
     return [
@@ -752,7 +758,7 @@ export function searchSort(
   return sort;
 }
 
-function legacyDateEpochSort(order: 'asc' | 'desc') {
+function legacyDateEpochSort(order: 'asc' | 'desc'): SearchSort[number] {
   return {
     _script: {
       type: 'number',

@@ -69,9 +69,19 @@ function escapeLike(value: string) {
 function pattern(literal: SearchLiteralNode) {
   const value = escapeLike(normalizeSearchText(literal.value));
   if (literal.type === 'phrase') return `%${value}%`;
-  if (literal.matchMode === 'prefix') return `${value}%`;
-  if (literal.matchMode === 'suffix') return `%${value}`;
+  if (literal.matchMode === 'prefix') return `% ${value}%`;
+  if (literal.matchMode === 'suffix') return `%${value} %`;
   return `%${value}%`;
+}
+
+function patternColumn(expression: string, literal: SearchLiteralNode) {
+  if (
+    literal.type === 'term' &&
+    (literal.matchMode === 'prefix' || literal.matchMode === 'suffix')
+  ) {
+    return `(' ' || COALESCE(${expression}, '') || ' ')`;
+  }
+  return expression;
 }
 
 function compileNode(node: SearchNode | null, values: SqlValue[]): string {
@@ -98,7 +108,7 @@ function compileNode(node: SearchNode | null, values: SqlValue[]): string {
     const normalizedColumn = node.field
       ? `translate(lower(coalesce(${rawColumn},'')), 'áéíóúü', 'aeiouu')`
       : rawColumn;
-    return `${normalizedColumn} ILIKE $${values.length} ESCAPE E'\\\\'`;
+    return `${patternColumn(normalizedColumn, node)} ILIKE $${values.length} ESCAPE E'\\\\'`;
   }
   if (node.type === 'not') return `(NOT ${compileNode(node.operand, values)})`;
   const operator = node.type === 'and' ? ' AND ' : ' OR ';
@@ -237,9 +247,10 @@ function buildBooleanCandidateCte(
     const expression = node.field
       ? `translate(lower(coalesce(${fields[node.field]},'')), 'áéíóúü', 'aeiouu')`
       : 'd."searchText"';
+    const matchingColumn = patternColumn(expression, node);
     ctes.push(`${name} AS MATERIALIZED (
       SELECT d."id" FROM "CorpusDocument" d
-      WHERE ${eligible} AND ${expression} ILIKE $${values.length} ESCAPE E'\\\\'
+      WHERE ${eligible} AND ${matchingColumn} ILIKE $${values.length} ESCAPE E'\\\\'
     )`);
     return name;
   };
@@ -732,7 +743,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
                       (SELECT string_agg(c."name", ' · ' ORDER BY c."name") FROM "DigestoCollectionMembership" m JOIN "DigestoCollection" c ON c."id"=m."collectionId" WHERE m."documentId"=d."id" AND c."status"='ACTIVE') AS "digestoCollections",
                       (SELECT string_agg(t."name", ' · ' ORDER BY t."name") FROM "CorpusDocumentTopic" dt JOIN "DigestoTopic" t ON t."id"=dt."topicId" WHERE dt."documentId"=d."id" AND t."active"=true) AS "digestoTopics",
                       (SELECT string_agg(t."name", ' · ' ORDER BY t."name") FROM "CorpusDocumentTag" dt JOIN "DigestoTag" t ON t."id"=dt."tagId" WHERE dt."documentId"=d."id") AS "digestoTags",
-                      (SELECT p."pageNumber" FROM "CorpusDocumentPage" p WHERE p."extractionId"=e."id" AND cardinality(${pagePatternsParam}::text[])>0 AND translate(lower(p."text"), 'áéíóúü', 'aeiouu') ILIKE ANY(${pagePatternsParam}::text[]) ORDER BY p."pageNumber" LIMIT 1) AS "matchedPage"
+                      (SELECT p."pageNumber" FROM "CorpusDocumentPage" p WHERE p."extractionId"=e."id" AND cardinality(${pagePatternsParam}::text[])>0 AND (' ' || COALESCE(translate(lower(p."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY(${pagePatternsParam}::text[]) ORDER BY p."pageNumber" LIMIT 1) AS "matchedPage"
                  FROM ${deferredSinglePhrase ? '"pageStats" stats LEFT JOIN "pagedCandidates" selected ON TRUE LEFT JOIN "CorpusDocument" d ON d."id"=selected."id"' : '"pagedCandidates" selected CROSS JOIN "pageStats" stats JOIN "CorpusDocument" d ON d."id"=selected."id"'}
                  LEFT JOIN "CorpusExtraction" e ON e."id"=d."latestExtractionId"
                  LEFT JOIN LATERAL (SELECT cf.* FROM "CorpusDocumentFile" cf WHERE cf."documentId"=d."id" ORDER BY cf."version" DESC LIMIT 1) f ON TRUE
@@ -791,7 +802,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
                   (SELECT string_agg(c."name", ' · ' ORDER BY c."name") FROM "DigestoCollectionMembership" m JOIN "DigestoCollection" c ON c."id" = m."collectionId" WHERE m."documentId" = d."id" AND c."status" = 'ACTIVE') AS "digestoCollections",
                   (SELECT string_agg(t."name", ' · ' ORDER BY t."name") FROM "CorpusDocumentTopic" dt JOIN "DigestoTopic" t ON t."id" = dt."topicId" WHERE dt."documentId" = d."id" AND t."active" = true) AS "digestoTopics",
                   (SELECT string_agg(t."name", ' · ' ORDER BY t."name") FROM "CorpusDocumentTag" dt JOIN "DigestoTag" t ON t."id" = dt."tagId" WHERE dt."documentId" = d."id") AS "digestoTags",
-                  (SELECT p."pageNumber" FROM "CorpusDocumentPage" p WHERE p."extractionId" = e."id" AND cardinality($${values.length + 1}::text[]) > 0 AND translate(lower(p."text"), 'áéíóúü', 'aeiouu') ILIKE ANY($${values.length + 1}::text[]) ORDER BY p."pageNumber" LIMIT 1) AS "matchedPage"
+                  (SELECT p."pageNumber" FROM "CorpusDocumentPage" p WHERE p."extractionId" = e."id" AND cardinality($${values.length + 1}::text[]) > 0 AND (' ' || COALESCE(translate(lower(p."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY($${values.length + 1}::text[]) ORDER BY p."pageNumber" LIMIT 1) AS "matchedPage"
              FROM "pageDocs" selected JOIN "CorpusDocument" d ON d."id" = selected."id"
              LEFT JOIN "CorpusExtraction" e ON e."id" = d."latestExtractionId"
              LEFT JOIN LATERAL (SELECT cf.* FROM "CorpusDocumentFile" cf WHERE cf."documentId" = d."id" ORDER BY cf."version" DESC LIMIT 1) f ON TRUE

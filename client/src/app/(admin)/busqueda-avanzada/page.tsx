@@ -16,7 +16,7 @@ import { limpiarFiltrosBusqueda } from '@/lib/busqueda';
 import { trackEvento } from '@/lib/tracking';
 import { downloadBlob } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
-import Link from 'next/link';
+import { Link } from "@/lib/router-compat";
 import type { PaginatedResponse } from '@/types/common';
 import type { BusquedaAvanzadaFilters, BusquedaResultado, FederatedSearchPage } from '@/types/busqueda';
 

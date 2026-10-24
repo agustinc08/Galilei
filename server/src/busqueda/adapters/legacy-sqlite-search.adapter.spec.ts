@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseSearchQuery } from '../utils/search-parser';
 import { LegacySqliteSearchAdapter } from './legacy-sqlite-search.adapter';
 import type { SearchContext } from './search-source.adapter';
@@ -23,7 +24,7 @@ type BenchmarkCase = {
 const databasePath = process.env.SEARCH_SPIKE_SQLITE_PATH;
 const hasLegacyFixture = Boolean(databasePath && existsSync(databasePath));
 const benchmarkPath = resolve(
-  __dirname,
+  dirname(fileURLToPath(import.meta.url)),
   '../../../../docs/integracion/benchmark-busqueda.json',
 );
 const benchmark = JSON.parse(readFileSync(benchmarkPath, 'utf8')) as {

@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname } from '@/lib/router-compat';
 import { useAuth } from '@/hooks/use-auth';
 import { AdminShell } from './AdminShell';
 

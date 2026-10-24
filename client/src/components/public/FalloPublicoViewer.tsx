@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
+import { Link } from '@/lib/router-compat';
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams } from '@/lib/router-compat';
 import { DocumentoAccordion } from '@/components/documento/DocumentoAccordion';
 import { DocumentoSidePanel } from '@/components/documento/DocumentoSidePanel';
 import { DocumentoViewerLayout } from '@/components/documento/DocumentoViewerLayout';
@@ -63,6 +63,28 @@ export function FalloPublicoViewer({ identifier }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pdfControls, setPdfControls] = useState<PdfViewerControls>(EMPTY_CONTROLS);
   const [pdfPage, setPdfPage] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!data) return;
+
+    const title = `${buildTitle(data)} | Jurisprudencia Civil`;
+    const description = (data.resena ?? data.sumarios?.[0]?.texto ?? 'Fallo publicado para consulta pública.')
+      .replace(/\s+/gu, ' ')
+      .slice(0, 180);
+    document.title = title;
+    document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute('content', description);
+    document.querySelector<HTMLMetaElement>('meta[property="og:type"]')?.setAttribute('content', 'article');
+    document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.setAttribute('content', title);
+    document.querySelector<HTMLMetaElement>('meta[property="og:description"]')?.setAttribute('content', description);
+
+    return () => {
+      document.title = 'Galilei';
+      document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute('content', 'Jurisprudencia, documentos de tu dependencia y tus documentos personales.');
+      document.querySelector<HTMLMetaElement>('meta[property="og:type"]')?.setAttribute('content', 'website');
+      document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.setAttribute('content', 'Galilei');
+      document.querySelector<HTMLMetaElement>('meta[property="og:description"]')?.setAttribute('content', 'Jurisprudencia, documentos de tu dependencia y tus documentos personales.');
+    };
+  }, [data]);
 
   useEffect(() => {
     let active = true;

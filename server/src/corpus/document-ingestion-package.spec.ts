@@ -18,8 +18,20 @@ describe('DocumentIngestionPackageValidator', () => {
     await writeFile(path.join(root, 'files', 'a.txt'), bytes);
     await writeFile(path.join(root, 'files', 'b.txt'), bytes);
     await manifest(root, [
-      { path: 'a.txt', filename: 'a.txt', mimeType: 'text/plain', externalId: 'stable-1', caseNumber: 'CIV 1/2025', decisionDate: '2025-01-02' },
-      { path: 'b.txt', filename: 'b.txt', mimeType: 'text/plain', externalId: 'stable-2' },
+      {
+        path: 'a.txt',
+        filename: 'a.txt',
+        mimeType: 'text/plain',
+        externalId: 'stable-1',
+        caseNumber: 'CIV 1/2025',
+        decisionDate: '2025-01-02',
+      },
+      {
+        path: 'b.txt',
+        filename: 'b.txt',
+        mimeType: 'text/plain',
+        externalId: 'stable-2',
+      },
     ]);
     const prepared = await validator.prepare(root);
     expect(prepared.issues).toEqual([]);
@@ -27,7 +39,9 @@ describe('DocumentIngestionPackageValidator', () => {
     expect(prepared.documents[0].sha256).toMatch(/^[a-f0-9]{64}$/u);
     expect(prepared.documents[0].metadata.caseNumber).toBe('CIV 1/2025');
     expect(prepared.documents[0].decisionDate).toContain('2025-01-02');
-    expect(prepared.warnings.map((item) => item.code)).toContain('DUPLICATE_SHA256');
+    expect(prepared.warnings.map((item) => item.code)).toContain(
+      'DUPLICATE_SHA256',
+    );
   });
 
   it('rejects traversal, duplicate external IDs, and incorrect declared hashes before import', async () => {
@@ -42,12 +56,19 @@ describe('DocumentIngestionPackageValidator', () => {
     ]);
     const prepared = await validator.prepare(root);
     expect(prepared.documents).toHaveLength(1);
-    expect(prepared.issues.map((item) => item.code)).toEqual(expect.arrayContaining(['HASH_MISMATCH', 'DUPLICATE_EXTERNAL_ID', 'UNSAFE_PATH']));
+    expect(prepared.issues.map((item) => item.code)).toEqual(
+      expect.arrayContaining([
+        'HASH_MISMATCH',
+        'DUPLICATE_EXTERNAL_ID',
+        'UNSAFE_PATH',
+      ]),
+    );
   });
 
   it('supports UTF-8 BOM CSV metadata without mutating the CSV or file', async () => {
     await writeFile(path.join(root, 'files', 'fallo.txt'), 'contenido civil');
-    const csv = '\uFEFFfilename,externalId,expediente,caratula,fecha,tribunal\r\nfallo.txt,exp-1,"CIV 1/2025","Peña, M. c/ Sol",2025-01-02,Juzgado Civil 1\r\n';
+    const csv =
+      '\uFEFFfilename,externalId,expediente,caratula,fecha,tribunal\r\nfallo.txt,exp-1,"CIV 1/2025","Peña, M. c/ Sol",2025-01-02,Juzgado Civil 1\r\n';
     await writeFile(path.join(root, 'metadata.csv'), csv, 'utf8');
     const prepared = await validator.prepare(root);
     expect(prepared.documents).toHaveLength(1);
@@ -61,7 +82,9 @@ describe('DocumentIngestionPackageValidator', () => {
     await rm(path.join(root, 'files'), { recursive: true });
     await writeFile(path.join(root, 'nota.txt'), 'fixture');
     const before = await validator.prepare(root);
-    expect(before.manifestName).toBe('manifest.generated.json (borrador en memoria)');
+    expect(before.manifestName).toBe(
+      'manifest.generated.json (borrador en memoria)',
+    );
     expect(before.documents).toHaveLength(1);
     const draft = await validator.writeDraft(root);
     expect(path.basename(draft)).toBe('manifest.generated.json');
@@ -72,9 +95,22 @@ describe('DocumentIngestionPackageValidator', () => {
 });
 
 async function manifest(root: string, documents: unknown[]) {
-  await writeFile(path.join(root, 'manifest.json'), JSON.stringify({
-    schemaVersion: '1.0', packageId: 'BJC-PACKAGE-TEST-001',
-    source: { code: 'INSTITUTIONAL_IMPORT', name: 'Fixture fuente sin verificar', type: 'INSTITUTIONAL_IMPORT' },
-    generatedAt: '2026-10-07T00:00:00.000Z', documents,
-  }, null, 2));
+  await writeFile(
+    path.join(root, 'manifest.json'),
+    JSON.stringify(
+      {
+        schemaVersion: '1.0',
+        packageId: 'BJC-PACKAGE-TEST-001',
+        source: {
+          code: 'INSTITUTIONAL_IMPORT',
+          name: 'Fixture fuente sin verificar',
+          type: 'INSTITUTIONAL_IMPORT',
+        },
+        generatedAt: '2026-10-07T00:00:00.000Z',
+        documents,
+      },
+      null,
+      2,
+    ),
+  );
 }

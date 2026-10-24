@@ -1,0 +1,16 @@
+{
+  "name": "galilei",
+  "private": true,
+  "packageManager": "pnpm@12.15.0",
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --recursive --parallel --stream --filter front --filter back run dev",
+    "build": "pnpm --recursive --sort --filter front --filter back run build",
+    "test": "pnpm --recursive --filter front --filter back run test",
+    "lint": "pnpm --recursive --filter front --filter back run lint",
+    "typecheck": "pnpm --recursive --filter front --filter back run typecheck",
+    "e2e": "pnpm --filter front run test:e2e"
+  }
+}

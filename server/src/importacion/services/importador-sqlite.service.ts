@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma/client';
 import {
   mapLegacySentencia,
   mapLegacySumario,
@@ -84,7 +84,7 @@ export class ImportadorSqliteService {
       if (mapped.fechaRaw && !mapped.data.fecha) {
         stats.warnings += 1;
         this.logger.warn(
-          `Sentencia legacyId=${mapped.legacyId ?? 'sin-id'} con fecha invalida: ${String(mapped.fechaRaw)}`,
+          `Sentencia legacyId=${mapped.legacyId ?? 'sin-id'} con fecha invalida: ${describeLegacyValue(mapped.fechaRaw)}`,
         );
       }
 
@@ -326,4 +326,16 @@ export class ImportadorSqliteService {
     cache.set(normalized.toLowerCase(), catalog.id);
     return catalog.id;
   }
+}
+
+function describeLegacyValue(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    return String(value);
+  }
+  return value === null || value === undefined ? '' : '[valor no textual]';
 }

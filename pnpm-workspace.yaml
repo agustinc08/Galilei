@@ -1,0 +1,16 @@
+packages:
+  - client
+  - server
+allowBuilds:
+  '@parcel/watcher': true
+  '@prisma/engines': true
+  '@scarf/scarf': false
+  bcrypt: true
+  prisma: true
+  sqlite3: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - webpack@5.112.2
+overrides:
+  multer: 2.5.0
+  webpack: 5.112.2

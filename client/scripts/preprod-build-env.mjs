@@ -3,9 +3,9 @@ import { pathToFileURL } from 'node:url';
 
 function validatePreprodBuildEnvironment(env = process.env) {
   const rawApiOrigin = env.BJC_PREPROD_API_ORIGIN?.trim();
-  const rawApiUrl = env.NEXT_PUBLIC_API_URL?.trim();
+  const rawApiUrl = env.VITE_API_URL?.trim();
   if (!rawApiOrigin) throw new Error('BJC_PREPROD_API_ORIGIN_REQUIRED');
-  if (!rawApiUrl) throw new Error('NEXT_PUBLIC_API_URL_REQUIRED');
+  if (!rawApiUrl) throw new Error('VITE_API_URL_REQUIRED');
 
   let apiOrigin;
   let apiUrl;

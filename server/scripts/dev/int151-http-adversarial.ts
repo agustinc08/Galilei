@@ -182,9 +182,9 @@ async function main() {
       throw new Error('CERT_ALIAS_TARGET_MISMATCH');
     if (
       Object.keys(active.body).length !== 1 ||
-      !Object.keys(active.body)[0].startsWith('galilei-search-v001-')
+      !Object.keys(active.body)[0].startsWith('galilei-search-v004-')
     )
-      throw new Error('ACTIVE_ALIAS_MUST_REMAIN_V1');
+      throw new Error('ACTIVE_ALIAS_MUST_REMAIN_V4');
 
     const staleDocuments = await dbService.corpusDocument.findMany({
       where: { id: { startsWith: 'int151_adv_' } },
@@ -456,7 +456,7 @@ async function main() {
         finalBacklog.pending === 0 &&
         finalBacklog.failed === 0 &&
         activeTargets.length === 1 &&
-        activeTargets[0].startsWith('galilei-search-v001-');
+        activeTargets[0].startsWith('galilei-search-v004-');
       if (!app && !runtimeStarted) {
         await runtime.index.close().catch(() => undefined);
         await runtime.client.close().catch(() => undefined);

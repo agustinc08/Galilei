@@ -12,7 +12,7 @@ import {
   WorkspaceRole,
   WorkspaceDependencyType,
   WorkspaceVisibilityScope,
-} from '@prisma/client';
+} from '../generated/prisma/client';
 import path from 'node:path';
 import { BusquedaService } from '../busqueda/busqueda.service';
 import type { SearchResultPage } from '../busqueda/adapters/search-source.adapter';

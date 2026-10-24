@@ -10,7 +10,7 @@ type Props = {
 };
 
 export function SearchHelpModal({ open, onClose }: Props) {
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -30,9 +30,12 @@ export function SearchHelpModal({ open, onClose }: Props) {
   }
 
   return (
-    <div
+    <dialog
+      open
+      ref={dialogRef}
       className={styles.modalOverlay}
-      onClick={onClose}
+      aria-modal="true"
+      aria-labelledby="search-help-title"
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.stopPropagation();
@@ -59,14 +62,7 @@ export function SearchHelpModal({ open, onClose }: Props) {
         }
       }}
     >
-      <div
-        ref={dialogRef}
-        className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="search-help-title"
-        onClick={(event) => event.stopPropagation()}
-      >
+      <div className={styles.modal}>
         <div className={styles.toolbar}>
           <strong id="search-help-title">Ayuda de búsqueda</strong>
           <Button variant="secondary" onClick={onClose}>
@@ -94,6 +90,6 @@ export function SearchHelpModal({ open, onClose }: Props) {
           </div>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

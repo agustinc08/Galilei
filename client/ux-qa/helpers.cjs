@@ -54,7 +54,7 @@ async function collectLayout(page) {
         dialogs: document.querySelectorAll('[role="dialog"],dialog').length,
         ariaCurrentPage: document.querySelectorAll('[aria-current="page"]').length,
       },
-      nextDevToolbarPresent: Boolean(document.querySelector('nextjs-portal')),
+      viteErrorOverlayPresent: Boolean(document.querySelector('vite-error-overlay')),
       reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
     };
   });
@@ -65,13 +65,6 @@ async function captureScenario(page, testInfo, scenario) {
   const filename = `${scenario.id}__${viewportName(viewport)}.png`;
   fs.mkdirSync(screenshotDir, { recursive: true });
   const fullPath = path.join(screenshotDir, filename);
-  await page.evaluate(() => {
-    if (document.getElementById('ux-qa-hide-nextjs-portal')) return;
-    const style = document.createElement('style');
-    style.id = 'ux-qa-hide-nextjs-portal';
-    style.textContent = 'nextjs-portal { display: none !important; }';
-    document.head.appendChild(style);
-  });
   await page.screenshot({ path: fullPath, animations: 'disabled' });
 
   const diagnostics = page.__uxQaDiagnostics || { console: [], pageErrors: [], networkErrors: [], fixtureMisses: [] };
@@ -91,14 +84,14 @@ async function captureScenario(page, testInfo, scenario) {
     networkErrors: diagnostics.networkErrors.slice(),
     fixtureMisses: diagnostics.fixtureMisses.slice(),
     landmarks: layout.landmarks,
-    nextDevToolbarPresent: layout.nextDevToolbarPresent,
+    viteErrorOverlayPresent: layout.viteErrorOverlayPresent,
     reducedMotion: layout.reducedMotion,
     screenshotPath: path.relative(require('./paths.cjs').runDir, fullPath).replace(/\\/gu, '/'),
     durationMs: scenario.durationMs ?? null,
     pdfRenderStatus: scenario.pdfRenderStatus || null,
     notes: [
       ...(scenario.notes || []),
-      ...(layout.nextDevToolbarPresent ? ['The Next.js development portal was hidden in the product screenshot.'] : []),
+      ...(layout.viteErrorOverlayPresent ? ['A Vite development error overlay was visible in the screenshot.'] : []),
     ],
   };
   testInfo.annotations.push({ type: 'ux-qa-scenario', description: JSON.stringify(record) });

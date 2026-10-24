@@ -1,35 +1,5 @@
 import { clearAuth, getToken, setAuthNotice } from './auth';
-
-const DEFAULT_API_URL = 'http://localhost:4001/api';
-const API_PREFIX = '/api';
-
-function getApiUrl() {
-  const configuredUrl = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
-  const normalizedUrl = configuredUrl.replace(/\/+$/, '');
-
-  if (
-    process.env.NODE_ENV !== 'production' &&
-    /(^|:)4002(\/|$)/.test(normalizedUrl)
-  ) {
-    console.error(
-      'NEXT_PUBLIC_API_URL está apuntando al frontend. Debe apuntar al backend: http://localhost:4001/api',
-    );
-  }
-
-  if (
-    process.env.NODE_ENV !== 'production' &&
-    (!normalizedUrl.endsWith(API_PREFIX) ||
-      normalizedUrl.includes(`${API_PREFIX}${API_PREFIX}`))
-  ) {
-    console.error(
-      'NEXT_PUBLIC_API_URL debe incluir exactamente un prefijo /api. Valor esperado: http://localhost:4001/api',
-    );
-  }
-
-  return normalizedUrl;
-}
-
-const API_URL = getApiUrl();
+import { buildApiUrl } from './env';
 
 export class ApiError extends Error {
   status: number;
@@ -46,21 +16,6 @@ type RequestOptions = RequestInit & {
   query?: Record<string, string | number | boolean | undefined | null>;
   skipAuth?: boolean;
 };
-
-function buildUrl(path: string, query?: RequestOptions['query']) {
-  const normalizedPath = path.replace(/^\/+/, '');
-  const url = new URL(`${API_URL}/${normalizedPath}`);
-
-  if (query) {
-    for (const [key, value] of Object.entries(query)) {
-      if (value !== undefined && value !== null && value !== '') {
-        url.searchParams.set(key, String(value));
-      }
-    }
-  }
-
-  return url.toString();
-}
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
@@ -80,7 +35,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   let response: Response;
 
   try {
-    response = await fetch(buildUrl(path, options.query), {
+    response = await fetch(buildApiUrl(path, options.query), {
       ...options,
       headers,
     });
@@ -136,7 +91,7 @@ async function download(path: string, options: RequestOptions = {}) {
   let response: Response;
 
   try {
-    response = await fetch(buildUrl(path, options.query), {
+    response = await fetch(buildApiUrl(path, options.query), {
       ...options,
       headers,
     });

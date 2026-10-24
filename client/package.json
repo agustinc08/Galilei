@@ -2,13 +2,16 @@
   "name": "front",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev -H 0.0.0.0 -p 4001",
-    "build": "next build",
+    "dev": "vite --host 0.0.0.0 --port 4001 --strictPort",
+    "dev:qa": "vite --host 127.0.0.1 --strictPort",
+    "build": "pnpm run typecheck && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4002 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test scripts/preprod-build-env.test.mjs ux-qa/self-test.cjs",
     "test:e2e": "playwright test",
-    "start": "next start -H 0.0.0.0 -p 4001",
-    "start:preprod": "next start -H 127.0.0.1 -p 4002",
-    "lint": "eslint",
+    "lint": "eslint src vite.config.ts playwright.config.ts playwright.preprod.config.ts scripts ux-qa tests preprod-tests",
     "lint:ux": "eslint ux-qa tests/ux-*.spec.cjs",
     "qa:ux": "node --test ux-qa/self-test.cjs && node ux-qa/run.cjs public",
     "qa:ux:self": "node --test ux-qa/self-test.cjs",
@@ -20,19 +23,26 @@
     "preprod:env:test": "node --test scripts/preprod-build-env.test.mjs"
   },
   "dependencies": {
-    "next": "16.4.2",
-    "pdfjs-dist": "6.3.289",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "react-pdf": "^11.0.0"
+    "pdfjs-dist": "6.4.299",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-pdf": "^11.0.0",
+    "react-router-dom": "7.18.4",
+    "vite": "8.3.5"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.4.2",
-    "typescript": "^5"
+    "@eslint/js": "9.39.5",
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "eslint": "9.39.5",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0"
   }
 }

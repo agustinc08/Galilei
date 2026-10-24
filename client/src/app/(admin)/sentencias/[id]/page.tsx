@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { Link } from "@/lib/router-compat";
+import { useParams } from '@/lib/router-compat';
 import { useEffect, useMemo, useState } from 'react';
 import { ArchivosPanel } from '@/components/archivos/ArchivosPanel';
 import { AnonimizacionPanel } from '@/components/sentencias/AnonimizacionPanel';
@@ -27,6 +27,7 @@ import { StatusMessage } from '@/components/ui/StatusMessage';
 import { Textarea } from '@/components/ui/Textarea';
 import { useCatalogos } from '@/hooks/use-catalogos';
 import { api } from '@/lib/api';
+import { API_ORIGIN } from '@/lib/env';
 import { trackEvento } from '@/lib/tracking';
 import { cn, formatDate, toDateInput } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
@@ -41,7 +42,7 @@ import type {
   SentenciaFormValues,
 } from '@/types/sentencia';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4001/api').replace(/\/api$/, '');
+const API_BASE = API_ORIGIN;
 
 type FalloSimilar = {
   id: number;
@@ -264,7 +265,7 @@ export default function SentenciaDetailPage() {
           `Borrador de reseña generada con ${response.data.documentos.length} documentos de referencia.`,
       );
     } catch {
-      setError('No se pudo conectar con Ollama. Verificá que esté corriendo en http://localhost:11434.');
+      setError('No se pudo conectar con el servicio de IA. Verificá su configuración y estado.');
     } finally {
       setIsGeneratingResenaAi(false);
     }

@@ -7,7 +7,7 @@ import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import type { NextFunction, Request, Response } from 'express';
-import { Client } from '@opensearch-project/opensearch';
+import { Client, type API } from '@opensearch-project/opensearch';
 import { BusquedaModule } from '../../src/busqueda/busqueda.module';
 import { BusquedaService } from '../../src/busqueda/busqueda.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
@@ -17,6 +17,8 @@ import { buildSearchQueryDsl } from '../../src/busqueda/opensearch/search-dsl';
 import { normalizeSearchText } from '../../src/busqueda/utils/search-normalizer';
 import type { SearchQueryAst } from '../../src/busqueda/utils/search-ast';
 import { readOpenSearchConfig } from '../../src/busqueda/opensearch/opensearch-config';
+
+type SearchAfter = NonNullable<API.Search_RequestBody['search_after']>;
 import { OpenSearchDocumentRepository } from '../../src/busqueda/opensearch/opensearch-document.repository';
 import { OpenSearchIndexService } from '../../src/busqueda/opensearch/opensearch-index.service';
 
@@ -109,7 +111,7 @@ async function main() {
         candidateIndex !== 'galilei-search-v003-20261017t232432555z-a6af18cb' ||
         Object.keys(aliases).length < 1 ||
         mainTargets.length !== 1 ||
-        !mainTargets[0].startsWith('galilei-search-v001-')
+        !mainTargets[0].startsWith('galilei-search-v004-')
       )
         throw new Error('OPENSEARCH_ALIAS_PRECONDITION_FAILED');
       const mapping = await os.indices.getMapping({ index: candidateIndex });
@@ -437,7 +439,7 @@ async function recoverInterruptedCollection() {
     if (
       candidate !== 'galilei-search-v003-20261017t232432555z-a6af18cb' ||
       Object.keys(mainAliases).length !== 1 ||
-      !Object.keys(mainAliases)[0].startsWith('galilei-search-v001-')
+      !Object.keys(mainAliases)[0].startsWith('galilei-search-v004-')
     )
       throw new Error('OPENSEARCH_ALIAS_PRECONDITION_FAILED');
 
@@ -568,15 +570,15 @@ async function collectCollectionIndexedIds(
   collectionId: string,
 ) {
   const ids: string[] = [];
-  let searchAfter: unknown[] | undefined;
+  let searchAfter: SearchAfter | undefined;
   for (;;) {
     const response = responseBody<{
       hits?: {
-        hits?: Array<{ _id: string; sort?: unknown[] }>;
+        hits?: Array<{ _id: string; sort?: SearchAfter }>;
       };
     }>(
       await client.search({
-        index,
+        index: [index],
         body: {
           size: 1000,
           track_total_hits: true,

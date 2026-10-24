@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { hash as bcryptHash } from 'bcrypt';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../src/generated/prisma/client';
 import { normalizeSearchText } from '../../src/busqueda/utils/search-normalizer';
 import { BasicDocumentTextExtractor, InvalidPdfError } from '../../src/corpus/document-text-extractor';
 import { LocalDocumentStorageAdapter } from '../../src/corpus/document-storage.adapter';

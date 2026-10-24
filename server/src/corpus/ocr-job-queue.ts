@@ -1,5 +1,5 @@
-import { Prisma } from '@prisma/client';
-import type { CorpusOcrJob } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
+import type { CorpusOcrJob } from '../generated/prisma/client';
 import { LocalPdfOcrProcessor } from './document-local-processors';
 
 const MAX_TOTAL_ATTEMPTS = 2;

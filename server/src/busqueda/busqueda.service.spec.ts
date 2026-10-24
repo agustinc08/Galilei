@@ -13,28 +13,54 @@ describe('BusquedaService search query workload', () => {
     const rag = { buscarFallosSimilares: jest.fn().mockResolvedValue([]) };
     const institutos = { expandTerms: jest.fn().mockResolvedValue([]) };
     return {
-      service: new BusquedaService(prisma as never, eventos as never, rag as never, institutos as never),
+      service: new BusquedaService(
+        prisma as never,
+        eventos as never,
+        rag as never,
+        institutos as never,
+      ),
       prisma,
     };
   };
 
   it('does not run the unused exact count for a text search', async () => {
     const { service, prisma } = makeService();
-    const result = await service.avanzada({ q: 'responsabilidad', page: 1, pageSize: 10 } as never);
+    const result = await service.avanzada({
+      q: 'responsabilidad',
+      page: 1,
+      pageSize: 10,
+    });
 
     expect(prisma.sentencia.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
-    expect(prisma.sentencia.findMany.mock.calls[0][0].where.AND[1].id.in).toEqual([5]);
-    const candidateQuery = prisma.$queryRaw.mock.calls[0][0] as { sql?: string; text?: string };
-    expect(`${candidateQuery.sql ?? ''}${candidateQuery.text ?? ''}`).toContain('t."textoBusquedaNormalizado" LIKE');
-    expect(`${candidateQuery.sql ?? ''}${candidateQuery.text ?? ''}`).not.toContain('regexp_replace(translate(lower(coalesce(t."textoBusquedaNormalizado"');
+    type FindManyCall = [
+      { where: { AND: [unknown, { id: { in: number[] } }] } },
+    ];
+    const findManyCalls = prisma.sentencia.findMany.mock
+      .calls as unknown as FindManyCall[];
+    expect(findManyCalls[0]?.[0].where.AND[1].id.in).toEqual([5]);
+    const rawQueryCalls = prisma.$queryRaw.mock.calls as unknown as Array<
+      [unknown]
+    >;
+    const candidateQuery = rawQueryCalls[0]?.[0] as {
+      sql?: string;
+      text?: string;
+    };
+    expect(`${candidateQuery.sql ?? ''}${candidateQuery.text ?? ''}`).toContain(
+      't."textoBusquedaNormalizado" LIKE',
+    );
+    expect(
+      `${candidateQuery.sql ?? ''}${candidateQuery.text ?? ''}`,
+    ).not.toContain(
+      'regexp_replace(translate(lower(coalesce(t."textoBusquedaNormalizado"',
+    );
     expect(prisma.sentencia.count).not.toHaveBeenCalled();
     expect(result.meta.total).toBe(0);
   });
 
   it('retains exact count for a non-text search', async () => {
     const { service, prisma } = makeService();
-    const result = await service.avanzada({ page: 1, pageSize: 10 } as never);
+    const result = await service.avanzada({ page: 1, pageSize: 10 });
 
     expect(prisma.sentencia.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.sentencia.count).toHaveBeenCalledTimes(1);

@@ -1,8 +1,7 @@
 export const SEARCH_INDEX_SCHEMA_VERSION = 3 as const;
 export const SEARCH_INDEX_SCHEMA_VERSION_V4 = 4 as const;
 export type SearchIndexSchemaVersion =
-  | typeof SEARCH_INDEX_SCHEMA_VERSION
-  | typeof SEARCH_INDEX_SCHEMA_VERSION_V4;
+  typeof SEARCH_INDEX_SCHEMA_VERSION | typeof SEARCH_INDEX_SCHEMA_VERSION_V4;
 
 export const SEARCH_V4_COLLATION_PIPELINE_ID =
   'galilei-search-v004-collation-v1';

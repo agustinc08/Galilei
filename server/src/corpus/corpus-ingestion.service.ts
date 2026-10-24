@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Prisma, type PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '../generated/prisma/client';
 import type {
   DiscoveredDocument,
   DocumentSourceAdapter,
@@ -104,11 +104,9 @@ export class CorpusIngestionService {
             decisionDate: item.decisionDate ?? undefined,
             status: 'STORED',
             metadata: (item.metadata ?? undefined) as
-              | Prisma.InputJsonValue
-              | undefined,
+              Prisma.InputJsonValue | undefined,
             metadataOriginal: (item.metadataOriginal ?? undefined) as
-              | Prisma.InputJsonValue
-              | undefined,
+              Prisma.InputJsonValue | undefined,
             visibility: item.visibility ?? 'INTERNAL',
           },
         })
@@ -125,11 +123,9 @@ export class CorpusIngestionService {
             decisionDate: item.decisionDate ?? undefined,
             status: 'STORED',
             metadata: (item.metadata ?? undefined) as
-              | Prisma.InputJsonValue
-              | undefined,
+              Prisma.InputJsonValue | undefined,
             metadataOriginal: (item.metadataOriginal ?? undefined) as
-              | Prisma.InputJsonValue
-              | undefined,
+              Prisma.InputJsonValue | undefined,
             visibility: item.visibility ?? 'INTERNAL',
           },
         });
@@ -167,8 +163,7 @@ export class CorpusIngestionService {
         originalFilename: item.filename,
         sourcePath: item.sourcePath,
         metadataOriginal: (item.metadataOriginal ?? undefined) as
-          | Prisma.InputJsonValue
-          | undefined,
+          Prisma.InputJsonValue | undefined,
         status: 'STORED',
       },
     });
@@ -378,8 +373,7 @@ export class CorpusIngestionService {
         originalFilename: item.filename,
         sourcePath: item.sourcePath,
         metadataOriginal: item.metadataOriginal as
-          | Prisma.InputJsonValue
-          | undefined,
+          Prisma.InputJsonValue | undefined,
         status: matchingFile.document.status,
       },
     });

@@ -11,8 +11,8 @@
 !**/.env.sample
 
 # Salidas generadas concretas; no ignorar directorios fuente genéricos
+/client/dist/
 /client/.next/
-/client/out/
 /client/coverage/
 /client/.turbo/
 /client/test-results/
@@ -22,6 +22,7 @@
 /server/coverage/
 /server/.cache/
 /server/generated/
+/server/src/generated/prisma/
 **/*.tsbuildinfo
 
 # Datos locales y runtimes del checkout

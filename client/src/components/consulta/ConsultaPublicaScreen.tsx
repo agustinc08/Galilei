@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
+import { Link } from "@/lib/router-compat";
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from '@/lib/router-compat';
 import styles from './consulta.module.css';
 import { ConsultaPaginacion } from './ConsultaPaginacion';
 import { SelectedResultsBar } from './SelectedResultsBar';

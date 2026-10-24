@@ -1,7 +1,9 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { Prisma } from '@prisma/client';
+import { fileURLToPath } from 'node:url';
+import { jest } from '@jest/globals';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { parseSearchQuery } from '../busqueda/utils/search-parser';
@@ -13,13 +15,15 @@ import { LocalPdfOcrProcessor } from './document-local-processors';
 import { CorpusOcrWorkerService } from './corpus-ocr-worker.service';
 
 const enabled = process.env.SPRINT15_POSTGRES_TEST === '1';
+const fixtureDir = path.dirname(fileURLToPath(import.meta.url));
 const testStorage = path.resolve(
   process.cwd(),
   '../_dev-corpus-storage-test/sprint15-workspaces',
 );
 
 describe('Sprint 15 private workspace PostgreSQL isolation', () => {
-  const prisma = new PrismaService();
+  jest.setTimeout(60_000);
+  let prisma: PrismaService;
   let source: CorpusSearchSourceAdapter;
   let service: WorkspaceDocumentService;
   let access: CorpusDocumentAccessService;
@@ -47,6 +51,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
 
   beforeAll(async () => {
     if (!enabled) return;
+    prisma = new PrismaService();
     process.env.BJC_CORPUS_STORAGE_PATH = testStorage;
     await prisma.$connect();
     source = new CorpusSearchSourceAdapter();
@@ -65,12 +70,18 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       access,
       storage,
     );
-    const adminRole = await prisma.rol.findUniqueOrThrow({
-      where: { nombre: 'ADMIN' },
-    });
-    const lectRole = await prisma.rol.findUniqueOrThrow({
-      where: { nombre: 'LECTOR' },
-    });
+    const [adminRole, lectRole] = await Promise.all([
+      prisma.rol.upsert({
+        where: { nombre: 'ADMIN' },
+        update: {},
+        create: { nombre: 'ADMIN', descripcion: 'QA role seed' },
+      }),
+      prisma.rol.upsert({
+        where: { nombre: 'LECTOR' },
+        update: {},
+        create: { nombre: 'LECTOR', descripcion: 'QA role seed' },
+      }),
+    ]);
     const a = await prisma.usuario.create({
       data: {
         nombre: 'Synthetic Workspace A',
@@ -268,7 +279,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       const docAvailable = new LocalPdfOcrProcessor().capabilities.docAvailable;
       const docBuffer = docAvailable
         ? await readFile(
-            path.join(__dirname, 'fixtures', 'sprint154a1-golden.doc'),
+            path.join(fixtureDir, 'fixtures', 'sprint154a1-golden.doc'),
           )
         : null;
       const officeUploadsInput = [
@@ -408,7 +419,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       }
 
       const scannedPdf = await readFile(
-        path.join(__dirname, 'fixtures', 'sprint154a1-image-only.pdf'),
+        path.join(fixtureDir, 'fixtures', 'sprint154a1-image-only.pdf'),
       );
       const beforeOcr = await service.searchWorkspace(
         workspaceA.id,
@@ -1273,8 +1284,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
                 ),
               );
               for (const child of (node.Plans as
-                | Array<Record<string, unknown>>
-                | undefined) ?? [])
+                Array<Record<string, unknown>> | undefined) ?? [])
                 visit(child);
             };
             for (const item of plan) {
