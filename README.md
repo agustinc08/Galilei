@@ -7,6 +7,7 @@ Galilei reúne jurisprudencia, corpus documental, Digesto y espacios de trabajo 
 - Runtime: Node.js 24 LTS; el entorno validado usa 24.22.1.
 - Gestor: pnpm 12.15.0, fijado en el manifiesto raíz.
 - Cliente: React 19, Vite 8 y React Router 7; genera una SPA en `client/dist`.
+- Visor PDF: `react-pdf` 11 con `pdfjs-dist` 6.3.289 y worker empaquetado por Vite en el mismo origen.
 - API: NestJS 12 y Prisma 7.
 - Search: PostgreSQL es la fuente de verdad; OpenSearch 2.19.6 sirve el read model. V4 es activa, V3 se conserva para rollback y V1/V2 históricas están retiradas.
 - `docs/`: guías técnicas, historial de migración y runbooks BJC.

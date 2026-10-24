@@ -20,7 +20,7 @@ Antes de auditar, investigar o modificar Buscador Jurídico Civil, leer `docs/in
 
 ## Stack y rutas
 
-- Frontend Jurisprudencia: `client` — Next.js, React, TypeScript, pnpm.
+- Frontend Jurisprudencia: `client` — React, Vite, React Router, TypeScript, pnpm.
 - Backend Jurisprudencia: `server` — NestJS, TypeScript, Prisma, pnpm.
 - Base objetivo de desarrollo: PostgreSQL 16 nativo, loopback `127.0.0.1:55432`, DB `buscador_juridico_civil_dev`; el estado de instalación se registra en `docs/integracion/BJC-ESTADO-ACTUAL.md`.
 - Documentación maestra: `docs/integracion/BJC-*.md`. Evidencia histórica: informes numerados en esa carpeta.

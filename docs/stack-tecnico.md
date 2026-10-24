@@ -11,6 +11,7 @@ Estado de la rama de modernización, validado el 24 de octubre de 2026. El check
 | React / React DOM | 19.3.1 | Interfaz SPA |
 | Vite | 8.3.5 | Dev server y build estático en `client/dist` |
 | React Router | 7.18.4 | Rutas, deep links e historial de la SPA |
+| React-PDF / PDF.js | 11.0.0 / 6.3.289 | Visor de documentos; el worker local se empaqueta con Vite |
 | TypeScript | 6.0.3 | Cliente y servidor |
 | NestJS | 12.2.0 | API backend |
 | Prisma ORM / CLI | 7.10.1 | Persistencia PostgreSQL y generación del cliente |
@@ -37,18 +38,21 @@ pnpm e2e
 
 Los specs `*.integration.spec.ts` quedan fuera de la ejecución Jest predeterminada porque requieren servicios y fixtures QA configurados expresamente. No apuntes esos tests a PostgreSQL u OpenSearch principales.
 
-En el candidato final, la instalación congelada se repitió desde un worktree limpio sin `node_modules` ni cliente Prisma generado. Typecheck, lint, test y build pasaron; el test incluye una regresión que exige generar Prisma antes del preflight Nest en PREPROD. La UI pública pasó Playwright 22/22 y responsive 18/18. Los ocho journeys autenticados siguen pendientes de credenciales QA aisladas.
+En el candidato final, la instalación congelada se repitió desde un worktree limpio sin `node_modules` ni cliente Prisma generado. Typecheck, lint, test y build pasaron; el test incluye una regresión que exige generar Prisma antes del preflight Nest en PREPROD. La UI pública pasó Playwright 22/22 y responsive 18/18. La revalidación autenticada del espacio ejecutó los dos casos seriales de Workspace UAT y la prueba Sprint 15.6.1 ACL enfocada; ambas suites pasaron. No equivale a aceptación humana institucional.
 
 ## Motivos de compatibilidad
 
-- Se conserva ESLint 9.39.5: los plugins React y JSX accessibility fijados todavía declaran peers hasta ESLint 9.
+- Se conservan `eslint` y `@eslint/js` 9.39.5 en el mismo major: los plugins React y JSX accessibility fijados declaran peers hasta ESLint 9.
 - Se conserva TypeScript 6.0.3: typescript-eslint 8.72 declara `<6.1.0` y ts-jest 29.4 declara `<7`.
 - Se conserva `@types/node` 24.x para que los tipos disponibles coincidan con el runtime Node 24; el major 26 describe APIs de otro runtime.
+- Se fija `pdfjs-dist` 6.3.289 porque `react-pdf` 11.0.0 usa esa misma versión; el worker debe compartir versión con la biblioteca que procesa el PDF. Vite lo sirve como asset local versionado, sin CDN.
 - Se conserva Prisma 7.10.1, la versión GA compatible con esta aplicación. Prisma 8 aparece como release candidate en el registro consultado y no se habilita en este cambio.
 - `server/tsconfig.json` configura `ts-node.experimentalResolver` para que los scripts TypeScript en ejecución directa resuelvan los imports `.js` que genera el cliente Prisma 7.
 - `@opensearch-project/opensearch` 3.9.0 sólo actualiza el cliente JavaScript; el servidor permanece 2.19.6.
 
 Las auditorías `pnpm audit --prod` y `pnpm audit` no encontraron vulnerabilidades conocidas durante esta validación. Los avisos de paquetes transitivos obsoletos se registran aparte; no hay dependencias directas deprecated sin explicación.
+
+El `pnpm outdated --recursive` del 24-10-2026 marcó seis dependencias directas: `pdfjs-dist` (alineada con React-PDF), `@eslint/js`/`eslint` (peers de plugins), `@types/node` (major del runtime), TypeScript (peer ranges del toolchain) y Prisma 8 (el tag encontrado era RC). Las razones de compatibilidad están descritas arriba; no se promovió un major incompatible ni una versión prerelease.
 
 ## Search y datos
 

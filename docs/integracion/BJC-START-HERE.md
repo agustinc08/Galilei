@@ -9,8 +9,8 @@ El código vigente está organizado en `client/`, `server/` y `docs/`. La app Di
 ## Estado actual
 
 - **Search principal:** V4 activo y certificado en OpenSearch 2.19.6 GREEN; plugin `analysis-icu` 2.19.6, ICU4J 75.1, heap 2 GiB. El alias `galilei-search-active` apunta sólo a `galilei-search-v004-20261020t094732495z-6015e394`; V3 se retiene para rollback.
-- **QA funcional aislada:** los puertos QA `55434`, `29200/29220`, backend y frontend temporales fueron detenidos; PGDATA, Search data y storage sintético se eliminaron tras conservar informes pequeños. ACL, Viewer/Range/Download, lifecycle/outbox, negativos, concurrencia y E2E quedaron certificados en esa QA. No hay QA pesada activa.
-- **Cliente y producto:** typecheck/lint, pruebas de entorno 5/5, UX self 4/4, Playwright público 22/22 y build Next 16.4.2 pasan. Se corrigió una carrera para que una respuesta tardía de autocompletado no abra el menú tras perder foco.
+- **QA funcional aislada:** los puertos QA `55434`, `19200/19300`, backend y frontend temporales fueron detenidos; PGDATA, Search data, storage sintético y credenciales efímeras se eliminaron tras conservar informes pequeños. ACL, Viewer/Range/Download, lifecycle/outbox, negativos, concurrencia y E2E se ejercitaron en esa QA. No hay QA pesada activa.
+- **Cliente y producto:** typecheck/lint, pruebas de entorno 9/9, UX público 22/22, responsive 18/18, Workspace UAT autenticado 2/2 y build Vite pasan. El worker local de PDF.js está alineado con React-PDF 11.0.0; el UAT verificó canvas con contenido y la matriz PDF completa/range/denegación/ausencia. También se corrigió la carrera de autocompletado al perder foco.
 - **Oficina:** Sytec10 (`D:\proyecto triple`) no fue accedida. `office-runtime-transfer.rar` fue retirado tras confirmar que duplicaba source Git y material retenido; los scripts de preparación locales son pequeños. Para continuar allí, obtener source desde el SHA de `origin/dev` en una misión separada y hacer sus comprobaciones propias.
 
 ## Producto integrado

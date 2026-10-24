@@ -1,4 +1,8 @@
-# Search V2 — estado operativo
+# Search — estado operativo
+
+## Estado vigente — integración principal (2026-10-24)
+
+OpenSearch 2.19.6 está GREEN. `galilei-search-active` y el writer apuntan sólo al índice V4 `galilei-search-v004-20261020t094732495z-6015e394`; V3 `galilei-search-v003-20261017t232432555z-a6af18cb` se conserva como rollback. Los dos contienen 69.313 documentos. Los cinco índices V1 y el índice V2 fueron retirados por nombre físico exacto después del preflight de rollback/paridad; el cleanup habitual opera sólo sobre la generación configurada. PostgreSQL sigue siendo fuente de verdad y el outbox principal comprobado más recientemente está en 0 pending / 0 failed. No reintroducir dependencias de recuperación V1/V2 ni ejecutar limpieza manual sobre V3/V4.
 
 ## JURISPRUDENCIA-SORT-FIX-1 — candidata (2026-10-20)
 
