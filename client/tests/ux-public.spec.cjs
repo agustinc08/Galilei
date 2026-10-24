@@ -165,6 +165,52 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
 });
 
 test.describe('Search user-facing states @public @state', () => {
+  test('a delayed autocomplete response stays closed after its input blurs', async ({ page }) => {
+    let releaseSuggestions;
+    let requestIntercepted = false;
+    const waitForRelease = new Promise((resolve) => {
+      releaseSuggestions = resolve;
+    });
+    const suggestionResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith('/public/busqueda/sugerencias');
+    });
+
+    await page.route('**/api/public/busqueda/sugerencias**', async (route) => {
+      requestIntercepted = true;
+      await waitForRelease;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify({
+          data: [{ value: 'responsabilidad civil', tipo: 'tema', total: 4 }],
+        }),
+      });
+    });
+
+    try {
+      await page.setViewportSize({ width: 430, height: 932 });
+      await page.goto('/consulta');
+      await page.getByLabel('Buscar jurisprudencia').fill('responsabilidad civil');
+      await page.getByRole('button', { name: 'Más filtros', exact: true }).click();
+      await expect(page.getByLabel('Frase exacta')).toBeVisible();
+      await expect.poll(() => requestIntercepted).toBe(true);
+      releaseSuggestions();
+      const response = await suggestionResponse;
+      expect(response.status()).toBe(200);
+      await expect(
+        page.getByRole('button', {
+          name: 'responsabilidad civil tema · 4',
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+      await expect(page).toHaveURL(/q=responsabilidad(?:\+|%20)civil/u);
+    } finally {
+      releaseSuggestions();
+    }
+  });
+
   test('loading and zero-results states remain clear and recoverable', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/consulta?q=UX_QA_LOADING');

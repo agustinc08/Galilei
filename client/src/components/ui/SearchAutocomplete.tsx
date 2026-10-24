@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './search-autocomplete.module.css';
 import { api } from '@/lib/api';
 import { trackEvento } from '@/lib/tracking';
@@ -39,6 +39,7 @@ export function SearchAutocomplete({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const trimmedValue = useMemo(() => value.trim(), [value]);
   const visibleSuggestions = trimmedValue.length < 3 ? [] : suggestions;
@@ -54,7 +55,7 @@ export function SearchAutocomplete({
       const cached = suggestionCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
         setSuggestions(cached.data);
-        setOpen(true);
+        setOpen(inputRef.current === document.activeElement);
         setActiveIndex(-1);
         return;
       }
@@ -72,7 +73,7 @@ export function SearchAutocomplete({
           expiresAt: Date.now() + SUGGESTION_CACHE_TTL_MS,
         });
         setSuggestions(nextSuggestions);
-        setOpen(true);
+        setOpen(inputRef.current === document.activeElement);
         setActiveIndex(-1);
       } catch {
         setSuggestions([]);
@@ -105,6 +106,7 @@ export function SearchAutocomplete({
     <label className={styles.wrapper}>
       <span className={styles.label}>{label}</span>
       <input
+        ref={inputRef}
         className={styles.input}
         value={value}
         placeholder={placeholder}
