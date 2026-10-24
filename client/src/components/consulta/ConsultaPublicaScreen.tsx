@@ -184,7 +184,10 @@ function ConsultaPublicaScreenContent() {
 
   const handleSearch = (nextValues: ConsultaPublicaFilters) => {
     const pdf = nextValues.pdf || (nextValues.soloConPdf === 'true' ? 'conPdf' : 'todos');
-    const sala = nextValues.sala?.trim().replace(/^sala\s+/iu, '') ?? '';
+    const salaValue = nextValues.sala?.trim() ?? '';
+    const sala = salaValue
+      ? `Sala ${salaValue.replace(/^sala(?:\s+|$)/iu, '').trim()}`.trim()
+      : '';
     updateRoute({
       ...nextValues,
       sala,

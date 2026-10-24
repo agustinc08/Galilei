@@ -96,7 +96,7 @@ function fixtureForRequest(request) {
 
   if (method === 'GET' && pathname === '/public/busqueda/temas') return json(200, { data: ['Responsabilidad civil', 'Daños y perjuicios'] });
   if (method === 'GET' && pathname === '/public/sentencias/recientes') return json(200, { data: [] });
-  if (method === 'GET' && pathname === '/catalogos/salas') return json(200, { data: [{ id: 1, nombre: 'I' }] });
+  if (method === 'GET' && pathname === '/catalogos/salas') return json(200, { data: [{ id: 1, nombre: 'I' }, { id: 2, nombre: 'Sala A' }] });
   if (method === 'GET' && pathname === '/catalogos/tipos-fallo') return json(200, { data: [{ id: 1, nombre: 'Sentencia definitiva' }] });
   if (method === 'GET' && pathname === '/catalogos/tribunales-origen') return json(200, { data: [{ id: 1, nombre: 'Cámara Civil' }] });
   if (method === 'GET' && pathname === '/public/busqueda/sugerencias') return json(200, { data: [{ value: 'responsabilidad civil', tipo: 'tema', total: 4 }] });

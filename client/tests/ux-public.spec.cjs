@@ -85,6 +85,9 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await page.getByRole('button', { name: 'Más filtros', exact: true }).click();
       await expect(page.getByLabel('Frase exacta')).toBeVisible();
       await page.getByLabel('Frase exacta').fill('daños');
+      await page.locator('select:has(option[value="Sala A"])').selectOption('Sala A');
+      await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+      await expect(page).toHaveURL(/sala=Sala(?:\+|%20)A/u);
       await captureAndCheck(page, testInfo, { id: 'search-filters', route: '/consulta' });
 
       const helpButton = page.getByRole('button', { name: 'Consejos de búsqueda', exact: true });
