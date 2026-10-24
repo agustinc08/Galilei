@@ -45,7 +45,7 @@ export default defineConfig({
       },
     },
     {
-      command: `pnpm.cmd run dev:qa -- --port ${frontendPort}`,
+      command: `pnpm.cmd exec vite --host 127.0.0.1 --strictPort --port ${frontendPort}`,
       url: `http://127.0.0.1:${frontendPort}/login`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

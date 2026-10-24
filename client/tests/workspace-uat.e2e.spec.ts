@@ -4,14 +4,20 @@ import { expect, test, type Page } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
 
+const credentialsPath = process.env.BJC_WORKSPACE_UAT_CREDENTIALS_PATH?.trim()
+  ? resolve(process.env.BJC_WORKSPACE_UAT_CREDENTIALS_PATH)
+  : resolve(process.cwd(), '../_recovery-work/sprint10/acceptance/credentials.json');
 const credentials = JSON.parse(
-  readFileSync(resolve(process.cwd(), '../_recovery-work/sprint10/acceptance/credentials.json'), 'utf8'),
+  readFileSync(credentialsPath, 'utf8'),
 ) as { accounts: Record<string, { email: string; password: string }> };
 const apiBase = `http://127.0.0.1:${process.env.BJC_PLAYWRIGHT_BACKEND_PORT ?? '4001'}/api`;
 const pdf = readFileSync(resolve(process.cwd(), '../server/scripts/dev/fixtures/corpus/fallo-fixture.pdf'));
 const ocrPdf = readFileSync(resolve(process.cwd(), '../server/src/corpus/fixtures/sprint154a1-ten-pages.pdf'));
 const legacyDoc = readFileSync(resolve(process.cwd(), '../server/src/corpus/fixtures/sprint154a1-golden.doc'));
 const runId = `${Date.now()}`;
+const artifactDir = process.env.BJC_WORKSPACE_UAT_ARTIFACTS_DIR?.trim()
+  ? resolve(process.env.BJC_WORKSPACE_UAT_ARTIFACTS_DIR)
+  : null;
 const formatMarker = `sprint154aui${runId}`;
 const ocrMarker = 'OCRTESTTOKENXYZ';
 const rtf = Buffer.from(`{\\rtf1\\ansi ${formatMarker} responsabilidad civil y daño moral}`, 'ascii');
@@ -19,8 +25,18 @@ const codeA = `S151UIE2E_A_${runId}`;
 const codeB = `S151UIE2E_B_${runId}`;
 const nameA = `Sala UAT privada A ${runId}`;
 const nameB = `Juzgado UAT privado B ${runId}`;
-const workspaceManifestPath = resolve(process.cwd(), '../_recovery-work/sprint154a1/workspace-uat-created.json');
-const sprint156ScreenshotDir = resolve(process.cwd(), '../_recovery-work/sprint156/screenshots/after');
+const workspaceManifestPath = artifactDir
+  ? resolve(artifactDir, 'workspace-uat-created.json')
+  : resolve(process.cwd(), '../_recovery-work/sprint154a1/workspace-uat-created.json');
+const frontendPerformancePath = artifactDir
+  ? resolve(artifactDir, 'frontend-performance.json')
+  : resolve(process.cwd(), '../_recovery-work/sprint156/frontend-performance.json');
+const responsiveMatrixPath = artifactDir
+  ? resolve(artifactDir, 'responsive-matrix.json')
+  : resolve(process.cwd(), '../_recovery-work/sprint156/responsive-matrix.json');
+const sprint156ScreenshotDir = artifactDir
+  ? resolve(artifactDir, 'screenshots')
+  : resolve(process.cwd(), '../_recovery-work/sprint156/screenshots/after');
 const createdWorkspaces: Array<{ id: string; code: string }> = [];
 
 function saveWorkspaceManifest() {
@@ -77,10 +93,47 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   const outputDir = sprint156ScreenshotDir;
   mkdirSync(outputDir, { recursive: true });
   const browserErrors: string[] = [];
-  page.on('pageerror', (error) => browserErrors.push(error.message));
+  const viewerErrors: string[] = [];
+  const viewerNetwork: Array<Record<string, string | number | boolean | null>> = [];
+  let captureViewerDiagnostics = false;
+  page.on('pageerror', (error) => {
+    browserErrors.push(error.message);
+    if (captureViewerDiagnostics) viewerErrors.push(error.message);
+  });
   page.on('console', (message) => {
-    if (message.type() === 'error' && !/favicon|websocket|404 \(Not Found\)/iu.test(message.text()))
+    if (message.type() === 'error' && !/favicon|websocket|404 \(Not Found\)/iu.test(message.text())) {
       browserErrors.push(message.text());
+      if (captureViewerDiagnostics) viewerErrors.push(message.text());
+    }
+  });
+  page.on('requestfailed', (request) => {
+    if (!captureViewerDiagnostics) return;
+    const url = request.url();
+    if (/\/file(?:\?|$)|pdfjs|worker|\.mjs(?:\?|$)|\.wasm(?:\?|$)/iu.test(url)) {
+      viewerNetwork.push({
+        kind: 'request-failed',
+        method: request.method(),
+        url: (() => { try { return new URL(url).pathname; } catch { return url.split('?')[0]; } })(),
+        error: request.failure()?.errorText ?? null,
+      });
+    }
+  });
+  page.on('response', (response) => {
+    if (!captureViewerDiagnostics) return;
+    const url = response.url();
+    if (!/\/file(?:\?|$)|pdfjs|worker|\.mjs(?:\?|$)|\.wasm(?:\?|$)/iu.test(url)) return;
+    void response.allHeaders().then((headers) => {
+      viewerNetwork.push({
+        kind: 'response',
+        method: response.request().method(),
+        url: (() => { try { return new URL(url).pathname; } catch { return url.split('?')[0]; } })(),
+        status: response.status(),
+        contentType: headers['content-type'] ?? null,
+        contentLength: headers['content-length'] ?? null,
+        contentRange: headers['content-range'] ?? null,
+        acceptRanges: headers['accept-ranges'] ?? null,
+      });
+    });
   });
 
   // The seeded acceptance reader begins without any private membership.
@@ -213,10 +266,112 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   const documentLink = contentResults.getByRole('link', { name: /sprint151-e2e-one\.pdf/iu });
   const documentPath = await documentLink.getAttribute('href');
   expect(documentPath).toBeTruthy();
+  captureViewerDiagnostics = true;
   await documentLink.click();
   await expect(page.getByRole('link', { name: '← Volver a los documentos' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Descargar PDF' })).toBeVisible();
-  await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
+  try {
+    await expect(page.locator('.react-pdf__Page')).toBeVisible({ timeout: 60_000 });
+  } catch (error) {
+    const dom = await page.evaluate(() => {
+      const root = document.querySelector('[class*="pdfDocument"]');
+      return {
+        url: location.pathname,
+        pageClassCount: document.querySelectorAll('.react-pdf__Page').length,
+        canvasCount: root?.querySelectorAll('canvas').length ?? 0,
+        textLayerCount: root?.querySelectorAll('.react-pdf__Page__textContent').length ?? 0,
+        text: root?.textContent?.trim().slice(0, 500) ?? null,
+        canvasSizes: [...(root?.querySelectorAll('canvas') ?? [])].map((canvas) => ({ width: canvas.width, height: canvas.height })),
+        workerScripts: [...document.scripts].map((script) => script.src).filter((src) => /pdfjs|worker/iu.test(src)),
+        visibleText: [...document.querySelectorAll('p,[role="alert"],[role="status"]')]
+          .filter((element) => (element as HTMLElement).offsetParent !== null)
+          .map((element) => element.textContent?.trim()).filter(Boolean),
+      };
+    });
+    console.log(`WORKSPACE_UAT_VIEWER_DIAGNOSTICS=${JSON.stringify({ dom, network: viewerNetwork, errors: viewerErrors })}`);
+    await page.screenshot({ path: resolve(outputDir, 'workspace-viewer-failure.png'), fullPage: true });
+    throw error;
+  }
+  captureViewerDiagnostics = false;
+  const renderedCanvas = page.locator('.react-pdf__Page canvas');
+  await expect(renderedCanvas).toBeVisible();
+  const renderedContent = await renderedCanvas.evaluate((canvas) => {
+    if (!(canvas instanceof HTMLCanvasElement) || canvas.width === 0 || canvas.height === 0) {
+      return { width: canvas instanceof HTMLCanvasElement ? canvas.width : 0, height: canvas instanceof HTMLCanvasElement ? canvas.height : 0, nonWhiteSamples: 0 };
+    }
+    const sample = document.createElement('canvas');
+    sample.width = 64;
+    sample.height = 64;
+    const context = sample.getContext('2d');
+    if (!context) return { width: canvas.width, height: canvas.height, nonWhiteSamples: 0 };
+    context.drawImage(canvas, 0, 0, sample.width, sample.height);
+    const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
+    let nonWhiteSamples = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index] < 245 || pixels[index + 1] < 245 || pixels[index + 2] < 245) nonWhiteSamples += 1;
+    }
+    return { width: canvas.width, height: canvas.height, nonWhiteSamples };
+  });
+  expect(renderedContent.width).toBeGreaterThan(0);
+  expect(renderedContent.height).toBeGreaterThan(0);
+  expect(renderedContent.nonWhiteSamples).toBeGreaterThan(0);
+  const readerLogin = await page.request.post(`${apiBase}/auth/login`, { data: credentials.accounts.reader });
+  expect(readerLogin.ok()).toBe(true);
+  const unauthorizedViewerToken = (await readerLogin.json() as { accessToken?: string }).accessToken;
+  expect(unauthorizedViewerToken).toBeTruthy();
+  const viewerDocumentId = new URL(documentPath!, 'http://127.0.0.1').pathname.split('/').at(-1) ?? '';
+  const viewerTransferMatrix = await page.evaluate(async ({ workspaceId, documentId, readerToken }) => {
+    const token = localStorage.getItem('jurisprudencia_token');
+    if (!token) throw new Error('EXPECTED_AUTH_TOKEN_FOR_VIEWER_MATRIX');
+    const filePath = `/api/workspaces/${encodeURIComponent(workspaceId)}/documents/${encodeURIComponent(documentId)}/file`;
+    const authorization = { Authorization: `Bearer ${token}` };
+    const full = await fetch(filePath, { headers: authorization });
+    const fullBytes = new Uint8Array(await full.arrayBuffer());
+    const range = await fetch(filePath, { headers: { ...authorization, Range: 'bytes=0-4' } });
+    const rangeBytes = new Uint8Array(await range.arrayBuffer());
+    const unauthorized = await fetch(filePath, { headers: { Authorization: `Bearer ${readerToken}` } });
+    const unauthorizedRange = await fetch(filePath, { headers: { Authorization: `Bearer ${readerToken}`, Range: 'bytes=0-4' } });
+    const missing = await fetch(`${filePath.replace(encodeURIComponent(documentId), 'cm00000000000000000000000')}`, { headers: authorization });
+    const missingBody = await missing.text();
+    return {
+      full: {
+        status: full.status,
+        contentType: full.headers.get('content-type'),
+        bytes: fullBytes.byteLength,
+        pdfSignature: new TextDecoder().decode(fullBytes.subarray(0, 5)) === '%PDF-',
+      },
+      range: {
+        status: range.status,
+        contentType: range.headers.get('content-type'),
+        contentRange: range.headers.get('content-range'),
+        bytes: rangeBytes.byteLength,
+        pdfSignature: new TextDecoder().decode(rangeBytes.subarray(0, 5)) === '%PDF-',
+      },
+      unauthorized: unauthorized.status,
+      unauthorizedRange: unauthorizedRange.status,
+      missing: missing.status,
+      missingLeaksPath: /[A-Z]:\\|pgdata|127\.0\.0\.1/iu.test(missingBody),
+    };
+  }, {
+    workspaceId: workspaceAId,
+    documentId: viewerDocumentId,
+    readerToken: unauthorizedViewerToken!,
+  });
+  const anonymousFileResponse = await page.request.get(`${apiBase}/workspaces/${workspaceAId}/documents/${viewerDocumentId}/file`);
+  expect(viewerTransferMatrix.full.status).toBe(200);
+  expect(viewerTransferMatrix.full.contentType).toContain('application/pdf');
+  expect(viewerTransferMatrix.full.bytes).toBeGreaterThan(5);
+  expect(viewerTransferMatrix.full.pdfSignature).toBe(true);
+  expect(viewerTransferMatrix.range.status).toBe(206);
+  expect(viewerTransferMatrix.range.contentRange).toMatch(/^bytes 0-4\//u);
+  expect(viewerTransferMatrix.range.bytes).toBe(5);
+  expect(viewerTransferMatrix.range.pdfSignature).toBe(true);
+  expect(anonymousFileResponse.status()).toBe(401);
+  expect(viewerTransferMatrix.unauthorized).toBe(404);
+  expect(viewerTransferMatrix.unauthorizedRange).toBe(404);
+  expect(viewerTransferMatrix.missing).toBe(404);
+  expect(viewerTransferMatrix.missingLeaksPath).toBe(false);
+  console.log(`WORKSPACE_UAT_VIEWER_PASS=${JSON.stringify({ network: viewerNetwork, renderedContent, transferMatrix: viewerTransferMatrix })}`);
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Descargar PDF' }).click();
   expect((await download).suggestedFilename()).toBe('sprint151-e2e-one.pdf');
@@ -241,6 +396,20 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   frontendPerformanceMs.privateAreaReady = Date.now() - initialAreaStartedAt;
   const classicSearch = page.getByLabel('Buscar documentos de la dependencia');
   const classicSearchButton = classicSearch.locator('xpath=..').getByRole('button', { name: 'Buscar', exact: true });
+  const ocrUiSearchEvents: Array<Record<string, string | number>> = [];
+  const ocrSearchPath = `/api/workspaces/${workspaceAId}/search`;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === ocrSearchPath && url.searchParams.get('q') === ocrMarker) {
+      ocrUiSearchEvents.push({ kind: 'request', method: request.method(), url: `${url.pathname}${url.search}` });
+    }
+  });
+  page.on('response', (response) => {
+    const url = new URL(response.url());
+    if (url.pathname === ocrSearchPath && url.searchParams.get('q') === ocrMarker) {
+      ocrUiSearchEvents.push({ kind: 'response', status: response.status(), url: `${url.pathname}${url.search}` });
+    }
+  });
   await classicSearch.fill(ocrMarker);
   const ocrResult = page.locator('[aria-label="Resultados por contenido y nombre"]').getByRole('button', { name: /Vista previa de sprint154a1-e2e-ocr-ten-pages\.pdf/iu });
   const ocrSearchResponse = page.waitForResponse((response) => {
@@ -248,7 +417,17 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
     return url.pathname.endsWith(`/api/workspaces/${workspaceAId}/search`) && url.searchParams.get('q') === ocrMarker;
   }, { timeout: 60_000 });
   await classicSearchButton.click();
-  expect((await ocrSearchResponse).ok()).toBe(true);
+  try {
+    expect((await ocrSearchResponse).ok()).toBe(true);
+  } catch (error) {
+    const uiState = await page.evaluate(() => ({
+      url: location.pathname + location.search,
+      searchButtonDisabled: [...document.querySelectorAll('form[role="search"] button[type="submit"]')].map((button) => (button as HTMLButtonElement).disabled),
+      visibleStatus: [...document.querySelectorAll('[role="status"],[role="alert"]')].map((element) => element.textContent?.trim()).filter(Boolean),
+    }));
+    console.log(`WORKSPACE_UAT_OCR_SEARCH_DIAGNOSTICS=${JSON.stringify({ events: ocrUiSearchEvents, uiState, errors: browserErrors })}`);
+    throw error;
+  }
   await expect(ocrResult).toBeVisible({ timeout: 30_000 });
   const folderTree = page.getByRole('tree', { name: `Carpetas de ${nameA}` });
   await expect(folderTree).toBeVisible();
@@ -298,7 +477,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect.poll(() => manualSourceRequests.includes('__manual_upload__')).toBe(true);
   expect(await page.locator('body').innerText()).not.toContain('Carga manual');
   await expect(firstClassicResult).toBeVisible({ timeout: 60_000 });
-  await expect(classicResults.locator('article').first()).toContainText('Carpeta compartida: Documentos cargados');
+  await expect(firstClassicResult).toContainText('Carpeta compartida: Documentos cargados');
   const pdfFilterResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.pathname.endsWith(`/api/workspaces/${workspaceAId}/search`)
@@ -376,7 +555,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
     expect(layout.previewPanelWidth).toBeGreaterThan(0);
     viewportMatrix.push({ ...layout, horizontalOverflow: layout.pageScrollWidth - width });
   }
-  writeFileSync(resolve(process.cwd(), '../_recovery-work/sprint156/responsive-matrix.json'), JSON.stringify({ viewports: viewportMatrix }, null, 2));
+  writeFileSync(responsiveMatrixPath, JSON.stringify({ viewports: viewportMatrix }, null, 2));
   await page.setViewportSize({ width: 1920, height: 1080 });
   await folderTree.getByRole('treeitem', { name: /Actuaciones 2026/iu }).click();
   await expect(page).toHaveURL(/folderId=/u);
@@ -602,10 +781,12 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
 
   const documentIdA = documentPath?.match(/\/documents\/([^?]+)/u)?.[1];
   expect(documentIdA).toBeTruthy();
-  const deniedWorkspaceResponses: number[] = [];
+  const deniedWorkspaceResponses: Array<{ pathname: string; status: number }> = [];
   page.on('response', (response) => {
-    if (response.url().includes(`/api/workspaces/${workspaceAId}/documents/${documentIdA}`))
-      deniedWorkspaceResponses.push(response.status());
+    const pathname = new URL(response.url()).pathname;
+    const documentPath = `/api/workspaces/${workspaceAId}/documents/${documentIdA}`;
+    if (pathname === documentPath || pathname === `${documentPath}/file`)
+      deniedWorkspaceResponses.push({ pathname, status: response.status() });
   });
   await page.goto(`/spaces/${workspaceAId}/documents/${documentIdA}`);
   await expect(page.locator('p[role="alert"]')).toHaveText('No encontramos este documento o no tenés acceso.', { timeout: 30_000 });
@@ -613,14 +794,18 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await expect(page.getByLabel('Buscar en el documento')).toHaveCount(0);
   await expect(page.getByText('Cargando documento…')).toHaveCount(0);
   await page.screenshot({ path: resolve(outputDir, 'permission-denied.png'), fullPage: true });
-  expect(deniedWorkspaceResponses).toHaveLength(2);
-  expect(deniedWorkspaceResponses.every((status) => status === 404)).toBe(true);
+  const deniedMetadataPath = `/api/workspaces/${workspaceAId}/documents/${documentIdA}`;
+  const deniedFilePath = `${deniedMetadataPath}/file`;
+  expect(deniedWorkspaceResponses.length).toBeGreaterThanOrEqual(2);
+  expect(deniedWorkspaceResponses.some((response) => response.pathname === deniedMetadataPath && response.status === 404)).toBe(true);
+  expect(deniedWorkspaceResponses.some((response) => response.pathname === deniedFilePath && response.status === 404)).toBe(true);
+  expect(deniedWorkspaceResponses.every((response) => response.status === 404)).toBe(true);
   const expectedNotFoundErrors: string[] = browserErrors.filter(
     (error) => error === 'Failed to load resource: net::ERR_FILE_NOT_FOUND',
   );
   expect(expectedNotFoundErrors.length).toBeLessThanOrEqual(deniedWorkspaceResponses.length);
   expect(browserErrors.filter((error) => !expectedNotFoundErrors.includes(error))).toEqual([]);
-  writeFileSync(resolve(process.cwd(), '../_recovery-work/sprint156/frontend-performance.json'), JSON.stringify({
+  writeFileSync(frontendPerformancePath, JSON.stringify({
     method: 'Browser-visible timing from navigation/action start to ready UI; Search request timings are excluded.',
     measurementsMs: frontendPerformanceMs,
     limitations: ['privateAreaReady includes membership and folder API responses', 'previewReadyAfterSelection includes document metadata/file/match requests', 'resultRenderAfterResponse starts after Search response so excludes Search network time'],

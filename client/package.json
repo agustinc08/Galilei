@@ -23,7 +23,7 @@
     "preprod:env:test": "node --test scripts/preprod-build-env.test.mjs"
   },
   "dependencies": {
-    "pdfjs-dist": "6.4.299",
+    "pdfjs-dist": "6.3.289",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-pdf": "^11.0.0",
