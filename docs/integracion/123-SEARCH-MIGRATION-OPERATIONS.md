@@ -1,5 +1,16 @@
 # 123 — Operación y recuperación del Search read model
 
+## Política de generaciones vigente
+
+- Alias de lectura/escritura principal: `galilei-search-active` → generación V4.
+- Rollback retenido: generación V3.
+- V1/V2 son generaciones históricas; no deben usarse como alias activo ni como target de una recuperación nueva.
+- Los scripts de recuperación deben nombrar el source y target V3/V4 explícitamente y fallar cerrados ante cualquier otra topología. No usar delete/cutover por wildcard.
+- `cleanupOldIndexes()` sólo considera índices del `schemaVersion` configurado. En runtime V4 no toca V3 ni generaciones históricas; V3 se conserva para rollback.
+- El retiro físico de V1/V2 es una acción separada: registrar cada índice, UUID, generación, cantidad de documentos, tamaño y aliases; comprobar que ninguno sea alias/writer y que las herramientas actuales no dependan de él; después borrar nombres exactos y verificar V3/V4, alias, salud y outbox. La prueba debe usar una topología sintética aislada y no reconstruir los 69.313 documentos principales.
+
+Validación read-only del 24 de octubre de 2026: OpenSearch 2.19.6, GREEN, 0 shards sin asignar; V3 y V4 con 69.313 documentos y alias único en V4. Los índices V1/V2 aún estaban presentes al guardar esa observación; no forman parte de la recuperación actual.
+
 ## Destino y guard
 
 Toda operación PostgreSQL de este runbook se ejecuta desde `server` con `node scripts/with-dev-db-guard.cjs <acción>`. El guard exige host `127.0.0.1`, puerto `55432`, DB `buscador_juridico_civil_dev` y rol `bjc_dev`. No usar producción, servidor institucional ni DB remota.

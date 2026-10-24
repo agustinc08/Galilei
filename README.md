@@ -1,32 +1,37 @@
 # Galilei — Buscador Jurídico Civil
 
-Galilei reúne jurisprudencia, corpus documental, Digesto y espacios de trabajo privados en una aplicación web. El código activo queda separado en dos aplicaciones independientes: client/ (Next.js) y server/ (NestJS, Prisma y PostgreSQL). Cada una conserva su propio manifiesto y lockfile pnpm; la raíz no declara un workspace que pueda mezclar instalaciones.
+Galilei reúne jurisprudencia, corpus documental, Digesto y espacios de trabajo privados en una aplicación web. El repositorio contiene dos paquetes dentro de un workspace pnpm: `client/` (React, Vite y TypeScript) y `server/` (NestJS, Prisma y PostgreSQL).
 
-## Estructura
+## Stack y estructura
 
-- client/: interfaz Next.js, pruebas Playwright y harness de UX.
-- server/: API NestJS, Search, ACL, Prisma, migraciones y scripts protegidos.
-- docs/: guías del repositorio y documentación de integración BJC.
-- docker-compose.yml y docker-compose.dev.yml: recetas locales optativas, no servicios activos.
+- Runtime: Node.js 24 LTS; el entorno validado usa 24.22.1.
+- Gestor: pnpm 12.15.0, fijado en el manifiesto raíz.
+- Cliente: React 19, Vite 8 y React Router 7; genera una SPA en `client/dist`.
+- API: NestJS 12 y Prisma 7.
+- Search: PostgreSQL es la fuente de verdad; OpenSearch 2.19.6 sirve el read model. La generación activa es V4 y V3 se conserva para rollback.
+- `docs/`: guías técnicas, historial de migración y runbooks BJC.
 
-Digesto sigue como dominio funcional dentro de client/ y server/. La aplicación antigua CRA/Nest que vivía en `legacy/digesto/` fue retirada porque no tiene dependencias activas; Git conserva su historia.
+Ver [stack técnico](docs/stack-tecnico.md), [migración 2026](docs/migracion-stack-2026.md) y [estructura del proyecto](docs/estructura-proyecto.md).
 
-Ver [estructura del proyecto](docs/estructura-proyecto.md), [inventario de raíz](docs/inventario-raiz.md) y [guía de inicio BJC](docs/integracion/BJC-START-HERE.md).
+## Requisitos e instalación
 
-## Desarrollo local
+Usá Node `>=24.15.0 <25` y pnpm `12.15.0`.
 
-Usá pnpm en cada aplicación, sin regenerar lockfiles con npm.
+```powershell
+pnpm install --frozen-lockfile
+pnpm dev
+```
 
-Cliente, desde client/: pnpm install --frozen-lockfile y pnpm dev.
+Comandos raíz disponibles: `pnpm dev`, `pnpm build`, `pnpm test`, `pnpm lint`, `pnpm typecheck` y `pnpm e2e`. Para operar un paquete por separado, usá `pnpm --filter front ...` o `pnpm --filter back ...`.
 
-Servidor, desde server/: pnpm install --frozen-lockfile y pnpm start:dev.
+Las pruebas backend predeterminadas ejecutan suites unitarias y omiten `*.integration.spec.ts`; esas suites requieren una base y servicios QA explícitos. No apuntes pruebas o migraciones a producción ni a servidores institucionales.
 
-Las pruebas y builds se ejecutan desde la aplicación correspondiente con sus scripts pnpm. Antes de cualquier operación Prisma o prueba que escriba en la base, usar node scripts/with-dev-db-guard.cjs <acción> desde server/; el guard exige la base DEV local exacta (127.0.0.1:55432/buscador_juridico_civil_dev, rol bjc_dev). No ejecutar migraciones directas ni leer/imprimir .env.development.local.
+## Datos locales
 
-## Datos y servicios locales
+El corpus DEV real vive en `_dev-corpus-storage/`; contiene blobs referenciados por PostgreSQL y se conserva fuera de Git. PostgreSQL y OpenSearch principales, backups, credenciales y evidencia operativa también viven fuera del repositorio.
 
-El corpus DEV real vive en `_dev-corpus-storage/` y contiene los blobs locales referenciados por PostgreSQL para Viewer y descarga; no borrarlo ni versionarlo. PostgreSQL, OpenSearch, backups, configuración de oficina y evidencia operativa viven fuera de Git en raíces locales ignoradas. El inventario explica qué se conserva y por qué. No conectar a producción ni a servidores institucionales.
+Antes de una operación Prisma que escriba, ejecutá la acción protegida correspondiente mediante `server/scripts/with-dev-db-guard.cjs`. El guard exige `127.0.0.1:55432/buscador_juridico_civil_dev`, rol `bjc_dev`. No imprimas ni copies `.env` o secretos.
 
-`_local-setup/office-runtime-transfer.rar` contiene el paquete único de transferencia para la PC de oficina: dump PostgreSQL DEV y blobs del corpus, sin secretos. Los manifiestos y checksums acompañantes permiten validar el archivo antes del traspaso. Los runtimes y datos históricos de `_recovery-work/` no son parte del paquete.
+La política de índices, recuperación y retiro de generaciones históricas está en [operación de Search](docs/integracion/123-SEARCH-MIGRATION-OPERATIONS.md). El cleanup rutinario sólo considera la generación configurada; V3 debe conservarse como rollback mientras V4 sea la activa.
 
-Las rutas históricas `JurisprudenciaN/back/data`, `JurisprudenciaN/back/uploads` y `digesto/server/pdfs` pertenecen al checkout original y se conservan aparte; no son el runtime de las aplicaciones actuales. La allowlist PDF de `server/scripts/dev/institutional-pdf-roots.json` las trata como fuentes locales read-only: un clon limpio debe configurar sus propios roots antes de inventariar o ingerir.
+Las carpetas históricas `JurisprudenciaN/back/data`, `JurisprudenciaN/back/uploads` y `digesto/server/pdfs` pertenecen a checkout/source legado. La configuración institucional del backend las trata como orígenes read-only; un clon limpio debe configurar sus propios roots antes de inventariar o ingerir.
