@@ -1,17 +1,17 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
-## Estado y gates vigentes — principal DEV (2026-10-21)
+## Estado y gates vigentes — principal DEV (2026-10-24)
 
 | Gate | Estado actual | Evidencia / siguiente paso |
 |---|---|---|
-| Principal DEV | **CONSOLIDADO** | Copernic integrado en `origin/dev`; commit `899210c0c9f2231fd9302b1c86971b23a7a19610` más este follow-up documental. `main` intacta en `83947656420a9d6f6c3cfb12b353eb7f2c293a28`. |
-| Search V4 | **ACTIVO / CERTIFICADO** | OpenSearch 2.19.6 GREEN; `analysis-icu` 2.19.6, ICU4J 75.1, heap 2 GiB; alias `galilei-search-active` → V4 solamente; writer V4. |
-| Índices / rollback | **V4 activo; V3 retenido** | V3 y V4 con 69.313 documentos observados; mantener V3 para rollback. Corte `CERTIFIED_WITH_FINDINGS`, P0=0/P1=0. No repetir cutover. |
-| Copernic | **INTEGRADO / REVISIÓN PASS** | Home, Jurisprudencia, Mi Sala / Juzgado, Mis documentos, carpetas, búsqueda, ACL, Viewer/descarga, estados de carga/error/vacío y duplicados; backend ACL/Search sin cambios. Tests Copernic 5/5 y responsive 27/27. |
-| Búsqueda | **SMOKE PASS** | Responsabilidad civil 4.759; frase exacta 3.369; falta de servicio 1.826; Sala A 347; paginación 200; 5xx=0, 503=0. Orden V4 sampleado ASC/DESC: 0 diferencias en 100 valores por dirección. |
-| DB / Prisma | **SIN CAMBIOS** | Prisma generate PASS contra PostgreSQL DEV 16.15 en `127.0.0.1:55432`; no se ejecutaron migraciones. Outbox pending=0, failed=0; residuo sintético=0. |
-| Oficina — Sytec10 | **LISTA PARA MISIÓN SEPARADA** | Raíz `D:\proyecto triple`; PostgreSQL READY; OpenSearch NOT_INSTALLED; migración V4 NOT_STARTED. No se accedió a esa PC. |
-| Próximo gate | `GALILEI-V4-OFFICE-MIGRATE-1` | Ejecutar sólo después, en Sytec10 y su raíz D:, con su propia validación previa. |
+| DEV y cambios funcionales | **FAST-FORWARD / PASS** | Base de misión `57550e0cece6f8e57fefe21fcdf43285378d8292`; fixes de Sala (`cd5f741`) y foco de autocompletado (`0cd128f`) validados en cliente. `main` intacta (`83947656420a9d6f6c3cfb12b353eb7f2c293a28`). |
+| Checkout principal | **NORMALIZADO / CLEAN** | `client/`, `server/`, `docs/`; checkout histórico de cinco cambios reconciliado y retirado. RAR redundante y runtimes QA terminados eliminados. |
+| Search V4 | **ACTIVO / SALUDABLE** | OpenSearch 2.19.6 GREEN; alias `galilei-search-active` y writer sólo en V4. V3/V4 = 69.313; V1/V2 históricos preservados. |
+| Contrato público | **PASS** | Responsabilidad civil 4.759; frase exacta 3.369; falta de servicio 1.826. Golden 7.694 ASC y DESC, 0 diferencias; sort PASS, 0 timeouts. |
+| Auth / espacios / Viewer | **PASS_WITH_FINDINGS EN QA AISLADA** | Auth/RBAC; ACL 12/12; Viewer/Range/Download/Missing Blob; lifecycle 10 pasos/14 eventos con outbox drenado; API negativa 25/25; concurrencia 48 solicitudes, 0 timeout/5xx; E2E 15/15 y responsive 24/24. Se registraron cuatro 404 de recurso no fatales en denegaciones ACL esperadas; errores de página y 5xx inesperados: 0. QA pesada eliminada. Informe: `_recovery-work/galilei-principal-final-functional-cert1/reports/`. |
+| Cliente | **PASS** | Typecheck, lint, entorno 5/5, UX self 4/4, Playwright público 22/22 y build Next 16.4.2/33 rutas. |
+| PostgreSQL / Corpus | **PASS READ-ONLY** | PostgreSQL 16.15 en `127.0.0.1:55432`, DB `buscador_juridico_civil_dev`, rol `bjc_dev`; 31 migraciones, outbox 0/0. Corpus real preservado. No hubo escrituras principales. |
+| UAT / oficina / producción | **PENDIENTE SEPARADO** | Esta certificación local no implica UAT humana ni aprobación productiva. Sytec10 no fue accedida; preparar ese equipo sólo en una misión específica. |
 
 ## Cronología histórica — decisiones/cortes anteriores
 

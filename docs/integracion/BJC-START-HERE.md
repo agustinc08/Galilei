@@ -4,14 +4,14 @@ El código vigente está organizado en `client/`, `server/` y `docs/`. La app Di
 
 # Galilei — inicio rápido
 
-**PC principal:** `AgustinNotebook`; raíz `C:\proyecto triple`. Este documento registra el estado operativo observado el 2026-10-23, no una certificación de oficina ni un permiso para cambiar `main`.
+**PC principal:** `AgustinNotebook`; raíz `C:\proyecto triple`. Estado actualizado el 2026-10-24 tras limpieza y certificación funcional local. No es una aceptación UAT institucional ni una autorización de producción/oficina.
 
 ## Estado actual
 
 - **Search principal:** V4 activo y certificado en OpenSearch 2.19.6 GREEN; plugin `analysis-icu` 2.19.6, ICU4J 75.1, heap 2 GiB. El alias `galilei-search-active` apunta sólo a `galilei-search-v004-20261020t094732495z-6015e394`; V3 se retiene para rollback.
-- **Release QA aislada:** la certificación exacta de `2eba98996b4dc6f3ef7438d01e1a1ff31341a220` conserva QA local en `127.0.0.1:55434` y OpenSearch `127.0.0.1:29220/29320`. El bootstrap alcanzó `PROJECTED` (69.313 documentos; outbox pending=0, failed=0), pero la review dejó gates de runtime P1 pendientes para lifecycle, concurrencia, Viewer, descarga y ACL. Se preservan esos runtimes hasta cerrar la certificación; no son el Search principal.
-- **Copernic:** integrado y revisado en DEV. Typechecks y builds PASS, 5 E2E enfocados PASS, 27 comprobaciones responsive PASS y limpieza ACL sintética verificada.
-- **Oficina:** Sytec10 (`D:\proyecto triple`) no fue accedida en esta misión. El paquete local `office-runtime-transfer.rar` es un snapshot de datos con un dump DEV y los blobs de Corpus; no contiene secretos. Usar el código del SHA final de DEV como fuente y revisar el manifiesto/checksums antes del traspaso. No iniciar la migración de oficina hasta ejecutar su misión y sus validaciones propias.
+- **QA funcional aislada:** los puertos QA `55434`, `29200/29220`, backend y frontend temporales fueron detenidos; PGDATA, Search data y storage sintético se eliminaron tras conservar informes pequeños. ACL, Viewer/Range/Download, lifecycle/outbox, negativos, concurrencia y E2E quedaron certificados en esa QA. No hay QA pesada activa.
+- **Cliente y producto:** typecheck/lint, pruebas de entorno 5/5, UX self 4/4, Playwright público 22/22 y build Next 16.4.2 pasan. Se corrigió una carrera para que una respuesta tardía de autocompletado no abra el menú tras perder foco.
+- **Oficina:** Sytec10 (`D:\proyecto triple`) no fue accedida. `office-runtime-transfer.rar` fue retirado tras confirmar que duplicaba source Git y material retenido; los scripts de preparación locales son pequeños. Para continuar allí, obtener source desde el SHA de `origin/dev` en una misión separada y hacer sus comprobaciones propias.
 
 ## Producto integrado
 

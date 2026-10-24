@@ -23,13 +23,13 @@ El target DEV es PostgreSQL nativo 127.0.0.1:55432, base buscador_juridico_civil
 ## Datos y runtimes fuera del código
 
 - _dev-corpus-storage/: storage DEV real, 17.098 blobs content-addressed referenciados por `CorpusDocumentFile`; el backend lo usa para leer el PDF del Viewer y descargarlo. El path por defecto parte de `server/` y puede cambiar sólo con `BJC_CORPUS_STORAGE_PATH`. No borrar ni versionar.
-- _recovery-work/: evidencia y runtimes locales ignorados. El principal OpenSearch 2.19.6 mantiene su data en `_recovery-work/search-engine-integration1/runtime/data`; el runtime vive allí por historia y no se mueve antes de la migración de oficina. Está GREEN con V4, 69.313 documentos, alias y writer en V4, outbox 0 pending/0 failed. Las herramientas CLI leen primero `server/.env.development.local`; durante esta transición local pueden recurrir al archivo privado del checkout histórico si falta el nuevo. Para Sytec10, provisionar configuración privada bajo `server/` con `OPENSEARCH_SEARCH_SCHEMA_VERSION=4` y la topología compatible; nunca versionar ese archivo. La verificación aislada fijó `BJC_SEARCH_TOPOLOGY=fresh-v4` sólo en el proceso de status porque la configuración histórica no declara el schema. Los QA cerrados se eliminan al conservar evidencia pequeña.
+- _recovery-work/: evidencia local ignorada y el runtime principal OpenSearch 2.19.6 en `_recovery-work/search-engine-integration1/runtime/data`. Está GREEN con V4, 69.313 documentos en V3/V4, alias y writer en V4. Los QA terminados fueron detenidos y sus runtimes eliminados; aquí quedan informes pequeños, patches únicos e índices históricos V1/V2 preservados. La distribución reutilizable OpenSearch se conserva aparte para provisión autorizada. No mover ni borrar Search principal durante limpieza ordinaria.
 - _recovery-backups/: backups locales fuera de Git; conservar el backup validado y cualquier punto pre-migración único.
-- _local-setup/: scripts de transferencia y un único `office-runtime-transfer.rar` con dump DEV y corpus; se eliminó la copia expandida redundante.
-- _legacy-audit-work/: informes y evidencia histórica única, ignorada por Git.
-- JurisprudenciaN/back/data, JurisprudenciaN/back/uploads y digesto/server/pdfs: raíces históricas de documentos en el checkout original. Son datos read-only y no se mueven junto con el código.
+- _local-setup/: cinco scripts pequeños de preparación/auditoría. `office-runtime-transfer.rar` se eliminó tras confirmar que no contenía material único; la PC de oficina debe obtener el source desde Git.
+- _legacy-audit-work/: SQLite históricas y un PDF único preservado, más informes de reconciliación; evidencia local ignorada por Git.
+- `JurisprudenciaN/`, `digesto/` y `docs-integracion/`: ausentes en la raíz normalizada. Se retiró el checkout histórico después de preservar/reconciliar sus cinco cambios y se preservaron los datos únicos bajo `_legacy-audit-work/preserved-source/`.
 
-La limpieza de raíz no mueve corpus físico, PDFs, PGDATA, índices Search, archivos de configuración locales ni credenciales. Los datos históricos bajo `JurisprudenciaN/back/data`, `JurisprudenciaN/back/uploads` y `digesto/server/pdfs` permanecen dentro del checkout original protegido.
+La limpieza preserva el corpus físico, PGDATA principal, Search principal, configuración privada y credenciales. Los documentos históricos únicos conservados están bajo `_legacy-audit-work/preserved-source/`; los PDFs que duplicaban el corpus fueron retirados sólo tras cotejar hashes.
 
 ## Compose
 
