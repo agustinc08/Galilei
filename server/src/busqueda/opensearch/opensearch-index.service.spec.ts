@@ -50,7 +50,7 @@ describe('OpenSearchIndexService managed aliases', () => {
     await expect(service.hasActiveIndex()).resolves.toBe(true);
   });
 
-  it('keeps V1, V2, and V3 rollback indices outside V4 cleanup', async () => {
+  it('keeps the V3 rollback index outside V4 cleanup', async () => {
     const alias = 'galilei-search-active';
     const activeV4 = 'galilei-search-v004-20261020t094732495z-6015e394';
     const oldV4 = 'galilei-search-v004-20261019t094732495z-6015e394';
@@ -65,8 +65,6 @@ describe('OpenSearchIndexService managed aliases', () => {
       cat: {
         indices: jest.fn().mockResolvedValue({
           body: [
-            { index: 'galilei-search-v001-20261016t145733714z-daad4e4b' },
-            { index: 'galilei-search-v002-20261016t190258637z-0e68affa' },
             { index: 'galilei-search-v003-20261017t232432555z-a6af18cb' },
             { index: oldV4 },
             { index: activeV4 },
