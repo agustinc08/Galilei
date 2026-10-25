@@ -1,13 +1,12 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { getE2eArtifactPath, loadE2eCredentials } from './qa-credentials';
 
-const credentials = JSON.parse(readFileSync(resolve(process.cwd(), '../_recovery-work/sprint10/acceptance/credentials.json'), 'utf8')) as {
-  accounts: Record<string, { email: string; password: string }>;
-};
+const credentials = loadE2eCredentials();
 const apiBase = 'http://127.0.0.1:4001/api';
-const artifactRoot = resolve(process.cwd(), '../_recovery-work/jurisprudencia-j901');
+const artifactRoot = getE2eArtifactPath('jurisprudencia-j901');
 const marker = `J9VALIDACIONUNICA${Date.now()}`;
 
 function makePdf(text: string) {

@@ -1,11 +1,10 @@
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { getE2eArtifactPath, loadE2eCredentials } from './qa-credentials';
 
-const credentials = JSON.parse(
-  readFileSync(resolve(process.cwd(), '../_recovery-work/sprint10/acceptance/credentials.json'), 'utf8'),
-) as { accounts: Record<string, { email: string; password: string }> };
-const screenshotRoot = resolve(process.cwd(), '../_recovery-work/copernic-parallel-fix1/screenshots');
+const credentials = loadE2eCredentials();
+const screenshotRoot = getE2eArtifactPath('copernic-ux-states');
 
 async function capture(page: Page, name: string) {
   mkdirSync(screenshotRoot, { recursive: true });
@@ -38,9 +37,10 @@ test('Galilei presenta entradas directas y separadas para cada destino', async (
 test('un error al cargar dependencias muestra reintento y no el estado vacío', async ({ page }) => {
   await login(page);
   let attempts = 0;
+  let recoveryEnabled = false;
   await page.route('**/api/workspaces/mine', async (route) => {
     attempts += 1;
-    if (attempts === 1) {
+    if (!recoveryEnabled) {
       await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'synthetic outage' }) });
       return;
     }
@@ -50,13 +50,15 @@ test('un error al cargar dependencias muestra reintento y no el estado vacío', 
   await page.goto('/spaces');
   await expect(page.getByRole('heading', { name: 'No pudimos cargar tus dependencias' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Todavía no tenés una dependencia asignada' })).toHaveCount(0);
+  const failedAttempts = attempts;
   await page.setViewportSize({ width: 1366, height: 768 });
   await capture(page, 'dependency-load-error-1366x768.png');
+  recoveryEnabled = true;
   await page.getByRole('button', { name: 'Reintentar' }).click();
   await expect(page.getByRole('heading', { name: 'Todavía no tenés una dependencia asignada' })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await capture(page, 'dependency-empty-390x844.png');
-  expect(attempts).toBe(2);
+  expect(attempts).toBeGreaterThan(failedAttempts);
 });
 
 test('Mis documentos muestra carga antes del vacío y diferencia una búsqueda sin resultados', async ({ page }) => {

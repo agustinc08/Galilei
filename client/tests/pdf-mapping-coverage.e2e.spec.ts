@@ -3,17 +3,13 @@ import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
+import { getE2eArtifactPath, loadE2eCredentials } from './qa-credentials';
 
-const recoveryRoot = resolve(process.cwd(), '../_recovery-work/sprint1533');
-const credentialsPath = resolve(process.cwd(), '../_recovery-work/sprint10/acceptance/credentials.json');
+const recoveryRoot = getE2eArtifactPath('pdf-mapping-evidence');
 const sourceSamplePath = resolve(recoveryRoot, 'raw-sample-input.json');
 const mappingReportPath = resolve(recoveryRoot, 'real-mapping-results.json');
-const recoveryEvidenceAvailable = [credentialsPath, sourceSamplePath, mappingReportPath].every(existsSync);
-const credentials = (existsSync(credentialsPath)
-  ? JSON.parse(readFileSync(credentialsPath, 'utf8'))
-  : { accounts: {} }) as {
-  accounts: Record<string, { email: string; password: string }>;
-};
+const recoveryEvidenceAvailable = [sourceSamplePath, mappingReportPath].every(existsSync);
+const credentials = loadE2eCredentials();
 const sourceSample = (existsSync(sourceSamplePath)
   ? JSON.parse(readFileSync(sourceSamplePath, 'utf8'))
   : { documents: [] }) as {
@@ -124,7 +120,7 @@ test('verifica visualmente diez mappings reales recuperados del baseline', async
   expect(cases.length).toBe(10);
 
   await login(page);
-  const screenshotsRoot = resolve(recoveryRoot, 'screenshots');
+  const screenshotsRoot = getE2eArtifactPath('pdf-mapping-coverage', 'screenshots');
   mkdirSync(screenshotsRoot, { recursive: true });
   const visualCases: Array<Record<string, unknown>> = [];
   for (const [index, item] of cases.entries()) {
@@ -184,7 +180,7 @@ test('verifica visualmente diez mappings reales recuperados del baseline', async
     additionalViewports: [{ width: 1093, height: 614 }, { width: 900, height: 768 }],
     cases: visualCases,
   };
-  await writeFile(resolve(recoveryRoot, 'visual-case-screenshots.json'), JSON.stringify(report, null, 2), 'utf8');
+  await writeFile(getE2eArtifactPath('pdf-mapping-coverage', 'visual-case-screenshots.json'), JSON.stringify(report, null, 2), 'utf8');
   console.log(`SPRINT1533_VISUAL_RECOVERED=PASS; cases=${visualCases.length}; viewportResize=PASS`);
 });
 

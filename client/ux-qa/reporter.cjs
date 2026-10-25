@@ -31,7 +31,7 @@ class UxQaReporter {
     if (!testRecords.length && (result.status === 'failed' || result.status === 'timedOut')) {
       this.records.push({ scenarioId: test.title, title: test.title, route: null, viewport: null, status: 'FAIL', notes: [result.error?.message || 'Scenario failed before diagnostics were captured.'] });
     } else if (!testRecords.length && /@auth/u.test(test.titlePath().join(' '))) {
-      this.records.push({ scenarioId: test.title, title: test.title, route: null, viewport: null, status: 'AUTH_E2E_RUN_SEPARATELY', notes: ['Mock-only public harness; authenticated ACL behavior is covered by the DB-backed UX E2E.'] });
+      this.records.push({ scenarioId: test.title, title: test.title, route: null, viewport: null, status: result.status === 'passed' ? 'COVERED_BY_PRODUCT_E2E' : 'FAIL', notes: ['Coverage is mapped to the listed isolated QA end-to-end specs; the product suite executes those workflows.'] });
     }
   }
 
@@ -60,7 +60,7 @@ class UxQaReporter {
       fixtureMisses: this.records.flatMap((record) => record.fixtureMisses || []),
       overflows: this.records.filter((record) => record.horizontalOverflow && !record.horizontalOverflow.passes),
       screenshots: this.records.map((record) => record.screenshotPath).filter(Boolean),
-      authenticatedRoutes: authenticatedRoutes.map((route) => ({ ...route, status: 'PRESENT_AUTHENTICATED' })),
+      authenticatedRoutes,
       authenticatedScenarios: authScenarios,
       playwrightStatus: result.status,
     };

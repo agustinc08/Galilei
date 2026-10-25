@@ -1,9 +1,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { getE2eArtifactPath } from './qa-credentials';
 
 test('J9.0.1 public jurisprudence search fits mobile, tablet and desktop widths', async ({ page }) => {
-  const artifactRoot = resolve(process.cwd(), '../_recovery-work/jurisprudencia-j901');
+  const artifactRoot = getE2eArtifactPath('jurisprudencia-j901-responsive');
   mkdirSync(artifactRoot, { recursive: true });
   await page.goto('/consulta?sala=H');
   await expect(page.getByRole('heading', { name: 'Jurisprudencia', exact: true })).toBeVisible();

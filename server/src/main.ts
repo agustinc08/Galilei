@@ -82,7 +82,9 @@ async function bootstrap() {
   app.use(new LocalApiRateLimiter().middleware());
   app.useGlobalFilters(new SafeExceptionFilter());
   const port = Number(process.env.PORT ?? 4001);
-  const bindHost = process.env.BJC_API_BIND_HOST ?? '0.0.0.0';
+  const bindHost =
+    process.env.BJC_API_BIND_HOST ??
+    (deploymentEnvironment === 'development' ? '127.0.0.1' : '0.0.0.0');
   const defaultFrontendOrigins = [
     'http://localhost:4002',
     'http://10.5.3.138:4002',
@@ -111,6 +113,12 @@ async function bootstrap() {
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
+    exposedHeaders: [
+      'Accept-Ranges',
+      'Content-Disposition',
+      'Content-Length',
+      'Content-Range',
+    ],
   });
 
   app.useGlobalPipes(

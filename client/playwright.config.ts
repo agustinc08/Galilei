@@ -1,16 +1,27 @@
 import { defineConfig } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 const backendPort = process.env.BJC_PLAYWRIGHT_BACKEND_PORT ?? '4001';
 const frontendPort = process.env.BJC_PLAYWRIGHT_FRONTEND_PORT ?? '4002';
-const e2eStoragePath = process.env.BJC_PLAYWRIGHT_STORAGE_PATH
-  ? resolve(process.cwd(), process.env.BJC_PLAYWRIGHT_STORAGE_PATH)
-  : resolve(process.cwd(), '../_dev-corpus-storage-test/sprint1561-e2e');
+const configuredRuntimeRoot = process.env.BJC_E2E_RUNTIME_ROOT?.trim();
+if (!configuredRuntimeRoot || !isAbsolute(configuredRuntimeRoot)) {
+  throw new Error('Define BJC_E2E_RUNTIME_ROOT con una ruta absoluta aislada antes de ejecutar Playwright.');
+}
+const e2eRuntimeRoot = resolve(configuredRuntimeRoot);
+function assertInsideRuntime(path: string, label: string) {
+  const pathFromRoot = relative(e2eRuntimeRoot, path);
+  if (pathFromRoot === '..' || pathFromRoot.startsWith(`..${sep}`) || isAbsolute(pathFromRoot)) {
+    throw new Error(`${label} debe permanecer dentro de BJC_E2E_RUNTIME_ROOT.`);
+  }
+}
+const e2eStoragePath = resolve(e2eRuntimeRoot, 'storage');
+const e2eOutputPath = resolve(e2eRuntimeRoot, 'playwright-output');
+const e2eArtifactPath = resolve(process.env.BJC_E2E_ARTIFACTS_ROOT?.trim() || resolve(e2eRuntimeRoot, 'e2e-artifacts'));
+assertInsideRuntime(e2eStoragePath, 'BJC_PLAYWRIGHT_STORAGE_PATH');
+assertInsideRuntime(e2eOutputPath, 'BJC_PLAYWRIGHT_OUTPUT_DIR');
+assertInsideRuntime(e2eArtifactPath, 'BJC_E2E_ARTIFACTS_ROOT');
 mkdirSync(e2eStoragePath, { recursive: true });
-const e2eOutputPath = process.env.BJC_PLAYWRIGHT_OUTPUT_DIR
-  ? resolve(process.cwd(), process.env.BJC_PLAYWRIGHT_OUTPUT_DIR)
-  : resolve(process.cwd(), '../_recovery-work/sprint1561/playwright-output');
 mkdirSync(e2eOutputPath, { recursive: true });
 
 export default defineConfig({
@@ -38,6 +49,7 @@ export default defineConfig({
       timeout: 120_000,
       env: {
         PORT: backendPort,
+        BJC_API_BIND_HOST: '127.0.0.1',
         FRONTEND_URLS: `http://127.0.0.1:${frontendPort}`,
         BJC_CORPUS_STORAGE_PATH: e2eStoragePath,
         OCR_ENABLED: 'true',

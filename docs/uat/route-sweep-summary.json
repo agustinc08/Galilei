@@ -1,0 +1,760 @@
+{
+  "generatedAt": "2026-10-24T22:43:08.687Z",
+  "routeCount": 40,
+  "directResponseStatuses": [
+    200
+  ],
+  "blankOrNavigationFailures": [],
+  "stuckLoading": [],
+  "browserExceptions": [],
+  "browserConsoleErrors": 42.0,
+  "expected404ConsoleErrors": 42.0,
+  "unexpectedConsoleErrors": 0.0,
+  "apiSummary": {
+    "api4xx": 42,
+    "api404Expected": 42,
+    "api4xxUnexpected": 0,
+    "api5xx": 0,
+    "classification": "All API 404s and matching browser network error messages came from explicit nonexistent fixture IDs used to verify controlled not-found states."
+  },
+  "routes": [
+    {
+      "route": "/",
+      "status": 200,
+      "finalPath": "/",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/login",
+      "status": 200,
+      "finalPath": "/galilei",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/galilei",
+      "status": 200,
+      "finalPath": "/galilei",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/consulta",
+      "status": 200,
+      "finalPath": "/consulta",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/consulta/resultados",
+      "status": 200,
+      "finalPath": "/consulta/resultados",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/consulta/imprimir",
+      "status": 200,
+      "finalPath": "/consulta/imprimir",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/consulta/sentencia/no-existe-gpc",
+      "status": 200,
+      "finalPath": "/consulta/sentencia/no-existe-gpc",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 4,
+      "expected404ConsoleErrors": 4,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [
+        {
+          "path": "/api/public/sentencias/no-existe-gpc",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc",
+          "status": 404
+        }
+      ],
+      "failure": null
+    },
+    {
+      "route": "/consulta/sentencia/no-existe-gpc/documento",
+      "status": 200,
+      "finalPath": "/consulta/sentencia/no-existe-gpc/documento",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 4,
+      "expected404ConsoleErrors": 4,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/documento",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/documento",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/documento",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/documento",
+          "status": 404
+        }
+      ],
+      "failure": null
+    },
+    {
+      "route": "/consulta/sentencia/no-existe-gpc/ficha",
+      "status": 200,
+      "finalPath": "/consulta/sentencia/no-existe-gpc/ficha",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 4,
+      "expected404ConsoleErrors": 4,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/ficha",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/ficha",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/ficha",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/ficha",
+          "status": 404
+        }
+      ],
+      "failure": null
+    },
+    {
+      "route": "/fallos/no-existe-gpc",
+      "status": 200,
+      "finalPath": "/fallos/no-existe-gpc",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 8,
+      "expected404ConsoleErrors": 8,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/relacionados",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/relacionados",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/relacionados",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/relacionados",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/documento",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/documento",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/documento",
+          "status": 404
+        },
+        {
+          "path": "/api/public/sentencias/no-existe-gpc/documento",
+          "status": 404
+        }
+      ],
+      "failure": null
+    },
+    {
+      "route": "/admin/logs",
+      "status": 200,
+      "finalPath": "/admin/logs",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/archivos",
+      "status": 200,
+      "finalPath": "/archivos",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/busqueda",
+      "status": 200,
+      "finalPath": "/busqueda-avanzada",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/busqueda-avanzada",
+      "status": 200,
+      "finalPath": "/busqueda-avanzada",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/busquedas-guardadas",
+      "status": 200,
+      "finalPath": "/busquedas-guardadas",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/corpus",
+      "status": 200,
+      "finalPath": "/corpus",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/corpus/gpc-missing-id",
+      "status": 200,
+      "finalPath": "/corpus/gpc-missing-id",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 8,
+      "expected404ConsoleErrors": 8,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [
+        {
+          "path": "/api/corpus/documents/gpc-missing-id",
+          "status": 404
+        },
+        {
+          "path": "/api/corpus/documents/gpc-missing-id/file",
+          "status": 404
+        },
+        {
+          "path": "/api/corpus/documents/gpc-missing-id",
+          "status": 404
+        },
+        {
+          "path": "/api/corpus/curation/documents/gpc-missing-id",
+          "status": 404
+        },
+        {
+          "path": "/api/corpus/documents/gpc-missing-id",
+          "status": 404
+        },
+        {
+          "path": "/api/corpus/documents/gpc-missing-id/file",
+          "status": 404
+        },
+        {
+          "path": "/api/corpus/curation/documents/gpc-missing-id",
+          "status": 404
+        },
+        {
+          "path": "/api/corpus/documents/gpc-missing-id",
+          "status": 404
+        }
+      ],
+      "failure": null
+    },
+    {
+      "route": "/dashboard",
+      "status": 200,
+      "finalPath": "/dashboard",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/digesto",
+      "status": 200,
+      "finalPath": "/digesto",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/digesto/gpc-missing-id",
+      "status": 200,
+      "finalPath": "/digesto/gpc-missing-id",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 2,
+      "expected404ConsoleErrors": 2,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [
+        {
+          "path": "/api/corpus/curation/digesto/collections/gpc-missing-id",
+          "status": 404
+        },
+        {
+          "path": "/api/corpus/curation/digesto/collections/gpc-missing-id",
+          "status": 404
+        }
+      ],
+      "failure": null
+    },
+    {
+      "route": "/documentos",
+      "status": 200,
+      "finalPath": "/corpus",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/estadisticas",
+      "status": 200,
+      "finalPath": "/estadisticas",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/favoritos",
+      "status": 200,
+      "finalPath": "/favoritos",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/institutos-juridicos",
+      "status": 200,
+      "finalPath": "/institutos-juridicos",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/jurisprudencia",
+      "status": 200,
+      "finalPath": "/consulta",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/normas",
+      "status": 200,
+      "finalPath": "/normas",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/perfil",
+      "status": 200,
+      "finalPath": "/perfil",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/personal",
+      "status": 200,
+      "finalPath": "/personal",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/revision",
+      "status": 200,
+      "finalPath": "/revision",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/sentencias",
+      "status": 200,
+      "finalPath": "/sentencias",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/sentencias/nueva",
+      "status": 200,
+      "finalPath": "/sentencias/nueva",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/sentencias/nueva-completa",
+      "status": 200,
+      "finalPath": "/sentencias/nueva-completa",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/sentencias/carga-rapida",
+      "status": 200,
+      "finalPath": "/sentencias/carga-rapida",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/sentencias/999999999",
+      "status": 200,
+      "finalPath": "/sentencias/999999999",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 4,
+      "expected404ConsoleErrors": 4,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [
+        {
+          "path": "/api/sentencias/999999999/completa",
+          "status": 404
+        },
+        {
+          "path": "/api/sentencias/999999999/timeline",
+          "status": 404
+        },
+        {
+          "path": "/api/sentencias/999999999/completa",
+          "status": 404
+        },
+        {
+          "path": "/api/sentencias/999999999/timeline",
+          "status": 404
+        }
+      ],
+      "failure": null
+    },
+    {
+      "route": "/sentencias/999999999/documento",
+      "status": 200,
+      "finalPath": "/sentencias/999999999/documento",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 2,
+      "expected404ConsoleErrors": 2,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [
+        {
+          "path": "/api/sentencias/999999999/documento",
+          "status": 404
+        },
+        {
+          "path": "/api/sentencias/999999999/documento",
+          "status": 404
+        }
+      ],
+      "failure": null
+    },
+    {
+      "route": "/sentencias/999999999/imprimir",
+      "status": 200,
+      "finalPath": "/sentencias/999999999/imprimir",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 2,
+      "expected404ConsoleErrors": 2,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [
+        {
+          "path": "/api/sentencias/999999999/ficha",
+          "status": 404
+        },
+        {
+          "path": "/api/sentencias/999999999/ficha",
+          "status": 404
+        }
+      ],
+      "failure": null
+    },
+    {
+      "route": "/spaces",
+      "status": 200,
+      "finalPath": "/spaces",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/spaces/manage",
+      "status": 200,
+      "finalPath": "/spaces/manage",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    },
+    {
+      "route": "/spaces/gpc-missing-workspace/documents/gpc-missing-document",
+      "status": 200,
+      "finalPath": "/spaces/gpc-missing-workspace/documents/gpc-missing-document",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": true,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 4,
+      "expected404ConsoleErrors": 4,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [
+        {
+          "path": "/api/workspaces/gpc-missing-workspace/documents/gpc-missing-document",
+          "status": 404
+        },
+        {
+          "path": "/api/workspaces/gpc-missing-workspace/documents/gpc-missing-document/file",
+          "status": 404
+        },
+        {
+          "path": "/api/workspaces/gpc-missing-workspace/documents/gpc-missing-document",
+          "status": 404
+        },
+        {
+          "path": "/api/workspaces/gpc-missing-workspace/documents/gpc-missing-document/file",
+          "status": 404
+        }
+      ],
+      "failure": null
+    },
+    {
+      "route": "/sumarios",
+      "status": 200,
+      "finalPath": "/sumarios",
+      "bodyPresent": true,
+      "stuckLoading": false,
+      "expectedEmptyMessage": false,
+      "browserExceptions": 0,
+      "browserConsoleErrors": 0,
+      "expected404ConsoleErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "apiFailures": [],
+      "failure": null
+    }
+  ]
+}

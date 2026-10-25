@@ -65,14 +65,12 @@ describe('BJC institutional ingestion package PostgreSQL end-to-end', () => {
     process.env.BJC_CORPUS_STORAGE_PATH = storageRoot;
     await prisma.$connect();
     await mkdir(path.join(packageRoot, 'files'), { recursive: true });
-    await copyFile(
-      path.join(fixtureRoot, 'fallo-fixture.pdf'),
-      path.join(packageRoot, 'files', 'fallo.pdf'),
-    );
-    await copyFile(
-      path.join(fixtureRoot, 'copia-con-otro-nombre.pdf'),
-      path.join(packageRoot, 'files', 'copia.pdf'),
-    );
+    const duplicatePdf = Buffer.concat([
+      await readFile(path.join(fixtureRoot, 'fallo-fixture.pdf')),
+      Buffer.from(`\n% QA-PACKAGE-${sourceCode}\n`),
+    ]);
+    await writeFile(path.join(packageRoot, 'files', 'fallo.pdf'), duplicatePdf);
+    await writeFile(path.join(packageRoot, 'files', 'copia.pdf'), duplicatePdf);
     await copyFile(
       path.join(fixtureRoot, 'pagina-vacia.pdf'),
       path.join(packageRoot, 'files', 'scan.pdf'),

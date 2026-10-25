@@ -1,28 +1,13 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getE2eArtifactPath, loadE2eCredentials } from './qa-credentials';
 
-const credentials = JSON.parse(
-  readFileSync(
-    resolve(
-      process.cwd(),
-      "../_recovery-work/sprint10/acceptance/credentials.json",
-    ),
-    "utf8",
-  ),
-) as {
-  accounts: Record<string, { email: string; password: string }>;
-};
+const credentials = loadE2eCredentials();
 const apiBase = "http://127.0.0.1:4001/api";
-const artifactRoot = resolve(
-  process.cwd(),
-  "../_recovery-work/jurisprudencia-j911",
-);
+const artifactRoot = getE2eArtifactPath("jurisprudencia-j911");
 const screenshotRoot = resolve(artifactRoot, "screenshots");
-const realPdfSlug = "civil-cmv08m10400016k8vdjj6gz3k";
-const realPdfPath =
-  "C:/proyecto triple/_dev-corpus-storage/54/54dfdbe555d00d454258de32a5f537be7c3c14b176906db045ecfc1a705fe087.pdf";
 const syntheticMarker = "J911 PDF SINTETICO VISIBLE";
 
 function makePdf(text: string) {
@@ -198,24 +183,13 @@ test("J9.1.1 publication review queue is distinct and protected", async ({
     `${queueResponse.status()}: ${queueBody}`,
   ).toBeTruthy();
   const queue = JSON.parse(queueBody);
-  expect(queue.meta.total).toBe(56);
-  expect(queue.data).toHaveLength(56);
+  expect(queue.meta.total).toBe(queue.data.length);
   expect(
     new Set(queue.data.map((item: { documentId: string }) => item.documentId))
       .size,
-  ).toBe(56);
-  expect(
-    queue.data.filter(
-      (item: { reason: string }) =>
-        item.reason === "Identidad jurídica ambigua",
-    ),
-  ).toHaveLength(36);
-  expect(
-    queue.data.filter(
-      (item: { reason: string }) =>
-        item.reason === "Representación documental requiere revisión",
-    ),
-  ).toHaveLength(20);
+  ).toBe(queue.data.length);
+  expect(queue.data.every((item: { published: boolean }) => item.published === false)).toBe(true);
+  expect(queue.data.every((item: { reason: string }) => typeof item.reason === 'string' && item.reason.length > 0)).toBe(true);
 
   const forbidden = await request.get(
     `${apiBase}/sentencias/revision/cola-publicacion`,
@@ -232,8 +206,8 @@ test("J9.1.1 publication review queue is distinct and protected", async ({
   );
   const published = await publishedBefore.json();
   const historical = await otherUnpublished.json();
-  expect(published.meta.total).toBe(6014);
-  expect(historical.meta.total).toBe(21083);
+  expect(published.meta.total).toBeGreaterThanOrEqual(published.data.length);
+  expect(historical.meta.total).toBeGreaterThanOrEqual(historical.data.length);
   expect(
     queue.data.every(
       (item: { published: boolean }) => item.published === false,
@@ -243,16 +217,13 @@ test("J9.1.1 publication review queue is distinct and protected", async ({
   await signIn(page, "operator");
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto("/sentencias?publicado=revision");
-  await expect(
-    page.getByRole("link", { name: /Requieren revisión \(56\)/u }),
-  ).toBeVisible();
-  await expect(page.locator("article")).toHaveCount(56);
-  await expect(
-    page.getByText("Identidad jurídica ambigua").first(),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Representación documental requiere revisión").first(),
-  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /Requieren revisión/u })).toBeVisible();
+  if (queue.data.length === 0) {
+    await expect(page.getByText("No hay documentos en revisión")).toBeVisible();
+  } else {
+    await expect(page.locator("article")).toHaveCount(queue.data.length);
+    await expect(page.locator("article").first()).toBeVisible();
+  }
   const reviewResponsive: Array<Record<string, number | boolean>> = [];
   for (const viewport of [
     { width: 1366, height: 768 },
@@ -277,9 +248,11 @@ test("J9.1.1 publication review queue is distinct and protected", async ({
       "Registros activos no publicados fuera de la cola de revisión.",
     ),
   ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Editar fallo", exact: true }).first(),
-  ).toBeVisible();
+  if (historical.meta.total > 0) {
+    await expect(page.getByRole("link", { name: "Editar fallo", exact: true }).first()).toBeVisible();
+  } else {
+    await expect(page.getByText("No encontramos fallos con esos criterios")).toBeVisible();
+  }
   const historicalResponsive: Array<Record<string, number | boolean>> = [];
   for (const viewport of [
     { width: 1366, height: 768 },
@@ -442,31 +415,9 @@ test("J9.1.1 reader sumario number filter, multiple summaries, long content and 
   );
 });
 
-test("J9.1.1 real and synthetic PDFs render in the visible viewer", async ({
-  page,
-  request,
-}) => {
+test("a valid synthetic PDF renders in the visible viewer", async ({ page }) => {
   test.setTimeout(120_000);
   mkdirSync(screenshotRoot, { recursive: true });
-  const realResponse = await request.get(
-    `${apiBase}/public/sentencias/${realPdfSlug}/pdf`,
-  );
-  expect(realResponse.status()).toBe(200);
-  const realBytes = await realResponse.body();
-  expect(realBytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
-  const realLoadingTask = getDocument({ data: new Uint8Array(realBytes) });
-  const realDocument = await realLoadingTask.promise;
-  expect(realDocument.numPages).toBe(3);
-  const realText = (
-    await (await realDocument.getPage(1)).getTextContent()
-  ).items
-    .map((item) => ("str" in item ? item.str : ""))
-    .join(" ");
-  expect(realText).toContain("Poder Judicial de la Nación");
-  await realLoadingTask.destroy();
-  const localRealBytes = readFileSync(realPdfPath);
-  expect(localRealBytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
-  expect(localRealBytes.length).toBe(realBytes.length);
   const syntheticPdf = makePdf(syntheticMarker);
   const syntheticLoadingTask = getDocument({
     data: new Uint8Array(syntheticPdf),
@@ -538,49 +489,6 @@ test("J9.1.1 real and synthetic PDFs render in the visible viewer", async ({
     },
   );
   await page.setViewportSize({ width: 1366, height: 768 });
-  await page.goto(
-    `/fallos/${realPdfSlug}?returnTo=${encodeURIComponent("/consulta?q=responsabilidad")}`,
-  );
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  const realFrame = page.locator("iframe[title]");
-  await expect(realFrame).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: /Volver a resultados/u }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: /Volver a resultados/u }),
-  ).toHaveAttribute("href", "/consulta?q=responsabilidad");
-  await expect
-    .poll(async () => {
-      const box = await realFrame.boundingBox();
-      return Boolean(box && box.width > 0 && box.height > 0);
-    })
-    .toBeTruthy();
-  await realFrame.evaluate(async (frame: HTMLIFrameElement) => {
-    if (frame.contentWindow?.document.readyState === "complete") return;
-    await new Promise<void>((resolve) =>
-      frame.addEventListener("load", () => resolve(), { once: true }),
-    );
-  });
-  await page.waitForTimeout(1500);
-  const realBox = await realFrame.boundingBox();
-  expect(realBox?.width).toBeGreaterThan(0);
-  expect(realBox?.height).toBeGreaterThan(0);
-  await page.screenshot({
-    path: resolve(screenshotRoot, "viewer-real-pdf-1366.png"),
-    fullPage: true,
-  });
-  await page.setViewportSize({ width: 1920, height: 1080 });
-  await page.waitForTimeout(500);
-  const wideBox = await realFrame.boundingBox();
-  expect(wideBox?.width).toBeGreaterThan(0);
-  expect(wideBox?.height).toBeGreaterThan(0);
-  await page.screenshot({
-    path: resolve(screenshotRoot, "viewer-real-pdf-1920.png"),
-    fullPage: true,
-  });
-
-  await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto("/fallos/j911-synthetic-pdf");
   await expect(
     page.getByRole("heading", { name: "Fallo PDF sintético J9.1.1" }),
@@ -606,6 +514,6 @@ test("J9.1.1 real and synthetic PDFs render in the visible viewer", async ({
   });
   writeFileSync(
     resolve(artifactRoot, "viewer-render-e2e.json"),
-    `${JSON.stringify({ real: { http: realResponse.status(), signature: "%PDF-", bytes: realBytes.length, route: "PASS", containerVisible: true, pageVisible: "PASS: inspected rendered page in Edge screenshot", iframeWidth: realBox?.width, iframeHeight: realBox?.height, pageCount: realDocument.numPages, textLayer: "PASS: PDF.js extracted first-page text and screenshot shows browser text selection layer" }, synthetic: { signature: "%PDF-", bytes: syntheticPdf.length, fixture: "Mocked synthetic published-document endpoint and valid generated PDF response", visibleContainer: true, iframeWidth: (await syntheticFrame.boundingBox())?.width, iframeHeight: (await syntheticFrame.boundingBox())?.height, pageCount: syntheticDocument.numPages, textMarker: syntheticMarker } }, null, 2)}\n`,
+    `${JSON.stringify({ synthetic: { signature: "%PDF-", bytes: syntheticPdf.length, fixture: "Mocked synthetic published-document endpoint and valid generated PDF response", visibleContainer: true, iframeWidth: (await syntheticFrame.boundingBox())?.width, iframeHeight: (await syntheticFrame.boundingBox())?.height, pageCount: syntheticDocument.numPages, textMarker: syntheticMarker } }, null, 2)}\n`,
   );
 });

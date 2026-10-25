@@ -1,23 +1,17 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, request as playwrightRequest, test, type Page } from '@playwright/test';
+import { getE2eArtifactPath, loadE2eCredentials } from './qa-credentials';
 
 test.describe.configure({ mode: 'serial' });
 
-const credentialsPath = process.env.BJC_WORKSPACE_UAT_CREDENTIALS_PATH?.trim()
-  ? resolve(process.env.BJC_WORKSPACE_UAT_CREDENTIALS_PATH)
-  : resolve(process.cwd(), '../_recovery-work/sprint10/acceptance/credentials.json');
-const credentials = JSON.parse(
-  readFileSync(credentialsPath, 'utf8'),
-) as { accounts: Record<string, { email: string; password: string }> };
+const credentials = loadE2eCredentials();
 const apiBase = `http://127.0.0.1:${process.env.BJC_PLAYWRIGHT_BACKEND_PORT ?? '4001'}/api`;
 const pdf = readFileSync(resolve(process.cwd(), '../server/scripts/dev/fixtures/corpus/fallo-fixture.pdf'));
 const ocrPdf = readFileSync(resolve(process.cwd(), '../server/src/corpus/fixtures/sprint154a1-ten-pages.pdf'));
 const legacyDoc = readFileSync(resolve(process.cwd(), '../server/src/corpus/fixtures/sprint154a1-golden.doc'));
 const runId = `${Date.now()}`;
-const artifactDir = process.env.BJC_WORKSPACE_UAT_ARTIFACTS_DIR?.trim()
-  ? resolve(process.env.BJC_WORKSPACE_UAT_ARTIFACTS_DIR)
-  : null;
+const artifactDir = getE2eArtifactPath('workspace-uat');
 const formatMarker = `sprint154aui${runId}`;
 const ocrMarker = 'OCRTESTTOKENXYZ';
 const rtf = Buffer.from(`{\\rtf1\\ansi ${formatMarker} responsabilidad civil y daño moral}`, 'ascii');
@@ -25,19 +19,45 @@ const codeA = `S151UIE2E_A_${runId}`;
 const codeB = `S151UIE2E_B_${runId}`;
 const nameA = `Sala UAT privada A ${runId}`;
 const nameB = `Juzgado UAT privado B ${runId}`;
-const workspaceManifestPath = artifactDir
-  ? resolve(artifactDir, 'workspace-uat-created.json')
-  : resolve(process.cwd(), '../_recovery-work/sprint154a1/workspace-uat-created.json');
-const frontendPerformancePath = artifactDir
-  ? resolve(artifactDir, 'frontend-performance.json')
-  : resolve(process.cwd(), '../_recovery-work/sprint156/frontend-performance.json');
-const responsiveMatrixPath = artifactDir
-  ? resolve(artifactDir, 'responsive-matrix.json')
-  : resolve(process.cwd(), '../_recovery-work/sprint156/responsive-matrix.json');
-const sprint156ScreenshotDir = artifactDir
-  ? resolve(artifactDir, 'screenshots')
-  : resolve(process.cwd(), '../_recovery-work/sprint156/screenshots/after');
+const workspaceManifestPath = resolve(artifactDir, 'workspace-uat-created.json');
+const frontendPerformancePath = resolve(artifactDir, 'frontend-performance.json');
+const responsiveMatrixPath = resolve(artifactDir, 'responsive-matrix.json');
+const sprint156ScreenshotDir = resolve(artifactDir, 'screenshots');
 const createdWorkspaces: Array<{ id: string; code: string }> = [];
+
+async function deactivatePreviousWorkspaceFixtures() {
+  const api = await playwrightRequest.newContext();
+  try {
+    const loginResponse = await api.post(`${apiBase}/auth/login`, {
+      data: credentials.accounts.admin,
+    });
+    expect(loginResponse.ok(), 'QA admin authentication failed before workspace fixture cleanup').toBeTruthy();
+    const token = (await loginResponse.json()).accessToken as string;
+    const headers = { Authorization: `Bearer ${token}` };
+    const workspacesResponse = await api.get(`${apiBase}/workspaces/admin/list`, { headers });
+    expect(workspacesResponse.ok(), 'Could not list QA workspaces before fixture cleanup').toBeTruthy();
+    const workspaces = await workspacesResponse.json() as Array<{ id: string; code: string; active: boolean }>;
+    const fixtures = workspaces.filter((workspace) => /^S151UIE2E_[AB]_[0-9]+$/u.test(workspace.code));
+    for (const workspace of fixtures) {
+      if (!workspace.active) continue;
+      const response = await api.patch(`${apiBase}/workspaces/admin/${workspace.id}/active`, {
+        headers,
+        data: { active: false },
+      });
+      expect(response.ok(), `Could not deactivate an isolated prior QA workspace (${workspace.code})`).toBeTruthy();
+    }
+  } finally {
+    await api.dispose();
+  }
+}
+
+test.beforeAll(async () => {
+  await deactivatePreviousWorkspaceFixtures();
+});
+
+test.afterAll(async () => {
+  await deactivatePreviousWorkspaceFixtures();
+});
 
 function saveWorkspaceManifest() {
   mkdirSync(dirname(workspaceManifestPath), { recursive: true });
@@ -137,7 +157,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   });
 
   // The seeded acceptance reader begins without any private membership.
-  await login(page, credentials.accounts.reader);
+  await login(page, credentials.accounts.workspaceCleanReader);
   await page.goto('/spaces');
   await expect(page.getByRole('heading', { name: 'Todavía no tenés una dependencia asignada' })).toBeVisible();
   await expect(page.getByText('Cuando te den acceso, acá vas a encontrar los documentos de tu Sala o Juzgado.')).toBeVisible();
@@ -175,8 +195,8 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await editorActions.getByRole('button', { name: 'Reactivar', exact: true }).click();
   await expect(editorRole).toHaveValue('EDITOR');
   await expect(page.getByRole('status')).toContainText('Membresía guardada.', { timeout: 10_000 });
-  await addMember(page, credentials.accounts.digesto.email, 'Editor');
-  await expect(page.getByLabel(`Permiso de ${credentials.accounts.digesto.email}`)).toHaveValue('EDITOR');
+  await addMember(page, credentials.accounts.workspaceSingleEditor.email, 'Editor');
+  await expect(page.getByLabel(`Permiso de ${credentials.accounts.workspaceSingleEditor.email}`)).toHaveValue('EDITOR');
 
   // Folder creation, rename, breadcrumb and root/folder boundaries.
   const folderNameInput = page.getByLabel('Nombre de carpeta');
@@ -315,15 +335,15 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   expect(renderedContent.width).toBeGreaterThan(0);
   expect(renderedContent.height).toBeGreaterThan(0);
   expect(renderedContent.nonWhiteSamples).toBeGreaterThan(0);
-  const readerLogin = await page.request.post(`${apiBase}/auth/login`, { data: credentials.accounts.reader });
+  const readerLogin = await page.request.post(`${apiBase}/auth/login`, { data: credentials.accounts.workspaceCleanReader });
   expect(readerLogin.ok()).toBe(true);
   const unauthorizedViewerToken = (await readerLogin.json() as { accessToken?: string }).accessToken;
   expect(unauthorizedViewerToken).toBeTruthy();
   const viewerDocumentId = new URL(documentPath!, 'http://127.0.0.1').pathname.split('/').at(-1) ?? '';
-  const viewerTransferMatrix = await page.evaluate(async ({ workspaceId, documentId, readerToken }) => {
+  const viewerTransferMatrix = await page.evaluate(async ({ workspaceId, documentId, readerToken, apiBaseUrl }) => {
     const token = localStorage.getItem('jurisprudencia_token');
     if (!token) throw new Error('EXPECTED_AUTH_TOKEN_FOR_VIEWER_MATRIX');
-    const filePath = `/api/workspaces/${encodeURIComponent(workspaceId)}/documents/${encodeURIComponent(documentId)}/file`;
+    const filePath = `${apiBaseUrl}/workspaces/${encodeURIComponent(workspaceId)}/documents/${encodeURIComponent(documentId)}/file`;
     const authorization = { Authorization: `Bearer ${token}` };
     const full = await fetch(filePath, { headers: authorization });
     const fullBytes = new Uint8Array(await full.arrayBuffer());
@@ -343,7 +363,9 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
       range: {
         status: range.status,
         contentType: range.headers.get('content-type'),
+        acceptRanges: range.headers.get('accept-ranges'),
         contentRange: range.headers.get('content-range'),
+        contentLength: range.headers.get('content-length'),
         bytes: rangeBytes.byteLength,
         pdfSignature: new TextDecoder().decode(rangeBytes.subarray(0, 5)) === '%PDF-',
       },
@@ -356,6 +378,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
     workspaceId: workspaceAId,
     documentId: viewerDocumentId,
     readerToken: unauthorizedViewerToken!,
+    apiBaseUrl: apiBase,
   });
   const anonymousFileResponse = await page.request.get(`${apiBase}/workspaces/${workspaceAId}/documents/${viewerDocumentId}/file`);
   expect(viewerTransferMatrix.full.status).toBe(200);
@@ -363,7 +386,9 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   expect(viewerTransferMatrix.full.bytes).toBeGreaterThan(5);
   expect(viewerTransferMatrix.full.pdfSignature).toBe(true);
   expect(viewerTransferMatrix.range.status).toBe(206);
+  expect(viewerTransferMatrix.range.acceptRanges).toBe('bytes');
   expect(viewerTransferMatrix.range.contentRange).toMatch(/^bytes 0-4\//u);
+  expect(viewerTransferMatrix.range.contentLength).toBe('5');
   expect(viewerTransferMatrix.range.bytes).toBe(5);
   expect(viewerTransferMatrix.range.pdfSignature).toBe(true);
   expect(anonymousFileResponse.status()).toBe(401);
@@ -717,8 +742,8 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await saveOperatorRole.click();
   await expect(operatorRoleB).toHaveValue('EDITOR');
   await expect(page.getByRole('status')).toContainText('Membresía guardada.', { timeout: 10_000 });
-  await addMember(page, credentials.accounts.reader.email, 'Consulta');
-  const viewerRoleB = page.getByLabel(`Permiso de ${credentials.accounts.reader.email}`);
+  await addMember(page, credentials.accounts.workspaceCleanReader.email, 'Consulta');
+  const viewerRoleB = page.getByLabel(`Permiso de ${credentials.accounts.workspaceCleanReader.email}`);
   await expect(viewerRoleB).toHaveValue('VIEWER');
   const fileInputB = page.getByLabel('Seleccionar documentos PDF, TXT, RTF, DOC, DOCX u ODT');
   await fileInputB.setInputFiles([{ name: 'sprint151-e2e-one.pdf', mimeType: 'application/pdf', buffer: pdf }]);
@@ -727,7 +752,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
 
   // Use an account not assigned to the separate ACL E2E workspace; a one-workspace editor opens directly into A.
-  await login(page, credentials.accounts.digesto);
+  await login(page, credentials.accounts.workspaceSingleEditor);
   await page.goto('/spaces');
   await expect(page.getByRole('heading', { name: nameA, exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: '¿Dónde querés trabajar?', exact: true })).toHaveCount(0);
@@ -745,7 +770,7 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
 
   // Viewer can search/open/download B, sees no editing actions and cannot open A by guessed URL.
-  await login(page, credentials.accounts.reader);
+  await login(page, credentials.accounts.workspaceCleanReader);
   await page.goto('/spaces/manage');
   await expect(page.getByRole('heading', { name: nameB, exact: true })).toBeVisible();
   await expect(page.getByText('Tu acceso: Consulta')).toBeVisible();

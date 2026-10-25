@@ -16,7 +16,6 @@ import type { CalidadDatos, ResumenGeneral, SentenciaEvento } from '@/types/esta
 import type { Sentencia } from '@/types/sentencia';
 
 const quickLinks = [
-  { href: '/busqueda-avanzada', title: 'Buscar documentos', text: 'Buscar en jurisprudencia y documentos del repositorio.' },
   { href: '/revision', title: 'Revisar pendientes', text: 'Resolver asociaciones y temas sugeridos con evidencia.' },
   { href: '/digesto', title: 'Explorar Digesto', text: 'Organizar documentos en colecciones temáticas.' },
   {

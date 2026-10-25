@@ -23,6 +23,8 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
+El comando raíz levanta el backend en `http://127.0.0.1:4000` y Vite en `http://localhost:4001`. El backend necesita PostgreSQL 16 y OpenSearch 2.19.6 locales; la configuración de desarrollo vive en `server/.env.development.local` y no se versiona. La UI usa `VITE_API_URL=/api` y el proxy de Vite apunta al backend local. Revisá [el runbook local](docs/uat/technical-runbook.md) para preparar, comprobar y detener los servicios.
+
 Comandos raíz disponibles: `pnpm dev`, `pnpm build`, `pnpm test`, `pnpm lint`, `pnpm typecheck` y `pnpm e2e`. Para operar un paquete por separado, usá `pnpm --filter front ...` o `pnpm --filter back ...`.
 
 Las pruebas backend predeterminadas ejecutan suites unitarias y omiten `*.integration.spec.ts`; esas suites requieren una base y servicios QA explícitos. No apuntes pruebas o migraciones a producción ni a servidores institucionales.
@@ -36,3 +38,7 @@ Antes de una operación Prisma que escriba, ejecutá la acción protegida corres
 La política de índices, recuperación y retiro de generaciones históricas está en [operación de Search](docs/integracion/123-SEARCH-MIGRATION-OPERATIONS.md). El cleanup rutinario sólo considera la generación configurada; V3 debe conservarse como rollback mientras V4 sea la activa.
 
 Las carpetas históricas `JurisprudenciaN/back/data`, `JurisprudenciaN/back/uploads` y `digesto/server/pdfs` pertenecen a checkout/source legado. La configuración institucional del backend las trata como orígenes read-only; un clon limpio debe configurar sus propios roots antes de inventariar o ingerir.
+
+## Pruebas de usuarios
+
+La [guía UAT](docs/uat/guia-prueba-usuarios.md) y la [plantilla de feedback](docs/uat/feedback-usuarios.md) son para testers no técnicos. El [inventario de superficies](docs/uat/product-surface-inventory.json) enumera rutas, perfiles, dependencias, APIs y evidencia de cobertura.

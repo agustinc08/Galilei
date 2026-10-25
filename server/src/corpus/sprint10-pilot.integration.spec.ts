@@ -1,5 +1,5 @@
 import { randomUUID, createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { resolve } from 'node:path';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
@@ -20,7 +20,12 @@ type Credentials = {
     Account
   >;
 };
-type SearchResponse = { federated: { results: Array<{ sourceId: string }> } };
+type SearchResponse = {
+  federated: {
+    total: number;
+    results: Array<{ sourceId: string; sourceSystem: string }>;
+  };
+};
 type LoginResponse = { accessToken: string; user: { id: number } };
 type AuthMeResponse = { rol: { nombre: string } };
 type IdResponse = { id: string };
@@ -36,9 +41,6 @@ type ReviewQueueResponse = {
 type StatusResponse = { status: string };
 type AuditResponse = { data: unknown[] };
 type MatchesResponse = { total: number };
-type FederatedHttpResponse = {
-  federated: { total: number; results: Array<{ sourceSystem: string }> };
-};
 type JurisprudenceDetailResponse = {
   editorialStatus: string;
   metadata: { jurisprudenceCuration: { reason: string } };
@@ -59,6 +61,14 @@ describe('Sprint 10 authenticated pilot PostgreSQL E2E', () => {
   let sentenceId = 0;
   let sumarioId = 0;
   let collectionId = '';
+  let fixtureCollectionId = '';
+  let fixtureSourceId = '';
+  let fixtureSourceCreated = false;
+  let jurisprudenciaSourceId = '';
+  let jurisprudenciaSourceCreated = false;
+  let fixtureDocumentId = '';
+  let fixtureSearchTerm = '';
+  let fixtureFilePath = '';
   let topicId = '';
   let tagId = '';
   const fixtureDocumentIds: string[] = [];
@@ -67,12 +77,14 @@ describe('Sprint 10 authenticated pilot PostgreSQL E2E', () => {
 
   beforeAll(async () => {
     if (!enabled) return;
+    const credentialsPath = process.env.SPRINT10_CREDENTIALS_PATH?.trim();
     credentials = JSON.parse(
       readFileSync(
-        resolve(
-          process.cwd(),
-          '../_recovery-work/sprint10/acceptance/credentials.json',
-        ),
+        credentialsPath ||
+          resolve(
+            process.cwd(),
+            '../_recovery-work/sprint10/acceptance/credentials.json',
+          ),
         'utf8',
       ),
     ) as Credentials;
@@ -131,6 +143,106 @@ describe('Sprint 10 authenticated pilot PostgreSQL E2E', () => {
           expect(meBody.rol.nombre).toBe(expectedRoles[role]);
         });
     }
+
+    const storageRoot = process.env.BJC_CORPUS_STORAGE_PATH?.trim();
+    if (!storageRoot) throw new Error('SPRINT10_QA_STORAGE_REQUIRED');
+    let fixtureSource = await prisma.corpusSourceSystem.findUnique({
+      where: { code: 'DIGESTO_LOCAL' },
+    });
+    if (!fixtureSource) {
+      fixtureSource = await prisma.corpusSourceSystem.create({
+        data: {
+          code: 'DIGESTO_LOCAL',
+          name: 'Digesto sintético de integración QA',
+          sourceType: 'FIXTURE',
+          metadata: { testFixture: true },
+        },
+      });
+      fixtureSourceCreated = true;
+    }
+    fixtureSourceId = fixtureSource.id;
+    const marker = `sprint10${randomUUID().replaceAll('-', '')}`;
+    fixtureSearchTerm = marker;
+    const text = `Synthetic Digesto civil fixture ${marker} responsabilidad civil`;
+    const fixtureBytes = readFileSync(
+      resolve(process.cwd(), 'scripts/dev/fixtures/corpus/fallo-fixture.pdf'),
+    );
+    const storageKey = `sprint10/${marker}.pdf`;
+    fixtureFilePath = resolve(storageRoot, storageKey);
+    mkdirSync(resolve(fixtureFilePath, '..'), { recursive: true });
+    writeFileSync(fixtureFilePath, fixtureBytes);
+    const checksum = createHash('sha256').update(fixtureBytes).digest('hex');
+    const fixtureDocument = await prisma.corpusDocument.create({
+      data: {
+        title: `Fallo Digesto QA ${marker}`,
+        status: 'INDEXED',
+        visibility: 'INTERNAL',
+        searchText: text,
+      },
+    });
+    fixtureDocumentIds.push(fixtureDocument.id);
+    fixtureDocumentId = fixtureDocument.id;
+    const fixtureFile = await prisma.corpusDocumentFile.create({
+      data: {
+        documentId: fixtureDocument.id,
+        storageKey,
+        originalFilename: `fallo-${marker}.pdf`,
+        mimeType: 'application/pdf',
+        sizeBytes: BigInt(fixtureBytes.byteLength),
+        sha256: checksum,
+        pageCount: 1,
+      },
+    });
+    const fixtureExtraction = await prisma.corpusExtraction.create({
+      data: {
+        documentId: fixtureDocument.id,
+        fileId: fixtureFile.id,
+        extractor: 'qa-synthetic-fixture',
+        extractorVersion: '1',
+        status: 'SUCCESS',
+        text,
+        pages: {
+          create: [
+            {
+              pageNumber: 1,
+              text,
+              textKind: 'NATIVE',
+              processingStatus: 'TEXT_NATIVE',
+            },
+          ],
+        },
+      },
+    });
+    await prisma.corpusDocument.update({
+      where: { id: fixtureDocument.id },
+      data: { latestExtractionId: fixtureExtraction.id },
+    });
+    const fixtureCollection = await prisma.digestoCollection.create({
+      data: {
+        name: `Sprint 10 fixture ${marker}`,
+        normalized: `sprint10-fixture-${marker}`,
+      },
+    });
+    fixtureCollectionId = fixtureCollection.id;
+    await prisma.digestoCollectionMembership.create({
+      data: {
+        collectionId: fixtureCollection.id,
+        documentId: fixtureDocument.id,
+      },
+    });
+    await prisma.corpusIngestionRecord.create({
+      data: {
+        sourceSystemId: fixtureSource.id,
+        documentId: fixtureDocument.id,
+        fileId: fixtureFile.id,
+        externalId: marker,
+        checksum,
+        idempotencyKey: marker,
+        originalFilename: `fallo-${marker}.pdf`,
+        status: 'INDEXED',
+        metadataOriginal: { testFixture: true },
+      },
+    });
   }, 120_000);
 
   afterAll(async () => {
@@ -151,6 +263,19 @@ describe('Sprint 10 authenticated pilot PostgreSQL E2E', () => {
       await prisma.corpusDocument.deleteMany({
         where: { id: { in: fixtureDocumentIds } },
       });
+    if (fixtureCollectionId)
+      await prisma.digestoCollection.deleteMany({
+        where: { id: fixtureCollectionId },
+      });
+    if (fixtureSourceCreated && fixtureSourceId)
+      await prisma.corpusSourceSystem.deleteMany({
+        where: { id: fixtureSourceId },
+      });
+    if (jurisprudenciaSourceCreated && jurisprudenciaSourceId)
+      await prisma.corpusSourceSystem.deleteMany({
+        where: { id: jurisprudenciaSourceId },
+      });
+    if (fixtureFilePath) rmSync(fixtureFilePath, { force: true });
     if (sumarioId)
       await prisma.accionLog.deleteMany({
         where: { entidad: 'SUMARIO', entidadId: sumarioId },
@@ -205,70 +330,26 @@ describe('Sprint 10 authenticated pilot PostgreSQL E2E', () => {
   (enabled ? it : it.skip)(
     'runs authenticated search, read/download, role ACL, Digesto and Jurisprudencia curation with cleanup',
     async () => {
-      const realDigesto = await prisma.corpusDocument.findFirstOrThrow({
-        where: {
-          status: 'INDEXED',
-          visibility: 'INTERNAL',
-          ingestions: {
-            some: { sourceSystem: { is: { code: 'DIGESTO_LOCAL' } } },
-          },
-          digestoCollections: { some: {} },
-        },
-        orderBy: { id: 'asc' },
-        select: {
-          id: true,
-          searchText: true,
-          latestExtraction: {
-            select: {
-              pages: {
-                orderBy: { pageNumber: 'asc' },
-                take: 1,
-                select: { text: true },
-              },
-            },
-          },
-          digestoCollections: { take: 1, select: { collectionId: true } },
-        },
-      });
-      const realText = realDigesto.latestExtraction?.pages[0]?.text ?? '';
-      const realTerm =
-        realDigesto.searchText.match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{5,}/u)?.[0] ??
-        realText.match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{5,}/u)?.[0];
-      expect(realTerm).toBeTruthy();
+      // Exercise Digesto search using the isolated PDF/document fixture above.
+      // Historical corpus clones may contain metadata without general-search
+      // eligibility, so selecting an arbitrary legacy row made this assertion
+      // depend on unrelated production-corpus state.
       await request(httpServer())
-        .get(`/api/corpus/documents/${realDigesto.id}`)
+        .get(`/api/corpus/documents/${fixtureDocumentId}`)
         .set(auth('reader'))
         .expect(200);
-      const realMatches = await request(httpServer())
-        .get(`/api/corpus/documents/${realDigesto.id}/matches`)
-        .query({ q: realTerm })
+      const fixtureMatches = await request(httpServer())
+        .get(`/api/corpus/documents/${fixtureDocumentId}/matches`)
+        .query({ q: fixtureSearchTerm })
         .set(auth('reader'))
         .expect(200);
       expect(
-        responseBody<MatchesResponse>(realMatches.body).total,
+        responseBody<MatchesResponse>(fixtureMatches.body).total,
       ).toBeGreaterThan(0);
       // This historical corpus clone deliberately omits backing blobs. File
       // range coverage belongs to the self-contained PDF fixture in the
       // Sprint 15.6.1 integration test, which uploads the bytes to isolated QA
       // storage before exercising the viewer/download routes.
-      const realSearch = await request(httpServer())
-        .get('/api/busqueda/avanzada')
-        .query({
-          q: realTerm,
-          digestoCollectionId: realDigesto.digestoCollections[0].collectionId,
-        })
-        .set(auth('reader'))
-        .expect(200);
-      const realSearchBody = responseBody<FederatedHttpResponse>(
-        realSearch.body,
-      );
-      expect(realSearchBody.federated.total).toBeGreaterThan(0);
-      expect(
-        realSearchBody.federated.results.every(
-          (item) => item.sourceSystem === 'CORPUS',
-        ),
-      ).toBe(true);
-
       const source = await prisma.corpusSourceSystem.findUniqueOrThrow({
         where: { code: 'DIGESTO_LOCAL' },
       });
@@ -446,11 +527,20 @@ describe('Sprint 10 authenticated pilot PostgreSQL E2E', () => {
       ).toContain(documentId);
       expect(batchAudit?.createdAt).toBeInstanceOf(Date);
       if (batchAudit) actionLogIds.push(batchAudit.id);
-      await waitForIndexedResult(
+      const indexedSearch = await waitForIndexedResult(
         { q: marker, digestoCollectionId: collectionId },
         documentId,
         'reader',
       );
+      const indexedSearchBody = responseBody<SearchResponse>(
+        indexedSearch.body,
+      );
+      expect(indexedSearchBody.federated.total).toBeGreaterThan(0);
+      expect(
+        indexedSearchBody.federated.results.every(
+          (item) => item.sourceSystem === 'CORPUS',
+        ),
+      ).toBe(true);
       await request(httpServer())
         .post(
           `/api/corpus/curation/documents/${documentId}/digesto/collections/${collectionId}`,
@@ -470,9 +560,21 @@ describe('Sprint 10 authenticated pilot PostgreSQL E2E', () => {
         .set(auth('operator'))
         .expect(200);
 
-      const jurisSource = await prisma.corpusSourceSystem.findUniqueOrThrow({
+      let jurisSource = await prisma.corpusSourceSystem.findUnique({
         where: { code: 'JURISPRUDENCIA_LOCAL_PDF' },
       });
+      if (!jurisSource) {
+        jurisSource = await prisma.corpusSourceSystem.create({
+          data: {
+            code: 'JURISPRUDENCIA_LOCAL_PDF',
+            name: 'Jurisprudencia sintética de integración QA',
+            sourceType: 'FIXTURE',
+            metadata: { testFixture: true },
+          },
+        });
+        jurisprudenciaSourceCreated = true;
+      }
+      jurisprudenciaSourceId = jurisSource.id;
       const jurisDoc = await prisma.corpusDocument.create({
         data: {
           title: `Fixture Juris ${marker}`,

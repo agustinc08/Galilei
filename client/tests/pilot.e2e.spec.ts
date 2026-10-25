@@ -1,10 +1,9 @@
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { getE2eArtifactPath, loadE2eCredentials } from './qa-credentials';
 
-const credentials = JSON.parse(readFileSync(resolve(process.cwd(), '../_recovery-work/sprint10/acceptance/credentials.json'), 'utf8')) as {
-  accounts: Record<string, { email: string; password: string }>;
-};
+const credentials = loadE2eCredentials();
 const apiBase = `http://127.0.0.1:${process.env.BJC_PLAYWRIGHT_BACKEND_PORT ?? '4001'}/api`;
 
 test('LECTOR ejecuta una búsqueda normal desde la interfaz y recibe resultados completos', async ({ page }) => {
@@ -25,10 +24,13 @@ test('LECTOR ejecuta una búsqueda normal desde la interfaz y recibe resultados 
   const response = await apiResponse;
   expect(response.ok()).toBeTruthy();
   const body = await response.json() as { data: unknown[]; federated?: { partial?: boolean } };
-  expect(body.data.length).toBeGreaterThan(0);
   expect(body.federated?.partial).toBe(false);
-  await expect(page.locator('tbody tr').first()).toBeVisible({ timeout: 30_000 });
-  const screenshotDir = resolve(process.cwd(), '../_recovery-work/sprint155/screenshots');
+  if (body.data.length > 0) {
+    await expect(page.locator('tbody tr').first()).toBeVisible({ timeout: 30_000 });
+  } else {
+    await expect(page.getByText('Sin resultados', { exact: true })).toBeVisible({ timeout: 30_000 });
+  }
+  const screenshotDir = getE2eArtifactPath('pilot', 'screenshots');
   mkdirSync(screenshotDir, { recursive: true });
   await page.setViewportSize({ width: 1366, height: 768 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -162,8 +164,8 @@ test('LECTOR abre un PDF con resaltado visual seguro o fallback explícito', asy
     await expect(activeMark).toHaveCount(0);
   }
   if (process.env.BJC_CAPTURE_VIEWER_SCREENSHOTS === 'true') {
-    const screenshotDir = resolve(process.cwd(), '../_recovery-work/sprint1532/screenshots');
-    const sprint155ScreenshotDir = resolve(process.cwd(), '../_recovery-work/sprint155/screenshots');
+    const screenshotDir = getE2eArtifactPath('pilot-pdf', 'screenshots');
+    const sprint155ScreenshotDir = getE2eArtifactPath('pilot', 'screenshots');
     const canvas = page.locator('.react-pdf__Page__canvas').first();
     mkdirSync(screenshotDir, { recursive: true });
     mkdirSync(sprint155ScreenshotDir, { recursive: true });

@@ -102,6 +102,11 @@ function Get-ClusterSummary($Paths, $Marker) {
   $indices = @(Invoke-JsonApi "$baseUri/_cat/indices?format=json&h=index")
   $aliases = @(Invoke-JsonApi "$baseUri/_cat/aliases?format=json&h=alias,index")
   $node = $nodes.nodes.PSObject.Properties.Value | Select-Object -First 1
+  $jvmArguments = if ($node.jvm.input_arguments -is [string]) {
+    @($node.jvm.input_arguments -split '\s+')
+  } else {
+    @($node.jvm.input_arguments | ForEach-Object { [string]$_ })
+  }
   $flat = @{}
   foreach ($set in @($settings.defaults, $settings.persistent, $settings.transient)) {
     if ($set) { foreach ($prop in $set.PSObject.Properties) { $flat[$prop.Name] = $prop.Value } }
@@ -121,8 +126,8 @@ function Get-ClusterSummary($Paths, $Marker) {
     $icu.Count -ne 1 -or
     $node.jvm.mem.heap_init_in_bytes -ne $expectedHeap -or
     $node.jvm.mem.heap_max_in_bytes -ne $expectedHeap -or
-    $node.jvm.input_arguments -notcontains '-Xms2g' -or
-    $node.jvm.input_arguments -notcontains '-Xmx2g' -or
+    $jvmArguments -notcontains '-Xms2g' -or
+    $jvmArguments -notcontains '-Xmx2g' -or
     [IO.Path]::GetFullPath($dataPath) -ne $Paths.Data -or
     [int]$node.settings.'http.port' -ne [int]$Marker.httpPort -or
     [int]$node.settings.'transport.port' -ne [int]$Marker.transportPort

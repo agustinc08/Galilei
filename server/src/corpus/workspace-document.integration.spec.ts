@@ -22,7 +22,10 @@ const testStorage = path.resolve(
 );
 
 describe('Sprint 15 private workspace PostgreSQL isolation', () => {
-  jest.setTimeout(60_000);
+  // The first authenticated workspace search provisions the token projection
+  // in the isolated QA database, while this suite also runs local OCR. Keep a
+  // generous bound so slow Windows workers are measured instead of timed out.
+  jest.setTimeout(180_000);
   let prisma: PrismaService;
   let source: CorpusSearchSourceAdapter;
   let service: WorkspaceDocumentService;

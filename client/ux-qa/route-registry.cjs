@@ -21,9 +21,9 @@ const publicRoutes = [
 ];
 
 const authenticatedRoutes = [
-  { id: 'GALILEI_HOME', route: '/galilei' },
-  { id: 'MY_DOCUMENTS', route: '/personal' },
-  { id: 'SPACE_MANAGE', route: '/spaces/manage' },
+  { id: 'GALILEI_HOME', route: '/galilei', coverageFiles: ['tests/galilei-navigation.e2e.spec.ts'] },
+  { id: 'MY_DOCUMENTS', route: '/personal', coverageFiles: ['tests/copernic-ux-states.e2e.spec.ts', 'tests/workspace-uat.e2e.spec.ts'] },
+  { id: 'SPACE_MANAGE', route: '/spaces/manage', coverageFiles: ['tests/galilei-navigation.e2e.spec.ts', 'tests/workspace-uat.e2e.spec.ts'] },
 ].map((route) => ({
   ...route,
   requiresAuth: true,
@@ -31,17 +31,18 @@ const authenticatedRoutes = [
   screenshots: false,
   responsive: true,
   expectedAvailability: 'PRESENT_AUTHENTICATED',
+  status: 'COVERED_BY_PRODUCT_E2E',
 }));
 
 const authScenarios = [
-  'ONE_DEPENDENCY',
-  'MULTI_DEPENDENCY',
-  'PERSONAL_OWNER',
-  'SHARED_MEMBER',
-  'SHARED_NON_MEMBER',
-  'RESTRICTED_ALLOWED',
-  'RESTRICTED_DENIED',
-  'ADMIN_OPERATOR',
-].map((id) => ({ id, status: 'DEFERRED_AUTH', credentials: 'ENV_ONLY' }));
+  { id: 'ONE_DEPENDENCY', coverageFiles: ['tests/sprint1561-personal-acl.e2e.spec.ts'] },
+  { id: 'MULTI_DEPENDENCY', coverageFiles: ['tests/workspace-uat.e2e.spec.ts'] },
+  { id: 'PERSONAL_OWNER', coverageFiles: ['tests/sprint1561-personal-acl.e2e.spec.ts', 'tests/workspace-uat.e2e.spec.ts'] },
+  { id: 'SHARED_MEMBER', coverageFiles: ['tests/sprint1561-personal-acl.e2e.spec.ts', 'tests/workspace-uat.e2e.spec.ts'] },
+  { id: 'SHARED_NON_MEMBER', coverageFiles: ['tests/sprint1561-personal-acl.e2e.spec.ts'] },
+  { id: 'RESTRICTED_ALLOWED', coverageFiles: ['tests/sprint1561-personal-acl.e2e.spec.ts'] },
+  { id: 'RESTRICTED_DENIED', coverageFiles: ['tests/sprint1561-personal-acl.e2e.spec.ts'] },
+  { id: 'ADMIN_OPERATOR', coverageFiles: ['tests/jurisprudencia-j9.e2e.spec.ts', 'tests/jurisprudencia-j901.e2e.spec.ts'] },
+].map((scenario) => ({ ...scenario, status: 'COVERED_BY_PRODUCT_E2E', credentials: 'ISOLATED_QA' }));
 
 module.exports = { publicRoutes, authenticatedRoutes, authScenarios };

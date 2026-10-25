@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from "@/lib/router-compat";
 import { useParams, useSearchParams } from '@/lib/router-compat';
 import { CorpusPdfViewer } from './CorpusPdfViewer';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { downloadBlob } from '@/lib/utils';
 import { Card } from '@/components/ui/Card';
@@ -64,6 +64,17 @@ type CurationData = {
 type CollectionOption = { id: string; name: string; _count: { memberships: number } };
 type TopicOption = { id: string; name: string };
 type TagOption = { id: string; name: string };
+type DocumentLoadState = {
+  documentId: string;
+  status: 'ready' | 'unavailable';
+  document?: DocumentInfo;
+  pdfUrl?: string;
+};
+type CurationLoadState = {
+  documentId: string;
+  status: 'ready' | 'unavailable';
+  data?: CurationData;
+};
 
 export default function CorpusDocumentPage() {
   const { user } = useAuth();
@@ -71,14 +82,13 @@ export default function CorpusDocumentPage() {
   const searchParams = useSearchParams();
   const initialPage = Math.max(1, Number(searchParams.get('page') || 1));
   const initialQuery = searchParams.get('q') || '';
-  const [document, setDocument] = useState<DocumentInfo | null>(null);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [documentLoad, setDocumentLoad] = useState<DocumentLoadState | null>(null);
   const [page, setPage] = useState(initialPage);
   const [query, setQuery] = useState(initialQuery);
   const [matches, setMatches] = useState<DocumentMatches | null>(null);
   const [activeMatch, setActiveMatch] = useState(0);
-  const [error, setError] = useState('');
-  const [curation, setCuration] = useState<CurationData | null>(null);
+  const [errorState, setErrorState] = useState<{ documentId: string; message: string } | null>(null);
+  const [curationLoad, setCurationLoad] = useState<CurationLoadState | null>(null);
   const [collections, setCollections] = useState<CollectionOption[]>([]);
   const [topics, setTopics] = useState<TopicOption[]>([]);
   const [tags, setTags] = useState<TagOption[]>([]);
@@ -93,6 +103,16 @@ export default function CorpusDocumentPage() {
   const searchRequest = useRef(0);
   const sourcePageKey = `${params.id}:${page}`;
   const sourcePageText = sourcePageState?.key === sourcePageKey ? sourcePageState.text : null;
+  const currentDocumentLoad = documentLoad?.documentId === params.id ? documentLoad : null;
+  const error = errorState && errorState.documentId === params.id ? errorState.message : '';
+  const setError = useCallback((message: string) => setErrorState(message ? { documentId: params.id ?? '', message } : null), [params.id]);
+  const document = currentDocumentLoad?.status === 'ready' ? currentDocumentLoad.document ?? null : null;
+  const pdfUrl = currentDocumentLoad?.status === 'ready' ? currentDocumentLoad.pdfUrl ?? null : null;
+  const documentLoading = currentDocumentLoad === null;
+  const documentUnavailable = currentDocumentLoad?.status === 'unavailable';
+  const currentCurationLoad = curationLoad?.documentId === params.id ? curationLoad : null;
+  const curation = currentCurationLoad?.status === 'ready' ? currentCurationLoad.data ?? null : null;
+  const curationLoading = currentCurationLoad === null;
   const role = user?.rol.nombre ?? '';
   const canReview = ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA'].includes(role);
   const canSelectJurisprudence = ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(role) && document?.source?.code === 'JURISPRUDENCIA_LOCAL_PDF';
@@ -100,7 +120,7 @@ export default function CorpusDocumentPage() {
 
   const refreshCuration = async () => {
     const data = await api.get<CurationData>(`/corpus/curation/documents/${params.id}`);
-    setCuration(data);
+    setCurationLoad({ documentId: params.id ?? '', status: 'ready', data });
   };
 
   useEffect(() => {
@@ -112,16 +132,20 @@ export default function CorpusDocumentPage() {
     ]).then(([info, blob]) => {
       if (!active) return;
       objectUrl = URL.createObjectURL(blob);
-      setDocument(info);
-      setPdfUrl(objectUrl);
+      setDocumentLoad({ documentId: params.id ?? '', status: 'ready', document: info, pdfUrl: objectUrl });
     }).catch((loadError: unknown) => {
-      if (active) setError(loadError instanceof Error ? loadError.message : 'No se pudo abrir el documento.');
+      if (active) {
+        setDocumentLoad({ documentId: params.id ?? '', status: 'unavailable' });
+        setError(loadError instanceof ApiError && loadError.status === 0
+          ? 'No pudimos conectarnos para abrir el documento. Intentá nuevamente más tarde.'
+          : 'No encontramos este documento o no tenés acceso.');
+      }
     });
     return () => {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [params.id]);
+  }, [params.id, setError]);
 
   useEffect(() => {
     let active = true;
@@ -138,12 +162,22 @@ export default function CorpusDocumentPage() {
   }, [page, params.id, sourcePageKey]);
 
   useEffect(() => {
+    let active = true;
     void Promise.all([
-      api.get<CurationData>(`/corpus/curation/documents/${params.id}`).then(setCuration),
-      api.get<CollectionOption[]>('/corpus/curation/digesto/collections').then(setCollections),
-      api.get<TopicOption[]>('/corpus/curation/digesto/topics').then(setTopics),
-      api.get<TagOption[]>('/corpus/curation/digesto/tags').then(setTags),
-    ]).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'No se pudo cargar la curaduría.'));
+      api.get<CurationData>(`/corpus/curation/documents/${params.id}`),
+      api.get<CollectionOption[]>('/corpus/curation/digesto/collections'),
+      api.get<TopicOption[]>('/corpus/curation/digesto/topics'),
+      api.get<TagOption[]>('/corpus/curation/digesto/tags'),
+    ]).then(([data, availableCollections, availableTopics, availableTags]) => {
+      if (!active) return;
+      setCurationLoad({ documentId: params.id ?? '', status: 'ready', data });
+      setCollections(availableCollections);
+      setTopics(availableTopics);
+      setTags(availableTags);
+    }).catch(() => {
+      if (active) setCurationLoad({ documentId: params.id ?? '', status: 'unavailable' });
+    });
+    return () => { active = false; };
   }, [params.id]);
 
   const runCuration = async (action: () => Promise<unknown>) => {
@@ -229,7 +263,7 @@ export default function CorpusDocumentPage() {
           {matches?.matches[activeMatch]?.textKind === 'OCR' && (
             <p role="status">Texto OCR reconocido para esta página. La navegación y el contexto están disponibles; no se dibujan resaltados visuales de OCR.</p>
           )}
-          {pdfUrl ? <CorpusPdfViewer file={pdfUrl} page={page} sourceText={sourcePageText} matches={matches?.matches ?? []} activeMatch={activeMatch} onLoadSuccess={setPageCount} /> : <Card><p>Cargando PDF…</p></Card>}
+          {pdfUrl ? <CorpusPdfViewer file={pdfUrl} page={page} sourceText={sourcePageText} matches={matches?.matches ?? []} activeMatch={activeMatch} onLoadSuccess={setPageCount} /> : documentLoading ? <Card><p role="status">Cargando PDF…</p></Card> : <Card><p role="status">{documentUnavailable ? 'Documento no disponible.' : 'No se pudo abrir el PDF.'}</p></Card>}
         </section>
         <aside className={styles.sidePanel}>
           <Card>
@@ -295,7 +329,7 @@ export default function CorpusDocumentPage() {
             {canEditDigesto ? <div className={styles.curationControls}><select aria-label="Etiqueta Digesto" value={tagId} onChange={(event) => setTagId(event.target.value)}><option value="">Asignar etiqueta…</option>{tags.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button type="button" disabled={curationBusy || !tagId} onClick={() => void runCuration(() => api.post(`/corpus/curation/documents/${params.id}/digesto/tags/${tagId}`))}>Asignar</button></div> : null}
             <h3>Historial</h3>
             {curation.history.length ? <ol className={styles.history}>{curation.history.map((event, index) => <li key={`${event.accion}-${event.createdAt}-${index}`}><strong>{event.accion}</strong><span>{new Date(event.createdAt).toLocaleString('es-AR')} · {event.usuario.nombre} {event.usuario.apellido ?? ''}</span></li>)}</ol> : <p>Sin decisiones de curaduría registradas.</p>}
-          </Card> : <Card><p>Cargando panel de curaduría…</p></Card>}
+          </Card> : <Card><p role="status">{curationLoading ? 'Cargando panel de curaduría…' : documentUnavailable ? 'La revisión no está disponible para este documento.' : 'No se pudo cargar el panel de curaduría.'}</p></Card>}
         </aside>
       </div>
     </div>

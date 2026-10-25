@@ -1,0 +1,863 @@
+{
+  "generatedAt": "2026-10-24T22:00:29.106Z",
+  "source": "Routes from client/src/app/App.tsx import.meta.glob page files; roles from ProtectedContent/layouts; APIs from server/src controller decorators.",
+  "routeCount": 40,
+  "statusMeaning": "PASS denotes direct authenticated/anonymous route load with deliberate content, redirect, access-denied or not-found state. coverageLevel separates route smoke from workflow tests; it does not claim every possible action was exercised.",
+  "surfaces": [
+    {
+      "name": "Inicio público",
+      "route": "/",
+      "sourceFile": "client/src/app/page.tsx",
+      "role": "public",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Elegir Jurisprudencia, Mi Sala/Juzgado o Mis documentos"
+      ],
+      "apiEndpoints": [],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "client/tests/galilei-navigation.e2e.spec.ts: public links open Jurisprudencia and route protected workspaces to sign-in"
+        ]
+      }
+    },
+    {
+      "name": "Registros técnicos",
+      "route": "/admin/logs",
+      "sourceFile": "client/src/app/(admin)/admin/logs/page.tsx",
+      "role": "ADMIN",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Filtrar y consultar logs autorizados"
+      ],
+      "apiEndpoints": [
+        "GET /api/logs",
+        "GET /api/logs/:id"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; backend authorization tests"
+        ]
+      }
+    },
+    {
+      "name": "archivos",
+      "route": "/archivos",
+      "sourceFile": "client/src/app/(admin)/archivos/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Abrir la pantalla y usar las acciones disponibles para el rol"
+      ],
+      "apiEndpoints": [],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke"
+        ]
+      }
+    },
+    {
+      "name": "Alias de búsqueda",
+      "route": "/busqueda",
+      "sourceFile": "client/src/app/(admin)/busqueda/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Redirigir a Búsqueda avanzada"
+      ],
+      "apiEndpoints": [],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke"
+        ]
+      }
+    },
+    {
+      "name": "Búsqueda avanzada de gestión",
+      "route": "/busqueda-avanzada",
+      "sourceFile": "client/src/app/(admin)/busqueda-avanzada/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Buscar, filtrar, ordenar, paginar y exportar si el rol lo permite"
+      ],
+      "apiEndpoints": [
+        "GET /api/busqueda/avanzada",
+        "GET /api/busqueda/interpretar",
+        "GET /api/busqueda/avanzada/exportar"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; search contract suites"
+        ]
+      }
+    },
+    {
+      "name": "Búsquedas guardadas",
+      "route": "/busquedas-guardadas",
+      "sourceFile": "client/src/app/(admin)/busquedas-guardadas/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "personal del usuario",
+      "mainActions": [
+        "Listar, abrir, renombrar y eliminar búsquedas"
+      ],
+      "apiEndpoints": [
+        "GET/POST/PATCH/DELETE /api/busquedas-guardadas"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; backend unit tests"
+        ]
+      }
+    },
+    {
+      "name": "Jurisprudencia",
+      "route": "/consulta",
+      "sourceFile": "client/src/app/consulta/page.tsx",
+      "role": "public",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Buscar, filtrar, ordenar, paginar y abrir ficha/PDF según disponibilidad"
+      ],
+      "apiEndpoints": [
+        "GET /api/public/busqueda",
+        "GET /api/public/busqueda/sugerencias",
+        "GET /api/public/sentencias/:slug"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "galilei-navigation.e2e.spec.ts",
+          "search contract suites"
+        ]
+      }
+    },
+    {
+      "name": "Impresión de resultados",
+      "route": "/consulta/imprimir",
+      "sourceFile": "client/src/app/consulta/imprimir/page.tsx",
+      "role": "public",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Buscar, filtrar, ordenar, paginar y abrir ficha/PDF según disponibilidad"
+      ],
+      "apiEndpoints": [
+        "GET /api/public/busqueda"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke"
+        ]
+      }
+    },
+    {
+      "name": "Resultados de consulta",
+      "route": "/consulta/resultados",
+      "sourceFile": "client/src/app/consulta/resultados/page.tsx",
+      "role": "public",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Buscar, filtrar, ordenar, paginar y abrir ficha/PDF según disponibilidad"
+      ],
+      "apiEndpoints": [
+        "GET /api/public/busqueda"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; search contract suites"
+        ]
+      }
+    },
+    {
+      "name": "Sentencia pública",
+      "route": "/consulta/sentencia/:slug",
+      "sourceFile": "client/src/app/consulta/sentencia/[slug]/page.tsx",
+      "role": "public",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Buscar, filtrar, ordenar, paginar y abrir ficha/PDF según disponibilidad"
+      ],
+      "apiEndpoints": [
+        "GET /api/public/sentencias/:slug",
+        "GET /api/public/sentencias/:slug/citas"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "J901 publication lifecycle"
+        ]
+      }
+    },
+    {
+      "name": "PDF público de sentencia",
+      "route": "/consulta/sentencia/:slug/documento",
+      "sourceFile": "client/src/app/consulta/sentencia/[slug]/documento/page.tsx",
+      "role": "public",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Buscar, filtrar, ordenar, paginar y abrir ficha/PDF según disponibilidad"
+      ],
+      "apiEndpoints": [
+        "GET /api/public/sentencias/:slug/documento"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "J901 publication lifecycle"
+        ]
+      }
+    },
+    {
+      "name": "Ficha pública de sentencia",
+      "route": "/consulta/sentencia/:slug/ficha",
+      "sourceFile": "client/src/app/consulta/sentencia/[slug]/ficha/page.tsx",
+      "role": "public",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Buscar, filtrar, ordenar, paginar y abrir ficha/PDF según disponibilidad"
+      ],
+      "apiEndpoints": [
+        "GET /api/public/sentencias/:slug/ficha"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; J901 lifecycle"
+        ]
+      }
+    },
+    {
+      "name": "Corpus documental",
+      "route": "/corpus",
+      "sourceFile": "client/src/app/(admin)/corpus/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Consultar documentos y revisar clasificación/procedencia"
+      ],
+      "apiEndpoints": [
+        "GET/PATCH /api/corpus/curation/*",
+        "GET /api/corpus/documents/:id"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; backend unit tests"
+        ]
+      }
+    },
+    {
+      "name": "Ficha de documento del corpus",
+      "route": "/corpus/:id",
+      "sourceFile": "client/src/app/(admin)/corpus/[id]/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Consultar documentos y revisar clasificación/procedencia"
+      ],
+      "apiEndpoints": [
+        "GET /api/corpus/documents/:id",
+        "GET /api/corpus/curation/documents/:id"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; corpus unit tests"
+        ]
+      }
+    },
+    {
+      "name": "Panel institucional",
+      "route": "/dashboard",
+      "sourceFile": "client/src/app/(admin)/dashboard/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Consultar métricas y navegar accesos de operación"
+      ],
+      "apiEndpoints": [
+        "GET /api/estadisticas/*",
+        "GET /api/sentencias/*"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "galilei-navigation.e2e.spec.ts (ADMIN)"
+        ]
+      }
+    },
+    {
+      "name": "Digesto",
+      "route": "/digesto",
+      "sourceFile": "client/src/app/(admin)/digesto/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Explorar normas/colecciones y abrir una ficha"
+      ],
+      "apiEndpoints": [
+        "GET /api/normas",
+        "GET /api/normas/:id"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; backend unit tests"
+        ]
+      }
+    },
+    {
+      "name": "Ficha de norma/colección",
+      "route": "/digesto/:id",
+      "sourceFile": "client/src/app/(admin)/digesto/[id]/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Explorar normas/colecciones y abrir una ficha"
+      ],
+      "apiEndpoints": [
+        "GET /api/corpus/curation/digesto/collections/:id"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; backend unit tests"
+        ]
+      }
+    },
+    {
+      "name": "Alias de documentos",
+      "route": "/documentos",
+      "sourceFile": "client/src/app/(admin)/documentos/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Redirigir a Corpus"
+      ],
+      "apiEndpoints": [],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke"
+        ]
+      }
+    },
+    {
+      "name": "Estadísticas",
+      "route": "/estadisticas",
+      "sourceFile": "client/src/app/(admin)/estadisticas/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Consultar indicadores y paginar resultados"
+      ],
+      "apiEndpoints": [
+        "GET /api/estadisticas/*"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; backend unit tests"
+        ]
+      }
+    },
+    {
+      "name": "Vista pública de fallo",
+      "route": "/fallos/:slug",
+      "sourceFile": "client/src/app/fallos/[slug]/page.tsx",
+      "role": "public",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Consultar datos publicados y abrir el documento público disponible"
+      ],
+      "apiEndpoints": [
+        "GET /api/public/sentencias/:slug",
+        "GET /api/public/sentencias/:slug/documento"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; J901 publication lifecycle"
+        ]
+      }
+    },
+    {
+      "name": "Fallos guardados",
+      "route": "/favoritos",
+      "sourceFile": "client/src/app/(admin)/favoritos/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "personal del usuario",
+      "mainActions": [
+        "Listar y quitar favoritos"
+      ],
+      "apiEndpoints": [
+        "GET/POST/DELETE /api/favoritos"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; backend unit tests"
+        ]
+      }
+    },
+    {
+      "name": "Inicio Galilei",
+      "route": "/galilei",
+      "sourceFile": "client/src/app/(admin)/galilei/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Abrir las tres áreas principales",
+        "Cerrar sesión"
+      ],
+      "apiEndpoints": [
+        "GET /api/auth/me"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "galilei-navigation.e2e.spec.ts"
+        ]
+      }
+    },
+    {
+      "name": "institutos-juridicos",
+      "route": "/institutos-juridicos",
+      "sourceFile": "client/src/app/(admin)/institutos-juridicos/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Abrir la pantalla y usar las acciones disponibles para el rol"
+      ],
+      "apiEndpoints": [],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke"
+        ]
+      }
+    },
+    {
+      "name": "Alias de jurisprudencia",
+      "route": "/jurisprudencia",
+      "sourceFile": "client/src/app/(admin)/jurisprudencia/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Redirigir a Jurisprudencia"
+      ],
+      "apiEndpoints": [],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke"
+        ]
+      }
+    },
+    {
+      "name": "Inicio de sesión",
+      "route": "/login",
+      "sourceFile": "client/src/app/login/page.tsx",
+      "role": "anonymous",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Iniciar sesión y recibir el destino permitido por el rol"
+      ],
+      "apiEndpoints": [
+        "POST /api/auth/login"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "authentication smoke"
+        ]
+      }
+    },
+    {
+      "name": "normas",
+      "route": "/normas",
+      "sourceFile": "client/src/app/(admin)/normas/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Abrir la pantalla y usar las acciones disponibles para el rol"
+      ],
+      "apiEndpoints": [],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke"
+        ]
+      }
+    },
+    {
+      "name": "perfil",
+      "route": "/perfil",
+      "sourceFile": "client/src/app/(admin)/perfil/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Abrir la pantalla y usar las acciones disponibles para el rol"
+      ],
+      "apiEndpoints": [],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke"
+        ]
+      }
+    },
+    {
+      "name": "Mis documentos",
+      "route": "/personal",
+      "sourceFile": "client/src/app/(admin)/personal/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "personal del usuario",
+      "mainActions": [
+        "Cargar, buscar, abrir, editar visibilidad, descargar y eliminar documentos propios"
+      ],
+      "apiEndpoints": [
+        "GET/POST /api/personal/documents",
+        "GET/PATCH/DELETE /api/personal/documents/:id"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "sprint1561-personal-acl.e2e.spec.ts",
+          "workspace-uat.e2e.spec.ts"
+        ]
+      }
+    },
+    {
+      "name": "Revisión jurídica",
+      "route": "/revision",
+      "sourceFile": "client/src/app/(admin)/revision/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Revisar pendientes y guardar decisiones con evidencia"
+      ],
+      "apiEndpoints": [
+        "GET/PATCH /api/corpus/curation/*"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; curation service tests"
+        ]
+      }
+    },
+    {
+      "name": "Gestión de sentencias",
+      "route": "/sentencias",
+      "sourceFile": "client/src/app/(admin)/sentencias/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "permiso sobre sentencia",
+      "mainActions": [
+        "Crear, editar, cargar PDF, revisar, publicar o archivar según permiso"
+      ],
+      "apiEndpoints": [
+        "GET/POST/PATCH/DELETE /api/sentencias",
+        "POST /api/archivos/upload/sentencia/:sentenciaId"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "jurisprudencia-j901.e2e.spec.ts; backend tests"
+        ]
+      }
+    },
+    {
+      "name": "Ficha de gestión de sentencia",
+      "route": "/sentencias/:id",
+      "sourceFile": "client/src/app/(admin)/sentencias/[id]/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "permiso sobre sentencia",
+      "mainActions": [
+        "Crear, editar, cargar PDF, revisar, publicar o archivar según permiso"
+      ],
+      "apiEndpoints": [
+        "GET/PATCH /api/sentencias/:id",
+        "GET /api/archivos/sentencia/:id"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "jurisprudencia-j901.e2e.spec.ts"
+        ]
+      }
+    },
+    {
+      "name": "Documento de sentencia",
+      "route": "/sentencias/:id/documento",
+      "sourceFile": "client/src/app/(admin)/sentencias/[id]/documento/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "permiso sobre sentencia",
+      "mainActions": [
+        "Crear, editar, cargar PDF, revisar, publicar o archivar según permiso"
+      ],
+      "apiEndpoints": [
+        "GET /api/sentencias/:id/documento",
+        "GET /api/archivos/:id"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; J901 PDF lifecycle"
+        ]
+      }
+    },
+    {
+      "name": "Impresión de sentencia",
+      "route": "/sentencias/:id/imprimir",
+      "sourceFile": "client/src/app/(admin)/sentencias/[id]/imprimir/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "permiso sobre sentencia",
+      "mainActions": [
+        "Crear, editar, cargar PDF, revisar, publicar o archivar según permiso"
+      ],
+      "apiEndpoints": [
+        "GET /api/sentencias/:id/completa"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke"
+        ]
+      }
+    },
+    {
+      "name": "Panel de carga rápida",
+      "route": "/sentencias/carga-rapida",
+      "sourceFile": "client/src/app/(admin)/sentencias/carga-rapida/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "permiso sobre sentencia",
+      "mainActions": [
+        "Crear, editar, cargar PDF, revisar, publicar o archivar según permiso"
+      ],
+      "apiEndpoints": [
+        "POST /api/archivos/upload/sentencia/:sentenciaId",
+        "POST /api/sentencias/carga-rapida"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "jurisprudencia-j901.e2e.spec.ts"
+        ]
+      }
+    },
+    {
+      "name": "Carga rápida de sentencia",
+      "route": "/sentencias/nueva",
+      "sourceFile": "client/src/app/(admin)/sentencias/nueva/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "permiso sobre sentencia",
+      "mainActions": [
+        "Crear, editar, cargar PDF, revisar, publicar o archivar según permiso"
+      ],
+      "apiEndpoints": [
+        "POST /api/archivos/upload/sentencia/:sentenciaId",
+        "POST /api/sentencias/carga-rapida"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "jurisprudencia-j901.e2e.spec.ts"
+        ]
+      }
+    },
+    {
+      "name": "Alta completa de sentencia",
+      "route": "/sentencias/nueva-completa",
+      "sourceFile": "client/src/app/(admin)/sentencias/nueva-completa/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "permiso sobre sentencia",
+      "mainActions": [
+        "Crear, editar, cargar PDF, revisar, publicar o archivar según permiso"
+      ],
+      "apiEndpoints": [
+        "POST /api/sentencias/crear-completa"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "backend unit tests; route smoke"
+        ]
+      }
+    },
+    {
+      "name": "Mi Sala / Juzgado",
+      "route": "/spaces",
+      "sourceFile": "client/src/app/(admin)/spaces/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "una o más dependencias asignadas",
+      "mainActions": [
+        "Seleccionar dependencia",
+        "Buscar y filtrar",
+        "Abrir documento y revisar permisos"
+      ],
+      "apiEndpoints": [
+        "GET /api/workspaces",
+        "GET /api/workspaces/:id/search"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "workspace-uat.e2e.spec.ts",
+          "galilei-navigation.e2e.spec.ts"
+        ]
+      }
+    },
+    {
+      "name": "Documento de dependencia",
+      "route": "/spaces/:workspaceId/documents/:id",
+      "sourceFile": "client/src/app/(admin)/spaces/[workspaceId]/documents/[id]/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "membresía y alcance de carpeta",
+      "mainActions": [
+        "Ver metadatos, abrir/descargar si la ACL lo permite"
+      ],
+      "apiEndpoints": [
+        "GET /api/workspaces/:workspaceId/documents/:id",
+        "GET /api/workspaces/:workspaceId/documents/:id/file"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "workspace-uat.e2e.spec.ts",
+          "sprint1561-personal-acl.e2e.spec.ts"
+        ]
+      }
+    },
+    {
+      "name": "Administración de espacios",
+      "route": "/spaces/manage",
+      "sourceFile": "client/src/app/(admin)/spaces/manage/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "Sala/Juzgado según membresía o permiso global ADMIN",
+      "mainActions": [
+        "Crear espacio",
+        "Gestionar miembros y roles",
+        "Crear carpetas y visibilidad"
+      ],
+      "apiEndpoints": [
+        "GET/POST /api/workspaces",
+        "GET/POST/PATCH/DELETE /api/workspaces/:id/members",
+        "GET/POST/PATCH/DELETE /api/workspaces/:id/folders"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_workflow_e2e",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "workspace-uat.e2e.spec.ts"
+        ]
+      }
+    },
+    {
+      "name": "Gestión de sumarios",
+      "route": "/sumarios",
+      "sourceFile": "client/src/app/(admin)/sumarios/page.tsx",
+      "role": "authenticated",
+      "dependencyRequirement": "none",
+      "mainActions": [
+        "Listar y editar sumarios autorizados"
+      ],
+      "apiEndpoints": [
+        "GET /api/sumarios",
+        "PATCH /api/sumarios/:id"
+      ],
+      "status": "PASS",
+      "coverageLevel": "route_smoke_and_unit_or_api_tests",
+      "evidence": {
+        "routeSmoke": "docs/uat/route-sweep-summary.json",
+        "functional": [
+          "route smoke; backend unit tests"
+        ]
+      }
+    }
+  ]
+}

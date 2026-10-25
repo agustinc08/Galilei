@@ -21,6 +21,8 @@ test('public and authenticated routes have explicit availability', () => {
     'ONE_DEPENDENCY', 'MULTI_DEPENDENCY', 'PERSONAL_OWNER', 'SHARED_MEMBER',
     'SHARED_NON_MEMBER', 'RESTRICTED_ALLOWED', 'RESTRICTED_DENIED', 'ADMIN_OPERATOR',
   ]);
+  assert.ok(authenticatedRoutes.every((route) => route.status === 'COVERED_BY_PRODUCT_E2E' && route.coverageFiles.length > 0));
+  assert.ok(authScenarios.every((scenario) => scenario.status === 'COVERED_BY_PRODUCT_E2E' && scenario.credentials === 'ISOLATED_QA' && scenario.coverageFiles.length > 0));
 });
 
 test('console and network classifiers separate React warnings, React tooling, and expected blob aborts', () => {

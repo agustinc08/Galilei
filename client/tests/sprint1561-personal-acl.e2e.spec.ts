@@ -1,24 +1,26 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { getE2eArtifactPath, getE2eRuntimePath, loadE2eCredentials } from './qa-credentials';
 
-const credentials = JSON.parse(
-  readFileSync(resolve(process.cwd(), '../_recovery-work/sprint10/acceptance/credentials.json'), 'utf8'),
-) as { accounts: Record<string, { email: string; password: string }> };
-const syntheticUsers = JSON.parse(
-  readFileSync(resolve(process.cwd(), '../_recovery-work/sprint1561/e2e-users.json'), 'utf8'),
-) as { runId: string; users: Array<{ id: number; nombre: string; email: string }> };
+const syntheticUsersPath = getE2eRuntimePath('BJC_SPRINT1561_E2E_USERS_PATH');
+const credentials = loadE2eCredentials();
+const syntheticUsers = JSON.parse(readFileSync(syntheticUsersPath, 'utf8')) as {
+  runId: string;
+  users: Array<{ id: number; nombre: string; email: string }>;
+};
 const backendPort = process.env.BJC_PLAYWRIGHT_BACKEND_PORT ?? '4001';
 const apiBase = `http://127.0.0.1:${backendPort}/api`;
-const runId = syntheticUsers.runId;
+const runId = Date.now().toString(36).toUpperCase();
 const nameA = `Sala E2E ${runId}`;
 const nameB = `Juzgado E2E ${runId}`;
 const codeA = `S1561E2E_A_${runId}`;
 const codeB = `S1561E2E_B_${runId}`;
-const uxRunRoot = resolve(process.cwd(), '../_recovery-work/ux-reconcile1/runs/authenticated');
+const artifactRoot = getE2eArtifactPath();
+const uxRunRoot = resolve(artifactRoot, 'sprint1561-personal-acl');
 const screenshots = resolve(uxRunRoot, 'screenshots');
 const responsiveManifestPath = resolve(uxRunRoot, 'responsive-results.json');
-const manifestPath = resolve(process.cwd(), '../_recovery-work/sprint1561/e2e-manifest.json');
+const manifestPath = getE2eArtifactPath('sprint1561-e2e-manifest.json');
 const fixturePdf = readFileSync(resolve(process.cwd(), '../server/scripts/dev/fixtures/corpus/fallo-fixture.pdf'));
 
 type E2EManifest = { workspaceIds: string[]; workspaceCodes: string[]; documentIds: string[]; folderIds: string[]; userIds: number[]; personalOwnerId?: number; personalFilenames?: string[] };
@@ -51,8 +53,9 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
       headers: adminHeaders,
       data: { code, name, type },
     });
-    expect(response.ok()).toBeTruthy();
-    const result = await response.json() as { id: string };
+    const responseBody = await response.text();
+    expect(response.ok(), `POST /workspaces returned ${response.status()}: ${responseBody}`).toBeTruthy();
+    const result = JSON.parse(responseBody) as { id: string };
     manifest.workspaceIds.push(result.id);
     saveManifest();
     return result.id;
@@ -114,7 +117,7 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   const operatorId = await addByEmail(workspaceA, credentials.accounts.operator.email, 'EDITOR');
   manifest.personalOwnerId = operatorId;
   saveManifest();
-  await addByEmail(workspaceA, credentials.accounts.reviewer.email, 'VIEWER');
+  await addByEmail(workspaceA, credentials.accounts.sprint1561SingleDependencyReader.email, 'VIEWER');
   await addByEmail(workspaceB, credentials.accounts.operator.email, 'VIEWER');
   for (const person of syntheticUsers.users) await addSyntheticMember(workspaceA, person.id);
 
@@ -140,11 +143,11 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   expect(operatorLogin.ok()).toBeTruthy();
   const operatorToken = (await operatorLogin.json()).accessToken as string;
   const operatorHeaders = { Authorization: `Bearer ${operatorToken}` };
-  const reviewerLogin = await request.post(`${apiBase}/auth/login`, { data: credentials.accounts.reviewer });
+  const reviewerLogin = await request.post(`${apiBase}/auth/login`, { data: credentials.accounts.sprint1561SingleDependencyReader });
   expect(reviewerLogin.ok()).toBeTruthy();
   const reviewerToken = (await reviewerLogin.json()).accessToken as string;
   const reviewerHeaders = { Authorization: `Bearer ${reviewerToken}` };
-  const sharedNonMemberLogin = await request.post(`${apiBase}/auth/login`, { data: credentials.accounts.reader });
+  const sharedNonMemberLogin = await request.post(`${apiBase}/auth/login`, { data: credentials.accounts.sprint1561NonMember });
   expect(sharedNonMemberLogin.ok()).toBeTruthy();
   const sharedNonMemberToken = (await sharedNonMemberLogin.json()).accessToken as string;
   const sharedNonMemberHeaders = { Authorization: `Bearer ${sharedNonMemberToken}` };
@@ -242,8 +245,8 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
 
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await page.goto('/login');
-  await page.getByLabel('Correo electrónico').fill(credentials.accounts.reviewer.email);
-  await page.getByLabel('Contraseña').fill(credentials.accounts.reviewer.password);
+  await page.getByLabel('Correo electrónico').fill(credentials.accounts.sprint1561SingleDependencyReader.email);
+  await page.getByLabel('Contraseña').fill(credentials.accounts.sprint1561SingleDependencyReader.password);
   await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
@@ -305,22 +308,23 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   // not learn the name of a restricted folder for which they have no grant.
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await page.goto('/login');
-  await page.getByLabel('Correo electrónico').fill(credentials.accounts.reviewer.email);
-  await page.getByLabel('Contraseña').fill(credentials.accounts.reviewer.password);
+  await page.getByLabel('Correo electrónico').fill(credentials.accounts.sprint1561SingleDependencyReader.email);
+  await page.getByLabel('Contraseña').fill(credentials.accounts.sprint1561SingleDependencyReader.password);
   await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
   await expect(page.getByRole('heading', { name: 'Mi Sala / Juzgado' })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Dependencia' })).toHaveCount(0);
-  await expect(page.getByText('Tu dependencia se abrió automáticamente.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: nameA, exact: true })).toBeVisible();
+  await expect(page.getByText('Tu acceso: Consulta', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: new RegExp(`Compartida ${runId}`) }).first().click();
   await expect(page.getByText(sharedName, { exact: false })).toBeVisible();
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
   await expect(page.getByRole('button', { name: new RegExp(`Restringida ${runId}`) })).toBeHidden();
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await page.goto('/login');
-  await page.getByLabel('Correo electrónico').fill(credentials.accounts.reader.email);
-  await page.getByLabel('Contraseña').fill(credentials.accounts.reader.password);
+  await page.getByLabel('Correo electrónico').fill(credentials.accounts.sprint1561NonMember.email);
+  await page.getByLabel('Contraseña').fill(credentials.accounts.sprint1561NonMember.password);
   await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
   await page.goto(`/spaces/manage?workspaceId=${encodeURIComponent(workspaceA)}`);
@@ -467,9 +471,13 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   await page.getByRole('button', { name: 'Guardar en Mis documentos' }).click();
   await expect(page.getByRole('status')).toContainText('1 archivo(s) guardado(s)', { timeout: 30_000 });
   const personalPdfName = `personal-viewer-${runId}.pdf`;
+  const personalPdfBuffer = Buffer.concat([
+    fixturePdf,
+    Buffer.from(`\n% ${personalPdfName}\n`, 'ascii'),
+  ]);
   manifest.personalFilenames.push(personalPdfName);
   saveManifest();
-  await pageFileInput.setInputFiles({ name: personalPdfName, mimeType: 'application/pdf', buffer: fixturePdf });
+  await pageFileInput.setInputFiles({ name: personalPdfName, mimeType: 'application/pdf', buffer: personalPdfBuffer });
   await page.getByRole('button', { name: 'Guardar en Mis documentos' }).click();
   await expect(page.getByRole('status')).toContainText('1 archivo(s) guardado(s)', { timeout: 30_000 });
   const personalListResponse = await request.get(`${apiBase}/personal/documents`, { headers: operatorHeaders, params: { folderId: 'ROOT' } });
