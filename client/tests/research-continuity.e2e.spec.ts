@@ -523,6 +523,13 @@ test('collection access does not imply favorite permissions for a reader role', 
   expect(calls.some((call) => call.path === '/favoritos' && call.method === 'GET')).toBe(false);
 });
 
+test('citation review route denies a reader before requesting the reviewer queue', async ({ page }) => {
+  const { calls } = await installApiMocks(page, true, 'LECTOR');
+  await page.goto('/citas-pendientes', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('alert')).toContainText('No autorizado');
+  expect(calls.some((call) => call.path === '/research/citation-candidates')).toBe(false);
+});
+
 test('citation candidates stay unpublished until a reviewer explicitly verifies them', async ({ page }) => {
   const { calls } = await installApiMocks(page, true);
   await page.goto('/citas-pendientes');

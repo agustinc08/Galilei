@@ -28,6 +28,8 @@ export function ProtectedContent({
       ? ['ADMIN', 'OPERADOR']
       : pathname.startsWith('/revision')
         ? ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA']
+        : pathname.startsWith('/citas-pendientes')
+          ? ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA']
         : pathname.startsWith('/digesto')
           ? ['ADMIN', 'OPERADOR', 'DIGESTO']
           : pathname.startsWith('/jurisprudencia')
