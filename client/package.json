@@ -9,7 +9,7 @@
     "build": "pnpm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4002 --strictPort",
     "typecheck": "tsc --noEmit",
-    "test": "node --test scripts/preprod-build-env.test.mjs ux-qa/self-test.cjs",
+    "test": "node --test scripts/preprod-build-env.test.mjs ux-qa/self-test.cjs && node --experimental-strip-types --test tests/pdf-text-search.test.mjs",
     "test:e2e": "playwright test",
     "lint": "eslint src vite.config.ts playwright.config.ts playwright.preprod.config.ts scripts ux-qa tests preprod-tests",
     "lint:ux": "eslint ux-qa tests/ux-*.spec.cjs",

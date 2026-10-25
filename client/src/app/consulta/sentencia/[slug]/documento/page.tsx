@@ -131,6 +131,7 @@ export default function ConsultaSentenciaDocumentoPage() {
           title={title}
           skipAuth
           page={pdfPage}
+          searchQuery={highlightQuery}
           onControlsChange={setPdfControls}
         />
       }

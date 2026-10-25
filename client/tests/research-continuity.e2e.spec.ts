@@ -62,6 +62,71 @@ function makePublicSentence() {
   };
 }
 
+function makePublicDocument() {
+  return {
+    sentencia: {
+      id: 77,
+      slugPublico: DEMO_RESULT.slugPublico,
+      numeroSentencia: DEMO_RESULT.numeroSentencia,
+      tipoFallo: DEMO_RESULT.tipoFallo,
+      sala: DEMO_RESULT.sala,
+      fecha: DEMO_RESULT.fecha,
+      expediente: DEMO_RESULT.expediente,
+      tribunalOrigen: 'Cámara Nacional de Apelaciones en lo Civil',
+      actor: DEMO_RESULT.actor,
+      demandado: DEMO_RESULT.demandado,
+      caratula: DEMO_RESULT.caratula,
+      magistrados: DEMO_RESULT.magistrados,
+      anonimizado: true,
+    },
+    cita: makePublicSentence().cita,
+    sumarios: [],
+    citasFallo: [],
+    referenciasNormativas: [],
+    referenciasJurisprudenciales: [],
+    referenciasDoctrinarias: [],
+    resumen: null,
+    resena: null,
+    archivosPdf: [{ id: 77, nombreArchivo: 'fallo-demo.pdf', nombreOriginal: 'fallo-demo.pdf', mimeType: 'application/pdf' }],
+  };
+}
+
+function makePdfFixture(pageTexts: string[]) {
+  const pageCount = Math.max(1, pageTexts.length);
+  const escapePdfText = (text: string) => text
+    .replace(/\\/gu, '\\\\')
+    .replace(/\(/gu, '\\(')
+    .replace(/\)/gu, '\\)');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    `<< /Type /Pages /Kids [${Array.from({ length: pageCount }, (_, index) => `${index + 3} 0 R`).join(' ')}] /Count ${pageCount} >>`,
+    ...Array.from({ length: pageCount }, (_, index) => {
+      const contentId = pageCount + 4 + index;
+      const fontId = pageCount + 3;
+      return `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`;
+    }),
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ...Array.from({ length: pageCount }, (_, index) => {
+      const escaped = escapePdfText(pageTexts[index] ?? '');
+      const stream = escaped ? `BT /F1 18 Tf 72 700 Td (${escaped}) Tj ET` : '';
+      return `<< /Length ${Buffer.byteLength(stream, 'ascii')} >>\nstream\n${stream}\nendstream`;
+    }),
+  ];
+  let pdf = '%PDF-1.4\n%research-continuity local PDF fixture\n';
+  const offsets = [0];
+  for (const [index, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(pdf, 'ascii'));
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  }
+  const xrefOffset = Buffer.byteLength(pdf, 'ascii');
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(pdf, 'ascii');
+}
+
 async function installApiMocks(page: Page, authenticated = false) {
   const favorites = new Set<number>();
   const saved: Array<Record<string, unknown>> = [];
@@ -122,6 +187,15 @@ async function installApiMocks(page: Page, authenticated = false) {
     if (path.startsWith('/catalogos/')) return route.fulfill({ json: { data: [] } });
     if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}` && method === 'GET') {
       return route.fulfill({ json: { data: makePublicSentence() } });
+    }
+    if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}/documento` && method === 'GET') {
+      return route.fulfill({ json: { data: makePublicDocument() } });
+    }
+    if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}/pdf` && method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/pdf', body: makePdfFixture([
+        'responsabilidad civil responsabilidad civil',
+        'responsabilidad civil',
+      ]) });
     }
     if (path === '/favoritos' && method === 'GET') {
       return route.fulfill({ json: { data: [...favorites].map((sentenciaId) => ({ sentenciaId })) } });
@@ -274,6 +348,60 @@ test('authorized researcher can favorite results, copy an authoritative citation
   await page.getByRole('button', { name: 'Ejecutar' }).click();
   await expect(page).toHaveURL(/\/consulta\?q=da%C3%B1o&tema=Responsabilidad\+civil&sortBy=relevancia&sortOrder=desc&page=2&pageSize=25/u);
   await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('daño');
+});
+
+test('in-document search counts local PDF matches and navigates to the matching page', async ({ page }) => {
+  await installApiMocks(page);
+  await page.goto(`/consulta/sentencia/${DEMO_RESULT.slugPublico}/documento?q=responsabilidad%20civil`);
+  await page.getByRole('button', { name: 'Buscar dentro del fallo' }).click();
+  await expect(page.getByLabel('Buscar en este fallo')).toHaveValue('responsabilidad civil');
+  const searchButton = page.getByRole('button', { name: 'Buscar', exact: true });
+  await expect(searchButton).toBeEnabled();
+  await searchButton.click();
+  const status = page.locator('#pdf-document-search-status');
+  await expect(status).toHaveText('1 de 3 · Página 1');
+  await page.getByRole('button', { name: 'Siguiente' }).click();
+  await expect(status).toHaveText('2 de 3 · Página 1');
+  await page.getByRole('button', { name: 'Siguiente' }).click();
+  await expect(status).toHaveText('3 de 3 · Página 2');
+  await expect(page.locator('iframe')).toHaveAttribute('src', /page=2/u);
+  await page.getByRole('button', { name: 'Anterior' }).click();
+  await expect(status).toHaveText('2 de 3 · Página 1');
+  await page.getByRole('button', { name: 'Limpiar' }).click();
+  await expect(status).toContainText('La búsqueda se procesa en este dispositivo.');
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Descargar', exact: true }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe('fallo-demo.pdf');
+});
+
+test('in-document search reports a scanned PDF with no searchable text', async ({ page }) => {
+  await installApiMocks(page);
+  await page.route(`**/api/public/sentencias/${DEMO_RESULT.slugPublico}/pdf`, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/pdf', body: makePdfFixture(['']) });
+  });
+  await page.goto(`/consulta/sentencia/${DEMO_RESULT.slugPublico}/documento`);
+  await page.getByRole('button', { name: 'Buscar dentro del fallo' }).click();
+  await expect(page.getByText('No hay texto disponible para buscar dentro de este PDF.')).toBeVisible();
+});
+
+test('in-document search extracts a 50-page PDF once and jumps to the matching page', async ({ page }) => {
+  await installApiMocks(page);
+  const pages = Array.from({ length: 50 }, (_, index) => index === 49
+    ? 'responsabilidad civil en la última página'
+    : `Contenido jurídico sintético de la página ${index + 1}`);
+  await page.route(`**/api/public/sentencias/${DEMO_RESULT.slugPublico}/pdf`, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/pdf', body: makePdfFixture(pages) });
+  });
+  await page.goto(`/consulta/sentencia/${DEMO_RESULT.slugPublico}/documento`);
+  await page.getByRole('button', { name: 'Buscar dentro del fallo' }).click();
+  await page.getByLabel('Buscar en este fallo').fill('responsabilidad civil');
+  const searchButton = page.getByRole('button', { name: 'Buscar', exact: true });
+  await expect(searchButton).toBeEnabled();
+  await searchButton.click();
+  await expect(page.locator('#pdf-document-search-status')).toHaveText('1 de 1 · Página 50');
+  await expect(page.locator('iframe')).toHaveAttribute('src', /page=50/u);
 });
 
 test('search continuity controls remain usable without horizontal overflow at target viewports', async ({ page }) => {

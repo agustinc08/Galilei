@@ -120,6 +120,45 @@
   padding: 8px;
 }
 
+.inDocumentSearch {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 6px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #dbe4ee;
+  background: #f8fbff;
+}
+
+.inDocumentSearchForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.inDocumentSearchForm label {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.inDocumentSearchForm input {
+  flex: 1 1 220px;
+  min-width: 120px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.inDocumentSearchStatus {
+  margin: 0;
+  color: #475467;
+  font-size: 12px;
+}
+
 .viewerEmptyState {
   place-items: center;
 }
@@ -373,6 +412,19 @@
   .viewerToolbar {
     justify-content: flex-start;
     padding: 9px 10px;
+  }
+
+  .inDocumentSearchForm {
+    align-items: stretch;
+  }
+
+  .inDocumentSearchForm label,
+  .inDocumentSearchForm input {
+    flex-basis: 100%;
+  }
+
+  .inDocumentSearchForm button {
+    flex: 1 1 100px;
   }
 
   .topbarActions a,
