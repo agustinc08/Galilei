@@ -26,3 +26,7 @@ No se dibuja un resaltado HTML sobre el iframe nativo: el cliente no puede mapea
 ## Verificación
 
 Incluye pruebas de normalización, `ñ`, frases entre fragmentos, espacios por geometría, guionado, conteo, PDF sin texto y navegación en PDF sintético de 2 y 50 páginas. E2E corre con una API totalmente simulada y no modifica PostgreSQL ni OpenSearch.
+
+## Post-UAT candidate verification
+
+The combined research Playwright suite passed its local PDF-search scenarios: exact match count, previous/next navigation, page jump, no-text PDF messaging, and a 50-page synthetic PDF. PDF and API responses were test fixtures. This verifies the viewer interaction but does not certify OCR coverage or extraction quality for the real institutional corpus.

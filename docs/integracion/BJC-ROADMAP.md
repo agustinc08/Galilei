@@ -1,5 +1,17 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Candidata post-UAT — `feature/post-uat-research-suite-1` (2026-10-25)
+
+| Gate | Estado actual | Evidencia / siguiente paso |
+|---|---|---|
+| Sprints 1–2: continuidad y búsqueda en PDF | **IMPLEMENTADOS / VALIDACIÓN AUTOMÁTICA PASS** | Retorno a la búsqueda, favoritos/cita guardada, búsqueda local PDF.js con conteo, navegación y manejo de PDF sin texto; detalles en `docs/features/research-continuity.md` e `in-document-search.md`. |
+| Sprint 3: colecciones y notas | **IMPLEMENTADO / ACL VERIFICADA EN TESTS** | Colecciones privadas por usuario, notas de texto plano, referencias a fallos publicados, sin copiar PDFs; unit tests y E2E mock-only PASS. |
+| Sprint 4: facetas y jurisprudencia reciente | **IMPLEMENTADO / FUNCIONAL PASS** | Facetas Sala/año en la consulta pública y URL; fecha de incorporación separada de fecha de decisión. Requiere benchmark de latencia/conteos sobre servicios principales en una certificación read-only aparte. |
+| Sprint 5: relaciones/citas | **BASE EDITORIAL IMPLEMENTADA** | Detección explícita acotada, candidatas no verificadas por defecto, revisión manual y publicación sólo entre fallos activos/públicos. Precision/recall 1.00 sólo en 8 ejemplos sintéticos; falta evaluación judicial etiquetada. |
+| Calidad local | **PASS_WITH_FINDINGS** | Typecheck, lint, 421 tests backend, 14 tests cliente, 11/11 Playwright y build PASS; 10 tests backend siguen opt-in/skipped. Build advierte sobre chunks de PDF.js >500 KB. |
+| PostgreSQL/Search principal | **READ-ONLY PASS** | PostgreSQL 16.15 `127.0.0.1:55432`, outbox 0/0; OpenSearch 2.19.6 GREEN, alias V4, 69.313 docs. Migraciones de feature probadas sólo en QA desechable 55434. |
+| DEV / main / UAT | **SIN PROMOCIÓN** | DEV continúa en SHA congelado `e06139e3075ef20a90d586973a7d301515ee5a67`; `main` sigue `83947656420a9d6f6c3cfb12b353eb7f2c293a28`. Próximo paso: publicar únicamente la rama feature y solicitar revisión/UAT de producto; cualquier promoción queda separada. |
+
 ## Estado y gates vigentes — principal DEV (2026-10-24)
 
 | Gate | Estado actual | Evidencia / siguiente paso |
