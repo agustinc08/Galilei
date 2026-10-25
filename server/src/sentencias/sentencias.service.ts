@@ -27,6 +27,7 @@ import { QuerySentenciasDto } from './dto/query-sentencias.dto';
 import { UpdateResenaDto } from './dto/update-resena.dto';
 import { UpdateResumenDto } from './dto/update-resumen.dto';
 import { UpdateSentenciaDto } from './dto/update-sentencia.dto';
+import { formatCitation } from './utils/citation-formatter';
 
 type CitaData = {
   citaBreve: string;
@@ -1832,32 +1833,7 @@ export class SentenciasService {
   }
 
   private buildCita(sentencia: Sentencia): CitaData {
-    const caratula = [sentencia.actor, sentencia.demandado]
-      .filter(Boolean)
-      .join(' c/ ');
-    const sala = sentencia.sala ? `Sala ${sentencia.sala}` : null;
-    const fecha = sentencia.fecha
-      ? sentencia.fecha.toLocaleDateString('es-AR')
-      : null;
-    const expediente = sentencia.expediente
-      ? `Expte. ${sentencia.expediente}`
-      : null;
-    const numero = sentencia.numeroSentencia
-      ? `Sentencia ${sentencia.numeroSentencia}`
-      : null;
-
-    const citaBreve = [caratula || 'Sentencia sin caratula', sala, fecha]
-      .filter(Boolean)
-      .join(', ');
-    const citaCompleta =
-      sentencia.citaPersonalizada ||
-      [citaBreve, expediente, numero].filter(Boolean).join(', ');
-
-    return {
-      citaBreve,
-      citaCompleta,
-      citaCopiable: citaCompleta,
-    };
+    return formatCitation(sentencia);
   }
 
   private buildFichaTxt(data: FichaData) {

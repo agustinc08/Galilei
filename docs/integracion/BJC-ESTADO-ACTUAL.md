@@ -1,5 +1,9 @@
 # Estado actual — Buscador Jurídico Civil
 
+## GALILEI-RESEARCH-CONTINUITY-SPRINT-1 — candidata `PASS_WITH_FINDINGS` (2026-10-25)
+
+La candidata se desarrolla en `feature/research-continuity-1`, basada en el UAT congelado `e06139e3075ef20a90d586973a7d301515ee5a67`. Añade enlace canónico, favorito en tarjeta con ACL/API existente, copia de cita pública con URL Galilei separada, explicación española desde el parser, ayuda actualizada y búsqueda pública guardada en JSON privado por propietario. No requiere migración. Cliente: typecheck/lint/test/build PASS y Playwright aislado 3/3; servidor: typecheck/lint/test/build PASS, 405 Jest pass/10 omitidos; Prisma validate PASS. No cambia el camino de Search, ranking, conteos, orden, mapping, índice ni corpus, y no escribe servicios principales. La API local `127.0.0.1:4000` no estaba disponible, por lo que las referencias golden (4.759, 3.369, 1.826; orden 7.694/7.694; producto 325/325) no se reejecutaron en este cierre y permanecen históricas. Sin promoción a DEV. Evidencia y límites: `docs/features/research-continuity.md`.
+
 ## Estado vigente — principal DEV y stack modernizado (2026-10-24)
 
 **Equipo principal:** AgustinNotebook. **Raíz:** `C:\proyecto triple`. El árbol de trabajo está normalizado en `client/`, `server/` y `docs/`; `JurisprudenciaN/`, el antiguo `digesto/` y `docs-integracion/` fueron retirados después de preservar/reconciliar sus elementos únicos. La modernización se promovió por fast-forward normal desde el DEV certificado `749ad15fb429beb652863a51dcb6eb5dd906f841` hasta el candidato de código `82aac83c437700ea6dd8bd7310743b6659429789`, publicado también en `origin/refactor/galilei-stack-modernization1`. `origin/main=83947656420a9d6f6c3cfb12b353eb7f2c293a28` no cambió. El follow-up documental que actualiza este estado forma parte de DEV. No se usó force.

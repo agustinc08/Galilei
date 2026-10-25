@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Link } from "@/lib/router-compat";
 import { useSearchParams } from '@/lib/router-compat';
 import styles from './consulta.module.css';
@@ -9,6 +10,10 @@ import type { ConsultaPublicaResultado } from '@/types/busqueda';
 import { trackEvento } from '@/lib/tracking';
 import { formatDate } from '@/lib/utils';
 import { formatTipoFallo } from '@/lib/jurisprudencia-labels';
+import { FavoriteButton } from '@/components/ui/FavoriteButton';
+import { api } from '@/lib/api';
+import { copyToClipboard } from '@/lib/utils';
+import type { PublicSentencia } from '@/types/sentencia';
 
 type Props = {
   item: ConsultaPublicaResultado;
@@ -16,6 +21,11 @@ type Props = {
   onToggle: (id: number) => void;
   onMissingPdf: () => void;
   query?: string;
+  canFavorite?: boolean;
+  favorite?: boolean;
+  favoriteReady?: boolean;
+  favoritePending?: boolean;
+  onToggleFavorite?: (id: number) => void | Promise<void>;
 };
 
 export function ConsultaResultadoCard({
@@ -24,7 +34,14 @@ export function ConsultaResultadoCard({
   onToggle,
   onMissingPdf,
   query,
+  canFavorite = false,
+  favorite = false,
+  favoriteReady = true,
+  favoritePending = false,
+  onToggleFavorite,
 }: Props) {
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const [copyingCitation, setCopyingCitation] = useState(false);
   const searchParams = useSearchParams();
   const returnTo = `/consulta${searchParams.size ? `?${searchParams.toString()}` : ''}`;
   const detailQuery = new URLSearchParams({ returnTo });
@@ -35,6 +52,30 @@ export function ConsultaResultadoCard({
     ? `/consulta/sentencia/${publicIdentifier}?${detailQuery.toString()}`
     : null;
   const documentHref = publicIdentifier ? `/fallos/${publicIdentifier}?${detailQuery.toString()}` : null;
+
+  const copyCitation = async () => {
+    if (!item.slugPublico || copyingCitation) return;
+    setCopyingCitation(true);
+    setCopyMessage(null);
+    try {
+      const response = await api.get<{ data: PublicSentencia }>(
+        `/public/sentencias/${encodeURIComponent(item.slugPublico)}`,
+        { skipAuth: true },
+      );
+      const citation = response.data.cita?.citaCopiable?.trim();
+      if (!citation) {
+        setCopyMessage('La ficha pública no incluye una cita copiable.');
+        return;
+      }
+      const sourceUrl = `${window.location.origin}/consulta/sentencia/${encodeURIComponent(item.slugPublico)}`;
+      const copied = await copyToClipboard(`${citation}\nFuente Galilei: ${sourceUrl}`);
+      setCopyMessage(copied ? 'Cita y enlace de Galilei copiados.' : 'El navegador no permitió copiar. Seleccioná y copiá el texto desde la ficha del fallo.');
+    } catch {
+      setCopyMessage('No pudimos obtener la cita pública de este fallo.');
+    } finally {
+      setCopyingCitation(false);
+    }
+  };
 
   return (
     <article
@@ -74,6 +115,18 @@ export function ConsultaResultadoCard({
       </div>
 
       <aside className={styles.resultAside}>
+        {canFavorite && onToggleFavorite ? (
+          <FavoriteButton
+            active={favorite}
+            onToggle={() => onToggleFavorite(item.sentenciaId ?? item.id)}
+            disabled={favoritePending || !favoriteReady}
+          />
+        ) : null}
+        {item.slugPublico ? (
+          <Button variant="ghost" onClick={() => void copyCitation()} disabled={copyingCitation}>
+            {copyingCitation ? 'Copiando cita…' : 'Copiar cita'}
+          </Button>
+        ) : null}
         <Button
           variant={selected ? 'secondary' : 'ghost'}
           className={styles.printSelect}
@@ -92,6 +145,7 @@ export function ConsultaResultadoCard({
           </Link>
         ) : null}
         {documentHref && !hasPdf ? <Button variant="secondary" onClick={onMissingPdf}>PDF no disponible</Button> : null}
+        {copyMessage ? <span role="status" className={styles.mutedText}>{copyMessage}</span> : null}
       </aside>
     </article>
   );

@@ -11,6 +11,11 @@ type Props = {
   onToggle: (id: number) => void;
   onMissingPdf: () => void;
   query?: string;
+  canFavorite?: boolean;
+  favoriteIds?: ReadonlySet<number>;
+  favoriteReady?: boolean;
+  favoritePendingIds?: ReadonlySet<number>;
+  onToggleFavorite?: (id: number) => void | Promise<void>;
 };
 
 export function ConsultaResultados({
@@ -19,6 +24,11 @@ export function ConsultaResultados({
   onToggle,
   onMissingPdf,
   query,
+  canFavorite,
+  favoriteIds = new Set<number>(),
+  favoriteReady = true,
+  favoritePendingIds = new Set<number>(),
+  onToggleFavorite,
 }: Props) {
   if (data.length === 0) {
     return (
@@ -39,6 +49,11 @@ export function ConsultaResultados({
           onToggle={onToggle}
           onMissingPdf={onMissingPdf}
           query={query}
+          canFavorite={canFavorite}
+          favorite={favoriteIds.has(item.sentenciaId ?? item.id)}
+          favoriteReady={favoriteReady}
+          favoritePending={favoritePendingIds.has(item.sentenciaId ?? item.id)}
+          onToggleFavorite={onToggleFavorite}
         />
       ))}
     </div>

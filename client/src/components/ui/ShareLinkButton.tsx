@@ -16,23 +16,25 @@ export function ShareLinkButton({
   label = 'Copiar enlace',
   sentenciaId,
 }: Props) {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<'copied' | 'failed' | null>(null);
 
   return (
     <Button
       variant="secondary"
       onClick={async () => {
-        await copyToClipboard(url);
-        void trackEvento({
-          tipoEvento: 'share_link',
-          sentenciaId,
-          metadata: { url },
-        });
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1500);
+        const copied = await copyToClipboard(url);
+        if (copied) {
+          void trackEvento({
+            tipoEvento: 'share_link',
+            sentenciaId,
+            metadata: { origen: 'ficha-publica' },
+          });
+        }
+        setStatus(copied ? 'copied' : 'failed');
+        window.setTimeout(() => setStatus(null), 2000);
       }}
     >
-      {copied ? 'Enlace copiado' : label}
+      {status === 'copied' ? 'Enlace copiado' : status === 'failed' ? 'No se pudo copiar' : label}
     </Button>
   );
 }

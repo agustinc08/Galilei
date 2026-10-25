@@ -13,11 +13,14 @@ import { Card } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Select } from '@/components/ui/Select';
 import { StatusMessage } from '@/components/ui/StatusMessage';
+import { SavePublicSearchDialog } from './SavePublicSearchDialog';
 import { useAuth } from '@/hooks/use-auth';
 import { useCatalogos } from '@/hooks/use-catalogos';
 import { api } from '@/lib/api';
 import { limpiarFiltrosBusqueda } from '@/lib/busqueda';
 import { trackEvento } from '@/lib/tracking';
+import { canonicalPublicSearchPath, publicSearchStateFromUrl } from '@/lib/research-continuity';
+import { copyToClipboard } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types/common';
 import type {
   ConsultaPublicaFilters,
@@ -54,6 +57,21 @@ function ConsultaPublicaScreenContent() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [temas, setTemas] = useState<string[]>([]);
   const [recentlyPublished, setRecentlyPublished] = useState<Array<{ id: number; slugPublico: string | null; caratula: string | null; expediente: string | null; sala: string | null; fecha: string | null; publishedAt: string | null }>>([]);
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set());
+  const [favoriteOwnerId, setFavoriteOwnerId] = useState<number | null>(null);
+  const [favoritePendingIds, setFavoritePendingIds] = useState<Set<number>>(() => new Set());
+  const [favoriteMessage, setFavoriteMessage] = useState<string | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [savingSearch, setSavingSearch] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(null);
+  const [copySearchMessage, setCopySearchMessage] = useState<string | null>(null);
+  const [queryExplanation, setQueryExplanation] = useState<{
+    summary: string;
+    notes: string;
+    q: string;
+    operador?: string;
+  } | null>(null);
+  const canManagePersonalResearch = ['ADMIN', 'OPERADOR'].includes(user?.rol.nombre ?? '');
 
   const filters = useMemo<ConsultaPublicaFilters>(
     () => ({
@@ -153,6 +171,42 @@ function ConsultaPublicaScreenContent() {
     };
   }, [filters]);
 
+  useEffect(() => {
+    let active = true;
+    const queryText = filters.q;
+    if (!queryText?.trim()) {
+      return () => { active = false; };
+    }
+    void api.get<{ data: { summary: string; notes: string } }>(
+      '/public/busqueda/interpretacion',
+      { skipAuth: true, query: { q: queryText, operador: filters.operador } },
+    ).then((response) => {
+      if (active) setQueryExplanation({ ...response.data, q: queryText, operador: filters.operador });
+    }).catch(() => {
+      if (active) setQueryExplanation(null);
+    });
+    return () => { active = false; };
+  }, [filters.q, filters.operador]);
+
+  useEffect(() => {
+    let active = true;
+    if (!canManagePersonalResearch) {
+      return () => { active = false; };
+    }
+    void api.get<{ data: Array<{ sentenciaId: number }> }>('/favoritos')
+      .then((response) => {
+        if (active) {
+          setFavoriteIds(new Set(response.data.map((item) => item.sentenciaId)));
+          setFavoriteOwnerId(user?.id ?? null);
+          setFavoriteMessage(null);
+        }
+      })
+      .catch(() => {
+        if (active) setFavoriteMessage('No pudimos cargar tus favoritos. Podés volver a intentarlo más tarde.');
+      });
+    return () => { active = false; };
+  }, [canManagePersonalResearch, user?.id]);
+
   const currentData = result?.data ?? [];
   const selectedItems = currentData.filter((item) => selectedIds.includes(item.id));
   const activeFilters = ([
@@ -176,6 +230,10 @@ function ConsultaPublicaScreenContent() {
     { key: 'excluir', label: 'Excluir', value: filters.excluir ?? '' },
     { key: 'pdf', label: 'PDF', value: filters.pdf === 'conPdf' ? 'Con PDF' : filters.pdf === 'sinPdf' ? 'Sin PDF' : '' },
   ] satisfies Array<{ key: keyof ConsultaPublicaFilters; label: string; value: string }>).filter((item) => Boolean(item.value));
+  const currentQueryExplanation = queryExplanation && queryExplanation.q === filters.q &&
+    queryExplanation.operador === filters.operador
+    ? queryExplanation
+    : null;
 
   const updateRoute = (next: ConsultaPublicaFilters) => {
     const queryString = buildQueryString(next);
@@ -206,6 +264,73 @@ function ConsultaPublicaScreenContent() {
 
   const handlePageSizeChange = (pageSize: number) => {
     updateRoute({ ...filters, page: 1, pageSize });
+  };
+
+  const handleCopySearchLink = async () => {
+    const path = canonicalPublicSearchPath(new URLSearchParams(searchParams.toString()));
+    const copied = await copyToClipboard(`${window.location.origin}${path}`);
+    setCopySearchMessage(copied ? 'Enlace de búsqueda copiado.' : 'El navegador no permitió copiar el enlace.');
+  };
+
+  const handleSaveSearch = async (name: string) => {
+    if (!canManagePersonalResearch) return;
+    setSavingSearch(true);
+    setSaveMessage(null);
+    try {
+      await api.post('/busquedas-guardadas', {
+        nombre: name,
+        queryJson: {
+          kind: 'consulta-publica',
+          version: 1,
+          state: publicSearchStateFromUrl(new URLSearchParams(searchParams.toString())),
+        },
+      });
+      setSaveDialogOpen(false);
+      setSaveMessage({ variant: 'success', text: 'Búsqueda guardada en tu cuenta.' });
+    } catch {
+      setSaveMessage({ variant: 'error', text: 'No se pudo guardar la búsqueda. No se guardaron resultados ni documentos.' });
+    } finally {
+      setSavingSearch(false);
+    }
+  };
+
+  const handleToggleFavorite = async (sentenciaId: number) => {
+    if (
+      !canManagePersonalResearch ||
+      favoriteOwnerId !== user?.id ||
+      favoritePendingIds.has(sentenciaId)
+    ) return;
+    const ownerId = user.id;
+    const wasFavorite = favoriteIds.has(sentenciaId);
+    setFavoritePendingIds((current) => new Set(current).add(sentenciaId));
+    setFavoriteIds((current) => {
+      const next = new Set(favoriteOwnerId === ownerId ? current : []);
+      if (wasFavorite) next.delete(sentenciaId);
+      else next.add(sentenciaId);
+      return next;
+    });
+    setFavoriteOwnerId(ownerId);
+    setFavoriteMessage(null);
+    try {
+      if (wasFavorite) await api.delete(`/favoritos/${sentenciaId}`);
+      else await api.post(`/favoritos/${sentenciaId}`);
+    } catch {
+      setFavoriteIds((current) => {
+        const next = new Set(current);
+        if (wasFavorite) next.add(sentenciaId);
+        else next.delete(sentenciaId);
+        return next;
+      });
+      setFavoriteMessage(wasFavorite
+        ? 'No se pudo quitar el favorito; se restauró su estado.'
+        : 'No se pudo guardar el favorito; se restauró su estado.');
+    } finally {
+      setFavoritePendingIds((current) => {
+        const next = new Set(current);
+        next.delete(sentenciaId);
+        return next;
+      });
+    }
   };
 
   const handleClear = () => {
@@ -269,8 +394,9 @@ function ConsultaPublicaScreenContent() {
         onBuscar={(values) => handleSearch(values)}
         onLimpiar={handleClear}
         onImprimir={handlePrint}
+        onGuardarBusqueda={() => setSaveDialogOpen(true)}
         mostrarExportar={false}
-        mostrarGuardarBusqueda={false}
+        mostrarGuardarBusqueda={canManagePersonalResearch}
         mostrarFiltrosInternos={false}
       />
 
@@ -318,6 +444,7 @@ function ConsultaPublicaScreenContent() {
           </strong>
         </div>
         <div className={styles.toolbarRight}>
+          <Button variant="secondary" onClick={() => void handleCopySearchLink()}>Copiar enlace de búsqueda</Button>
           <Select
             label="Orden"
             value={`${filters.sortBy || (filters.q ? 'relevancia' : 'fecha')}:${filters.sortOrder || 'desc'}`}
@@ -338,6 +465,24 @@ function ConsultaPublicaScreenContent() {
       </div>
 
       <p className={styles.scopeNote}>La búsqueda incluye fallos y sumarios publicados.</p>
+
+      {currentQueryExplanation ? (
+        <details className={styles.latestDetails}>
+          <summary>Cómo se interpreta esta búsqueda</summary>
+          <p>{currentQueryExplanation.summary}</p>
+          <p>{currentQueryExplanation.notes}</p>
+        </details>
+      ) : null}
+      {!filters.q?.trim() ? (
+        <details className={styles.latestDetails}>
+          <summary>Cómo se interpreta esta búsqueda</summary>
+          <p>No hay texto libre; la consulta se limita a los filtros seleccionados.</p>
+          <p>Se ignoran mayúsculas y se toleran tildes. La ñ se mantiene distinta de la n.</p>
+        </details>
+      ) : null}
+      {copySearchMessage ? <div role="status">{copySearchMessage}</div> : null}
+      {saveMessage ? <StatusMessage variant={saveMessage.variant} title={saveMessage.variant === 'success' ? 'Búsqueda guardada' : 'No se pudo guardar'} message={saveMessage.text} /> : null}
+      {favoriteMessage ? <StatusMessage variant="error" title="Favoritos" message={favoriteMessage} /> : null}
 
       {pdfMessage ? (
         <StatusMessage
@@ -376,6 +521,11 @@ function ConsultaPublicaScreenContent() {
               setPdfMessage('El fallo seleccionado no tiene PDF público disponible.')
             }
             query={filters.q}
+            canFavorite={canManagePersonalResearch}
+            favoriteIds={favoriteOwnerId === user?.id ? favoriteIds : new Set<number>()}
+            favoriteReady={favoriteOwnerId === user?.id}
+            favoritePendingIds={favoritePendingIds}
+            onToggleFavorite={handleToggleFavorite}
           />
           <Card>
             <ConsultaPaginacion
@@ -394,6 +544,13 @@ function ConsultaPublicaScreenContent() {
         selectedCount={selectedIds.length}
         onPrint={handlePrint}
         onClear={() => setSelectedIds([])}
+      />
+      <SavePublicSearchDialog
+        key={saveDialogOpen ? 'save-dialog-open' : 'save-dialog-closed'}
+        open={saveDialogOpen}
+        saving={savingSearch}
+        onClose={() => setSaveDialogOpen(false)}
+        onSave={handleSaveSearch}
       />
     </main>
   );

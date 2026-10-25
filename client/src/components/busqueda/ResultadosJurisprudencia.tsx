@@ -11,6 +11,11 @@ type PublicProps = {
   onToggle: (id: number) => void;
   onMissingPdf: () => void;
   query?: string;
+  canFavorite?: boolean;
+  favoriteIds?: ReadonlySet<number>;
+  favoriteReady?: boolean;
+  favoritePendingIds?: ReadonlySet<number>;
+  onToggleFavorite?: (id: number) => void | Promise<void>;
 };
 
 type AdminProps = {
@@ -30,6 +35,11 @@ export function ResultadosJurisprudencia(props: Props) {
         onToggle={props.onToggle}
         onMissingPdf={props.onMissingPdf}
         query={props.query}
+        canFavorite={props.canFavorite}
+        favoriteIds={props.favoriteIds}
+        favoriteReady={props.favoriteReady}
+        favoritePendingIds={props.favoritePendingIds}
+        onToggleFavorite={props.onToggleFavorite}
       />
     );
   }

@@ -32,6 +32,7 @@ import {
   SearchQueryParseError,
   type ParsedSearchQuery,
 } from './utils/search-parser';
+import { explainSearchQuery } from './utils/search-explanation';
 import { normalizeSearchText } from './utils/search-normalizer';
 import { FederatedSearchService } from './federated-search.service';
 import type { SearchContext } from './adapters/search-source.adapter';
@@ -326,6 +327,11 @@ export class BusquedaService {
       normalizedQuery: parsed.normalizedQuery,
       ast: parsed.root,
     };
+  }
+
+  interpretarConsultaPublica(query?: string, operador?: 'AND' | 'OR') {
+    const parsed = this.parseQuery(query, operador);
+    return { data: explainSearchQuery(parsed.root) };
   }
 
   private parseQuery(query?: string | null, operador?: 'AND' | 'OR') {

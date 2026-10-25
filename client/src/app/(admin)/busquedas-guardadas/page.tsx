@@ -14,6 +14,7 @@ import { Table } from '@/components/ui/Table';
 import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
 import { buildQueryString, formatDateTime } from '@/lib/utils';
+import { publicSearchPathFromSaved } from '@/lib/research-continuity';
 import type { ApiResponse } from '@/types/common';
 import type { BusquedaGuardada } from '@/types/busqueda-guardada';
 
@@ -168,6 +169,11 @@ export default function BusquedasGuardadasPage() {
                       <Button
                         variant="secondary"
                         onClick={() => {
+                          const publicPath = publicSearchPathFromSaved(item.queryJson);
+                          if (publicPath) {
+                            router.push(publicPath);
+                            return;
+                          }
                           const query = buildQueryString(item.queryJson);
                           router.push(`/sentencias?${query}`);
                         }}

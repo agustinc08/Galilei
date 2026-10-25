@@ -74,8 +74,34 @@ export function toDateInput(value?: string | null) {
   return date.toISOString().slice(0, 10);
 }
 
-export async function copyToClipboard(value: string) {
-  await navigator.clipboard.writeText(value);
+export async function copyToClipboard(value: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch {
+      // Continue with the browser's legacy clipboard path when permission is denied.
+    }
+  }
+
+  if (typeof document === 'undefined' || !document.body) return false;
+
+  let input: HTMLTextAreaElement | null = null;
+  try {
+    input = document.createElement('textarea');
+    input.value = value;
+    input.setAttribute('readonly', '');
+    input.style.position = 'fixed';
+    input.style.opacity = '0';
+    input.style.pointerEvents = 'none';
+    document.body.appendChild(input);
+    input.select();
+    return document.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
+    input?.remove();
+  }
 }
 
 export function buildQueryString(query: Record<string, unknown>) {

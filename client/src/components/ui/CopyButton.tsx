@@ -10,18 +10,18 @@ type Props = {
 };
 
 export function CopyButton({ value, label = 'Copiar' }: Props) {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<'copied' | 'failed' | null>(null);
 
   return (
     <Button
       variant="secondary"
       onClick={async () => {
-        await copyToClipboard(value);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1500);
+        const copied = await copyToClipboard(value);
+        setStatus(copied ? 'copied' : 'failed');
+        window.setTimeout(() => setStatus(null), 2000);
       }}
     >
-      {copied ? 'Copiado' : label}
+      {status === 'copied' ? 'Copiado' : status === 'failed' ? 'No se pudo copiar' : label}
     </Button>
   );
 }

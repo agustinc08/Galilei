@@ -362,6 +362,17 @@ export class PublicBusquedaController {
     };
   }
 
+  @Get('busqueda/interpretacion')
+  @ApiOperation({
+    summary: 'Explica en lenguaje claro la sintaxis de una búsqueda pública',
+  })
+  interpretacion(@Query() query: PublicBusquedaQueryDto) {
+    return this.busquedaService.interpretarConsultaPublica(
+      query.q,
+      query.operador,
+    );
+  }
+
   @Get('busqueda/sugerencias')
   @ApiOperation({ summary: 'Sugerencias públicas' })
   sugerencias(@Query() query: SugerenciasQueryDto) {
