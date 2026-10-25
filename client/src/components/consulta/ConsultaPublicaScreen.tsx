@@ -57,6 +57,7 @@ function ConsultaPublicaScreenContent() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [temas, setTemas] = useState<string[]>([]);
   const [recentlyPublished, setRecentlyPublished] = useState<Array<{ id: number; slugPublico: string | null; caratula: string | null; expediente: string | null; sala: string | null; fecha: string | null; publishedAt: string | null }>>([]);
+  const [latestByDecisionDate, setLatestByDecisionDate] = useState<Array<{ id: number; slugPublico: string | null; caratula: string | null; expediente: string | null; sala: string | null; fecha: string | null; numeroSentencia: string | null }>>([]);
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set());
   const [favoriteOwnerId, setFavoriteOwnerId] = useState<number | null>(null);
   const [favoritePendingIds, setFavoritePendingIds] = useState<Set<number>>(() => new Set());
@@ -133,6 +134,9 @@ function ConsultaPublicaScreenContent() {
     void api.get<{ data: typeof recentlyPublished }>('/public/sentencias/recientes', { skipAuth: true })
       .then((response) => { if (active) setRecentlyPublished(response.data); })
       .catch(() => { if (active) setRecentlyPublished([]); });
+    void api.get<{ data: typeof latestByDecisionDate }>('/public/sentencias/mas-recientes', { skipAuth: true })
+      .then((response) => { if (active) setLatestByDecisionDate(response.data); })
+      .catch(() => { if (active) setLatestByDecisionDate([]); });
     return () => { active = false; };
   }, []);
 
@@ -403,7 +407,7 @@ function ConsultaPublicaScreenContent() {
       {recentlyPublished.length ? (
         <Card>
           <details className={styles.latestDetails}>
-            <summary>Últimos fallos publicados <span>({recentlyPublished.length})</span></summary>
+            <summary>Fallos incorporados recientemente <span>({recentlyPublished.length})</span></summary>
             <ul className={styles.latestList}>
             {recentlyPublished.slice(0, 4).map((item) => (
               <li key={item.id}>
@@ -411,6 +415,23 @@ function ConsultaPublicaScreenContent() {
                 <span> · {item.sala || 'Sin Sala informada'} · {item.fecha ? new Date(item.fecha).toLocaleDateString('es-AR') : 'Fecha no informada'}</span>
               </li>
             ))}
+            </ul>
+          </details>
+        </Card>
+      ) : null}
+
+      {latestByDecisionDate.length ? (
+        <Card>
+          <details className={styles.latestDetails}>
+            <summary>Fallos más recientes por fecha de decisión <span>({latestByDecisionDate.length})</span></summary>
+            <p>Ordenados por la fecha del fallo, no por la fecha en que se incorporó al sistema.</p>
+            <ul className={styles.latestList}>
+              {latestByDecisionDate.slice(0, 4).map((item) => (
+                <li key={item.id}>
+                  {item.slugPublico ? <Link href={`/fallos/${item.slugPublico}`}>{item.caratula || item.expediente || 'Fallo publicado'}</Link> : <strong>{item.caratula || item.expediente || 'Fallo publicado'}</strong>}
+                  <span> · {item.sala || 'Sin Sala informada'} · {item.fecha ? new Date(item.fecha).toLocaleDateString('es-AR') : 'Fecha no informada'}</span>
+                </li>
+              ))}
             </ul>
           </details>
         </Card>
@@ -463,6 +484,39 @@ function ConsultaPublicaScreenContent() {
           />
         </div>
       </div>
+
+      {result?.meta.facets ? (
+        <Card>
+          <section aria-labelledby="search-facets-heading" className={styles.latestDetails}>
+            <h2 id="search-facets-heading">Filtrar estos resultados</h2>
+            <p>Los conteos corresponden a la consulta y a los filtros activos.</p>
+            {result.meta.facets.salas.length ? (
+              <div>
+                <h3>Salas</h3>
+                <div className={styles.facetList}>
+                  {result.meta.facets.salas.map((facet) => (
+                    <Button key={facet.value} variant={filters.sala === facet.value ? 'primary' : 'secondary'} onClick={() => updateRoute({ ...filters, sala: filters.sala === facet.value ? '' : facet.value, page: 1 })}>
+                      {facet.value} ({facet.count.toLocaleString('es-AR')})
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {result.meta.facets.years.length ? (
+              <div>
+                <h3>Años de decisión</h3>
+                <div className={styles.facetList}>
+                  {result.meta.facets.years.map((facet) => (
+                    <Button key={facet.value} variant={filters.anio === String(facet.value) ? 'primary' : 'secondary'} onClick={() => updateRoute({ ...filters, anio: filters.anio === String(facet.value) ? '' : String(facet.value), page: 1 })}>
+                      {facet.value} ({facet.count.toLocaleString('es-AR')})
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </section>
+        </Card>
+      ) : null}
 
       <p className={styles.scopeNote}>La búsqueda incluye fallos y sumarios publicados.</p>
 
@@ -522,6 +576,7 @@ function ConsultaPublicaScreenContent() {
             }
             query={filters.q}
             canFavorite={canManagePersonalResearch}
+            canAddToCollection={Boolean(user)}
             favoriteIds={favoriteOwnerId === user?.id ? favoriteIds : new Set<number>()}
             favoriteReady={favoriteOwnerId === user?.id}
             favoritePendingIds={favoritePendingIds}

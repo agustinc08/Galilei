@@ -107,6 +107,7 @@
 .latestList { display: grid; gap: 6px; margin: 12px 0 0; padding-left: 20px; }
 .latestList li { line-height: 1.45; overflow-wrap: anywhere; }
 .latestList li span { color: #667085; font-size: 13px; }
+.facetList { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
 .scopeNote { margin: -6px 2px 0; color: #667085; font-size: 13px; }
 .emptyState {
   display: grid;

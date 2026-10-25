@@ -16,6 +16,9 @@ import { formatTipoFallo } from '@/lib/jurisprudencia-labels';
 import type { ArchivoPdf } from '@/types/archivo';
 import type { ApiResponse } from '@/types/common';
 import type { FalloRelacionadoPublico, FichaSentencia } from '@/types/sentencia';
+import { AddToCollectionButton } from '@/components/research/AddToCollectionButton';
+import { CopyReferenceButton } from '@/components/sentencias/CopyReferenceButton';
+import { useAuth } from '@/hooks/use-auth';
 import styles from './fallo-publico.module.css';
 
 const EMPTY_CONTROLS: PdfViewerControls = {
@@ -27,6 +30,22 @@ const EMPTY_CONTROLS: PdfViewerControls = {
 
 type Props = {
   identifier: string;
+};
+
+type VerifiedCitationRelationship = {
+  type: 'CITES' | 'CITED_BY';
+  status: 'VERIFIED';
+  rawCitation: string;
+  page: number | null;
+  judgment: {
+    id: number;
+    slugPublico: string | null;
+    caratula: string | null;
+    numeroSentencia: string | null;
+    expediente: string | null;
+    sala: string | null;
+    fecha: string | null;
+  };
 };
 
 function buildTitle(data: FichaSentencia) {
@@ -53,12 +72,26 @@ function buildPublicTimeline(data: FichaSentencia) {
 }
 
 export function FalloPublicoViewer({ identifier }: Props) {
+  const { user } = useAuth();
+  const userId = user?.id;
+  const canManageFavorites = ['ADMIN', 'OPERADOR'].includes(user?.rol.nombre ?? '');
+  const canUseCollections = [
+    'ADMIN',
+    'OPERADOR',
+    'LECTOR',
+    'REVISOR',
+    'JURISPRUDENCIA',
+    'DIGESTO',
+  ].includes(user?.rol.nombre ?? '');
   const searchParams = useSearchParams();
   const highlightQuery = searchParams.get('q') ?? '';
   const requestedReturn = searchParams.get('returnTo') ?? '';
   const backHref = requestedReturn.startsWith('/consulta') ? requestedReturn : `/consulta${highlightQuery ? `?q=${encodeURIComponent(highlightQuery)}` : ''}`;
   const [data, setData] = useState<FichaSentencia | null>(null);
   const [relacionados, setRelacionados] = useState<FalloRelacionadoPublico[]>([]);
+  const [verifiedRelationships, setVerifiedRelationships] = useState<VerifiedCitationRelationship[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set());
+  const [relationshipMessage, setRelationshipMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfControls, setPdfControls] = useState<PdfViewerControls>(EMPTY_CONTROLS);
@@ -94,7 +127,7 @@ export function FalloPublicoViewer({ identifier }: Props) {
       setError(null);
 
       try {
-        const [documentoResponse, relacionadosResponse] = await Promise.all([
+        const [documentoResponse, relacionadosResponse, relationshipsResponse] = await Promise.all([
           api.get<ApiResponse<FichaSentencia>>(
             `/public/sentencias/${identifier}/documento`,
             { skipAuth: true },
@@ -105,11 +138,18 @@ export function FalloPublicoViewer({ identifier }: Props) {
               { skipAuth: true },
             )
             .catch(() => ({ data: [] })),
+          api
+            .get<ApiResponse<VerifiedCitationRelationship[]>>(
+              `/public/sentencias/${identifier}/relaciones-verificadas`,
+              { skipAuth: true },
+            )
+            .catch(() => ({ data: [] })),
         ]);
 
         if (!active) return;
         setData(documentoResponse.data);
         setRelacionados(relacionadosResponse.data);
+        setVerifiedRelationships(relationshipsResponse.data);
       } catch (loadError) {
         if (!active) return;
         setError(
@@ -130,6 +170,21 @@ export function FalloPublicoViewer({ identifier }: Props) {
       active = false;
     };
   }, [identifier]);
+
+  useEffect(() => {
+    let active = true;
+    if (!userId || !canManageFavorites) {
+      return () => { active = false; };
+    }
+    void api.get<{ data: Array<{ sentenciaId: number }> }>('/favoritos')
+      .then((response) => {
+        if (active) setFavoriteIds(new Set(response.data.map((item) => item.sentenciaId)));
+      })
+      .catch(() => {
+        if (active) setRelationshipMessage('No pudimos cargar tus favoritos.');
+      });
+    return () => { active = false; };
+  }, [canManageFavorites, userId]);
 
   const archivoPrincipal = useMemo<ArchivoPdf | null>(
     () => data?.archivosPdf?.[0] ?? null,
@@ -167,6 +222,24 @@ export function FalloPublicoViewer({ identifier }: Props) {
   const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
   const publicIdentifier = data.sentencia.slugPublico ?? String(data.sentencia.id);
   const timeline = buildPublicTimeline(data);
+
+  const toggleRelatedFavorite = async (sentenceId: number) => {
+    if (!user || !canManageFavorites) return;
+    const wasFavorite = favoriteIds.has(sentenceId);
+    try {
+      if (wasFavorite) await api.delete(`/favoritos/${sentenceId}`);
+      else await api.post(`/favoritos/${sentenceId}`);
+      setFavoriteIds((current) => {
+        const next = new Set(current);
+        if (wasFavorite) next.delete(sentenceId);
+        else next.add(sentenceId);
+        return next;
+      });
+      setRelationshipMessage(wasFavorite ? 'Fallo quitado de favoritos.' : 'Fallo guardado en favoritos.');
+    } catch {
+      setRelationshipMessage('No se pudo actualizar el favorito.');
+    }
+  };
 
   return (
     <DocumentoViewerLayout
@@ -208,6 +281,30 @@ export function FalloPublicoViewer({ identifier }: Props) {
             )}
           </DocumentoAccordion>
 
+          {relationshipMessage ? <p role="status">{relationshipMessage}</p> : null}
+          <DocumentoAccordion title="Citas verificadas" defaultOpen>
+            {verifiedRelationships.length ? (
+              <div className={styles.relatedList}>
+                {verifiedRelationships.map((relationship, index) => (
+                  <article key={`${relationship.type}-${relationship.judgment.id}-${index}`} className={styles.relatedItem}>
+                    <Link href={`/fallos/${relationship.judgment.slugPublico ?? relationship.judgment.id}`}>
+                      <strong>{relationship.type === 'CITES' ? 'Este fallo cita a' : 'Citado por'}: {relationship.judgment.caratula ?? relationship.judgment.numeroSentencia ?? `Fallo ${relationship.judgment.id}`}</strong>
+                      <span>{[relationship.judgment.sala, relationship.judgment.fecha ? formatDate(relationship.judgment.fecha) : null, relationship.judgment.expediente ? `Expte. ${relationship.judgment.expediente}` : null].filter(Boolean).join(' · ')}</span>
+                    </Link>
+                    <p>Relación verificada por revisión editorial · {relationship.rawCitation}</p>
+                    <div className={styles.publicHeaderActions}>
+                      {canManageFavorites ? <Button variant="secondary" onClick={() => void toggleRelatedFavorite(relationship.judgment.id)}>{favoriteIds.has(relationship.judgment.id) ? 'Quitar favorito' : 'Guardar favorito'}</Button> : null}
+                      {canUseCollections ? <AddToCollectionButton sentenciaId={relationship.judgment.id} /> : null}
+                      <CopyReferenceButton referencia={relationship.rawCitation} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className={styles.emptyBox}>No hay citas verificadas entre fallos publicados para mostrar.</div>
+            )}
+          </DocumentoAccordion>
+
           <DocumentoAccordion title="Fallos relacionados" defaultOpen>
             {relacionados.length ? (
               <div className={styles.relatedList}>
@@ -241,6 +338,7 @@ export function FalloPublicoViewer({ identifier }: Props) {
               <strong>{[title, salaLabel, data.sentencia.fecha ? formatDate(data.sentencia.fecha) : null].filter(Boolean).join(' · ')}</strong>
             </div>
             <div className={styles.publicHeaderActions}>
+              {canUseCollections ? <AddToCollectionButton sentenciaId={data.sentencia.id} /> : null}
               <Button variant="secondary" onClick={() => window.print()}>
                 Imprimir
               </Button>

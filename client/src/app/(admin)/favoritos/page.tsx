@@ -14,6 +14,7 @@ import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import type { ApiResponse } from '@/types/common';
 import type { Favorito } from '@/types/favorito';
+import { AddToCollectionButton } from '@/components/research/AddToCollectionButton';
 
 export default function FavoritosPage() {
   const [favoritos, setFavoritos] = useState<Favorito[]>([]);
@@ -97,6 +98,7 @@ export default function FavoritosPage() {
                       <Link href={`/sentencias/${favorito.sentenciaId}`}>
                         <Button variant="secondary">Abrir</Button>
                       </Link>
+                      <AddToCollectionButton sentenciaId={favorito.sentenciaId} />
                       <Button
                         variant="danger"
                         onClick={async () => {

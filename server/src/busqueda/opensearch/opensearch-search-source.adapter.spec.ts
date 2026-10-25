@@ -93,6 +93,54 @@ describe('OpenSearchSearchSourceAdapter', () => {
     expect(hydratedIds).toEqual(['22', '11']);
   });
 
+  it('requests and returns public facets with the same query used for the result page', async () => {
+    const search = jest.fn().mockResolvedValue({
+      body: {
+        hits: {
+          total: { value: 1, relation: 'eq' },
+          hits: [{ _id: 'JURISPRUDENCIA:SENTENCIA:7', _score: 1 }],
+        },
+        aggregations: {
+          publicFacets: {
+            salas: { buckets: [{ key: 'Sala H', doc_count: 1 }] },
+            years: { buckets: [{ key_as_string: '2024', doc_count: 1 }] },
+          },
+        },
+      },
+    });
+    const adapter = new OpenSearchSearchSourceAdapter(
+      { search } as unknown as Client,
+      'galilei-search-active',
+      'JURISPRUDENCIA',
+      () => ({
+        total: 1,
+        page: 1,
+        pageSize: 1,
+        results: [sentenciaHit('7')],
+      }),
+    );
+
+    const result = await adapter.search(parseSearchQuery('daño'), {
+      ...context,
+      page: 1,
+      pageSize: 1,
+      filters: { sala: 'Sala H' },
+    });
+
+    expect(result.facets).toEqual({
+      salas: [{ value: 'Sala H', count: 1 }],
+      years: [{ value: 2024, count: 1 }],
+    });
+    const calls = search.mock.calls as unknown as Array<
+      [{ body?: { aggs?: unknown; query?: unknown } }]
+    >;
+    const requestBody = calls[0]?.[0]?.body;
+    expect(requestBody?.aggs).toMatchObject({
+      publicFacets: { filter: { match_all: {} } },
+    });
+    expect(requestBody?.query).toBeDefined();
+  });
+
   it('chunks large PostgreSQL hydration pages and restores the full Search order', async () => {
     const ids = Array.from({ length: 205 }, (_, index) => String(index + 1));
     const search = jest.fn().mockResolvedValue({

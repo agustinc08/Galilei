@@ -11,11 +11,13 @@ const mainDestinations = [
   { href: '/consulta', label: '⚖ Jurisprudencia', key: 'jurisprudencia' },
   { href: '/spaces', label: '🏛 Mi Sala / Juzgado', key: 'spaces' },
   { href: '/personal', label: '🔒 Mis documentos', key: 'personal' },
+  { href: '/colecciones', label: '📚 Mis colecciones', key: 'collections' },
 ] as const;
 
 function activeDestination(pathname: string) {
   if (pathname.startsWith('/spaces')) return 'spaces';
   if (pathname.startsWith('/personal')) return 'personal';
+  if (pathname.startsWith('/colecciones')) return 'collections';
   if (
     pathname.startsWith('/consulta') ||
     pathname.startsWith('/fallos') ||
@@ -71,6 +73,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <Link href="/dashboard">Panel técnico</Link>
               <Link href="/admin/logs">Registros</Link>
             </div>
+          ) : null}
+          {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user?.rol.nombre ?? '') ? (
+            <Link href="/citas-pendientes">Revisión editorial de citas</Link>
           ) : null}
           <Button variant="secondary" onClick={logout}>
             Cerrar sesión

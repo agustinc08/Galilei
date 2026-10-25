@@ -147,6 +147,42 @@ function toPublicParticipants(sentencia: {
   };
 }
 
+function publicizeCuratorialReferences<
+  T extends {
+    falloRelacionadoId: number | null;
+    falloRelacionado: {
+      id: number;
+      publicado: boolean;
+      activo: boolean;
+      numeroSentencia: string | null;
+      expediente: string | null;
+      sala: string | null;
+      fecha: Date | null;
+      slugPublico: string | null;
+    } | null;
+  },
+>(references: T[]) {
+  return references.map((reference) => {
+    const target = reference.falloRelacionado;
+    const targetIsPublic = target?.publicado === true && target.activo === true;
+    return {
+      ...reference,
+      falloRelacionadoId: targetIsPublic ? target.id : null,
+      falloRelacionado:
+        targetIsPublic && target
+          ? {
+              id: target.id,
+              numeroSentencia: target.numeroSentencia,
+              expediente: target.expediente,
+              sala: target.sala,
+              fecha: target.fecha,
+              slugPublico: target.slugPublico,
+            }
+          : null,
+    };
+  });
+}
+
 @Injectable()
 export class SentenciasService {
   constructor(
@@ -1314,6 +1350,24 @@ export class SentenciasService {
     return { data };
   }
 
+  async findLatestByDecisionDate(limit = 10) {
+    const data = await this.prisma.sentencia.findMany({
+      where: { publicado: true, activo: true, fecha: { not: null } },
+      orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 20),
+      select: {
+        id: true,
+        slugPublico: true,
+        caratula: true,
+        expediente: true,
+        sala: true,
+        fecha: true,
+        numeroSentencia: true,
+      },
+    });
+    return { data };
+  }
+
   async findPotentialDuplicates(id: number) {
     const current = await this.prisma.sentencia.findUnique({
       where: { id },
@@ -1513,6 +1567,8 @@ export class SentenciasService {
             falloRelacionado: {
               select: {
                 id: true,
+                publicado: true,
+                activo: true,
                 numeroSentencia: true,
                 expediente: true,
                 sala: true,
@@ -1573,7 +1629,9 @@ export class SentenciasService {
         }),
         citasFallo: sentencia.citasFallo,
         referenciasNormativas: sentencia.referenciasNormativas,
-        referenciasJurisprudenciales: sentencia.referenciasJurisprudenciales,
+        referenciasJurisprudenciales: publicizeCuratorialReferences(
+          sentencia.referenciasJurisprudenciales,
+        ),
         referenciasDoctrinarias: sentencia.referenciasDoctrinarias,
         sumarios: sentencia.sumarios,
         archivosPdf,
@@ -1617,6 +1675,8 @@ export class SentenciasService {
             falloRelacionado: {
               select: {
                 id: true,
+                publicado: true,
+                activo: true,
                 numeroSentencia: true,
                 expediente: true,
                 sala: true,
@@ -1678,7 +1738,9 @@ export class SentenciasService {
         sumarios: sentencia.sumarios,
         citasFallo: sentencia.citasFallo,
         referenciasNormativas: sentencia.referenciasNormativas,
-        referenciasJurisprudenciales: sentencia.referenciasJurisprudenciales,
+        referenciasJurisprudenciales: publicizeCuratorialReferences(
+          sentencia.referenciasJurisprudenciales,
+        ),
         referenciasDoctrinarias: sentencia.referenciasDoctrinarias,
         archivosPdf,
         generatedAt: new Date().toISOString(),

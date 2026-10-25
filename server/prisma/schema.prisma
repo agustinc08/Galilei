@@ -31,6 +31,7 @@ model Usuario {
   rol                        Rol                   @relation(fields: [rolId], references: [id])
   favoritos                  Favorito[]
   busquedas                  BusquedaGuardada[]
+  researchCollections        ResearchCollection[]
   eventos                    EventoConsulta[]
   accionesLog                AccionLog[]
   workspaceMemberships       WorkspaceMembership[]
@@ -43,6 +44,7 @@ model Usuario {
   resenasPublicadas          Sentencia[]           @relation("ResenaPublishedBy")
   citasCreadas               CitaFallo[]           @relation("CitaCreatedBy")
   citasActualizadas          CitaFallo[]           @relation("CitaUpdatedBy")
+  relationshipsReviewed      SentenciaRelationshipCandidate[] @relation("RelationshipCandidateReviewer")
   createdAt                  DateTime              @default(now())
   updatedAt                  DateTime              @updatedAt
 
@@ -110,6 +112,9 @@ model Sentencia {
   resenaUpdatedBy                          Usuario?                    @relation("ResenaUpdatedBy", fields: [resenaUpdatedById], references: [id], onDelete: SetNull)
   resenaPublicadaBy                        Usuario?                    @relation("ResenaPublishedBy", fields: [resenaPublicadaById], references: [id], onDelete: SetNull)
   favoritos                                Favorito[]
+  researchCollectionItems                  ResearchCollectionItem[]
+  outgoingRelationshipCandidates           SentenciaRelationshipCandidate[] @relation("RelationshipCandidateSource")
+  incomingRelationshipCandidates           SentenciaRelationshipCandidate[] @relation("RelationshipCandidateTarget")
   eventosConsulta                          EventoConsulta[]
   embeddingsDocumento                      EmbeddingDocumento[]
   createdAt                                DateTime                    @default(now())
@@ -243,6 +248,39 @@ model ReferenciaJurisprudencial {
   @@index([falloRelacionadoId])
 }
 
+enum RelationshipCandidateStatus {
+  DETECTED_CANDIDATE
+  VERIFIED
+  REJECTED
+  UNRESOLVED
+}
+
+model SentenciaRelationshipCandidate {
+  id                   Int                         @id @default(autoincrement())
+  sourceSentenceId     Int
+  targetSentenceId     Int?
+  rawCitation          String                      @db.Text
+  normalizedIdentifier String?
+  identifierType       String?
+  relationshipType     String                      @default("CITES")
+  status               RelationshipCandidateStatus @default(DETECTED_CANDIDATE)
+  extractionMethod     String
+  confidence           Float?
+  page                 Int?
+  reviewedById         Int?
+  reviewedAt           DateTime?
+  sourceSentence       Sentencia                   @relation("RelationshipCandidateSource", fields: [sourceSentenceId], references: [id], onDelete: Cascade)
+  targetSentence       Sentencia?                  @relation("RelationshipCandidateTarget", fields: [targetSentenceId], references: [id], onDelete: SetNull)
+  reviewedBy           Usuario?                    @relation("RelationshipCandidateReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+
+  @@unique([sourceSentenceId, rawCitation, extractionMethod])
+  @@index([status, createdAt])
+  @@index([targetSentenceId, status])
+  @@index([sourceSentenceId, status])
+}
+
 model ReferenciaDoctrinaria {
   id              Int       @id @default(autoincrement())
   sentenciaId     Int
@@ -299,6 +337,37 @@ model BusquedaGuardada {
   updatedAt DateTime @updatedAt
 
   @@index([usuarioId])
+}
+
+// Personal research folders reference published judgments; they never own files.
+model ResearchCollection {
+  id                Int                      @id @default(autoincrement())
+  usuarioId         Int
+  nombre            String                   @db.VarChar(100)
+  nombreNormalizado String                   @db.VarChar(120)
+  usuario           Usuario                  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  items             ResearchCollectionItem[]
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@unique([usuarioId, nombreNormalizado])
+  @@index([usuarioId, updatedAt])
+}
+
+// A note belongs to this owner's reference of a judgment in a collection.
+model ResearchCollectionItem {
+  id           Int                @id @default(autoincrement())
+  collectionId Int
+  sentenciaId  Int
+  nota         String?            @db.Text
+  collection   ResearchCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  sentencia    Sentencia          @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@unique([collectionId, sentenciaId])
+  @@index([sentenciaId])
+  @@index([collectionId, updatedAt])
 }
 
 model EventoConsulta {

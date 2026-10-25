@@ -94,6 +94,13 @@ export type SearchResultPage = {
   page: number;
   pageSize: number;
   results: SearchResult[];
+  /** Exact public jurisprudence facets computed with the same Search query. */
+  facets?: SearchResultFacets;
+};
+
+export type SearchResultFacets = {
+  salas: Array<{ value: string; count: number }>;
+  years: Array<{ value: number; count: number }>;
 };
 
 export interface SearchSourceAdapter {

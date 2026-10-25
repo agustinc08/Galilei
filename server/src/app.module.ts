@@ -20,6 +20,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ReferenciasDoctrinariasModule } from './referencias-doctrinarias/referencias-doctrinarias.module';
 import { ReferenciasJurisprudencialesModule } from './referencias-jurisprudenciales/referencias-jurisprudenciales.module';
 import { ReferenciasNormativasModule } from './referencias-normativas/referencias-normativas.module';
+import { ResearchCollectionsModule } from './research-collections/research-collections.module';
+import { ResearchRelationshipsModule } from './research-relationships/research-relationships.module';
 import { RolesModule } from './roles/roles.module';
 import { SentenciasModule } from './sentencias/sentencias.module';
 import { SumariosModule } from './sumarios/sumarios.module';
@@ -51,6 +53,8 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     ReferenciasNormativasModule,
     ReferenciasJurisprudencialesModule,
     ReferenciasDoctrinariasModule,
+    ResearchCollectionsModule,
+    ResearchRelationshipsModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -16,6 +16,7 @@ type Props = {
   favoriteReady?: boolean;
   favoritePendingIds?: ReadonlySet<number>;
   onToggleFavorite?: (id: number) => void | Promise<void>;
+  canAddToCollection?: boolean;
 };
 
 export function ConsultaResultados({
@@ -29,6 +30,7 @@ export function ConsultaResultados({
   favoriteReady = true,
   favoritePendingIds = new Set<number>(),
   onToggleFavorite,
+  canAddToCollection = false,
 }: Props) {
   if (data.length === 0) {
     return (
@@ -54,6 +56,7 @@ export function ConsultaResultados({
           favoriteReady={favoriteReady}
           favoritePending={favoritePendingIds.has(item.sentenciaId ?? item.id)}
           onToggleFavorite={onToggleFavorite}
+          canAddToCollection={canAddToCollection}
         />
       ))}
     </div>

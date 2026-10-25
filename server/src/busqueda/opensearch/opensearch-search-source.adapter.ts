@@ -4,6 +4,7 @@ import type {
   SearchContext,
   SearchResult,
   SearchResultPage,
+  SearchResultFacets,
   SearchSourceAdapter,
 } from '../adapters/search-source.adapter';
 import type { SearchQueryAst } from '../utils/search-ast';
@@ -49,6 +50,18 @@ type SearchResponseBody = {
   hits?: {
     total?: { value?: number; relation?: 'eq' | 'gte' };
     hits?: OpenSearchHit[];
+  };
+  aggregations?: {
+    publicFacets?: {
+      salas?: { buckets?: Array<{ key?: unknown; doc_count?: number }> };
+      years?: {
+        buckets?: Array<{
+          key_as_string?: string;
+          key?: number;
+          doc_count?: number;
+        }>;
+      };
+    };
   };
 };
 
@@ -337,6 +350,9 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
       page,
       pageSize,
       results,
+      ...(body.aggregations?.publicFacets
+        ? { facets: parsePublicFacets(body.aggregations.publicFacets) }
+        : {}),
     };
   }
 
@@ -630,6 +646,33 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
         _source: false,
         query,
         sort: searchSort(context, this.source, this.schemaVersion),
+        ...(this.source === 'JURISPRUDENCIA' && context.visibility === 'PUBLIC'
+          ? {
+              aggs: {
+                publicFacets: {
+                  filter: { match_all: {} },
+                  aggs: {
+                    salas: {
+                      terms: {
+                        field: 'chamber',
+                        size: 30,
+                        order: { _count: 'desc' },
+                      },
+                    },
+                    years: {
+                      date_histogram: {
+                        field: 'decisionDate',
+                        calendar_interval: 'year',
+                        format: 'yyyy',
+                        min_doc_count: 1,
+                        order: { _key: 'desc' },
+                      },
+                    },
+                  },
+                },
+              } as NonNullable<API.Search_RequestBody['aggs']>,
+            }
+          : {}),
       },
     });
     return (
@@ -650,6 +693,33 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
       ? result.sourceId
       : `JURISPRUDENCIA:${result.sourceType}:${result.sourceId}`;
   }
+}
+
+function parsePublicFacets(
+  value: NonNullable<
+    NonNullable<SearchResponseBody['aggregations']>['publicFacets']
+  >,
+): SearchResultFacets {
+  const salas = (value.salas?.buckets ?? []).flatMap((bucket) =>
+    typeof bucket.key === 'string' && Number.isSafeInteger(bucket.doc_count)
+      ? [{ value: bucket.key, count: bucket.doc_count as number }]
+      : [],
+  );
+  const years = (value.years?.buckets ?? []).flatMap((bucket) => {
+    const year = Number(
+      bucket.key_as_string ??
+        (typeof bucket.key === 'number'
+          ? new Date(bucket.key).getUTCFullYear()
+          : NaN),
+    );
+    return Number.isInteger(year) &&
+      year >= 1800 &&
+      year <= 2200 &&
+      Number.isSafeInteger(bucket.doc_count)
+      ? [{ value: year, count: bucket.doc_count as number }]
+      : [];
+  });
+  return { salas, years };
 }
 
 /** Shared by offline diagnostics that compare the legacy locale collation with indexed keyword order. */

@@ -16,6 +16,7 @@ type PublicProps = {
   favoriteReady?: boolean;
   favoritePendingIds?: ReadonlySet<number>;
   onToggleFavorite?: (id: number) => void | Promise<void>;
+  canAddToCollection?: boolean;
 };
 
 type AdminProps = {
@@ -40,6 +41,7 @@ export function ResultadosJurisprudencia(props: Props) {
         favoriteReady={props.favoriteReady}
         favoritePendingIds={props.favoritePendingIds}
         onToggleFavorite={props.onToggleFavorite}
+        canAddToCollection={props.canAddToCollection}
       />
     );
   }

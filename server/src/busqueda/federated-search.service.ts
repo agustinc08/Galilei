@@ -28,6 +28,7 @@ export type FederatedSearchPage = {
   deduplicated: number;
   truncated: boolean;
   totalExact: boolean;
+  facets?: import('./adapters/search-source.adapter').SearchResultFacets;
   sources: FederatedSourceStatus[];
   durationMs: number;
   parserMs?: number;
@@ -196,6 +197,7 @@ export class FederatedSearchService implements OnModuleDestroy {
         truncated: false,
         partial: false,
         totalExact: result.totalExact !== false,
+        ...(result.facets ? { facets: result.facets } : {}),
         hasMore: result.hasMore === true,
         sources: settled.map((item) => item.status),
         durationMs: Date.now() - started,

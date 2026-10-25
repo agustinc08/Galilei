@@ -1,0 +1,188 @@
+.collectionDialog {
+  width: min(520px, calc(100vw - 28px));
+  max-height: min(80vh, 680px);
+  padding: 0;
+  border: 1px solid #d0d5dd;
+  border-radius: 12px;
+  color: #101828;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(16, 24, 40, 0.25);
+}
+
+.collectionDialog::backdrop {
+  background: rgba(16, 24, 40, 0.48);
+}
+
+.dialogHeader,
+.dialogBody,
+.createCollectionInline,
+.collectionPage {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.dialogHeader {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.dialogHeader h2,
+.collectionCard h2,
+.collectionPage h1 {
+  margin: 0;
+}
+
+.dialogHeader p,
+.muted,
+.collectionCard p {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 14px;
+}
+
+.dialogBody label,
+.createCollectionInline label,
+.collectionForm label,
+.noteEditor label {
+  display: grid;
+  gap: 6px;
+  color: #344054;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dialogBody select,
+.createCollectionInline input,
+.collectionForm input,
+.collectionSearch input,
+.noteEditor textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  color: #101828;
+  background: #fff;
+  font: inherit;
+}
+
+.createCollectionInline {
+  border-top: 1px solid #eaecf0;
+}
+
+.createCollectionInline summary {
+  cursor: pointer;
+  color: #175cd3;
+  font-weight: 600;
+}
+
+.createCollectionInline form,
+.collectionForm,
+.collectionSearch,
+.noteEditor {
+  display: grid;
+  gap: 10px;
+}
+
+.inlineStatus,
+.errorStatus {
+  display: block;
+  color: #067647;
+  font-size: 12px;
+}
+
+.errorStatus {
+  margin: 0;
+  padding: 0 16px 16px;
+  color: #b42318;
+}
+
+.collectionPage {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.collectionIntro {
+  margin: 0;
+  color: #667085;
+}
+
+.collectionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 14px;
+}
+
+.collectionCard,
+.collectionItem {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.collectionCard a,
+.collectionItem a {
+  color: #175cd3;
+  text-decoration: none;
+}
+
+.collectionCard a:hover,
+.collectionItem a:hover {
+  text-decoration: underline;
+}
+
+.collectionActions,
+.collectionToolbar,
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.collectionToolbar {
+  justify-content: space-between;
+}
+
+.collectionItemHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.collectionItemMeta {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.noteEditor textarea {
+  min-height: 94px;
+  resize: vertical;
+  font-weight: 400;
+}
+
+.pagination {
+  justify-content: space-between;
+}
+
+@media (max-width: 640px) {
+  .collectionPage {
+    gap: 14px;
+  }
+
+  .collectionToolbar > * {
+    flex: 1 1 100%;
+  }
+
+  .collectionActions > * {
+    flex: 1 1 130px;
+  }
+}

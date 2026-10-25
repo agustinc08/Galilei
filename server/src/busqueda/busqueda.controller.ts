@@ -641,6 +641,7 @@ function toPublicConsultaPage(
       hasMore: page.hasMore,
       sortUsed,
       expandedTerms: [],
+      ...(page.facets ? { facets: page.facets } : {}),
     },
   };
 }

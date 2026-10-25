@@ -14,6 +14,7 @@ import { FavoriteButton } from '@/components/ui/FavoriteButton';
 import { api } from '@/lib/api';
 import { copyToClipboard } from '@/lib/utils';
 import type { PublicSentencia } from '@/types/sentencia';
+import { AddToCollectionButton } from '@/components/research/AddToCollectionButton';
 
 type Props = {
   item: ConsultaPublicaResultado;
@@ -26,6 +27,7 @@ type Props = {
   favoriteReady?: boolean;
   favoritePending?: boolean;
   onToggleFavorite?: (id: number) => void | Promise<void>;
+  canAddToCollection?: boolean;
 };
 
 export function ConsultaResultadoCard({
@@ -39,6 +41,7 @@ export function ConsultaResultadoCard({
   favoriteReady = true,
   favoritePending = false,
   onToggleFavorite,
+  canAddToCollection = false,
 }: Props) {
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [copyingCitation, setCopyingCitation] = useState(false);
@@ -122,6 +125,7 @@ export function ConsultaResultadoCard({
             disabled={favoritePending || !favoriteReady}
           />
         ) : null}
+        {canAddToCollection ? <AddToCollectionButton sentenciaId={item.sentenciaId ?? item.id} /> : null}
         {item.slugPublico ? (
           <Button variant="ghost" onClick={() => void copyCitation()} disabled={copyingCitation}>
             {copyingCitation ? 'Copiando cita…' : 'Copiar cita'}

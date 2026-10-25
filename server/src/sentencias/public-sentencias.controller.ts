@@ -19,6 +19,14 @@ export class PublicSentenciasController {
     return this.sentenciasService.findRecentPublished(10);
   }
 
+  @Get('mas-recientes')
+  @ApiOperation({
+    summary: 'Fallos publicados más recientes por fecha de decisión',
+  })
+  masRecientes() {
+    return this.sentenciasService.findLatestByDecisionDate(10);
+  }
+
   @Get(':slug/citas')
   @ApiOperation({
     summary: 'Obtiene citas confirmadas de una sentencia publica',
