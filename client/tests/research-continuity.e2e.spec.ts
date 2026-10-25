@@ -356,6 +356,10 @@ async function installApiMocks(page: Page, authenticated = false, roleName = ADM
     return route.fulfill({ status: 404, json: { message: `Unmocked test API: ${method} ${path}` } });
   });
 
+  await page.route('**/api/public/busqueda/sugerencias**', async (route) => {
+    await route.fulfill({ json: { data: [] } });
+  });
+
   return { calls };
 }
 
