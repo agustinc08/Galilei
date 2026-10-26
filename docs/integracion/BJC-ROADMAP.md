@@ -1,5 +1,18 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Candidata — GALILEI-RESEARCH-REPRO-SUITE-2 (2026-10-26)
+
+| Gate | Estado | Evidencia / siguiente paso |
+|---|---|---|
+| Dossier de investigación | **IMPLEMENTADO / PRUEBAS PASS** | `POST /research/collections/:id/export`; owner-only, vuelve a validar fallos públicos/activos, notas privadas; ZIP v1, SHA-256 y límite 1.000. ZIP de 100 fallos: 305 entradas, 132.279 bytes, 92 ms medidos; CRC/hash verificados. Ver `docs/research-bundles.md`. |
+| Novedades guardadas | **IMPLEMENTADO / PRUEBAS PASS** | Baseline al crear/primer uso; nuevo = `publishedAt`; reusa `BusquedaService.federatedSearch` con filtros, incluida faceta de Sala multivalor; watermark explícito. Ver `docs/saved-search-novelties.md`. |
+| Mismo expediente | **IMPLEMENTADO / PRUEBAS PASS** | Prefijo y año completos, normaliza case/espacios y slash/guion; excluye self y registros no públicos/inactivos; máximo 20. |
+| Cliente / CI | **VALIDACIÓN LOCAL PASS** | Typecheck/lint/tests/build, 17/17 Playwright UI mockeadas, producción y full audit sin advisories altos/críticos. CI valida cliente, servidor y audit high/critical; primer run remoto pendiente. |
+| Migraciones / servicios | **DISPOSABLE + READ-ONLY PASS** | 34/34 frescas y 33→34 incremental, pending=0, tres columnas; clusters desechables eliminados. Principal PostgreSQL READ ONLY y Search read-only: identidad/outbox correctos, OpenSearch GREEN, V3/V4 69.313 y referencias 4.759/3.369/1.826. Sin escrituras. Publicar sólo la rama feature; no promover a `dev` ni `main`. |
+| Hallazgos de cierre | **PASS_WITH_FINDINGS** | El E2E Suite 2 no recorrió API/DB/Search reales; ACL de features cubierta por tests unitarios/servicio. Build avisa sobre chunks PDF.js >500 KB; host usa pnpm 11.25.0 frente al pin 12.15.0 de CI, aunque frozen install pasó. |
+
+El contexto de la candidata anterior queda bajo su encabezado fechado; usar esta sección para el sprint actual.
+
 ## Candidata post-UAT — `feature/post-uat-research-suite-1` (2026-10-25)
 
 | Gate | Estado actual | Evidencia / siguiente paso |

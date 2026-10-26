@@ -1,0 +1,79 @@
+name: Galilei CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - dev
+      - "feature/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  client:
+    name: Client validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter front run typecheck
+      - run: pnpm --filter front run lint
+      - run: pnpm --filter front run test
+      - run: pnpm --filter front run build
+      - run: pnpm --filter front exec playwright install --with-deps chromium
+      - run: pnpm --filter front run test:e2e:research
+
+  server:
+    name: Server validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter back run prisma:generate
+      - run: pnpm --filter back run prisma:validate
+      - run: pnpm --filter back run typecheck
+      - run: pnpm --filter back run lint
+      - run: pnpm --filter back run test
+      - run: pnpm --filter back run build
+
+  dependency-audit:
+    name: Production dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Fail on high or critical production advisories
+        run: pnpm audit --prod --audit-level high

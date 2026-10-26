@@ -27,6 +27,10 @@ El comando raíz levanta el backend en `http://127.0.0.1:4000` y Vite en `http:/
 
 Comandos raíz disponibles: `pnpm dev`, `pnpm build`, `pnpm test`, `pnpm lint`, `pnpm typecheck` y `pnpm e2e`. Para operar un paquete por separado, usá `pnpm --filter front ...` o `pnpm --filter back ...`.
 
+## Investigación reproducible
+
+Las colecciones propias se pueden exportar como dossiers ZIP verificables; las búsquedas guardadas muestran fallos nuevos desde su publicación en Galilei, y las fichas públicas enlazan decisiones del mismo expediente con normalización determinística. Alcance, ACL, límites y pruebas: [dossiers](docs/research-bundles.md), [novedades](docs/saved-search-novelties.md) y [gobierno del repositorio](docs/repo-governance.md).
+
 Las pruebas backend predeterminadas ejecutan suites unitarias y omiten `*.integration.spec.ts`; esas suites requieren una base y servicios QA explícitos. No apuntes pruebas o migraciones a producción ni a servidores institucionales.
 
 ## Datos locales

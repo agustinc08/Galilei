@@ -1,5 +1,7 @@
 # Research continuity — GALILEI-RESEARCH-CONTINUITY-SPRINT-1
 
+> **Actualización 2026-10-26:** `feature/research-reproducibility-suite-2` extiende la continuidad con novedades por `publishedAt` y otras decisiones determinísticas del mismo expediente. Continúa como candidata sin promoción a DEV; ver [novedades](../saved-search-novelties.md) y [estado BJC](../integracion/BJC-ESTADO-ACTUAL.md).
+
 ## Purpose and scope
 
 This feature reduces interruptions while researching public civil jurisprudence. It implements the independently designed benchmark concepts Q01–Q06 (saved query, citation copy, result-card favorite, accurate search help, copy current URL, and query explanation) from `docs/research/benchmark-github-2026/quick-wins.md` and `ux-ideas.md`. No external repository code was copied.
