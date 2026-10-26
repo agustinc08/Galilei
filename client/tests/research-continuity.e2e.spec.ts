@@ -143,14 +143,37 @@ function makePdfFixture(pageTexts: string[]) {
   return Buffer.from(pdf, 'ascii');
 }
 
-async function installApiMocks(page: Page, authenticated = false, roleName = ADMIN.rol.nombre) {
+async function installApiMocks(
+  page: Page,
+  authenticated = false,
+  roleName = ADMIN.rol.nombre,
+  options: { seedNovelties?: boolean; failNovelties?: boolean; failExport?: boolean } = {},
+) {
   const authenticatedUser = { ...ADMIN, rol: { ...ADMIN.rol, nombre: roleName } };
   const favorites = new Set<number>();
   const saved: Array<Record<string, unknown>> = [];
   const collections: MockCollection[] = [];
   const collectionItems = new Map<number, MockCollectionItem[]>();
   const citationCandidates: MockCitationCandidate[] = [];
-  const calls: Array<{ method: string; path: string; body?: unknown }> = [];
+  const calls: Array<{ method: string; path: string; search: string; body?: unknown }> = [];
+  if (options.seedNovelties) {
+    saved.push({
+      id: 55,
+      usuarioId: ADMIN.id,
+      nombre: 'Responsabilidad civil',
+      queryJson: {
+        kind: 'consulta-publica',
+        version: 1,
+        state: { q: 'responsabilidad civil' },
+      },
+      lastViewedAt: '2026-10-01T00:00:00.000Z',
+      lastEvaluatedAt: '2026-10-26T12:00:00.000Z',
+      lastNewCount: 1,
+      noveltyAvailable: true,
+      createdAt: '2026-10-01T00:00:00.000Z',
+      updatedAt: '2026-10-26T12:00:00.000Z',
+    });
+  }
 
   if (authenticated) {
     await page.addInitScript((user) => {
@@ -189,7 +212,7 @@ async function installApiMocks(page: Page, authenticated = false, roleName = ADM
     const method = request.method();
     let body: unknown;
     try { body = request.postDataJSON(); } catch { body = undefined; }
-    calls.push({ method, path, body });
+    calls.push({ method, path, search: url.search, body });
 
     if (path === '/auth/me' && method === 'GET') return route.fulfill({ json: authenticatedUser });
     if (path === '/public/busqueda' && method === 'GET') {
@@ -201,7 +224,7 @@ async function installApiMocks(page: Page, authenticated = false, roleName = ADM
           pageSize: Number(url.searchParams.get('pageSize') ?? '25'),
           pageCount: 1,
           facets: {
-            salas: [{ value: 'Sala H', count: 8 }],
+            salas: [{ value: 'Sala H', count: 8, filterValues: ['H', 'Sala H'] }],
             years: [{ value: 2024, count: 7 }],
           },
         },
@@ -240,6 +263,14 @@ async function installApiMocks(page: Page, authenticated = false, roleName = ADM
         judgment: { id: 88, slugPublico: 'antecedente-civil', caratula: 'Antecedente civil', numeroSentencia: '20/2018', expediente: 'CIV 90/2018', sala: 'A', fecha: '2018-03-02T00:00:00.000Z' },
       }] } });
     }
+    if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}/mismo-expediente` && method === 'GET') {
+      return route.fulfill({ json: {
+        data: [{ id: 89, slugPublico: 'mismo-expediente', caratula: 'Otra decisión del mismo expediente', numeroSentencia: '14/2025', sala: 'B', fecha: '2025-02-01T00:00:00.000Z', expediente: DEMO_RESULT.expediente, tipoFallo: 'Sentencia' }],
+        total: 1,
+        limit: 10,
+        hasMore: false,
+      } });
+    }
     if (path === '/favoritos' && method === 'GET') {
       return route.fulfill({ json: { data: [...favorites].map((sentenciaId) => ({ sentenciaId })) } });
     }
@@ -254,6 +285,35 @@ async function installApiMocks(page: Page, authenticated = false, roleName = ADM
     }
     if (path === '/busquedas-guardadas' && method === 'GET') {
       return route.fulfill({ json: { data: saved } });
+    }
+    const noveltyMatch = path.match(/^\/busquedas-guardadas\/(\d+)\/novedades$/u);
+    if (noveltyMatch && method === 'GET') {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      if (options.failNovelties) {
+        return route.fulfill({ status: 503, json: { message: 'Search offline' } });
+      }
+      return route.fulfill({ json: {
+        data: [{ id: 79, slugPublico: 'novedad-civil', caratula: 'Fallo civil incorporado recientemente', numeroSentencia: '9/2026', sala: 'A', fecha: '2019-04-01T00:00:00.000Z', expediente: 'CIV 9/2019', tipoFallo: 'Sentencia' }],
+        meta: {
+          total: 1,
+          page: Number(url.searchParams.get('page') ?? '1'),
+          pageSize: 25,
+          pageCount: 1,
+          hasMore: false,
+          baselineEstablished: false,
+          lastViewedAt: '2026-10-01T00:00:00.000Z',
+          evaluatedAt: url.searchParams.get('evaluatedAt') ?? '2026-10-26T12:00:00.000Z',
+        },
+      } });
+    }
+    const noveltyViewedMatch = path.match(/^\/busquedas-guardadas\/(\d+)\/novedades\/vistas$/u);
+    if (noveltyViewedMatch && method === 'POST') {
+      const search = saved.find((item) => item.id === Number(noveltyViewedMatch[1]));
+      if (search) {
+        search.lastNewCount = 0;
+        search.noveltyAvailable = true;
+      }
+      return route.fulfill({ json: { data: { viewed: true, newCount: 0 } } });
     }
     if (path === '/busquedas-guardadas' && method === 'POST') {
       saved.push({
@@ -308,6 +368,18 @@ async function installApiMocks(page: Page, authenticated = false, roleName = ADM
       collections.push(collection);
       collectionItems.set(collection.id, []);
       return route.fulfill({ status: 201, json: { data: collection } });
+    }
+    const exportMatch = path.match(/^\/research\/collections\/(\d+)\/export$/u);
+    if (exportMatch && method === 'POST') {
+      if (options.failExport) {
+        return route.fulfill({ status: 500, json: { message: 'internal error' } });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/zip',
+        body: Buffer.from('504b0506000000000000000000000000000000000000', 'hex'),
+      });
     }
     const collectionItemsMatch = path.match(/^\/research\/collections\/(\d+)\/items(?:\/(\d+))?(?:\/note)?$/u);
     const collectionMatch = path.match(/^\/research\/collections\/(\d+)$/u);
@@ -372,6 +444,13 @@ test('public search state is canonical and a copied deep link preserves query, f
     state: { q: 'responsabilidad civil', sala: 'C', sortBy: 'fecha', sortOrder: 'asc', page: 3, pageSize: 10 },
   })).toContain('page=3');
   expect(publicSearchPathFromSaved({ kind: 'legacy', state: {} })).toBeNull();
+
+  const salaAliases = new URLSearchParams('q=civil&salas=A&salas=Sala+A');
+  expect(canonicalPublicSearchPath(salaAliases)).toBe('/consulta?q=civil&salas=A&salas=Sala+A');
+  expect(publicSearchStateFromUrl(salaAliases)).toMatchObject({ salas: ['A', 'Sala A'] });
+  expect(publicSearchPathFromSaved({
+    kind: 'consulta-publica', version: 1, state: { q: 'civil', salas: ['A', 'Sala A'] },
+  })).toBe('/consulta?q=civil&salas=A&salas=Sala+A');
 
   await installApiMocks(page);
   await page.goto('/consulta?q=responsabilidad%20civil&sala=C&sortBy=fecha&sortOrder=asc&page=3&pageSize=10');
@@ -455,7 +534,7 @@ test('authorized researcher can favorite results, copy an authoritative citation
   await expect(page.getByRole('status').filter({ hasText: 'Cita y enlace de Galilei copiados' })).toBeVisible();
   const citation = await page.evaluate(() => (window as Window & { __researchClipboard?: string }).__researchClipboard);
   expect(citation).toContain('María Núñez c/ Peña, Sala C');
-  expect(citation).toContain('Fuente Galilei: http://127.0.0.1:4012/consulta/sentencia/fallo-demo-ninez');
+  expect(citation).toContain(`Fuente Galilei: ${new URL(page.url()).origin}/consulta/sentencia/fallo-demo-ninez`);
 
   const saveTrigger = page.getByRole('button', { name: 'Guardar búsqueda', exact: true });
   await saveTrigger.click();
@@ -486,12 +565,19 @@ test('authorized researcher can favorite results, copy an authoritative citation
 });
 
 test('public facets preserve the query while separating decision date from recent incorporation', async ({ page }) => {
-  await installApiMocks(page);
+  const { calls } = await installApiMocks(page);
   await page.goto('/consulta?q=responsabilidad%20civil&page=4');
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg');
+  expect((await page.request.get('/favicon.svg')).status()).toBe(200);
   await expect(page.getByRole('heading', { name: 'Filtrar estos resultados' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sala H (8)' })).toBeVisible();
   await page.getByRole('button', { name: 'Sala H (8)' }).click();
-  await expect.poll(() => new URL(page.url()).searchParams.get('sala')).toBe('Sala H');
+  await expect.poll(() => new URL(page.url()).searchParams.getAll('salas')).toEqual(['H', 'Sala H']);
+  expect(new URL(page.url()).searchParams.get('sala')).toBeNull();
+  await page.reload();
+  await expect(page.getByLabel('Filtros activos')).toContainText('Sala: Sala H');
+  const salaSearchCall = calls.filter((call) => call.path === '/public/busqueda').at(-1);
+  expect(new URLSearchParams(salaSearchCall?.search).getAll('salas')).toEqual(['H', 'Sala H']);
   await page.getByRole('button', { name: '2024 (7)' }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get('anio')).toBe('2024');
   expect(new URL(page.url()).searchParams.get('q')).toBe('responsabilidad civil');
@@ -651,7 +737,65 @@ test('private collections keep references and notes scoped while collection acti
   const noteCall = calls.find((call) => call.path.endsWith('/note') && call.method === 'PATCH');
   expect(noteCall?.body).toEqual({ nota: note });
 
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    (async () => {
+      await page.getByRole('button', { name: 'Exportar dossier' }).click();
+      await expect(page.getByRole('button', { name: 'Preparando dossier…' })).toBeVisible();
+    })(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^galilei-.*-\d{4}-\d{2}-\d{2}\.zip$/u);
+  expect(calls.some((call) => call.path === '/research/collections/1/export' && call.method === 'POST')).toBe(true);
+
   await page.getByRole('button', { name: 'Quitar de colección' }).click();
   await expect(page.getByText('La colección está vacía')).toBeVisible();
   expect(calls.some((call) => call.path === '/research/collections/1/items/1' && call.method === 'DELETE')).toBe(true);
+});
+
+test('saved search novelties show a count, preserve the snapshot and mark reviewed explicitly', async ({ page }) => {
+  const { calls } = await installApiMocks(page, true, ADMIN.rol.nombre, { seedNovelties: true });
+  await page.goto('/busquedas-guardadas');
+  await expect(page.getByText('1 novedad')).toBeVisible();
+  await page.getByRole('button', { name: 'Ver novedades' }).click();
+  await expect(page.getByRole('button', { name: 'Cargando…' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Novedades: Responsabilidad civil' })).toBeVisible();
+  await expect(page.getByText('Fallo civil incorporado recientemente')).toBeVisible();
+  await page.getByRole('button', { name: 'Marcar como revisadas' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Novedades marcadas como revisadas' })).toBeVisible();
+  await expect(page.getByText('0', { exact: true })).toBeVisible();
+  const noveltyRead = calls.find((call) => call.path === '/busquedas-guardadas/55/novedades' && call.method === 'GET');
+  expect(noveltyRead).toBeDefined();
+  expect(calls.some((call) => call.path === '/busquedas-guardadas/55/novedades/vistas' && call.method === 'POST')).toBe(true);
+});
+
+test('failed novelty evaluation leaves its badge available for retry', async ({ page }) => {
+  await installApiMocks(page, true, ADMIN.rol.nombre, { seedNovelties: true, failNovelties: true });
+  await page.goto('/busquedas-guardadas');
+  await page.getByRole('button', { name: 'Ver novedades' }).click();
+  await expect(page.getByRole('alert')).toContainText('No se pudieron cargar las novedades');
+  await expect(page.getByText('1 novedad')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ver novedades' })).toBeEnabled();
+});
+
+test('public judgment separates same-docket decisions from verified citations', async ({ page }) => {
+  await installApiMocks(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/fallos/${DEMO_RESULT.slugPublico}`);
+  await expect(page.getByText('Citas verificadas')).toBeVisible();
+  const sameDocket = page.getByText('Otras decisiones del mismo expediente');
+  await sameDocket.click();
+  await expect(page.getByRole('link', { name: /Otra decisión del mismo expediente/u })).toBeVisible();
+  await expect(page.getByText('Coincidencia determinística por número y año de expediente; no representa una cita editorial.')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('collection export shows a safe error when the download fails', async ({ page }) => {
+  await installApiMocks(page, true, ADMIN.rol.nombre, { failExport: true });
+  await page.goto('/colecciones');
+  await page.getByLabel('Crear colección').fill('Error de exportación');
+  await page.getByRole('button', { name: 'Crear colección', exact: true }).click();
+  await page.goto('/colecciones/1');
+  await page.getByRole('button', { name: 'Exportar dossier' }).click();
+  await expect(page.getByRole('alert')).toContainText('No se pudo preparar el dossier');
+  await expect(page.getByText('internal error')).toHaveCount(0);
 });
