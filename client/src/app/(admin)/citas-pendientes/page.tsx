@@ -22,6 +22,15 @@ type Candidate = {
   status: string;
   extractionMethod: string;
   page: number | null;
+  parserVersion: string | null;
+  citationFamily: string | null;
+  sourcePage: number | null;
+  sourceTextKind: string | null;
+  sourceContext: string | null;
+  sourceChecksum: string | null;
+  resolutionOutcome: string | null;
+  resolutionReason: string | null;
+  parsedFields: Record<string, string | number | null> | null;
   sourceSentence: { id: number; slugPublico: string | null; caratula: string | null; expediente: string | null; sala: string | null; fecha: string | null };
   targetSentence: { id: number; slugPublico: string | null; caratula: string | null; expediente: string | null; sala: string | null; fecha: string | null } | null;
 };
@@ -77,7 +86,7 @@ export default function CitationReviewPage() {
     setMessage(null);
     try {
       const response = await api.post<ApiResponse<{ created: number }>>(`/research/citation-candidates/${id}/extract`);
-      setMessage(`Detección acotada completa: ${response.data.created} candidatas nuevas. Nada se confirmó automáticamente.`);
+      setMessage(`Detección acotada completa: ${response.data.created} candidatas nuevas desde la ficha y el texto del PDF vinculado. Nada se confirmó automáticamente.`);
       await load();
     } catch {
       setError('No se pudieron detectar citas para ese fallo.');
@@ -113,7 +122,7 @@ export default function CitationReviewPage() {
             <input id="citation-source-id" type="number" min="1" step="1" value={sourceId} onChange={(event) => setSourceId(event.target.value)} placeholder="ID del fallo" required />
             <Button type="submit" disabled={!sourceId}>Detectar candidatas</Button>
           </div>
-          <p>Solo analiza las referencias ya cargadas en esa ficha. No ejecuta backfill ni cambia la búsqueda.</p>
+          <p>Analiza referencias cargadas y el texto paginado del PDF vinculado cuando coincide con el archivo del visor. No ejecuta un backfill ni cambia la búsqueda.</p>
         </form>
       </Card>
       {error ? <StatusMessage variant="error" title="Revisión no completada" message={error} /> : null}
@@ -127,6 +136,11 @@ export default function CitationReviewPage() {
                 <blockquote>{item.rawCitation}</blockquote>
                 <p>Origen: <Link href={`/sentencias/${item.sourceSentenceId}`}>{item.sourceSentence.caratula || item.sourceSentence.expediente || `Fallo ${item.sourceSentenceId}`}</Link></p>
                 <p>Identificador detectado: {item.identifierType ?? 'sin clasificar'} · {item.normalizedIdentifier ?? 'no resuelto'}</p>
+                {item.citationFamily ? <p>Familia: {item.citationFamily} · parser {item.parserVersion ?? item.extractionMethod}</p> : null}
+                {item.sourcePage ? <p>Fuente: pág. PDF {item.sourcePage}{item.sourceTextKind ? ` · ${item.sourceTextKind}` : ''} · <Link href={`/sentencias/${item.sourceSentenceId}/documento?page=${item.sourcePage}`}>Abrir página fuente</Link></p> : <p>Fuente: sin página verificable.</p>}
+                {item.sourceContext ? <details><summary>Ver contexto fuente</summary><blockquote className={styles.sourceContext}>{item.sourceContext}</blockquote></details> : null}
+                {item.parsedFields ? <details><summary>Campos extraídos</summary><dl className={styles.parsedFields}>{Object.entries(item.parsedFields).filter(([, value]) => value !== null).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{String(value)}</dd></div>)}</dl></details> : null}
+                {item.resolutionOutcome ? <p>Resolución automática: <strong>{item.resolutionOutcome}</strong>{item.resolutionReason ? ` · ${item.resolutionReason}` : ''}</p> : null}
                 <p>El destino propuesto se usa como sugerencia; una cita no determina vigencia ni autoridad legal.</p>
                 <label htmlFor={`target-${item.id}`}>ID del fallo destino publicado</label>
                 <input className={styles.targetInput} id={`target-${item.id}`} type="number" min="1" step="1" value={targetIds[item.id] ?? ''} onChange={(event) => setTargetIds((current) => ({ ...current, [item.id]: event.target.value }))} />

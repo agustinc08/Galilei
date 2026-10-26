@@ -41,11 +41,19 @@ test('joins a Spanish hyphenated line break without inventing OCR', () => {
 
 test('counts non-overlapping logical matches page by page', () => {
   assert.deepEqual(
-    findPdfTextMatches(['civil civil', '', 'responsabilidad civil.'], 'civil'),
+    findPdfTextMatches(['civil civil', '', 'responsabilidad civil.'], 'civil').map(({ page, offset }) => ({ page, offset })),
     [
       { page: 1, offset: 0 },
       { page: 1, offset: 6 },
       { page: 3, offset: 16 },
     ],
   );
+});
+
+test('maps accent-tolerant matches back to the exact extracted source passage', () => {
+  const source = 'Introducción: Córdoba   civil.';
+  const match = findPdfTextMatches([source], 'cordoba civil')[0];
+  assert.ok(match);
+  assert.equal(source.slice(match.sourceStart, match.sourceEnd), 'Córdoba   civil');
+  assert.equal(match.passage, 'Córdoba   civil');
 });

@@ -80,6 +80,17 @@ export class CorpusDocumentController {
     );
   }
 
+  @Get(':id/structure')
+  @ApiOperation({
+    summary: 'Detecta secciones con texto extraído del documento',
+  })
+  structure(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.documents.structure(
+      id,
+      user.rol.nombre === ROLES.ADMIN ? 'ADMIN' : 'INTERNAL',
+    );
+  }
+
   @Get(':id/file')
   @ApiOperation({
     summary: 'Lee el archivo Corpus respetando permisos y rangos HTTP',
@@ -116,6 +127,12 @@ export class PublicCorpusDocumentController {
     @Query('pageNumber') pageNumber: string | undefined,
   ) {
     return this.documents.metadata(id, 'PUBLIC', parsePage(pageNumber));
+  }
+
+  @Get(':id/structure')
+  @ApiOperation({ summary: 'Detecta secciones de un documento público' })
+  structure(@Param('id') id: string) {
+    return this.documents.structure(id, 'PUBLIC');
   }
 
   @Get(':id/file')

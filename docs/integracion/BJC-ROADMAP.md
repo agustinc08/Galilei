@@ -1,5 +1,18 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Candidata — GALILEI SUPER SPRINT 3: estructura + citas pinpoint + parser argentino V2 (2026-10-26)
+
+| Gate | Estado | Evidencia / siguiente paso |
+|---|---|---|
+| Estructura del fallo | **IMPLEMENTADA / EVALUADA** | Parser determinista v1, extracción del PDF exacto ligado al visor y navegación por secciones. En 200 sentencias/3.350 páginas: 35 outlines, 78 secciones; revisión contextual 78/78 correcta. Cobertura/recall global no medidos; no se fuerza estructura en documentos sin señal suficiente. |
+| Pinpoints | **IMPLEMENTADOS / REAL E2E PASS** | Cita y enlace a página PDF 1-based; página admitida sólo si figura en extracción ligada por checksum/ruta al mismo PDF. p. 2 PASS; p. 4 en PDF de 3 páginas devuelve 400. Búsqueda y extracto textual permanecen en el navegador. |
+| Parser V2 / workflow | **IMPLEMENTADOS / EVALUACIÓN LIMITADA** | Nueve familias; raw citation, parsed fields, página, offset UTF-16, contexto, parser version y checksum persistidos. Resolución exacta publicada/activa; ambigüedad y self-reference no se confunden con verificación. 6.074 detecciones; 50/50 inspeccionadas ciertas, muestra estratificada no ponderada; recall global no medido. Revisión humana necesaria para `VERIFIED`. |
+| Migraciones / QA real | **PASS AISLADO / LIMPIO** | PostgreSQL/OpenSearch/NestJS/Vite reales aislados; migration fresh y 34→35; E2E de navegación, ACL, page-link/citation, review workflow y responsive PASS. Tras guardar evidencia se detuvieron y retiraron runtime, datos PostgreSQL/OpenSearch QA, storage y credencial sintética. `prisma migrate status` de principal fue read-only: 4 migraciones pendientes; no se aplicaron. |
+| Calidad / Search | **PASS CON P3** | Backend 578 PASS/10 opt-in omitidos; cliente 15/15; investigación Suite 2 Playwright 17/17; typecheck/lint/build PASS. Search: 4.759 / 3.369 / 1.826; orden completo repetible sin diferencias entre dos lecturas. Auditorías producción y completas: HIGH=0 / CRITICAL=0. P3: advertencia de chunk PDF.js >500 KB. |
+| Estado Git / CI | **FEATURE CANDIDATE** | `feature/structured-judgment-citations-suite-3` parte de Suite 2 exacta. `origin/dev` y `origin/main` sin cambios. Política: publicar sólo a esta rama y verificar CI por SHA publicado. No promoción. |
+
+Dirección siguiente recomendada tras cerrar el Sprint 3: **mejorar la cobertura de estructura mediante un conjunto editorial de gold labels por Sala/año/formato**, medir precisión y recall ponderados y corregir reglas conservadoras antes de ampliar automatización. No iniciar backfill de todo el corpus ni IA.
+
 ## Candidata — GALILEI-RESEARCH-REPRO-SUITE-2 (2026-10-26)
 
 | Gate | Estado | Evidencia / siguiente paso |

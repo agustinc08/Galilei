@@ -103,6 +103,10 @@ export function FalloPublicoViewer({ identifier }: Props) {
   ].includes(user?.rol.nombre ?? '');
   const searchParams = useSearchParams();
   const highlightQuery = searchParams.get('q') ?? '';
+  const requestedPageValue = Number(searchParams.get('page'));
+  const requestedPage = Number.isInteger(requestedPageValue) && requestedPageValue > 0
+    ? requestedPageValue
+    : null;
   const requestedReturn = searchParams.get('returnTo') ?? '';
   const backHref = requestedReturn.startsWith('/consulta') ? requestedReturn : `/consulta${highlightQuery ? `?q=${encodeURIComponent(highlightQuery)}` : ''}`;
   const [data, setData] = useState<FichaSentencia | null>(null);
@@ -114,7 +118,7 @@ export function FalloPublicoViewer({ identifier }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfControls, setPdfControls] = useState<PdfViewerControls>(EMPTY_CONTROLS);
-  const [pdfPage, setPdfPage] = useState<number | null>(null);
+  const [pdfPage, setPdfPage] = useState<number | null>(requestedPage);
 
   useEffect(() => {
     if (!data) return;
@@ -420,6 +424,8 @@ export function FalloPublicoViewer({ identifier }: Props) {
             skipAuth
             page={pdfPage}
             searchQuery={highlightQuery}
+            structurePath={`/public/sentencias/${publicIdentifier}/estructura`}
+            citationPath={`/public/sentencias/${publicIdentifier}/cita`}
             onControlsChange={setPdfControls}
           />
         </>

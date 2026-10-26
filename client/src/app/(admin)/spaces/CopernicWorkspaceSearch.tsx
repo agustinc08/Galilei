@@ -1523,6 +1523,8 @@ export function CopernicWorkspaceSearch() {
                             matches={preview.matches.matches}
                             activeMatch={selectedMatchIndex}
                             onLoadSuccess={setPreviewPageCount}
+                            structurePath={`/workspaces/${workspaceId}/documents/${preview.document.id}/structure`}
+                            onGoToPage={setPreviewPage}
                           />
                         </div>
                       ) : preview.document.file ? (

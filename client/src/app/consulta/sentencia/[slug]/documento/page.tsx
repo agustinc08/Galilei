@@ -33,11 +33,15 @@ export default function ConsultaSentenciaDocumentoPage() {
   const params = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
   const slug = params.slug;
+  const requestedPageValue = Number(searchParams.get('page'));
+  const requestedPage = Number.isInteger(requestedPageValue) && requestedPageValue > 0
+    ? requestedPageValue
+    : null;
   const [data, setData] = useState<FichaSentencia | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfControls, setPdfControls] = useState<PdfViewerControls>(EMPTY_CONTROLS);
-  const [pdfPage, setPdfPage] = useState<number | null>(null);
+  const [pdfPage, setPdfPage] = useState<number | null>(requestedPage);
   const highlightQuery = searchParams.get('q') ?? '';
 
   useEffect(() => {
@@ -132,6 +136,8 @@ export default function ConsultaSentenciaDocumentoPage() {
           skipAuth
           page={pdfPage}
           searchQuery={highlightQuery}
+          structurePath={`/public/sentencias/${slug}/estructura`}
+          citationPath={`/public/sentencias/${slug}/cita`}
           onControlsChange={setPdfControls}
         />
       }

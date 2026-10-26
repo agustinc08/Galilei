@@ -73,6 +73,102 @@ describe('Corpus document access helpers', () => {
     });
   });
 
+  it('builds a page outline only after the requested visibility boundary succeeds', async () => {
+    const corpusDocumentFindFirst = jest.fn().mockResolvedValue({
+      id: 'public-doc',
+      latestExtractionId: 'extract-1',
+      files: [],
+      latestExtraction: { pages: [] },
+      ingestions: [],
+    });
+    const corpusExtractionFindFirst = jest.fn().mockResolvedValue({
+      id: 'extract-1',
+      status: 'TEXT_EXTRACTED',
+      extractor: 'pdf-parse',
+      extractorVersion: 'v1',
+      extractedAt: new Date('2026-10-25T00:00:00.000Z'),
+      file: { sha256: 'b'.repeat(64), pageCount: 2 },
+      pages: [
+        { pageNumber: 1, text: 'VISTOS Y CONSIDERANDO:', textKind: 'NATIVE' },
+        { pageNumber: 2, text: 'RESUELVE:', textKind: 'NATIVE' },
+      ],
+    });
+    const prisma = {
+      corpusDocument: { findFirst: corpusDocumentFindFirst },
+      corpusExtraction: { findFirst: corpusExtractionFindFirst },
+    } as unknown as PrismaService;
+    const service = new CorpusDocumentAccessService(prisma);
+
+    await expect(
+      service.structure('public-doc', 'PUBLIC'),
+    ).resolves.toMatchObject({
+      data: {
+        status: 'DETECTED',
+        source: { checksum: 'b'.repeat(64), pageCount: 2, complete: true },
+        sections: [
+          { type: 'VISTOS', pageStart: 1 },
+          { type: 'RESUELVE', pageStart: 2 },
+        ],
+      },
+    });
+    const calls = corpusDocumentFindFirst.mock.calls as unknown as Array<
+      [{ where: { visibility: { in: string[] } } }]
+    >;
+    expect(calls[0][0].where.visibility.in).toEqual(['PUBLIC']);
+
+    corpusDocumentFindFirst.mockResolvedValueOnce(null);
+    await expect(
+      service.structure('private-doc', 'PUBLIC'),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(corpusExtractionFindFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a partial outline when extracted page mappings have gaps', async () => {
+    const prisma = {
+      corpusDocument: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'public-doc',
+          latestExtractionId: 'extract-1',
+          files: [],
+          latestExtraction: { pages: [] },
+          ingestions: [],
+        }),
+      },
+      corpusExtraction: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'extract-1',
+          status: 'TEXT_EXTRACTED',
+          extractor: 'pdf-parse',
+          extractorVersion: 'v1',
+          extractedAt: new Date('2026-10-25T00:00:00.000Z'),
+          file: { sha256: 'c'.repeat(64), pageCount: 3 },
+          pages: [
+            {
+              pageNumber: 1,
+              text: 'VISTOS Y CONSIDERANDO:',
+              textKind: 'NATIVE',
+            },
+            { pageNumber: 3, text: 'RESUELVE:', textKind: 'NATIVE' },
+          ],
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new CorpusDocumentAccessService(prisma);
+
+    await expect(
+      service.structure('public-doc', 'PUBLIC'),
+    ).resolves.toMatchObject({
+      data: {
+        status: 'PARTIAL',
+        source: { pageCount: 3, extractedPages: 2, complete: false },
+        sections: [
+          { type: 'VISTOS', pageStart: 1 },
+          { type: 'RESUELVE', pageStart: 3 },
+        ],
+      },
+    });
+  });
+
   it('returns original files for every supported P0 format after verifying the digest', async () => {
     const content = Buffer.from('synthetic original file');
     const get = jest

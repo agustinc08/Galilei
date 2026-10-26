@@ -7,7 +7,11 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { downloadBlob } from '@/lib/utils';
-import { extractPdfTextPages, findPdfTextMatches } from '@/lib/pdf-text-search';
+import {
+  extractPdfTextPages,
+  findPdfTextMatches,
+  getPdfPageCount,
+} from '@/lib/pdf-text-search';
 import styles from './documento.module.css';
 
 export type PdfViewerControls = {
@@ -24,7 +28,15 @@ type Props = {
   title?: string;
   page?: number | null;
   searchQuery?: string;
+  structurePath?: string | null;
+  citationPath?: string | null;
   onControlsChange?: (controls: PdfViewerControls) => void;
+};
+
+type ViewerSection = {
+  label: string;
+  pageStart: number;
+  pageEnd: number | null;
 };
 
 const EMPTY_CONTROLS: PdfViewerControls = {
@@ -41,6 +53,8 @@ export function PdfViewer({
   title = 'Documento PDF',
   page,
   searchQuery,
+  structurePath,
+  citationPath,
   onControlsChange,
 }: Props) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -52,12 +66,30 @@ export function PdfViewer({
     externalPage: number | null;
     value: number;
   } | null>(null);
+  const [pageCountState, setPageCountState] = useState<{
+    blob: Blob;
+    count: number;
+  } | null>(null);
+  const pageCount = pageCountState?.blob === blobData ? pageCountState.count : null;
+  const [structureState, setStructureState] = useState<{
+    path: string;
+    sections: ViewerSection[];
+    status: string;
+  } | null>(null);
+  const structureMatchesPath = Boolean(
+    structurePath && structureState?.path === structurePath,
+  );
+  const sections = structureMatchesPath ? structureState?.sections ?? [] : [];
+  const structureStatus = structureMatchesPath ? structureState?.status ?? '' : '';
+  const structureLoading = Boolean(structurePath && !structureMatchesPath);
+  const [copyStatus, setCopyStatus] = useState('');
   const currentPage = pageOverride?.externalPage === externalPage
     ? pageOverride.value
     : externalPage ?? 1;
   const setCurrentPage = useCallback((value: number) => {
-    setPageOverride({ externalPage, value });
-  }, [externalPage]);
+    const safePage = Math.max(1, Math.min(value, pageCount ?? 100_000));
+    setPageOverride({ externalPage, value: safePage });
+  }, [externalPage, pageCount]);
   const [zoom, setZoom] = useState('auto');
   const [searchOpen, setSearchOpen] = useState(false);
   const [draftQueryState, setDraftQueryState] = useState({
@@ -81,6 +113,17 @@ export function PdfViewer({
     const fragment = params.toString().replace(/&/g, '&');
     return fragment ? `${url}#${fragment}` : url;
   }, [currentPage, searchQuery, zoom]);
+
+  useEffect(() => {
+    if (!downloadPath || typeof window === 'undefined') return;
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set('page', String(currentPage));
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`,
+    );
+  }, [currentPage, downloadPath]);
 
   useEffect(() => {
     onControlsChange?.(EMPTY_CONTROLS);
@@ -150,6 +193,57 @@ export function PdfViewer({
       }
     };
   }, [downloadPath, filename, onControlsChange, skipAuth]);
+
+  useEffect(() => {
+    if (!blobData) return;
+    const controller = new AbortController();
+    void getPdfPageCount(blobData, controller.signal)
+      .then((count) => {
+        if (!controller.signal.aborted) {
+          setPageCountState({ blob: blobData, count });
+          setPageOverride((previous) => {
+            const requested = previous?.externalPage === externalPage
+              ? previous.value
+              : externalPage ?? 1;
+            return {
+              externalPage,
+              value: Math.max(1, Math.min(requested, count)),
+            };
+          });
+        }
+      })
+      .catch(() => {
+        // A count is shown only when it belongs to the currently loaded Blob.
+      });
+    return () => controller.abort();
+  }, [blobData, externalPage]);
+
+  useEffect(() => {
+    if (!structurePath) return;
+    let active = true;
+    void api
+      .get<{ data: { status: string; sections: ViewerSection[] } }>(structurePath)
+      .then((response) => {
+        if (!active) return;
+        setStructureState({
+          path: structurePath,
+          sections: response.data.sections ?? [],
+          status: response.data.status ?? 'NO_STRUCTURE',
+        });
+      })
+      .catch(() => {
+        if (active) {
+          setStructureState({
+            path: structurePath,
+            sections: [],
+            status: 'NO_STRUCTURE',
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [structurePath]);
 
   useEffect(() => {
     if (!blobData || !blobUrl) {
@@ -227,6 +321,36 @@ export function PdfViewer({
     setActiveMatchIndex(0);
   }, [searchQuery]);
 
+  const copyPageLink = useCallback(async () => {
+    if (!pageCount || currentPage > pageCount) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('page', String(currentPage));
+      await navigator.clipboard.writeText(url.toString());
+      setCopyStatus('Enlace copiado');
+    } catch {
+      setCopyStatus('No se pudo copiar el enlace.');
+    }
+  }, [currentPage, pageCount]);
+
+  const copyPageCitation = useCallback(async () => {
+    if (!citationPath || !pageCount || currentPage > pageCount) return;
+    try {
+      const response = await api.get<{ data: { citaConPagina?: string } }>(
+        citationPath,
+        { query: { page: currentPage } },
+      );
+      if (!response.data.citaConPagina) {
+        setCopyStatus('No hay datos suficientes para formar la cita.');
+        return;
+      }
+      await navigator.clipboard.writeText(response.data.citaConPagina);
+      setCopyStatus('Cita copiada');
+    } catch {
+      setCopyStatus('No se pudo copiar la cita.');
+    }
+  }, [citationPath, currentPage, pageCount]);
+
   const toolbarLabel = useMemo(() => {
     if (!downloadPath) {
       return 'Sin PDF asociado';
@@ -292,10 +416,11 @@ export function PdfViewer({
             <input
               type="number"
               min={1}
+              max={pageCount ?? undefined}
               value={currentPage}
               onChange={(event) => {
                 const requested = Math.max(1, Number(event.target.value) || 1);
-                setCurrentPage(pageTexts?.length ? Math.min(requested, pageTexts.length) : requested);
+                setCurrentPage(pageCount ? Math.min(requested, pageCount) : requested);
               }}
             />
           </label>
@@ -330,8 +455,54 @@ export function PdfViewer({
           >
             {searchOpen ? 'Cerrar búsqueda' : 'Buscar dentro del fallo'}
           </Button>
+          <Button
+            variant="secondary"
+            disabled={!pageCount || currentPage > pageCount || !citationPath}
+            onClick={() => void copyPageCitation()}
+          >
+            Copiar cita con página
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!pageCount || currentPage > pageCount}
+            onClick={() => void copyPageLink()}
+          >
+            Copiar enlace a esta página
+          </Button>
         </div>
       </div>
+      {structurePath ? (
+        <details className={styles.structurePanel}>
+          <summary>Contenido del fallo</summary>
+          {structureLoading ? (
+            <p className={styles.structureStatus} role="status">Detectando secciones…</p>
+          ) : sections.length ? (
+            <nav aria-label="Secciones del fallo" className={styles.structureList}>
+              {structureStatus === 'PARTIAL' ? (
+                <p className={styles.structureStatus}>Estructura parcial; el texto fuente no está completo.</p>
+              ) : null}
+              {sections.map((section, index) => (
+                <button
+                  className={styles.structureItem}
+                  key={`${section.pageStart}:${section.label}:${index}`}
+                  type="button"
+                  onClick={() => setCurrentPage(section.pageStart)}
+                >
+                  <span>{section.label}</span>
+                  <span>Pág. {section.pageStart}</span>
+                </button>
+              ))}
+            </nav>
+          ) : (
+            <p className={styles.structureStatus}>No se detectaron secciones navegables con suficiente confianza.</p>
+          )}
+        </details>
+      ) : null}
+      {copyStatus ? (
+        <p className={styles.copyStatus} role="status" aria-live="polite">
+          {copyStatus}
+        </p>
+      ) : null}
       {searchOpen && (
         <section className={styles.inDocumentSearch} aria-label="Buscar dentro del fallo">
           <form

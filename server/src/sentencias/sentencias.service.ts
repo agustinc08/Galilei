@@ -29,6 +29,14 @@ import { UpdateResumenDto } from './dto/update-resumen.dto';
 import { UpdateSentenciaDto } from './dto/update-sentencia.dto';
 import { formatCitation } from './utils/citation-formatter';
 import {
+  parseStructuredJudgment,
+  STRUCTURED_JUDGMENT_PARSER_VERSION,
+} from './structured-judgment-parser';
+import {
+  findLinkedCorpusTextSource,
+  type SentencePdfReference,
+} from './linked-corpus-source';
+import {
   expedienteEquivalentValues,
   normalizeExpediente,
 } from './utils/expediente-normalizer';
@@ -37,6 +45,7 @@ type CitaData = {
   citaBreve: string;
   citaCompleta: string;
   citaCopiable: string;
+  citaConPagina?: string;
 };
 
 type PublicationReviewQueueItem = {
@@ -1099,16 +1108,83 @@ export class SentenciasService {
     return { data: sentencia };
   }
 
-  async getCita(id: number) {
+  async getCita(id: number, page?: number) {
     const sentencia = await this.prisma.sentencia.findUnique({
       where: { id },
+      include: {
+        archivosPdf: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, rutaArchivo: true },
+        },
+      },
     });
 
     if (!sentencia) {
       throw new NotFoundException('Sentencia no encontrada');
     }
 
-    return { data: this.buildCita(sentencia) };
+    if (page !== undefined) {
+      await this.assertPinpointPageMapped(
+        sentencia.id,
+        sentencia.archivosPdf,
+        page,
+      );
+    }
+
+    return { data: this.buildCita(sentencia, page) };
+  }
+
+  async getPublicCitaBySlug(slug: string, page?: number) {
+    const sentencia = await this.prisma.sentencia.findFirst({
+      where: this.publicIdentifierWhere(slug),
+      include: {
+        archivosPdf: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, rutaArchivo: true },
+        },
+      },
+    });
+    if (!sentencia)
+      throw new NotFoundException('Sentencia pública no encontrada');
+    if (page !== undefined) {
+      await this.assertPinpointPageMapped(
+        sentencia.id,
+        sentencia.archivosPdf,
+        page,
+      );
+    }
+    return { data: this.buildCita(sentencia, page) };
+  }
+
+  async getStructure(id: number) {
+    const sentencia = await this.prisma.sentencia.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        archivosPdf: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, rutaArchivo: true },
+        },
+      },
+    });
+    if (!sentencia) throw new NotFoundException('Sentencia no encontrada');
+    return this.buildStructureForSentence(sentencia.id, sentencia.archivosPdf);
+  }
+
+  async getPublicStructureBySlug(slug: string) {
+    const sentencia = await this.prisma.sentencia.findFirst({
+      where: this.publicIdentifierWhere(slug),
+      select: {
+        id: true,
+        archivosPdf: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, rutaArchivo: true },
+        },
+      },
+    });
+    if (!sentencia)
+      throw new NotFoundException('Sentencia pública no encontrada');
+    return this.buildStructureForSentence(sentencia.id, sentencia.archivosPdf);
   }
 
   async generarCita(id: number) {
@@ -1947,8 +2023,103 @@ export class SentenciasService {
     };
   }
 
-  private buildCita(sentencia: Sentencia): CitaData {
+  private buildCita(sentencia: Sentencia, page?: number): CitaData {
+    if (page !== undefined) {
+      if (!Number.isInteger(page) || page < 1 || page > 100_000) {
+        throw new BadRequestException(
+          'La página PDF debe ser un entero positivo.',
+        );
+      }
+      return formatCitation(sentencia, { page });
+    }
     return formatCitation(sentencia);
+  }
+
+  private async assertPinpointPageMapped(
+    sentenceId: number,
+    archives: SentencePdfReference[],
+    page: number,
+  ) {
+    if (!Number.isInteger(page) || page < 1 || page > 100_000) {
+      throw new BadRequestException(
+        'La página PDF debe ser un entero positivo.',
+      );
+    }
+    const source = await findLinkedCorpusTextSource(
+      this.prisma,
+      sentenceId,
+      archives,
+    );
+    const pageCount = source?.file.pageCount;
+    const pageIsMapped = source?.pages.some(
+      (sourcePage) => sourcePage.pageNumber === page,
+    );
+    if (
+      !source ||
+      !pageIsMapped ||
+      (pageCount !== null && pageCount !== undefined && page > pageCount)
+    ) {
+      throw new BadRequestException(
+        'No se puede verificar la página indicada para el PDF asociado.',
+      );
+    }
+  }
+
+  private async buildStructureForSentence(
+    sentenceId: number,
+    archives: SentencePdfReference[],
+  ) {
+    const parserVersion = STRUCTURED_JUDGMENT_PARSER_VERSION;
+    const extraction = await findLinkedCorpusTextSource(
+      this.prisma,
+      sentenceId,
+      archives,
+    );
+    if (!extraction) {
+      return {
+        data: {
+          status: 'NO_SOURCE',
+          parserVersion,
+          source: null,
+          sections: [],
+        },
+      };
+    }
+    const pages = extraction.pages;
+    const sequentialPages = pages.every(
+      (page, index) => page.pageNumber === index + 1,
+    );
+    const complete =
+      extraction.status === 'TEXT_EXTRACTED' &&
+      sequentialPages &&
+      (extraction.file.pageCount === null ||
+        extraction.file.pageCount === pages.length);
+    const sections = parseStructuredJudgment(pages, {
+      completeSource: complete,
+    });
+    return {
+      data: {
+        status: sections.length
+          ? complete
+            ? 'DETECTED'
+            : 'PARTIAL'
+          : pages.some((page) => page.text.trim())
+            ? 'NO_STRUCTURE'
+            : 'NO_TEXT',
+        parserVersion,
+        source: {
+          checksum: extraction.file.sha256,
+          extractor: extraction.extractor,
+          extractorVersion: extraction.extractorVersion,
+          extractionId: extraction.id,
+          extractedAt: extraction.extractedAt,
+          pageCount: extraction.file.pageCount,
+          extractedPages: pages.length,
+          complete,
+        },
+        sections,
+      },
+    };
   }
 
   private buildFichaTxt(data: FichaData) {

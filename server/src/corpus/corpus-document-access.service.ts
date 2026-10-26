@@ -13,6 +13,10 @@ import {
 import type { SearchVisibility } from '../busqueda/adapters/search-source.adapter';
 import { findDocumentMatches } from './corpus-document-matches';
 import { canReadWorkspaceDocument } from './workspace-document-acl';
+import {
+  parseStructuredJudgment,
+  STRUCTURED_JUDGMENT_PARSER_VERSION,
+} from '../sentencias/structured-judgment-parser';
 
 @Injectable()
 export class CorpusDocumentAccessService {
@@ -224,6 +228,74 @@ export class CorpusDocumentAccessService {
       numeroSentencia: document.caseNumber,
       numeroSumario: document.searchText,
     });
+  }
+
+  async structure(
+    documentId: string,
+    visibility: SearchVisibility,
+    workspaceId?: string,
+    userId?: number,
+  ) {
+    const document = await this.visibleDocument(
+      documentId,
+      visibility,
+      workspaceId,
+      userId,
+    );
+    const extraction = document.latestExtractionId
+      ? await this.prisma.corpusExtraction.findFirst({
+          where: {
+            id: document.latestExtractionId,
+            documentId: document.id,
+          },
+          select: {
+            id: true,
+            status: true,
+            extractor: true,
+            extractorVersion: true,
+            extractedAt: true,
+            file: { select: { sha256: true, pageCount: true } },
+            pages: {
+              orderBy: { pageNumber: 'asc' },
+              select: { pageNumber: true, text: true, textKind: true },
+            },
+          },
+        })
+      : null;
+    const pages = extraction?.pages ?? [];
+    const sequentialPages = pages.every(
+      (page, index) => page.pageNumber === index + 1,
+    );
+    const complete =
+      extraction?.status === 'TEXT_EXTRACTED' &&
+      sequentialPages &&
+      (extraction.file.pageCount === null ||
+        extraction.file.pageCount === pages.length);
+    const sections = extraction
+      ? parseStructuredJudgment(pages, { completeSource: complete })
+      : [];
+    return {
+      data: {
+        status: sections.length
+          ? complete
+            ? 'DETECTED'
+            : 'PARTIAL'
+          : 'NO_STRUCTURE',
+        parserVersion: STRUCTURED_JUDGMENT_PARSER_VERSION,
+        source: extraction
+          ? {
+              checksum: extraction.file.sha256,
+              extractor: extraction.extractor,
+              extractorVersion: extraction.extractorVersion,
+              extractionId: extraction.id,
+              pageCount: extraction.file.pageCount,
+              extractedPages: pages.length,
+              complete,
+            }
+          : null,
+        sections,
+      },
+    };
   }
 
   async institutionalSummary() {

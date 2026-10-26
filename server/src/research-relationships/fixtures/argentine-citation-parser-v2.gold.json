@@ -1,0 +1,506 @@
+{
+  "version": "argentine-citation-parser-v2-gold-1",
+  "description": "Deterministic parser regression set. Synthetic combinations follow citation forms observed in a read-only 200-judgment civil corpus sample; it is not a legal ground-truth set.",
+  "cases": [
+    {
+      "id": "expediente-001",
+      "text": "Expte. N° 10001.123/2011",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-002",
+      "text": "Expte. N° 10002.123/2012",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-003",
+      "text": "Expte. N° 10003.123/2013",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-004",
+      "text": "Expte. N° 10004.123/2014",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-005",
+      "text": "Expte. N° 10005.123/2015",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-006",
+      "text": "Expte. N° 10006.123/2016",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-007",
+      "text": "Expte. N° 10007.123/2017",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-008",
+      "text": "Expte. N° 10008.123/2018",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-009",
+      "text": "Expte. N° 10009.123/2019",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-010",
+      "text": "Expte. N° 10010.123/2020",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-011",
+      "text": "Expte. N° 10011.123/2021",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-012",
+      "text": "Expte. N° 10012.123/2022",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-013",
+      "text": "Expte. N° 10013.123/2023",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-014",
+      "text": "Expte. N° 10014.123/2010",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-015",
+      "text": "Expte. N° 10015.123/2011",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-016",
+      "text": "Expte. N° 10016.123/2012",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-017",
+      "text": "Expte. N° 10017.123/2013",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-018",
+      "text": "Expte. N° 10018.123/2014",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-019",
+      "text": "Expte. N° 10019.123/2015",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "expediente-020",
+      "text": "Expte. N° 10020.123/2016",
+      "expectedFamily": "EXPEDIENTE_IDENTIFIER"
+    },
+    {
+      "id": "civil-001",
+      "text": "CIV 30001/2016",
+      "expectedFamily": "CIVIL_EXPEDIENTE"
+    },
+    {
+      "id": "civil-002",
+      "text": "CIV 30002/2017",
+      "expectedFamily": "CIVIL_EXPEDIENTE"
+    },
+    {
+      "id": "civil-003",
+      "text": "CIV 30003/2018",
+      "expectedFamily": "CIVIL_EXPEDIENTE"
+    },
+    {
+      "id": "civil-004",
+      "text": "CIV 30004/2019",
+      "expectedFamily": "CIVIL_EXPEDIENTE"
+    },
+    {
+      "id": "civil-005",
+      "text": "CIV 30005/2020",
+      "expectedFamily": "CIVIL_EXPEDIENTE"
+    },
+    {
+      "id": "civil-006",
+      "text": "CIV 30006/2021",
+      "expectedFamily": "CIVIL_EXPEDIENTE"
+    },
+    {
+      "id": "civil-007",
+      "text": "CIV 30007/2022",
+      "expectedFamily": "CIVIL_EXPEDIENTE"
+    },
+    {
+      "id": "civil-008",
+      "text": "CIV 30008/2023",
+      "expectedFamily": "CIVIL_EXPEDIENTE"
+    },
+    {
+      "id": "civil-009",
+      "text": "CIV 30009/2015",
+      "expectedFamily": "CIVIL_EXPEDIENTE"
+    },
+    {
+      "id": "civil-010",
+      "text": "CIV 30010/2016",
+      "expectedFamily": "CIVIL_EXPEDIENTE"
+    },
+    {
+      "id": "fallos-001",
+      "text": "Fallos: 301:1001",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-002",
+      "text": "Fallos: 302:1002",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-003",
+      "text": "Fallos: 303:1003",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-004",
+      "text": "Fallos: 304:1004",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-005",
+      "text": "Fallos: 305:1005",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-006",
+      "text": "Fallos: 306:1006",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-007",
+      "text": "Fallos: 307:1007",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-008",
+      "text": "Fallos: 308:1008",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-009",
+      "text": "Fallos: 309:1009",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-010",
+      "text": "Fallos: 310:1010",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-011",
+      "text": "Fallos: 311:1011",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-012",
+      "text": "Fallos: 312:1012",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-013",
+      "text": "Fallos: 313:1013",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-014",
+      "text": "Fallos: 314:1014",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "fallos-015",
+      "text": "Fallos: 315:1015",
+      "expectedFamily": "CSJN_FALLOS"
+    },
+    {
+      "id": "cnciv-date-001",
+      "text": "CNCiv., Sala A, 02/02/2009",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-002",
+      "text": "CNCiv., Sala C, 03/03/2010",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-003",
+      "text": "CNCiv., Sala E, 04/04/2011",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-004",
+      "text": "CNCiv., Sala H, 05/05/2012",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-005",
+      "text": "CNCiv., Sala K, 06/06/2013",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-006",
+      "text": "CNCiv., Sala M, 07/07/2014",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-007",
+      "text": "CNCiv., Sala A, 08/08/2015",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-008",
+      "text": "CNCiv., Sala C, 09/09/2016",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-009",
+      "text": "CNCiv., Sala E, 10/10/2017",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-010",
+      "text": "CNCiv., Sala H, 11/11/2018",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-011",
+      "text": "CNCiv., Sala K, 12/01/2019",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-012",
+      "text": "CNCiv., Sala M, 13/02/2020",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-013",
+      "text": "CNCiv., Sala A, 14/03/2021",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-014",
+      "text": "CNCiv., Sala C, 15/04/2022",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "cnciv-date-015",
+      "text": "CNCiv., Sala E, 16/05/2023",
+      "expectedFamily": "CNCIV_SALA_DATE"
+    },
+    {
+      "id": "rollo-001",
+      "text": "R. 401.123 del 02/04/2005",
+      "expectedFamily": "CNCIV_ROLLO"
+    },
+    {
+      "id": "rollo-002",
+      "text": "R. 402.123 del 03/04/2006",
+      "expectedFamily": "CNCIV_ROLLO"
+    },
+    {
+      "id": "rollo-003",
+      "text": "R. 403.123 del 04/04/2007",
+      "expectedFamily": "CNCIV_ROLLO"
+    },
+    {
+      "id": "rollo-004",
+      "text": "R. 404.123 del 05/04/2008",
+      "expectedFamily": "CNCIV_ROLLO"
+    },
+    {
+      "id": "rollo-005",
+      "text": "R. 405.123 del 06/04/2009",
+      "expectedFamily": "CNCIV_ROLLO"
+    },
+    {
+      "id": "rollo-006",
+      "text": "R. 406.123 del 07/04/2010",
+      "expectedFamily": "CNCIV_ROLLO"
+    },
+    {
+      "id": "rollo-007",
+      "text": "R. 407.123 del 08/04/2011",
+      "expectedFamily": "CNCIV_ROLLO"
+    },
+    {
+      "id": "rollo-008",
+      "text": "R. 408.123 del 09/04/2012",
+      "expectedFamily": "CNCIV_ROLLO"
+    },
+    {
+      "id": "rollo-009",
+      "text": "R. 409.123 del 10/04/2013",
+      "expectedFamily": "CNCIV_ROLLO"
+    },
+    {
+      "id": "rollo-010",
+      "text": "R. 410.123 del 11/04/2014",
+      "expectedFamily": "CNCIV_ROLLO"
+    },
+    {
+      "id": "statute-001",
+      "text": "art. 165 del CPCCN",
+      "expectedFamily": "STATUTE_REFERENCE"
+    },
+    {
+      "id": "statute-002",
+      "text": "artículo 1740 del CCyC",
+      "expectedFamily": "STATUTE_REFERENCE"
+    },
+    {
+      "id": "statute-003",
+      "text": "arts. 512 y 1109 del Código Civil",
+      "expectedFamily": "STATUTE_REFERENCE"
+    },
+    {
+      "id": "statute-004",
+      "text": "ley 26.994",
+      "expectedFamily": "STATUTE_REFERENCE"
+    },
+    {
+      "id": "statute-005",
+      "text": "ley 17.418, art. 118",
+      "expectedFamily": "STATUTE_REFERENCE"
+    },
+    {
+      "id": "statute-006",
+      "text": "decreto 12345",
+      "expectedFamily": "STATUTE_REFERENCE"
+    },
+    {
+      "id": "statute-007",
+      "text": "art. 906",
+      "expectedFamily": "STATUTE_REFERENCE"
+    },
+    {
+      "id": "statute-008",
+      "text": "arts. 901, 902 y 1113 del Código Civil",
+      "expectedFamily": "STATUTE_REFERENCE"
+    },
+    {
+      "id": "statute-009",
+      "text": "art. 7 de la ley 26.994",
+      "expectedFamily": "STATUTE_REFERENCE"
+    },
+    {
+      "id": "statute-010",
+      "text": "artículo 386 del Código Procesal",
+      "expectedFamily": "STATUTE_REFERENCE"
+    },
+    {
+      "id": "csjn-docket-001",
+      "text": "CSJN 701/2013 (41-F)/CS1",
+      "expectedFamily": "CSJN_CASE"
+    },
+    {
+      "id": "csjn-docket-002",
+      "text": "CSJN 702/2013 (42-F)/CS1",
+      "expectedFamily": "CSJN_CASE"
+    },
+    {
+      "id": "csjn-docket-003",
+      "text": "CSJN 703/2013 (43-F)/CS1",
+      "expectedFamily": "CSJN_CASE"
+    },
+    {
+      "id": "csjn-docket-004",
+      "text": "CSJN 704/2013 (44-F)/CS1",
+      "expectedFamily": "CSJN_CASE"
+    },
+    {
+      "id": "csjn-docket-005",
+      "text": "CSJN 705/2013 (45-F)/CS1",
+      "expectedFamily": "CSJN_CASE"
+    },
+    {
+      "id": "negative-001",
+      "text": "El hecho ocurrió el 14/04/1998 en la Ciudad de Buenos Aires.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-002",
+      "text": "La suma reclamada asciende a $100.000 y se actualiza a la fecha de la sentencia.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-003",
+      "text": "Acordada CSJN 2/2020.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-004",
+      "text": "Acordadas C.S.J.N. 15/2013 y 24/2013.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-005",
+      "text": "El actor tenía 30/40 años al momento del accidente.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-006",
+      "text": "La Sala M resolvió los agravios en el caso.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-007",
+      "text": "R. 123.456 sin referencia temporal.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-008",
+      "text": "Causa 123.456 y expediente sin número de año.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-009",
+      "text": "Fallo de la cámara que se encuentra firme.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-010",
+      "text": "La ley aplicable se analiza en el considerando siguiente.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-011",
+      "text": "CSJN 15/2013 en una acordada de publicación institucional.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-012",
+      "text": "Fecha de firma 08/03/2022; sentencia registrada en el sistema.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-013",
+      "text": "La demandada cuestiona el monto de pesos 2.500.000.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-014",
+      "text": "Vistos los autos para resolver el recurso interpuesto.",
+      "expectedFamily": null
+    },
+    {
+      "id": "negative-015",
+      "text": "No existe referencia a expediente, tribunal, Fallos o norma en este fragmento.",
+      "expectedFamily": null
+    }
+  ]
+}

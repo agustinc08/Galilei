@@ -4,13 +4,22 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { findLinkedCorpusTextSource } from '../sentencias/linked-corpus-source';
 import {
   extractIdentifiedCitations,
   type CitationSourceIdentity,
 } from './citation-extractor';
 import { RelationshipCandidatesQueryDto } from './dto/relationship-candidates-query.dto';
 import { ReviewRelationshipCandidateDto } from './dto/review-relationship-candidate.dto';
+import {
+  normalizeLegalIdentifier,
+  parseArgentineCitationsV2,
+  resolveCitationV2,
+  type CitationCandidateV2,
+} from './citation-parser-v2';
 
 const PUBLIC_RELATIONSHIP_SELECT = {
   id: true,
@@ -30,6 +39,8 @@ type CitationCandidateData = {
   extractionMethod: 'explicit-case-identifier-v1';
 };
 
+const CITATION_PARSER_V2_VERSION = 'argentine-citation-parser-v2';
+
 @Injectable()
 export class ResearchRelationshipsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -41,6 +52,10 @@ export class ResearchRelationshipsService {
         id: true,
         expediente: true,
         numeroSentencia: true,
+        archivosPdf: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, rutaArchivo: true },
+        },
         referenciasJurisprudenciales: {
           select: {
             referencia: true,
@@ -74,8 +89,7 @@ export class ResearchRelationshipsService {
       );
     }
 
-    if (!candidates.size) return { data: { created: 0, candidates: [] } };
-    const rows = await Promise.all(
+    const legacyRows = await Promise.all(
       [...candidates.values()].map(async (candidate) => {
         const matches = await this.resolvePublicTarget(
           sourceSentenceId,
@@ -94,9 +108,100 @@ export class ResearchRelationshipsService {
           // No calibrated probability is available; confidence is intentionally left null.
           confidence: null,
           page: null,
+          sourceExtractionId: null,
+          sourceChecksum: null,
+          parserVersion: candidate.extractionMethod,
+          citationFamily:
+            candidate.identifierType === 'EXPEDIENTE'
+              ? 'EXPEDIENTE_IDENTIFIER'
+              : 'SENTENCE_NUMBER_IDENTIFIER',
+          parsedFields: Prisma.DbNull,
+          sourcePage: null,
+          sourceStartOffset: null,
+          sourceEndOffset: null,
+          sourceTextKind: null,
+          sourceContext: null,
+          resolutionOutcome:
+            matches.length === 1
+              ? 'RESOLVED_UNIQUE'
+              : matches.length > 1
+                ? 'AMBIGUOUS'
+                : 'UNRESOLVED',
+          resolutionReason:
+            matches.length === 1
+              ? 'El identificador coincide con un único fallo publicado y activo.'
+              : matches.length > 1
+                ? 'El identificador coincide con varios fallos publicados y activos.'
+                : 'No hay coincidencia exacta publicada y activa.',
+          occurrenceKey: occurrenceKey(
+            `${candidate.extractionMethod}:${candidate.identifierType}:${candidate.normalizedIdentifier}`,
+          ),
         };
       }),
     );
+
+    const sourceExtraction = await findLinkedCorpusTextSource(
+      this.prisma,
+      sourceSentenceId,
+      source.archivosPdf ?? [],
+    );
+    const parsed = sourceExtraction
+      ? parseArgentineCitationsV2(
+          sourceExtraction.pages.map((page) => ({
+            pageNumber: page.pageNumber,
+            text: page.text,
+            textKind: page.textKind,
+          })),
+          {
+            expediente: source.expediente,
+            numeroSentencia: source.numeroSentencia,
+          },
+        )
+      : [];
+    const v2Rows = await Promise.all(
+      parsed
+        .filter(
+          (citation) =>
+            citation.identifierType !== null &&
+            citation.normalizedIdentifier !== null &&
+            citation.resolutionOutcome !== 'SELF_REFERENCE',
+        )
+        .map(async (citation) => {
+          const resolution = await this.resolveParsedCandidate(
+            sourceSentenceId,
+            citation,
+          );
+          return {
+            sourceSentenceId,
+            targetSentenceId: resolution.targetSentenceId,
+            rawCitation: citation.rawCitation,
+            normalizedIdentifier: citation.normalizedIdentifier,
+            identifierType: citation.identifierType,
+            relationshipType: 'CITES',
+            status: 'DETECTED_CANDIDATE' as const,
+            extractionMethod: CITATION_PARSER_V2_VERSION,
+            confidence: null,
+            page: citation.sourcePage,
+            sourceExtractionId: sourceExtraction!.id,
+            sourceChecksum: sourceExtraction!.file.sha256,
+            parserVersion: citation.parserVersion,
+            citationFamily: citation.family,
+            parsedFields: citation.parsedFields,
+            sourcePage: citation.sourcePage,
+            sourceStartOffset: citation.sourceStartOffset,
+            sourceEndOffset: citation.sourceEndOffset,
+            sourceTextKind: citation.sourceTextKind,
+            sourceContext: citation.sourceContext,
+            resolutionOutcome: resolution.outcome,
+            resolutionReason: resolution.reason,
+            occurrenceKey: occurrenceKey(
+              `${sourceExtraction!.id}:${citation.sourcePage}:${citation.sourceStartOffset}:${citation.sourceEndOffset}:${citation.parserVersion}`,
+            ),
+          };
+        }),
+    );
+    const rows = [...legacyRows, ...v2Rows];
+    if (!rows.length) return { data: { created: 0, candidates: [] } };
     const created = await this.prisma.sentenciaRelationshipCandidate.createMany(
       {
         data: rows,
@@ -107,7 +212,7 @@ export class ResearchRelationshipsService {
       where: {
         sourceSentenceId,
         status: 'DETECTED_CANDIDATE',
-        rawCitation: { in: rows.map((row) => row.rawCitation) },
+        occurrenceKey: { in: rows.map((row) => row.occurrenceKey) },
       },
       orderBy: { id: 'asc' },
       include: {
@@ -257,6 +362,49 @@ export class ResearchRelationshipsService {
     }
   }
 
+  private async resolveParsedCandidate(
+    sourceId: number,
+    citation: CitationCandidateV2,
+  ) {
+    if (!citation.identifierType || !citation.normalizedIdentifier) {
+      return {
+        outcome: 'UNRESOLVED' as const,
+        targetSentenceId: null,
+        candidateTargetIds: [],
+        reason: citation.resolutionReason,
+      };
+    }
+    const field =
+      citation.identifierType === 'EXPEDIENTE'
+        ? 'expediente'
+        : 'numeroSentencia';
+    const variants = legalIdentifierVariants(citation.normalizedIdentifier);
+    if (!variants.length) {
+      return resolveCitationV2(citation, sourceId, []);
+    }
+    const targets = await this.prisma.sentencia.findMany({
+      where: {
+        id: { not: sourceId },
+        publicado: true,
+        activo: true,
+        OR: variants.map((identifier) => ({
+          [field]: { equals: identifier, mode: 'insensitive' as const },
+        })),
+      },
+      select: {
+        id: true,
+        expediente: true,
+        numeroSentencia: true,
+        sala: true,
+        fecha: true,
+        publicado: true,
+        activo: true,
+      },
+      take: 3,
+    });
+    return resolveCitationV2(citation, sourceId, targets);
+  }
+
   private resolvePublicTarget(
     sourceId: number,
     identifierType: 'EXPEDIENTE' | 'NUMERO_SENTENCIA',
@@ -275,4 +423,22 @@ export class ResearchRelationshipsService {
       take: 2,
     });
   }
+}
+
+function occurrenceKey(value: string) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function legalIdentifierVariants(value: string) {
+  const normalized = normalizeLegalIdentifier(value);
+  if (!normalized) return [];
+  const match = normalized.match(/^([A-Z]{1,8})?(\d{1,15})\/(\d{2}|\d{4})$/u);
+  if (!match) return [normalized];
+  const prefix = match[1] ?? '';
+  const number = match[2];
+  const year = match[3];
+  const dotted = number.replace(/\B(?=(\d{3})+(?!\d))/gu, '.');
+  return [
+    ...new Set([`${prefix}${number}/${year}`, `${prefix}${dotted}/${year}`]),
+  ];
 }

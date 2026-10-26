@@ -225,8 +225,15 @@ export class SentenciasController {
 
   @Get(':id/cita')
   @ApiOperation({ summary: 'Obtiene la cita util de la sentencia' })
-  getCita(@Param('id', ParseIntPipe) id: number) {
-    return this.sentenciasService.getCita(id);
+  getCita(@Param('id', ParseIntPipe) id: number, @Query('page') page?: string) {
+    const pageNumber = page === undefined ? undefined : Number(page);
+    return this.sentenciasService.getCita(id, pageNumber);
+  }
+
+  @Get(':id/estructura')
+  @ApiOperation({ summary: 'Obtiene navegación estructural de la sentencia' })
+  getStructure(@Param('id', ParseIntPipe) id: number) {
+    return this.sentenciasService.getStructure(id);
   }
 
   @Post(':id/generar-cita')

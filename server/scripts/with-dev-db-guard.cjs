@@ -312,6 +312,9 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/sprint121-concurrency.ts',
   'sprint15-postgres-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=120000 --testPathPatterns=workspace-document.integration.spec.ts',
+  'sprint3-postgres-acl-tests':
+    'pnpm.cmd exec jest --runInBand --testTimeout=180000 --testPathPatterns=workspace-document.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SPRINT3',
+  'sprint3-qa-seed': 'node scripts/dev/sprint3-qa-seed.cjs',
   'sprint1561-postgres-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=300000 --testPathPatterns=workspace-document.integration.spec.ts',
   'sprint1561-acl-tests':
@@ -400,6 +403,7 @@ const actions = {
   'sprint-j8-civil-certification':
     'node scripts/dev/sprint-j8-civil-certification.cjs',
   'sprint-j9-readonly-audit': 'node scripts/dev/sprint-j9-readonly-audit.cjs',
+  'sprint3-readonly-sample': 'node scripts/dev/sprint3-readonly-sample.cjs',
   'sprint-j911-readonly-audit':
     'node scripts/dev/sprint-j911-readonly-audit.cjs',
   'sprint-j901-eligibility':
@@ -572,6 +576,7 @@ const childEnv = {
   SPRINT_J9_POSTGRES_TEST: action === 'sprint-j9-postgres-tests' ? '1' : '',
   SPRINT15_POSTGRES_TEST:
     action === 'sprint15-postgres-tests' ||
+    action === 'sprint3-postgres-acl-tests' ||
     action === 'sprint15-full-tests' ||
     action === 'sprint1511-postgres-tests' ||
     action.startsWith('sprint1561-')
@@ -665,6 +670,7 @@ const childEnv = {
             .filter(Boolean)
             .join(' ')
         : action === 'sprint15-postgres-tests' ||
+            action === 'sprint3-postgres-acl-tests' ||
             action === 'sprint15-full-tests' ||
             action === 'sprint1511-postgres-tests' ||
             action.startsWith('sprint1561-') ||
@@ -784,6 +790,15 @@ const childEnv = {
     action === 'search-v4-fresh-bootstrap'
       ? JSON.stringify(process.argv.slice(3))
       : '',
+  BJC_SPRINT3_SAMPLE_ARGS:
+    action === 'sprint3-readonly-sample'
+      ? JSON.stringify(process.argv.slice(3))
+      : '',
+  BJC_SPRINT3_EVIDENCE_ROOT:
+    action === 'sprint3-readonly-sample'
+      ? path.resolve(__dirname, '../../_recovery-work/galilei-structured-citations-suite3')
+      : '',
+  BJC_SPRINT3_QA_SEED: action === 'sprint3-qa-seed' ? 'true' : '',
 };
 if (action === 'sprint151-ui-tests') {
   fs.mkdirSync(childEnv.BJC_CORPUS_STORAGE_PATH, { recursive: true });

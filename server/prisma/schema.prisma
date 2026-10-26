@@ -267,6 +267,19 @@ model SentenciaRelationshipCandidate {
   extractionMethod     String
   confidence           Float?
   page                 Int?
+  sourceExtractionId   String?
+  sourceChecksum       String?
+  parserVersion        String?
+  citationFamily       String?
+  parsedFields         Json?
+  sourcePage           Int?
+  sourceStartOffset    Int?
+  sourceEndOffset      Int?
+  sourceTextKind       String?
+  sourceContext        String?                     @db.Text
+  resolutionOutcome    String?
+  resolutionReason     String?                     @db.Text
+  occurrenceKey        String?
   reviewedById         Int?
   reviewedAt           DateTime?
   sourceSentence       Sentencia                   @relation("RelationshipCandidateSource", fields: [sourceSentenceId], references: [id], onDelete: Cascade)
@@ -275,7 +288,7 @@ model SentenciaRelationshipCandidate {
   createdAt            DateTime                    @default(now())
   updatedAt            DateTime                    @updatedAt
 
-  @@unique([sourceSentenceId, rawCitation, extractionMethod])
+  @@unique([sourceSentenceId, occurrenceKey])
   @@index([status, createdAt])
   @@index([targetSentenceId, status])
   @@index([sourceSentenceId, status])

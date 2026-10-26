@@ -37,6 +37,9 @@
 .documentList li p { margin: 3px 0 0; color: #486581; font-size: 13px; line-height: 1.45; }
 .rowActions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .preview { display: block; width: 100%; height: min(70vh, 740px); border: 0; border-radius: 6px; background: #eef2f6; }
+.previewControls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 8px 0; }
+.pdfPreview { height: min(70vh, 740px); min-height: 360px; overflow: hidden; border-radius: 6px; background: #eef2f6; }
+.pdfPreview > div { height: 100%; }
 .previewEmpty, .filePreview { display: grid; min-height: 130px; place-content: center; gap: 12px; color: #627d98; text-align: center; }
 .filePreview p { margin: 0; }
 .notice, .error { margin: 0; padding: 10px 12px; border-radius: 7px; font-size: 14px; }

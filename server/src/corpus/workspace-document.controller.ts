@@ -26,6 +26,7 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import {
   safeContentDisposition,
   singleByteRange,
+  CorpusDocumentAccessService,
 } from './corpus-document-access.service';
 import { WorkspaceDocumentService } from './workspace-document.service';
 
@@ -47,7 +48,10 @@ const WORKSPACE_DOCUMENT_UPLOAD_LIMITS = {
 )
 @Controller('workspaces')
 export class WorkspaceDocumentController {
-  constructor(private readonly workspaces: WorkspaceDocumentService) {}
+  constructor(
+    private readonly workspaces: WorkspaceDocumentService,
+    private readonly corpusDocuments: CorpusDocumentAccessService,
+  ) {}
 
   @Get('mine')
   @ApiOperation({
@@ -309,6 +313,21 @@ export class WorkspaceDocumentController {
       id,
       user,
       page ? positiveInt(page, 1) : undefined,
+    );
+  }
+
+  @Get(':workspaceId/documents/:id/structure')
+  @ApiOperation({ summary: 'Detecta secciones con ACL del espacio documental' })
+  structure(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.corpusDocuments.structure(
+      id,
+      'RESTRICTED',
+      workspaceId,
+      user.id,
     );
   }
 

@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
+import { useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import { api } from '@/lib/api';
 import type { TextContent, TextItem } from 'pdfjs-dist/types/src/display/api';
 import { alignPdfTextPageMap, buildPdfTextPageMap, mapPdfMatches } from './pdf-match-mapper';
 import type { PdfTextItemInput, PdfTextPageMap } from './pdf-match-mapper';
@@ -35,14 +37,27 @@ type Props = {
   matches: PdfMatch[];
   activeMatch: number;
   onLoadSuccess: (pages: number) => void;
+  structurePath?: string | null;
+  onGoToPage?: (page: number) => void;
 };
 
-export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, onLoadSuccess }: Props) {
+export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, onLoadSuccess, structurePath, onGoToPage }: Props) {
   const [width, setWidth] = useState(960);
   const [textPageState, setTextPageState] = useState<{
     key: string;
     pageMap: PdfTextPageMap;
   } | null>(null);
+  const [structureState, setStructureState] = useState<{
+    path: string;
+    sections: Array<{ label: string; pageStart: number }>;
+    status: string;
+  } | null>(null);
+  const structureMatchesPath = Boolean(
+    structurePath && structureState?.path === structurePath,
+  );
+  const sections = structureMatchesPath ? structureState?.sections ?? [] : [];
+  const structureStatus = structureMatchesPath ? structureState?.status ?? '' : '';
+  const structureLoading = Boolean(structurePath && !structureMatchesPath);
   const active = matches[activeMatch];
   const pageKey = `${file}:${page}`;
   const textPage = textPageState?.key === pageKey ? textPageState.pageMap : null;
@@ -58,6 +73,31 @@ export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, 
   );
   const unresolvedActive = mappings.find((mapping) => mapping.ordinal === active?.ordinal &&
     !['DIRECT_EXACT', 'SEGMENTED_EXACT', 'CONTEXT_EXACT', 'CONTEXT_NORMALIZED_EXACT', 'NORMALIZED_EXACT'].includes(mapping.status));
+
+  useEffect(() => {
+    if (!structurePath) return;
+    let active = true;
+    void api.get<{ data: { status: string; sections: Array<{ label: string; pageStart: number }> } }>(structurePath)
+      .then((response) => {
+        if (active) {
+          setStructureState({
+            path: structurePath,
+            sections: response.data.sections ?? [],
+            status: response.data.status ?? 'NO_STRUCTURE',
+          });
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setStructureState({
+            path: structurePath,
+            sections: [],
+            status: 'NO_STRUCTURE',
+          });
+        }
+      });
+    return () => { active = false; };
+  }, [structurePath]);
 
   const handleTextSuccess = useCallback(({ items }: TextContent) => {
     const textItems = items.flatMap((item, itemIndex) => 'str' in item
@@ -99,6 +139,15 @@ export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, 
   }, []);
 
   return <div className={styles.pdfDocument} ref={setContainer}>
+    {structurePath ? <details className={styles.structurePanel}>
+      <summary>Contenido del documento</summary>
+      {structureLoading ? <p role="status">Detectando secciones…</p> : sections.length ? <nav aria-label="Secciones del documento">
+        {structureStatus === 'PARTIAL' ? <p role="status">Estructura parcial; el texto fuente no está completo.</p> : null}
+        {sections.map((section, index) => <button type="button" key={`${section.pageStart}:${section.label}:${index}`} onClick={() => onGoToPage?.(section.pageStart)}>
+          {section.label} · pág. {section.pageStart}
+        </button>)}
+      </nav> : <p>No se detectaron secciones navegables con suficiente confianza.</p>}
+    </details> : null}
     {unresolvedActive && active && <p className={styles.mappingFallback} role="status" aria-live="polite">
       Encontramos la coincidencia en el texto del documento, pero no pudimos señalarla en la página. Podés continuar desde la lista de coincidencias.
       {(active.context || active.text) && <span> Contexto: {active.context || active.text}</span>}

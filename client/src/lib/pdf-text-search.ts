@@ -9,6 +9,9 @@ export type PdfTextFragment = {
 export type PdfTextMatch = {
   page: number;
   offset: number;
+  sourceStart: number;
+  sourceEnd: number;
+  passage: string;
 };
 
 /**
@@ -85,16 +88,95 @@ export function findPdfTextMatches(
 
   const matches: PdfTextMatch[] = [];
   pages.forEach((pageText, pageIndex) => {
-    const normalizedPage = normalizePdfSearchText(pageText);
+    const mapped = normalizePdfSearchTextWithSourceOffsets(pageText);
+    const normalizedPage = mapped.text;
     let offset = 0;
     while (offset <= normalizedPage.length - normalizedQuery.length) {
       const foundAt = normalizedPage.indexOf(normalizedQuery, offset);
       if (foundAt < 0) break;
-      matches.push({ page: pageIndex + 1, offset: foundAt });
+      const sourceStart = mapped.ranges[foundAt]?.start;
+      const sourceEnd = mapped.ranges[foundAt + normalizedQuery.length - 1]?.end;
+      if (sourceStart !== undefined && sourceEnd !== undefined) {
+        matches.push({
+          page: pageIndex + 1,
+          offset: foundAt,
+          sourceStart,
+          sourceEnd,
+          passage: pageText.slice(sourceStart, sourceEnd),
+        });
+      }
       offset = foundAt + Math.max(1, normalizedQuery.length);
     }
   });
   return matches;
+}
+
+function normalizePdfSearchTextWithSourceOffsets(value: string) {
+  let text = '';
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (let index = 0; index < value.length;) {
+    const codePoint = value.codePointAt(index);
+    if (codePoint === undefined) break;
+    const sourceChar = String.fromCodePoint(codePoint);
+    const sourceEnd = index + sourceChar.length;
+    const folded = /[ñÑ]/u.test(sourceChar)
+      ? sourceChar.toLocaleLowerCase('es-AR')
+      : sourceChar
+          .normalize('NFKD')
+          .replace(/\p{M}/gu, '')
+          .toLocaleLowerCase('es-AR');
+    if (!folded) {
+      const last = ranges.at(-1);
+      if (last) last.end = sourceEnd;
+      index = sourceEnd;
+      continue;
+    }
+    for (const normalizedChar of folded) {
+      if (/\s/u.test(normalizedChar)) {
+        if (!text || text.endsWith(' ')) {
+          if (text.endsWith(' ')) ranges[ranges.length - 1].end = sourceEnd;
+          index = sourceEnd;
+          continue;
+        }
+        text += ' ';
+        ranges.push({ start: index, end: sourceEnd });
+        continue;
+      }
+      for (let unit = 0; unit < normalizedChar.length; unit += 1) {
+        text += normalizedChar[unit];
+        ranges.push({ start: index, end: sourceEnd });
+      }
+    }
+    index = sourceEnd;
+  }
+  if (text.endsWith(' ')) {
+    text = text.slice(0, -1);
+    ranges.pop();
+  }
+  return { text, ranges };
+}
+
+export async function getPdfPageCount(
+  blob: Blob,
+  signal: AbortSignal,
+): Promise<number> {
+  const pdfjs = await import('pdfjs-dist');
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).toString();
+  const bytes = await blob.arrayBuffer();
+  if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+  const loadingTask = pdfjs.getDocument({ data: bytes });
+  const abortLoading = () => void loadingTask.destroy();
+  signal.addEventListener('abort', abortLoading, { once: true });
+  try {
+    const document = await loadingTask.promise;
+    return document.numPages;
+  } finally {
+    signal.removeEventListener('abort', abortLoading);
+    await loadingTask.destroy().catch(() => undefined);
+  }
 }
 
 /** Extracts page text locally in the browser; no PDF bytes or query leave the device. */

@@ -80,7 +80,8 @@ export default function CorpusDocumentPage() {
   const { user } = useAuth();
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
-  const initialPage = Math.max(1, Number(searchParams.get('page') || 1));
+  const requestedPage = Number(searchParams.get('page'));
+  const initialPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const initialQuery = searchParams.get('q') || '';
   const [documentLoad, setDocumentLoad] = useState<DocumentLoadState | null>(null);
   const [page, setPage] = useState(initialPage);
@@ -104,6 +105,12 @@ export default function CorpusDocumentPage() {
   const sourcePageKey = `${params.id}:${page}`;
   const sourcePageText = sourcePageState?.key === sourcePageKey ? sourcePageState.text : null;
   const currentDocumentLoad = documentLoad?.documentId === params.id ? documentLoad : null;
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', String(page));
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [page]);
   const error = errorState && errorState.documentId === params.id ? errorState.message : '';
   const setError = useCallback((message: string) => setErrorState(message ? { documentId: params.id ?? '', message } : null), [params.id]);
   const document = currentDocumentLoad?.status === 'ready' ? currentDocumentLoad.document ?? null : null;
@@ -263,7 +270,7 @@ export default function CorpusDocumentPage() {
           {matches?.matches[activeMatch]?.textKind === 'OCR' && (
             <p role="status">Texto OCR reconocido para esta página. La navegación y el contexto están disponibles; no se dibujan resaltados visuales de OCR.</p>
           )}
-          {pdfUrl ? <CorpusPdfViewer file={pdfUrl} page={page} sourceText={sourcePageText} matches={matches?.matches ?? []} activeMatch={activeMatch} onLoadSuccess={setPageCount} /> : documentLoading ? <Card><p role="status">Cargando PDF…</p></Card> : <Card><p role="status">{documentUnavailable ? 'Documento no disponible.' : 'No se pudo abrir el PDF.'}</p></Card>}
+          {pdfUrl ? <CorpusPdfViewer file={pdfUrl} page={page} sourceText={sourcePageText} matches={matches?.matches ?? []} activeMatch={activeMatch} onLoadSuccess={setPageCount} structurePath={`/corpus/documents/${params.id}/structure`} onGoToPage={setPage} /> : documentLoading ? <Card><p role="status">Cargando PDF…</p></Card> : <Card><p role="status">{documentUnavailable ? 'Documento no disponible.' : 'No se pudo abrir el PDF.'}</p></Card>}
         </section>
         <aside className={styles.sidePanel}>
           <Card>

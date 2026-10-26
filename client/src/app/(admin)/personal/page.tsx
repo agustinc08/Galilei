@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
+import { CorpusPdfViewer } from "../corpus/[id]/CorpusPdfViewer";
 import styles from "./personal.module.css";
 
 type PersonalFolder = {
@@ -55,6 +56,8 @@ export default function PersonalDocumentsPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState("");
   const [previewTitle, setPreviewTitle] = useState("");
+  const [previewPage, setPreviewPage] = useState(1);
+  const [previewPageCount, setPreviewPageCount] = useState(0);
   const [shareableWorkspaces, setShareableWorkspaces] = useState<ShareWorkspace[]>([]);
   const [shareDialogDocumentId, setShareDialogDocumentId] = useState<string | null>(null);
   const [shareWorkspaceId, setShareWorkspaceId] = useState("");
@@ -200,6 +203,8 @@ export default function PersonalDocumentsPage() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewId(documentId);
     setPreviewTitle(title);
+    setPreviewPage(1);
+    setPreviewPageCount(0);
     try {
       const blob = await api.download(`personal/documents/${documentId}/file`);
       setPreviewType(blob.type);
@@ -360,7 +365,24 @@ export default function PersonalDocumentsPage() {
 
           <Card>
             <div className={styles.sectionHeader}><div><h2>Vista previa</h2><p>{previewTitle || "Elegí un documento para verlo."}</p></div></div>
-            {previewUrl && previewType === "application/pdf" ? <iframe className={styles.preview} title={`Vista previa de ${previewTitle}`} src={previewUrl} /> : previewUrl ? <div className={styles.filePreview}><p>La vista previa de este formato no está disponible en el navegador.</p><button className={styles.secondary} onClick={() => previewId && void downloadFile(previewId, previewTitle)}>Descargar documento</button></div> : <div className={styles.previewEmpty}>La vista previa se abrirá acá.</div>}
+            {previewUrl && previewType === "application/pdf" && previewId ? <>
+              <div className={styles.previewControls}>
+                <button className={styles.secondary} type="button" disabled={previewPage <= 1} onClick={() => setPreviewPage((page) => Math.max(1, page - 1))}>Página anterior</button>
+                <span>{previewPageCount ? `Página ${previewPage} de ${previewPageCount}` : `Página ${previewPage}`}</span>
+                <button className={styles.secondary} type="button" disabled={!!previewPageCount && previewPage >= previewPageCount} onClick={() => setPreviewPage((page) => page + 1)}>Página siguiente</button>
+              </div>
+              <div className={styles.pdfPreview}>
+                <CorpusPdfViewer
+                  file={previewUrl}
+                  page={previewPage}
+                  matches={[]}
+                  activeMatch={0}
+                  onLoadSuccess={setPreviewPageCount}
+                  structurePath={`personal/documents/${previewId}/structure`}
+                  onGoToPage={setPreviewPage}
+                />
+              </div>
+            </> : previewUrl ? <div className={styles.filePreview}><p>La vista previa de este formato no está disponible en el navegador.</p><button className={styles.secondary} onClick={() => previewId && void downloadFile(previewId, previewTitle)}>Descargar documento</button></div> : <div className={styles.previewEmpty}>La vista previa se abrirá acá.</div>}
           </Card>
         </section>
       </div>

@@ -36,6 +36,19 @@ export class PublicSentenciasController {
     return this.sentenciasService.getPublicCitasBySlug(slug);
   }
 
+  @Get(':slug/cita')
+  @ApiOperation({ summary: 'Genera la cita pública con página PDF opcional' })
+  getCitaBySlug(@Param('slug') slug: string, @Query('page') page?: string) {
+    const pageNumber = page === undefined ? undefined : Number(page);
+    return this.sentenciasService.getPublicCitaBySlug(slug, pageNumber);
+  }
+
+  @Get(':slug/estructura')
+  @ApiOperation({ summary: 'Obtiene navegación estructural del fallo público' })
+  getStructureBySlug(@Param('slug') slug: string) {
+    return this.sentenciasService.getPublicStructureBySlug(slug);
+  }
+
   @Get(':slug/ficha')
   @ApiOperation({ summary: 'Obtiene la ficha publica de una sentencia' })
   findFichaBySlug(@Param('slug') slug: string) {

@@ -21,6 +21,7 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import {
   safeContentDisposition,
   singleByteRange,
+  CorpusDocumentAccessService,
 } from './corpus-document-access.service';
 import { WorkspaceDocumentService } from './workspace-document.service';
 
@@ -42,7 +43,10 @@ const PERSONAL_DOCUMENT_UPLOAD_LIMITS = {
 )
 @Controller('personal')
 export class PersonalDocumentController {
-  constructor(private readonly documents: WorkspaceDocumentService) {}
+  constructor(
+    private readonly documents: WorkspaceDocumentService,
+    private readonly corpusDocuments: CorpusDocumentAccessService,
+  ) {}
 
   @Get('folders')
   folders(@CurrentUser() user: AuthenticatedUser) {
@@ -150,6 +154,12 @@ export class PersonalDocumentController {
       user,
       page ? positiveInt(page, 1) : undefined,
     );
+  }
+
+  @Get('documents/:id/structure')
+  @ApiOperation({ summary: 'Detecta secciones con ACL del documento personal' })
+  structure(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.corpusDocuments.structure(id, 'RESTRICTED', undefined, user.id);
   }
 
   @Get('documents/:id/matches')

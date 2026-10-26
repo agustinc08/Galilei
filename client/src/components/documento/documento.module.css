@@ -120,6 +120,66 @@
   padding: 8px;
 }
 
+.structurePanel {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-bottom: 1px solid #dbe4ee;
+  background: #f8fbff;
+}
+
+.structurePanel summary {
+  width: fit-content;
+  color: #344054;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.structureList {
+  display: grid;
+  gap: 4px;
+  max-height: 180px;
+  overflow: auto;
+  margin-top: 8px;
+}
+
+.structureItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid #dbe4ee;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+  text-align: left;
+}
+
+.structureItem:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.structureItem span:last-child {
+  flex: 0 0 auto;
+  color: #667085;
+}
+
+.structureStatus,
+.copyStatus {
+  margin: 7px 0 0;
+  color: #475467;
+  font-size: 12px;
+}
+
+.copyStatus {
+  flex: 0 0 auto;
+  padding: 5px 14px;
+  background: #f8fbff;
+}
+
 .inDocumentSearch {
   flex: 0 0 auto;
   display: grid;

@@ -124,8 +124,9 @@ export default function WorkspaceDocumentViewer() {
   const [pdf, setPdf] = useState<string | null>(null);
   const [query, setQuery] = useState(initialQuery);
   const [matches, setMatches] = useState<Matches | null>(null);
+  const requestedPage = Number(searchParams.get("page"));
   const [page, setPage] = useState(
-    Math.max(1, Number(searchParams.get("page") ?? 1)),
+    Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1,
   );
   const [pageCount, setPageCount] = useState(0);
   const [active, setActive] = useState(0);
@@ -133,6 +134,12 @@ export default function WorkspaceDocumentViewer() {
   const effectivePageCount =
     pageCount || document?.extraction?.pageCount || document?.file?.pageCount || 0;
   const isPdf = document?.file?.mimeType === "application/pdf";
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("page", String(page));
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [page]);
 
   useEffect(() => {
     let alive = true;
@@ -345,6 +352,8 @@ export default function WorkspaceDocumentViewer() {
             matches={matches?.matches ?? []}
             activeMatch={active}
             onLoadSuccess={setPageCount}
+            structurePath={`/workspaces/${params.workspaceId}/documents/${params.id}/structure`}
+            onGoToPage={setPage}
           />
           </>
         ) : (

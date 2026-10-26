@@ -33,11 +33,15 @@ export default function SentenciaDocumentoPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const id = Number(params.id);
+  const requestedPageValue = Number(searchParams.get('page'));
+  const requestedPage = Number.isInteger(requestedPageValue) && requestedPageValue > 0
+    ? requestedPageValue
+    : null;
   const [data, setData] = useState<FichaSentencia | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfControls, setPdfControls] = useState<PdfViewerControls>(EMPTY_CONTROLS);
-  const [pdfPage, setPdfPage] = useState<number | null>(null);
+  const [pdfPage, setPdfPage] = useState<number | null>(requestedPage);
   const highlightQuery = searchParams.get('q') ?? '';
 
   useEffect(() => {
@@ -134,6 +138,8 @@ export default function SentenciaDocumentoPage() {
           }
           title={title}
           page={pdfPage}
+          structurePath={`/sentencias/${id}/estructura`}
+          citationPath={`/sentencias/${id}/cita`}
           onControlsChange={setPdfControls}
         />
       }

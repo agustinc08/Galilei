@@ -12,6 +12,13 @@ export type CitationData = {
   citaBreve: string;
   citaCompleta: string;
   citaCopiable: string;
+  citaConPagina?: string;
+  citaConFragmento?: string;
+};
+
+export type CitationPinpoint = {
+  page?: number;
+  passage?: string;
 };
 
 function present(value?: string | null) {
@@ -19,7 +26,10 @@ function present(value?: string | null) {
   return trimmed || null;
 }
 
-export function formatCitation(source: CitationSource): CitationData {
+export function formatCitation(
+  source: CitationSource,
+  pinpoint: CitationPinpoint = {},
+): CitationData {
   const actor = present(source.actor);
   const demandado = present(source.demandado);
   const caratula = [actor, demandado].filter(Boolean).join(' c/ ');
@@ -42,5 +52,19 @@ export function formatCitation(source: CitationSource): CitationData {
     present(source.citaPersonalizada) ||
     [citaBreve, expediente, numero].filter(Boolean).join(', ');
 
-  return { citaBreve, citaCompleta, citaCopiable: citaCompleta };
+  const citation: CitationData = {
+    citaBreve,
+    citaCompleta,
+    citaCopiable: citaCompleta,
+  };
+  if (Number.isInteger(pinpoint.page) && (pinpoint.page ?? 0) > 0) {
+    const base = citaCompleta.replace(/[.,;:\s]+$/u, '');
+    const citaConPagina = `${base}, p. ${pinpoint.page}`;
+    citation.citaConPagina = citaConPagina;
+    const passage = pinpoint.passage?.trim();
+    if (passage && passage.length <= 500) {
+      citation.citaConFragmento = `“${passage}” — ${citaConPagina}`;
+    }
+  }
+  return citation;
 }
