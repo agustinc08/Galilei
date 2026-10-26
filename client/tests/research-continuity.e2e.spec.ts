@@ -650,8 +650,9 @@ test('in-document search counts local PDF matches and navigates to the matching 
   await expect(page.getByLabel('Buscar en este fallo')).toHaveValue('responsabilidad civil');
   const searchButton = page.getByRole('button', { name: 'Buscar', exact: true });
   await expect(searchButton).toBeEnabled();
+  const searchRegion = page.getByRole('region', { name: 'Buscar dentro del fallo' });
+  const status = searchRegion.getByRole('status');
   await searchButton.click();
-  const status = page.locator('#pdf-document-search-status');
   await expect(status).toHaveText('1 de 3 · Página 1');
   await page.getByRole('button', { name: 'Siguiente' }).click();
   await expect(status).toHaveText('2 de 3 · Página 1');
@@ -682,8 +683,8 @@ test('in-document search reports a scanned PDF with no searchable text', async (
 test('in-document search extracts a 50-page PDF once and jumps to the matching page', async ({ page }) => {
   await installApiMocks(page);
   const pages = Array.from({ length: 50 }, (_, index) => index === 49
-    ? 'responsabilidad civil en la última página'
-    : `Contenido jurídico sintético de la página ${index + 1}`);
+    ? 'responsabilidad civil en la ultima pagina'
+    : `Contenido juridico sintetico de la pagina ${index + 1}`);
   await page.route(`**/api/public/sentencias/${DEMO_RESULT.slugPublico}/pdf`, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/pdf', body: makePdfFixture(pages) });
   });
@@ -692,8 +693,9 @@ test('in-document search extracts a 50-page PDF once and jumps to the matching p
   await page.getByLabel('Buscar en este fallo').fill('responsabilidad civil');
   const searchButton = page.getByRole('button', { name: 'Buscar', exact: true });
   await expect(searchButton).toBeEnabled();
+  const status = page.getByRole('region', { name: 'Buscar dentro del fallo' }).getByRole('status');
   await searchButton.click();
-  await expect(page.locator('#pdf-document-search-status')).toHaveText('1 de 1 · Página 50');
+  await expect(status).toHaveText('1 de 1 · Página 50');
   await expect(page.locator('iframe')).toHaveAttribute('src', /page=50/u);
 });
 
