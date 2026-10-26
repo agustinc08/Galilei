@@ -5,6 +5,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Req,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -17,13 +18,25 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import { statSync } from 'node:fs';
 import { ROLES } from '../auth/constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { ArchivosService } from './archivos.service';
+
+function sendPdfFile(req: Request, res: Response, absolutePath: string) {
+  const size = statSync(absolutePath).size;
+  const range = req.range(size);
+  if (range === -1 || range === -2) {
+    res.setHeader('Content-Range', `bytes */${size}`);
+    return res.status(416).end();
+  }
+
+  return res.sendFile(absolutePath);
+}
 
 @ApiTags('archivos')
 @ApiBearerAuth()
@@ -89,6 +102,7 @@ export class ArchivosController {
   @ApiOperation({ summary: 'Descarga un PDF' })
   async download(
     @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request,
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ) {
@@ -103,7 +117,7 @@ export class ArchivosController {
       `attachment; filename="${archivo.nombreOriginal ?? archivo.nombreArchivo}"`,
     );
 
-    return res.sendFile(absolutePath);
+    return sendPdfFile(req, res, absolutePath);
   }
 
   @Delete(':id')
@@ -125,7 +139,11 @@ export class PublicArchivosController {
 
   @Get(':slug/pdf')
   @ApiOperation({ summary: 'Abre el PDF público principal de una sentencia' })
-  async downloadPublicPdf(@Param('slug') slug: string, @Res() res: Response) {
+  async downloadPublicPdf(
+    @Param('slug') slug: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
     const { archivo, absolutePath } =
       await this.archivosService.getPublicPdfByIdentifier(slug);
 
@@ -135,6 +153,6 @@ export class PublicArchivosController {
       `inline; filename="${archivo.nombreOriginal ?? archivo.nombreArchivo}"`,
     );
 
-    return res.sendFile(absolutePath);
+    return sendPdfFile(req, res, absolutePath);
   }
 }

@@ -32,9 +32,12 @@ describe('ResearchRelationshipsService', () => {
     const { service, prisma } = serviceWith();
     prisma.sentencia.findUnique.mockResolvedValue({
       id: 1,
+      expediente: 'CIV 1234/2020',
+      numeroSentencia: '88/2022',
       referenciasJurisprudenciales: [
         {
-          referencia: 'Expte. 1234/2020',
+          referencia:
+            'Expte. CIV 1234/2020; Expte. 987/2021; Sentencia 88/2022',
           textoOriginal: null,
           falloRelacionadoId: null,
         },
@@ -59,7 +62,7 @@ describe('ResearchRelationshipsService', () => {
         expect.objectContaining({
           sourceSentenceId: 1,
           targetSentenceId: 2,
-          normalizedIdentifier: '1234/2020',
+          normalizedIdentifier: '987/2021',
           status: 'DETECTED_CANDIDATE',
           confidence: null,
           page: null,

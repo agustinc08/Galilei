@@ -24,6 +24,48 @@ describe('explicit legal citation extraction', () => {
     }
   });
 
+  it('does not treat expert measurements as expediente citations', () => {
+    expect(
+      extractIdentifiedCitations(
+        'El experto estimó que circulaba a 30/40 km/h.',
+      ),
+    ).toEqual([]);
+  });
+
+  it('recognizes expediente labels only at a word boundary', () => {
+    expect(
+      extractIdentifiedCitations(
+        'Exp. 9/2020; Expte 10/2021; Expediente 11/2022',
+      ),
+    ).toMatchObject([
+      { identifier: '9/2020', identifierType: 'EXPEDIENTE' },
+      { identifier: '10/2021', identifierType: 'EXPEDIENTE' },
+      { identifier: '11/2022', identifierType: 'EXPEDIENTE' },
+    ]);
+  });
+
+  it('excludes identifiers belonging to the source judgment', () => {
+    expect(
+      extractIdentifiedCitations(
+        'Expte. CIV 101/2024; Expte. 202/2025; Sentencia 88/2022',
+        {
+          expediente: 'QA CIV 101/2024',
+          numeroSentencia: 'Sentencia 88/2022',
+        },
+      ),
+    ).toMatchObject([{ identifier: '202/2025', identifierType: 'EXPEDIENTE' }]);
+  });
+
+  it('normalizes source identifiers across court prefixes and two-digit years', () => {
+    expect(
+      extractIdentifiedCitations('Expte. nº CIV 28029/2017; Expte. 72.442/18', {
+        expediente: '28029/17',
+      }),
+    ).toMatchObject([
+      { identifier: '72.442/18', identifierType: 'EXPEDIENTE' },
+    ]);
+  });
+
   it('measures precision, recall, and unresolved cases on the inspectable sample', () => {
     let truePositive = 0;
     let falsePositive = 0;

@@ -39,6 +39,37 @@ function buildQueryString(values: ConsultaPublicaFilters) {
   return params.toString();
 }
 
+function filtersFromSearchParams(searchParams: URLSearchParams): ConsultaPublicaFilters {
+  return {
+    q: searchParams.get('q') ?? '',
+    fraseExacta: searchParams.get('fraseExacta') ?? '',
+    excluir: searchParams.get('excluir') ?? '',
+    operador: (searchParams.get('operador') as ConsultaPublicaFilters['operador']) ?? 'AND',
+    tema: searchParams.get('tema') ?? '',
+    sala: searchParams.get('sala') ?? '',
+    fechaDesde: searchParams.get('fechaDesde') ?? '',
+    fechaHasta: searchParams.get('fechaHasta') ?? '',
+    tipoFallo: searchParams.get('tipoFallo') ?? '',
+    tribunalOrigen: searchParams.get('tribunalOrigen') ?? '',
+    numeroSumario: searchParams.get('numeroSumario') ?? '',
+    numeroSentencia: searchParams.get('numeroSentencia') ?? '',
+    magistrados: searchParams.get('magistrados') ?? '',
+    caratula: searchParams.get('caratula') ?? '',
+    expediente: searchParams.get('expediente') ?? '',
+    actor: searchParams.get('actor') ?? '',
+    demandado: searchParams.get('demandado') ?? '',
+    objeto: searchParams.get('objeto') ?? '',
+    anio: searchParams.get('anio') ?? '',
+    soloConPdf: searchParams.get('soloConPdf') ?? '',
+    pdf: (searchParams.get('pdf') as ConsultaPublicaFilters['pdf']) ?? '',
+    buscarEn: searchParams.get('buscarEn') ?? 'todo',
+    sortBy: searchParams.get('sortBy') ?? '',
+    sortOrder: searchParams.get('sortOrder') ?? '',
+    page: Number(searchParams.get('page') ?? '1'),
+    pageSize: Number(searchParams.get('pageSize') ?? '25'),
+  };
+}
+
 function ConsultaPublicaScreenContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -75,34 +106,7 @@ function ConsultaPublicaScreenContent() {
   const canManagePersonalResearch = ['ADMIN', 'OPERADOR'].includes(user?.rol.nombre ?? '');
 
   const filters = useMemo<ConsultaPublicaFilters>(
-    () => ({
-      q: searchParams.get('q') ?? '',
-      fraseExacta: searchParams.get('fraseExacta') ?? '',
-      excluir: searchParams.get('excluir') ?? '',
-      operador: (searchParams.get('operador') as ConsultaPublicaFilters['operador']) ?? 'AND',
-      tema: searchParams.get('tema') ?? '',
-      sala: searchParams.get('sala') ?? '',
-      fechaDesde: searchParams.get('fechaDesde') ?? '',
-      fechaHasta: searchParams.get('fechaHasta') ?? '',
-      tipoFallo: searchParams.get('tipoFallo') ?? '',
-      tribunalOrigen: searchParams.get('tribunalOrigen') ?? '',
-      numeroSumario: searchParams.get('numeroSumario') ?? '',
-      numeroSentencia: searchParams.get('numeroSentencia') ?? '',
-      magistrados: searchParams.get('magistrados') ?? '',
-      caratula: searchParams.get('caratula') ?? '',
-      expediente: searchParams.get('expediente') ?? '',
-      actor: searchParams.get('actor') ?? '',
-      demandado: searchParams.get('demandado') ?? '',
-      objeto: searchParams.get('objeto') ?? '',
-      anio: searchParams.get('anio') ?? '',
-      soloConPdf: searchParams.get('soloConPdf') ?? '',
-      pdf: (searchParams.get('pdf') as ConsultaPublicaFilters['pdf']) ?? '',
-      buscarEn: searchParams.get('buscarEn') ?? 'todo',
-      sortBy: searchParams.get('sortBy') ?? '',
-      sortOrder: searchParams.get('sortOrder') ?? '',
-      page: Number(searchParams.get('page') ?? '1'),
-      pageSize: Number(searchParams.get('pageSize') ?? '25'),
-    }),
+    () => filtersFromSearchParams(new URLSearchParams(searchParams.toString())),
     [searchParams],
   );
 
@@ -239,7 +243,9 @@ function ConsultaPublicaScreenContent() {
     ? queryExplanation
     : null;
 
-  const updateRoute = (next: ConsultaPublicaFilters) => {
+  const updateRoute = (update: (current: ConsultaPublicaFilters) => ConsultaPublicaFilters) => {
+    const current = filtersFromSearchParams(new URLSearchParams(window.location.search));
+    const next = update(current);
     const queryString = buildQueryString(next);
     router.push(queryString ? `${pathname}?${queryString}` : pathname);
   };
@@ -250,7 +256,7 @@ function ConsultaPublicaScreenContent() {
     const sala = salaValue
       ? `Sala ${salaValue.replace(/^sala(?:\s+|$)/iu, '').trim()}`.trim()
       : '';
-    updateRoute({
+    updateRoute(() => ({
       ...nextValues,
       sala,
       pdf,
@@ -259,15 +265,15 @@ function ConsultaPublicaScreenContent() {
       pageSize: nextValues.pageSize ?? 25,
       sortBy: nextValues.sortBy || (nextValues.q ? 'relevancia' : 'fecha'),
       sortOrder: nextValues.sortOrder || 'desc',
-    });
+    }));
   };
 
   const handlePageChange = (page: number) => {
-    updateRoute({ ...filters, page });
+    updateRoute((current) => ({ ...current, page }));
   };
 
   const handlePageSizeChange = (pageSize: number) => {
-    updateRoute({ ...filters, page: 1, pageSize });
+    updateRoute((current) => ({ ...current, page: 1, pageSize }));
   };
 
   const handleCopySearchLink = async () => {
@@ -339,7 +345,7 @@ function ConsultaPublicaScreenContent() {
 
   const handleClear = () => {
     setSelectedIds([]);
-    updateRoute({});
+    updateRoute(() => ({}));
   };
 
   const handleToggleSelected = (id: number) => {
@@ -446,7 +452,7 @@ function ConsultaPublicaScreenContent() {
               <button
                 type="button"
                 aria-label={`Quitar filtro ${filter.label}`}
-                onClick={() => updateRoute({ ...filters, [filter.key]: '', page: 1 })}
+                onClick={() => updateRoute((current) => ({ ...current, [filter.key]: '', page: 1 }))}
               >×</button>
             </span>
           ))}
@@ -471,8 +477,7 @@ function ConsultaPublicaScreenContent() {
             value={`${filters.sortBy || (filters.q ? 'relevancia' : 'fecha')}:${filters.sortOrder || 'desc'}`}
             onChange={(event) => {
               const [sortBy, sortOrder] = event.target.value.split(':');
-              const next = { ...filters, sortBy, sortOrder, page: 1 };
-              updateRoute(next);
+              updateRoute((current) => ({ ...current, sortBy, sortOrder, page: 1 }));
             }}
             options={[
               { label: 'Relevancia', value: 'relevancia:desc' },
@@ -495,7 +500,7 @@ function ConsultaPublicaScreenContent() {
                 <h3>Salas</h3>
                 <div className={styles.facetList}>
                   {result.meta.facets.salas.map((facet) => (
-                    <Button key={facet.value} variant={filters.sala === facet.value ? 'primary' : 'secondary'} onClick={() => updateRoute({ ...filters, sala: filters.sala === facet.value ? '' : facet.value, page: 1 })}>
+                    <Button key={facet.value} variant={filters.sala === facet.value ? 'primary' : 'secondary'} onClick={() => updateRoute((current) => ({ ...current, sala: current.sala === facet.value ? '' : facet.value, page: 1 }))}>
                       {facet.value} ({facet.count.toLocaleString('es-AR')})
                     </Button>
                   ))}
@@ -507,7 +512,7 @@ function ConsultaPublicaScreenContent() {
                 <h3>Años de decisión</h3>
                 <div className={styles.facetList}>
                   {result.meta.facets.years.map((facet) => (
-                    <Button key={facet.value} variant={filters.anio === String(facet.value) ? 'primary' : 'secondary'} onClick={() => updateRoute({ ...filters, anio: filters.anio === String(facet.value) ? '' : String(facet.value), page: 1 })}>
+                    <Button key={facet.value} variant={filters.anio === String(facet.value) ? 'primary' : 'secondary'} onClick={() => updateRoute((current) => ({ ...current, anio: current.anio === String(facet.value) ? '' : String(facet.value), page: 1 }))}>
                       {facet.value} ({facet.count.toLocaleString('es-AR')})
                     </Button>
                   ))}

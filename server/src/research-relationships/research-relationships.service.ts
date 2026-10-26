@@ -5,7 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { extractIdentifiedCitations } from './citation-extractor';
+import {
+  extractIdentifiedCitations,
+  type CitationSourceIdentity,
+} from './citation-extractor';
 import { RelationshipCandidatesQueryDto } from './dto/relationship-candidates-query.dto';
 import { ReviewRelationshipCandidateDto } from './dto/review-relationship-candidate.dto';
 
@@ -36,6 +39,8 @@ export class ResearchRelationshipsService {
       where: { id: sourceSentenceId },
       select: {
         id: true,
+        expediente: true,
+        numeroSentencia: true,
         referenciasJurisprudenciales: {
           select: {
             referencia: true,
@@ -58,12 +63,14 @@ export class ResearchRelationshipsService {
       this.collectCandidates(
         candidates,
         reference.textoOriginal ?? reference.referencia,
+        source,
       );
     }
     for (const citation of source.citasFallo) {
       this.collectCandidates(
         candidates,
         citation.textoOriginal ?? citation.referencia,
+        source,
       );
     }
 
@@ -234,8 +241,9 @@ export class ResearchRelationshipsService {
   private collectCandidates(
     output: Map<string, CitationCandidateData>,
     text: string,
+    sourceIdentity: CitationSourceIdentity,
   ) {
-    for (const citation of extractIdentifiedCitations(text)) {
+    for (const citation of extractIdentifiedCitations(text, sourceIdentity)) {
       const key = `${citation.identifierType}:${citation.normalizedIdentifier}`;
       if (!output.has(key)) {
         output.set(key, {
