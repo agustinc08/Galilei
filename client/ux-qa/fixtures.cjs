@@ -95,7 +95,9 @@ function fixtureForRequest(request) {
   const method = request.method();
 
   if (method === 'GET' && pathname === '/public/busqueda/temas') return json(200, { data: ['Responsabilidad civil', 'Daños y perjuicios'] });
+  if (method === 'GET' && pathname === '/public/busqueda/interpretacion') return json(200, { data: { summary: 'Búsqueda literal de muestra.', notes: 'El texto de la consulta no modifica el documento.' } });
   if (method === 'GET' && pathname === '/public/sentencias/recientes') return json(200, { data: [] });
+  if (method === 'GET' && pathname === '/public/sentencias/mas-recientes') return json(200, { data: [] });
   if (method === 'GET' && pathname === '/catalogos/salas') return json(200, { data: [{ id: 1, nombre: 'I' }, { id: 2, nombre: 'Sala A' }] });
   if (method === 'GET' && pathname === '/catalogos/tipos-fallo') return json(200, { data: [{ id: 1, nombre: 'Sentencia definitiva' }] });
   if (method === 'GET' && pathname === '/catalogos/tribunales-origen') return json(200, { data: [{ id: 1, nombre: 'Cámara Civil' }] });
@@ -119,7 +121,15 @@ function fixtureForRequest(request) {
   }
   if (method === 'GET' && pathname === '/public/sentencias/ux-qa-001') return json(200, { data: publicSentencia });
   if (method === 'GET' && pathname === '/public/sentencias/ux-qa-001/documento') return json(200, { data: ficha });
+  if (method === 'GET' && pathname === '/public/sentencias/ux-qa-001/cita') {
+    if (url.searchParams.has('passage')) return json(400, { message: 'Passages must stay local.' });
+    const page = Number(url.searchParams.get('page'));
+    return json(200, { data: { citaConPagina: `Cámara Civil, Sala I, p. ${page}` } });
+  }
   if (method === 'GET' && pathname === '/public/sentencias/ux-qa-001/relacionados') return json(200, { data: [] });
+  if (method === 'GET' && pathname === '/public/sentencias/ux-qa-001/relaciones-verificadas') return json(200, { data: [] });
+  if (method === 'GET' && pathname === '/public/sentencias/ux-qa-001/mismo-expediente') return json(200, { data: [], total: 0, limit: 10, hasMore: false });
+  if (method === 'GET' && pathname === '/public/sentencias/ux-qa-001/estructura') return json(200, { data: { status: 'NO_STRUCTURE', sections: [] } });
   if (method === 'GET' && pathname === '/public/sentencias/ux-qa-001/pdf') {
     return { status: 200, contentType: 'application/pdf', body: pdfBuffer };
   }

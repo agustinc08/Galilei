@@ -120,10 +120,20 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await expect(page.getByLabel('Página')).toBeVisible();
       await expect(page.getByLabel('Zoom')).toBeVisible();
       await expect(page.getByText('Documento de muestra.pdf')).toBeVisible();
+      await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+      await page.getByRole('button', { name: 'Buscar dentro del fallo' }).click();
+      const pdfSearch = page.getByLabel('Buscar en este fallo');
+      await pdfSearch.fill('responsabilidad civil');
+      await page.getByRole('button', { name: 'Buscar', exact: true }).last().click();
+      await expect(page.getByRole('status').filter({ hasText: /1 de 1 · Página 1/u })).toBeVisible();
+      await page.getByRole('button', { name: 'Copiar fragmento + cita' }).click();
+      await expect(page.getByRole('status').filter({ hasText: 'Fragmento y cita copiados' })).toBeVisible();
+      const passageCitation = await page.evaluate(() => navigator.clipboard.readText());
+      expect(passageCitation).toBe('“responsabilidad civil” — Cámara Civil, Sala I, p. 1');
       await captureAndCheck(page, testInfo, {
         id: 'viewer', route: '/fallos/ux-qa-001', durationMs: Date.now() - started,
         pdfRenderStatus: 'DEFERRED_BROWSER_LIMITATION',
-        notes: ['Viewer shell is mandatory; PDF.js/native embedded rendering is reported separately.'],
+        notes: ['Viewer shell and local passage citation are mandatory; PDF.js/native embedded rendering is reported separately.'],
       });
 
       if (viewport.width <= 430) {

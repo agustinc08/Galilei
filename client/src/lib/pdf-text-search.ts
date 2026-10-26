@@ -14,6 +14,17 @@ export type PdfTextMatch = {
   passage: string;
 };
 
+/** Wraps an exact local PDF.js source match around the canonical page citation. */
+export function formatPdfPassageCitation(
+  passage: string,
+  pageCitation: string,
+): string | null {
+  const sourcePassage = passage.trim();
+  const citation = pageCitation.trim();
+  if (!sourcePassage || sourcePassage.length > 500 || !citation) return null;
+  return `“${sourcePassage}” — ${citation}`;
+}
+
 /**
  * Joins PDF.js text runs into readable page text. PDF.js often splits words
  * into separate items, so geometry is used to avoid adding spaces inside a

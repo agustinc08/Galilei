@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  formatPdfPassageCitation,
   findPdfTextMatches,
   joinPdfTextItems,
   normalizePdfSearchText,
@@ -56,4 +57,15 @@ test('maps accent-tolerant matches back to the exact extracted source passage', 
   assert.ok(match);
   assert.equal(source.slice(match.sourceStart, match.sourceEnd), 'Córdoba   civil');
   assert.equal(match.passage, 'Córdoba   civil');
+});
+
+test('wraps only bounded exact local passages around a canonical page citation', () => {
+  const citation = 'Cámara Civil, Sala C, p. 8';
+  assert.equal(
+    formatPdfPassageCitation('  Córdoba   civil  ', citation),
+    '“Córdoba   civil” — Cámara Civil, Sala C, p. 8',
+  );
+  assert.equal(formatPdfPassageCitation(' ', citation), null);
+  assert.equal(formatPdfPassageCitation('civil', ' '), null);
+  assert.equal(formatPdfPassageCitation('x'.repeat(501), citation), null);
 });

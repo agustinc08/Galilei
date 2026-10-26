@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { downloadBlob } from '@/lib/utils';
 import {
   extractPdfTextPages,
+  formatPdfPassageCitation,
   findPdfTextMatches,
   getPdfPageCount,
 } from '@/lib/pdf-text-search';
@@ -288,6 +289,8 @@ export function PdfViewer({
     () => pageTexts ? findPdfTextMatches(pageTexts, activeSearchQuery) : [],
     [activeSearchQuery, pageTexts],
   );
+  const activeMatch = matches[activeMatchIndex] ?? null;
+  const currentMatch = activeMatch?.page === currentPage ? activeMatch : null;
 
   const goToMatch = useCallback((index: number) => {
     if (!matches.length) return;
@@ -350,6 +353,27 @@ export function PdfViewer({
       setCopyStatus('No se pudo copiar la cita.');
     }
   }, [citationPath, currentPage, pageCount]);
+
+  const copyPassageCitation = useCallback(async () => {
+    if (!citationPath || !currentMatch) return;
+    try {
+      const response = await api.get<{ data: { citaConPagina?: string } }>(
+        citationPath,
+        { query: { page: currentMatch.page } },
+      );
+      const citation = response.data.citaConPagina
+        ? formatPdfPassageCitation(currentMatch.passage, response.data.citaConPagina)
+        : null;
+      if (!citation) {
+        setCopyStatus('No se pudo verificar el fragmento para copiarlo.');
+        return;
+      }
+      await navigator.clipboard.writeText(citation);
+      setCopyStatus('Fragmento y cita copiados');
+    } catch {
+      setCopyStatus('No se pudo copiar el fragmento y la cita.');
+    }
+  }, [citationPath, currentMatch]);
 
   const toolbarLabel = useMemo(() => {
     if (!downloadPath) {
@@ -543,6 +567,14 @@ export function PdfViewer({
               onClick={() => goToMatch(activeMatchIndex + 1)}
             >
               Siguiente
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!citationPath || !currentMatch}
+              onClick={() => void copyPassageCitation()}
+            >
+              Copiar fragmento + cita
             </Button>
             <Button type="button" variant="secondary" onClick={clearSearch}>
               Limpiar

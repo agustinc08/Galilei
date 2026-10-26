@@ -12,9 +12,9 @@ La ruta pública de documento admite apertura directa en una página y usa el sl
 
 ## Pasaje
 
-El formatter de dominio puede formar `citaConFragmento` para un pasaje fuente de hasta 500 caracteres. `pdf-text-search` mantiene offsets UTF-16 sobre el texto realmente extraído por PDF.js y devuelve el recorte de origen exacto, incluyendo espacios originales. Las tildes se pliegan para buscar, `ñ` continúa distinta de `n`.
+«Copiar fragmento + cita» está disponible para la coincidencia activa de la búsqueda local del PDF. `pdf-text-search` mantiene offsets UTF-16 sobre el texto realmente extraído por PDF.js y devuelve el recorte exacto de origen; las tildes se pliegan para buscar, `ñ` continúa distinta de `n`. La acción exige una coincidencia en la página actual y usa la cita de página canónica del backend; el pasaje se limita a 500 caracteres y se mantiene en el dispositivo. No se envían el texto ni la consulta al servidor, ni se persiste el clipboard.
 
-En esta iteración el visor ofrece copia de cita con página y enlace de página; no expone una acción «Copiar fragmento + cita». Así no presenta una selección visual del layer PDF como texto fuente confirmado. El clipboard no se persiste en servidor.
+El helper local sólo encierra el fragmento fuente entre comillas y agrega la cita de página que devolvió el formatter canónico; no genera metadatos de tribunal, Sala, fecha o expediente. Las selecciones visuales arbitrarias del layer PDF no se copian.
 
 ## Metadatos
 
