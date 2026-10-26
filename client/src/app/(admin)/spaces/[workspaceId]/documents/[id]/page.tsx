@@ -6,6 +6,7 @@ import { Link } from "@/lib/router-compat";
 import { useParams, useSearchParams } from "@/lib/router-compat";
 import { api, ApiError } from "@/lib/api";
 import { downloadBlob } from "@/lib/utils";
+import { clampPdfPage, parsePdfPageParam } from "@/lib/pdf-page";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import type { PdfMatch } from "@/app/(admin)/corpus/[id]/CorpusPdfViewer";
@@ -124,10 +125,7 @@ export default function WorkspaceDocumentViewer() {
   const [pdf, setPdf] = useState<string | null>(null);
   const [query, setQuery] = useState(initialQuery);
   const [matches, setMatches] = useState<Matches | null>(null);
-  const requestedPage = Number(searchParams.get("page"));
-  const [page, setPage] = useState(
-    Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1,
-  );
+  const [page, setPage] = useState(() => parsePdfPageParam(searchParams.get("page")));
   const [pageCount, setPageCount] = useState(0);
   const [active, setActive] = useState(0);
   const [error, setError] = useState("");
@@ -148,7 +146,11 @@ export default function WorkspaceDocumentViewer() {
       { query: { pageNumber: page } },
     )
       .then((info) => {
-        if (alive) setDocument(info);
+        if (alive) {
+          setDocument(info);
+          const knownPageCount = info.extraction?.pageCount ?? info.file?.pageCount ?? 0;
+          if (knownPageCount > 0) setPage((current) => clampPdfPage(current, knownPageCount));
+        }
       })
       .catch((cause: unknown) => {
         if (alive)

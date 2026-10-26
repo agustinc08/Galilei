@@ -254,6 +254,12 @@ async function installApiMocks(
         'responsabilidad civil',
       ]) });
     }
+    if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}/estructura` && method === 'GET') {
+      return route.fulfill({ json: { data: { status: 'NO_STRUCTURE', sections: [] } } });
+    }
+    if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}/cita` && method === 'GET') {
+      return route.fulfill({ json: { data: { citaConPagina: 'María Núñez c/ Peña, Sala C, p. 1' } } });
+    }
     if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}/relaciones-verificadas` && method === 'GET') {
       return route.fulfill({ json: { data: [{
         type: 'CITES',
@@ -697,6 +703,98 @@ test('in-document search extracts a 50-page PDF once and jumps to the matching p
   await searchButton.click();
   await expect(status).toHaveText('1 de 1 · Página 50');
   await expect(page.locator('iframe')).toHaveAttribute('src', /page=50/u);
+});
+
+test('public PDF deep links normalize malformed and out-of-range pages without PDF.js errors', async ({ page }) => {
+  await installApiMocks(page);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+
+  const cases = [
+    { suffix: '?page=999', expected: '2' },
+    { suffix: '?page=0', expected: '1' },
+    { suffix: '?page=-1', expected: '1' },
+    { suffix: '?page=abc', expected: '1' },
+    { suffix: '?page=', expected: '1' },
+    { suffix: '?page=1.5', expected: '1' },
+    { suffix: '', expected: '1' },
+    { suffix: '?page=1', expected: '1' },
+    { suffix: '?page=2', expected: '2' },
+  ];
+
+  for (const { suffix, expected } of cases) {
+    await page.goto(`/consulta/sentencia/${DEMO_RESULT.slugPublico}/documento${suffix}`);
+    await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe(expected);
+    const viewer = page.locator('iframe');
+    await expect(viewer).toBeVisible();
+    if (expected === '1') {
+      await expect(viewer).not.toHaveAttribute('src', /#page=/u);
+    } else {
+      await expect(viewer).toHaveAttribute('src', new RegExp(`#page=${expected}(?:&|$)`, 'u'));
+    }
+  }
+
+  expect(errors).toEqual([]);
+});
+
+test('Corpus PDF deep links normalize before React-PDF requests an invalid page', async ({ page }) => {
+  await installApiMocks(page, true);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+
+  await page.route('**/api/corpus/documents/77**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/structure')) {
+      return route.fulfill({ json: { data: { status: 'NO_STRUCTURE', sections: [] } } });
+    }
+    return route.fulfill({ json: {
+      id: '77',
+      title: 'QA PDF de dos páginas',
+      status: 'READY',
+      source: { code: 'QA' },
+      file: { filename: 'qa.pdf', pageCount: 2, mimeType: 'application/pdf' },
+      extraction: { status: 'EXTRACTED', extractor: 'QA', extractorVersion: '1', extractedAt: '2026-10-26T00:00:00.000Z', pageCount: 2 },
+    } });
+  });
+  await page.route('**/api/corpus/documents/77/file**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/pdf', body: makePdfFixture(['Pagina uno', 'Pagina dos']) });
+  });
+  await page.route('**/api/corpus/curation/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/collections') || path.endsWith('/topics') || path.endsWith('/tags')) {
+      return route.fulfill({ json: [] });
+    }
+    return route.fulfill({ json: {
+      editorialStatus: 'NO_REVIEWED', metadata: null, visibility: 'INTERNAL', anonymizationStatus: 'NOT_REQUIRED',
+      associations: [], classifications: [], digestoCollections: [], digestoTopics: [], digestoTags: [], linkedSentencias: [], history: [],
+    } });
+  });
+
+  const cases = [
+    { suffix: '?page=999', expected: '2' },
+    { suffix: '?page=0', expected: '1' },
+    { suffix: '?page=-1', expected: '1' },
+    { suffix: '?page=abc', expected: '1' },
+    { suffix: '?page=', expected: '1' },
+    { suffix: '?page=1.5', expected: '1' },
+    { suffix: '', expected: '1' },
+    { suffix: '?page=1', expected: '1' },
+    { suffix: '?page=2', expected: '2' },
+  ];
+
+  for (const { suffix, expected } of cases) {
+    await page.goto(`/corpus/77${suffix}`);
+    await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe(expected);
+    await expect(page.getByLabel('Página')).toHaveValue(expected);
+  }
+
+  expect(errors).toEqual([]);
 });
 
 test('search continuity controls remain usable without horizontal overflow at target viewports', async ({ page }) => {

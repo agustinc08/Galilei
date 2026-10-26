@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { api } from '@/lib/api';
+import { clampPdfPage } from '@/lib/pdf-page';
 import type { TextContent, TextItem } from 'pdfjs-dist/types/src/display/api';
 import { alignPdfTextPageMap, buildPdfTextPageMap, mapPdfMatches } from './pdf-match-mapper';
 import type { PdfTextItemInput, PdfTextPageMap } from './pdf-match-mapper';
@@ -47,6 +48,12 @@ export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, 
     key: string;
     pageMap: PdfTextPageMap;
   } | null>(null);
+  const [pageCountState, setPageCountState] = useState<{
+    file: string;
+    count: number;
+  } | null>(null);
+  const pageCount = pageCountState?.file === file ? pageCountState.count : null;
+  const renderedPage = pageCount ? clampPdfPage(page, pageCount) : 1;
   const [structureState, setStructureState] = useState<{
     path: string;
     sections: Array<{ label: string; pageStart: number }>;
@@ -73,6 +80,12 @@ export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, 
   );
   const unresolvedActive = mappings.find((mapping) => mapping.ordinal === active?.ordinal &&
     !['DIRECT_EXACT', 'SEGMENTED_EXACT', 'CONTEXT_EXACT', 'CONTEXT_NORMALIZED_EXACT', 'NORMALIZED_EXACT'].includes(mapping.status));
+
+  useEffect(() => {
+    if (!pageCount) return;
+    const normalizedPage = clampPdfPage(page, pageCount);
+    if (normalizedPage !== page) onGoToPage?.(normalizedPage);
+  }, [onGoToPage, page, pageCount]);
 
   useEffect(() => {
     if (!structurePath) return;
@@ -152,10 +165,13 @@ export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, 
       Encontramos la coincidencia en el texto del documento, pero no pudimos señalarla en la página. Podés continuar desde la lista de coincidencias.
       {(active.context || active.text) && <span> Contexto: {active.context || active.text}</span>}
     </p>}
-    <Document file={file} loading={<p>Cargando PDF…</p>} error={<p>No se pudo mostrar el PDF. Podés descargarlo y consultar la información del documento.</p>} onLoadSuccess={({ numPages }) => onLoadSuccess(numPages)}>
+    <Document file={file} loading={<p>Cargando PDF…</p>} error={<p>No se pudo mostrar el PDF. Podés descargarlo y consultar la información del documento.</p>} onLoadSuccess={({ numPages }) => {
+      setPageCountState({ file, count: numPages });
+      onLoadSuccess(numPages);
+    }}>
       <Page
-        key={`${page}-${activeMatch}`}
-        pageNumber={page}
+        key={`${renderedPage}-${activeMatch}`}
+        pageNumber={renderedPage}
         width={width}
         renderTextLayer
         renderAnnotationLayer

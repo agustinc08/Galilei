@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { parsePdfPageParam } from '@/lib/pdf-page';
 import type { ApiResponse } from '@/types/common';
 import type { ArchivoPdf } from '@/types/archivo';
 import type { FichaSentencia } from '@/types/sentencia';
@@ -33,10 +34,7 @@ export default function ConsultaSentenciaDocumentoPage() {
   const params = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
   const slug = params.slug;
-  const requestedPageValue = Number(searchParams.get('page'));
-  const requestedPage = Number.isInteger(requestedPageValue) && requestedPageValue > 0
-    ? requestedPageValue
-    : null;
+  const requestedPage = parsePdfPageParam(searchParams.get('page'));
   const [data, setData] = useState<FichaSentencia | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

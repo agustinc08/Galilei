@@ -7,6 +7,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { downloadBlob } from '@/lib/utils';
+import { clampPdfPage } from '@/lib/pdf-page';
 import {
   extractPdfTextPages,
   formatPdfPassageCitation,
@@ -69,7 +70,7 @@ export function PdfViewer({
   const [blobData, setBlobData] = useState<Blob | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(downloadPath));
   const [error, setError] = useState<string | null>(null);
-  const externalPage = typeof page === 'number' && page >= 1 ? page : null;
+  const externalPage = Number.isSafeInteger(page) && (page ?? 0) > 0 ? page! : 1;
   const [pageOverride, setPageOverride] = useState<{
     externalPage: number | null;
     value: number;
@@ -91,11 +92,15 @@ export function PdfViewer({
   const structureStatus = structureMatchesPath ? structureState?.status ?? '' : '';
   const structureLoading = Boolean(structurePath && !structureMatchesPath);
   const [copyStatus, setCopyStatus] = useState('');
-  const currentPage = pageOverride?.externalPage === externalPage
+  const requestedPage = pageOverride?.externalPage === externalPage
     ? pageOverride.value
-    : externalPage ?? 1;
+    : externalPage;
+  // Until PDF.js has a trusted page count, render page 1. A deep link such as
+  // ?page=999 must never reach the browser PDF viewer before it can be clamped.
+  const currentPage = pageCount ? clampPdfPage(requestedPage, pageCount) : 1;
   const setCurrentPage = useCallback((value: number) => {
-    const safePage = Math.max(1, Math.min(value, pageCount ?? 100_000));
+    const safeValue = Number.isSafeInteger(value) && value > 0 ? value : 1;
+    const safePage = pageCount ? clampPdfPage(safeValue, pageCount) : safeValue;
     setPageOverride({ externalPage, value: safePage });
   }, [externalPage, pageCount]);
   const [zoom, setZoom] = useState('auto');
@@ -123,7 +128,7 @@ export function PdfViewer({
   }, [currentPage, searchQuery, zoom]);
 
   useEffect(() => {
-    if (!downloadPath || !syncPageToUrl || typeof window === 'undefined') return;
+    if (!downloadPath || !syncPageToUrl || !pageCount || typeof window === 'undefined') return;
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.set('page', String(currentPage));
     window.history.replaceState(
@@ -131,7 +136,7 @@ export function PdfViewer({
       '',
       `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`,
     );
-  }, [currentPage, downloadPath, syncPageToUrl]);
+  }, [currentPage, downloadPath, pageCount, syncPageToUrl]);
 
   useEffect(() => {
     onControlsChange?.(EMPTY_CONTROLS);
@@ -449,11 +454,13 @@ export function PdfViewer({
             <input
               type="number"
               min={1}
+              step={1}
               max={pageCount ?? undefined}
+              disabled={!pageCount}
               value={currentPage}
               onChange={(event) => {
-                const requested = Math.max(1, Number(event.target.value) || 1);
-                setCurrentPage(pageCount ? Math.min(requested, pageCount) : requested);
+                const requested = Number(event.target.value);
+                setCurrentPage(requested);
               }}
             />
           </label>

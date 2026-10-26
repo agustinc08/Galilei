@@ -7,6 +7,7 @@ import { CorpusPdfViewer } from './CorpusPdfViewer';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { downloadBlob } from '@/lib/utils';
+import { clampPdfPage, parsePdfPageParam } from '@/lib/pdf-page';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import styles from './viewer.module.css';
@@ -80,8 +81,7 @@ export default function CorpusDocumentPage() {
   const { user } = useAuth();
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
-  const requestedPage = Number(searchParams.get('page'));
-  const initialPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const initialPage = parsePdfPageParam(searchParams.get('page'));
   const initialQuery = searchParams.get('q') || '';
   const [documentLoad, setDocumentLoad] = useState<DocumentLoadState | null>(null);
   const [page, setPage] = useState(initialPage);
@@ -105,6 +105,11 @@ export default function CorpusDocumentPage() {
   const sourcePageKey = `${params.id}:${page}`;
   const sourcePageText = sourcePageState?.key === sourcePageKey ? sourcePageState.text : null;
   const currentDocumentLoad = documentLoad?.documentId === params.id ? documentLoad : null;
+
+  const handlePdfLoadSuccess = useCallback((count: number) => {
+    setPageCount(count);
+    setPage((current) => clampPdfPage(current, count));
+  }, []);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -248,7 +253,7 @@ export default function CorpusDocumentPage() {
       {error ? <p className={styles.error} role="alert">{error}</p> : null}
       <div className={styles.toolbar}>
         <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>Página anterior</button>
-        <label>Página <input type="number" min={1} max={document?.file?.pageCount ?? undefined} value={page} onChange={(event) => setPage(Math.max(1, Number(event.target.value) || 1))} /></label>
+        <label>Página <input type="number" min={1} step={1} max={pageCount || document?.file?.pageCount || undefined} value={page} onChange={(event) => setPage(parsePdfPageParam(event.target.value))} /></label>
         <span>{pageCount ? `de ${pageCount}` : ''}</span>
         <button type="button" onClick={() => setPage((value) => Math.min(pageCount || value + 1, value + 1))}>Página siguiente</button>
         <form onSubmit={(event) => { event.preventDefault(); void searchInside(); }}>
@@ -270,7 +275,7 @@ export default function CorpusDocumentPage() {
           {matches?.matches[activeMatch]?.textKind === 'OCR' && (
             <p role="status">Texto OCR reconocido para esta página. La navegación y el contexto están disponibles; no se dibujan resaltados visuales de OCR.</p>
           )}
-          {pdfUrl ? <CorpusPdfViewer file={pdfUrl} page={page} sourceText={sourcePageText} matches={matches?.matches ?? []} activeMatch={activeMatch} onLoadSuccess={setPageCount} structurePath={`/corpus/documents/${params.id}/structure`} onGoToPage={setPage} /> : documentLoading ? <Card><p role="status">Cargando PDF…</p></Card> : <Card><p role="status">{documentUnavailable ? 'Documento no disponible.' : 'No se pudo abrir el PDF.'}</p></Card>}
+          {pdfUrl ? <CorpusPdfViewer file={pdfUrl} page={page} sourceText={sourcePageText} matches={matches?.matches ?? []} activeMatch={activeMatch} onLoadSuccess={handlePdfLoadSuccess} structurePath={`/corpus/documents/${params.id}/structure`} onGoToPage={setPage} /> : documentLoading ? <Card><p role="status">Cargando PDF…</p></Card> : <Card><p role="status">{documentUnavailable ? 'Documento no disponible.' : 'No se pudo abrir el PDF.'}</p></Card>}
         </section>
         <aside className={styles.sidePanel}>
           <Card>
