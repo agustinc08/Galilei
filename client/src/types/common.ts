@@ -15,7 +15,7 @@ export type PaginatedResponse<T> = {
     tiempoMs?: number;
     expandedTerms?: string[];
     facets?: {
-      salas: Array<{ value: string; count: number }>;
+      salas: Array<{ value: string; count: number; filterValues: string[] }>;
       years: Array<{ value: number; count: number }>;
     };
   };

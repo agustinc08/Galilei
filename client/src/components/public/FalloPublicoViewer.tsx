@@ -48,6 +48,24 @@ type VerifiedCitationRelationship = {
   };
 };
 
+type SameExpedienteDecision = {
+  id: number;
+  slugPublico: string | null;
+  caratula: string | null;
+  numeroSentencia: string | null;
+  sala: string | null;
+  fecha: string | null;
+  expediente: string | null;
+  tipoFallo: string | null;
+};
+
+type SameExpedienteResponse = {
+  data: SameExpedienteDecision[];
+  total: number;
+  limit: number;
+  hasMore: boolean;
+};
+
 function buildTitle(data: FichaSentencia) {
   const sentencia = data.sentencia;
   return (
@@ -90,6 +108,7 @@ export function FalloPublicoViewer({ identifier }: Props) {
   const [data, setData] = useState<FichaSentencia | null>(null);
   const [relacionados, setRelacionados] = useState<FalloRelacionadoPublico[]>([]);
   const [verifiedRelationships, setVerifiedRelationships] = useState<VerifiedCitationRelationship[]>([]);
+  const [sameExpediente, setSameExpediente] = useState<SameExpedienteResponse | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set());
   const [relationshipMessage, setRelationshipMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -127,7 +146,7 @@ export function FalloPublicoViewer({ identifier }: Props) {
       setError(null);
 
       try {
-        const [documentoResponse, relacionadosResponse, relationshipsResponse] = await Promise.all([
+        const [documentoResponse, relacionadosResponse, relationshipsResponse, sameExpedienteResponse] = await Promise.all([
           api.get<ApiResponse<FichaSentencia>>(
             `/public/sentencias/${identifier}/documento`,
             { skipAuth: true },
@@ -144,12 +163,19 @@ export function FalloPublicoViewer({ identifier }: Props) {
               { skipAuth: true },
             )
             .catch(() => ({ data: [] })),
+          api
+            .get<SameExpedienteResponse>(
+              `/public/sentencias/${identifier}/mismo-expediente`,
+              { query: { limit: 10 }, skipAuth: true },
+            )
+            .catch(() => ({ data: [], total: 0, limit: 10, hasMore: false })),
         ]);
 
         if (!active) return;
         setData(documentoResponse.data);
         setRelacionados(relacionadosResponse.data);
         setVerifiedRelationships(relationshipsResponse.data);
+        setSameExpediente(sameExpedienteResponse);
       } catch (loadError) {
         if (!active) return;
         setError(
@@ -326,6 +352,36 @@ export function FalloPublicoViewer({ identifier }: Props) {
               </div>
             ) : (
               <div className={styles.emptyBox}>Sin fallos relacionados publicados.</div>
+            )}
+          </DocumentoAccordion>
+
+          <DocumentoAccordion title="Otras decisiones del mismo expediente">
+            {sameExpediente?.data.length ? (
+              <>
+                <p>Coincidencia determinística por número y año de expediente; no representa una cita editorial.</p>
+                <div className={styles.relatedList}>
+                  {sameExpediente.data.map((item) => (
+                    <Link
+                      key={item.id}
+                      href={`/fallos/${item.slugPublico ?? item.id}`}
+                      className={styles.relatedItem}
+                    >
+                      <strong>{item.caratula ?? item.numeroSentencia ?? `Fallo ${item.id}`}</strong>
+                      <span>
+                        {[
+                          item.sala ? `Sala ${item.sala}` : null,
+                          item.fecha ? formatDate(item.fecha) : null,
+                          item.numeroSentencia ? `Sentencia ${item.numeroSentencia}` : null,
+                          formatTipoFallo(item.tipoFallo),
+                        ].filter(Boolean).join(' · ')}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+                {sameExpediente.hasMore ? <p>Se muestran {sameExpediente.data.length} de {sameExpediente.total} decisiones.</p> : null}
+              </>
+            ) : (
+              <div className={styles.emptyBox}>No encontramos otras decisiones públicas con el mismo número y año de expediente.</div>
             )}
           </DocumentoAccordion>
         </>

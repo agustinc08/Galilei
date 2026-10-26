@@ -7,6 +7,8 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  ArrayMaxSize,
+  MaxLength,
   Max,
   Min,
 } from 'class-validator';
@@ -49,6 +51,20 @@ function toStringArray(value: unknown): string[] | undefined {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function toSalaValues(value: unknown): string[] | undefined {
+  const values = Array.isArray(value) ? value : [value];
+  const result = [
+    ...new Set(
+      values.flatMap((item) => {
+        if (typeof item !== 'string') return [];
+        const normalized = item.trim();
+        return normalized ? [normalized] : [];
+      }),
+    ),
+  ];
+  return result.length ? result : undefined;
 }
 
 export class PublicBusquedaQueryDto {
@@ -96,6 +112,17 @@ export class PublicBusquedaQueryDto {
   @IsOptional()
   @IsString()
   sala?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Valores indexados exactos de una faceta de Sala normalizada',
+  })
+  @IsOptional()
+  @Transform(({ value }) => toSalaValues(value))
+  @IsString({ each: true })
+  @MaxLength(160, { each: true })
+  @ArrayMaxSize(100)
+  salas?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()

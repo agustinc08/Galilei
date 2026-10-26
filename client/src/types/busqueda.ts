@@ -206,6 +206,8 @@ export type ConsultaPublicaFilters = {
   operador?: 'AND' | 'OR' | '';
   tema?: string;
   sala?: string;
+  /** Exact indexed values represented by one normalized public Sala facet. */
+  salas?: string[];
   fechaDesde?: string;
   fechaHasta?: string;
   tipoFallo?: string;

@@ -28,6 +28,10 @@ import { UpdateResenaDto } from './dto/update-resena.dto';
 import { UpdateResumenDto } from './dto/update-resumen.dto';
 import { UpdateSentenciaDto } from './dto/update-sentencia.dto';
 import { formatCitation } from './utils/citation-formatter';
+import {
+  expedienteEquivalentValues,
+  normalizeExpediente,
+} from './utils/expediente-normalizer';
 
 type CitaData = {
   citaBreve: string;
@@ -1366,6 +1370,55 @@ export class SentenciasService {
       },
     });
     return { data };
+  }
+
+  async findPublicSameExpediente(identifier: string, limit = 10) {
+    const current = await this.prisma.sentencia.findFirst({
+      where: this.publicIdentifierWhere(identifier),
+      select: { id: true, expediente: true },
+    });
+    if (!current)
+      throw new NotFoundException('Sentencia pública no encontrada');
+    const normalized = normalizeExpediente(current.expediente);
+    const equivalentValues = expedienteEquivalentValues(current.expediente);
+    if (!normalized || !equivalentValues.length)
+      return { data: [], total: 0, hasMore: false, limit };
+
+    const where: Prisma.SentenciaWhereInput = {
+      id: { not: current.id },
+      publicado: true,
+      activo: true,
+      expediente: { in: equivalentValues, mode: 'insensitive' },
+    };
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 10), 1), 20);
+    const [total, candidates] = await Promise.all([
+      this.prisma.sentencia.count({ where }),
+      this.prisma.sentencia.findMany({
+        where,
+        orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
+        take: safeLimit + 1,
+        select: {
+          id: true,
+          slugPublico: true,
+          caratula: true,
+          numeroSentencia: true,
+          sala: true,
+          fecha: true,
+          expediente: true,
+          tipoFallo: true,
+        },
+      }),
+    ]);
+    const exactMatches = candidates.filter(
+      (candidate) => normalizeExpediente(candidate.expediente) === normalized,
+    );
+    const data = exactMatches.slice(0, safeLimit);
+    return {
+      data,
+      total,
+      limit: safeLimit,
+      hasMore: total > data.length,
+    };
   }
 
   async findPotentialDuplicates(id: number) {

@@ -412,6 +412,7 @@ function dayAfter(value?: Date) {
 }
 function searchFilters(query: {
   sala?: string;
+  salas?: string[];
   fechaDesde?: Date;
   fechaHasta?: Date;
   fraseExacta?: string;
@@ -444,6 +445,7 @@ function searchFilters(query: {
     exactPhrase: query.fraseExacta,
     excludeTerms: query.excluir,
     sala: query.sala,
+    salas: query.salas,
     fechaDesde: asDateString(query.fechaDesde),
     fechaHastaExclusive: dayAfter(query.fechaHasta),
     expediente: query.expediente,

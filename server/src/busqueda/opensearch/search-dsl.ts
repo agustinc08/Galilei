@@ -371,7 +371,7 @@ function appendCorpusFilters(filters: Clause[], context: SearchContext) {
     });
   if (input?.types?.length)
     filters.push({ terms: { mimeType: mimeTypes(input.types) } });
-  if (input?.sala) filters.push({ term: { chamber: input.sala } });
+  appendSalaFilter(filters, input?.sala, input?.salas);
   appendTextFilter(
     filters,
     'filterFields.caseNumber',
@@ -391,11 +391,18 @@ function appendCorpusFilters(filters: Clause[], context: SearchContext) {
 
 function appendJurisprudenceFilters(filters: Clause[], context: SearchContext) {
   const input = context.filters;
+  if (input?.sentenceIds !== undefined) {
+    filters.push(
+      input.sentenceIds.length
+        ? { terms: { logicalNumericId: input.sentenceIds } }
+        : { match_none: {} },
+    );
+  }
   const fields =
     context.visibility === 'PUBLIC' ? 'publicFilterFields' : 'filterFields';
   const searchFields =
     context.visibility === 'PUBLIC' ? 'publicFields' : 'fields';
-  if (input?.sala) filters.push({ term: { chamber: input.sala } });
+  appendSalaFilter(filters, input?.sala, input?.salas);
   const after = input?.dateFrom ?? input?.fechaDesde;
   const before =
     input?.fechaHastaExclusive ??
@@ -448,6 +455,17 @@ function appendJurisprudenceFilters(filters: Clause[], context: SearchContext) {
   if (input?.soloConResumen) filters.push({ term: { hasSummary: true } });
   if (input?.destacada !== undefined)
     filters.push({ term: { featured: input.destacada } });
+}
+
+function appendSalaFilter(filters: Clause[], sala?: string, salas?: string[]) {
+  const values = [
+    ...new Set((salas ?? []).filter((value) => value.length > 0)),
+  ];
+  if (values.length) {
+    filters.push({ terms: { chamber: values } });
+    return;
+  }
+  if (sala) filters.push({ term: { chamber: sala } });
 }
 
 function appendTextFilter(filters: Clause[], field: string, value?: string) {

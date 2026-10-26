@@ -32,6 +32,12 @@ const PRINT_STORAGE_KEY = 'consulta-print-payload';
 function buildQueryString(values: ConsultaPublicaFilters) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(values)) {
+    if (Array.isArray(value)) {
+      for (const item of [...new Set(value.map((entry) => entry.trim()).filter(Boolean))]) {
+        params.append(key, item);
+      }
+      continue;
+    }
     if (value !== undefined && value !== null && value !== '') {
       params.set(key, String(value));
     }
@@ -46,7 +52,8 @@ function filtersFromSearchParams(searchParams: URLSearchParams): ConsultaPublica
     excluir: searchParams.get('excluir') ?? '',
     operador: (searchParams.get('operador') as ConsultaPublicaFilters['operador']) ?? 'AND',
     tema: searchParams.get('tema') ?? '',
-    sala: searchParams.get('sala') ?? '',
+    sala: searchParams.getAll('salas').length ? '' : (searchParams.get('sala') ?? ''),
+    salas: [...new Set(searchParams.getAll('salas').map((value) => value.trim()).filter(Boolean))],
     fechaDesde: searchParams.get('fechaDesde') ?? '',
     fechaHasta: searchParams.get('fechaHasta') ?? '',
     tipoFallo: searchParams.get('tipoFallo') ?? '',
@@ -217,10 +224,20 @@ function ConsultaPublicaScreenContent() {
 
   const currentData = result?.data ?? [];
   const selectedItems = currentData.filter((item) => selectedIds.includes(item.id));
+  const selectedSalaFacet = (values: string[]) => {
+    const selected = [...new Set(filters.salas ?? [])].sort();
+    const candidate = [...new Set(values)].sort();
+    return selected.length === candidate.length && selected.every((value, index) => value === candidate[index]);
+  };
+  const salaFilterLabel = filters.salas?.length
+    ? result?.meta.facets?.salas.find((facet) => selectedSalaFacet(facet.filterValues))?.value ?? filters.salas.join(' / ')
+    : filters.sala
+      ? (filters.sala.toLowerCase().startsWith('sala') ? filters.sala : `Sala ${filters.sala}`)
+      : '';
   const activeFilters = ([
     { key: 'q', label: 'Búsqueda', value: filters.q ?? '' },
     { key: 'tema', label: 'Tema', value: filters.tema ?? '' },
-    { key: 'sala', label: 'Sala', value: filters.sala ? (filters.sala.toLowerCase().startsWith('sala') ? filters.sala : `Sala ${filters.sala}`) : '' },
+    { key: 'sala', label: 'Sala', value: salaFilterLabel },
     { key: 'fechaDesde', label: 'Desde', value: filters.fechaDesde ? new Date(`${filters.fechaDesde}T12:00:00`).toLocaleDateString('es-AR') : '' },
     { key: 'fechaHasta', label: 'Hasta', value: filters.fechaHasta ? new Date(`${filters.fechaHasta}T12:00:00`).toLocaleDateString('es-AR') : '' },
     { key: 'tipoFallo', label: 'Tipo', value: filters.tipoFallo ?? '' },
@@ -259,6 +276,7 @@ function ConsultaPublicaScreenContent() {
     updateRoute(() => ({
       ...nextValues,
       sala,
+      salas: [],
       pdf,
       soloConPdf: '',
       page: 1,
@@ -452,7 +470,7 @@ function ConsultaPublicaScreenContent() {
               <button
                 type="button"
                 aria-label={`Quitar filtro ${filter.label}`}
-                onClick={() => updateRoute((current) => ({ ...current, [filter.key]: '', page: 1 }))}
+                onClick={() => updateRoute((current) => ({ ...current, [filter.key]: '', ...(filter.key === 'sala' ? { salas: [] } : {}), page: 1 }))}
               >×</button>
             </span>
           ))}
@@ -500,7 +518,7 @@ function ConsultaPublicaScreenContent() {
                 <h3>Salas</h3>
                 <div className={styles.facetList}>
                   {result.meta.facets.salas.map((facet) => (
-                    <Button key={facet.value} variant={filters.sala === facet.value ? 'primary' : 'secondary'} onClick={() => updateRoute((current) => ({ ...current, sala: current.sala === facet.value ? '' : facet.value, page: 1 }))}>
+                    <Button key={facet.value} variant={selectedSalaFacet(facet.filterValues) ? 'primary' : 'secondary'} onClick={() => updateRoute((current) => ({ ...current, sala: '', salas: selectedSalaFacet(facet.filterValues) ? [] : facet.filterValues, page: 1 }))}>
                       {facet.value} ({facet.count.toLocaleString('es-AR')})
                     </Button>
                   ))}

@@ -2,6 +2,52 @@ import { parseSearchQuery } from '../utils/search-parser';
 import { buildSearchQueryDsl, translateSearchNode } from './search-dsl';
 
 describe('OpenSearch Galilei DSL', () => {
+  it('restricts novelty searches to the published candidate judgment ids', () => {
+    const query = buildSearchQueryDsl(
+      parseSearchQuery('responsabilidad civil'),
+      {
+        visibility: 'PUBLIC',
+        dialect: 'modern',
+        publicationPolicy: 'published-active-only',
+        documentKinds: ['SENTENCIA'],
+        filters: { sentenceIds: [12, 34] },
+      },
+      { source: 'JURISPRUDENCIA' },
+    );
+    expect(JSON.stringify(query)).toContain('"logicalNumericId":[12,34]');
+    expect(JSON.stringify(query)).toContain('"publicationStatus":"PUBLISHED"');
+  });
+
+  it('matches no judgments when an internal candidate restriction is empty', () => {
+    const query = buildSearchQueryDsl(
+      parseSearchQuery('civil'),
+      {
+        visibility: 'PUBLIC',
+        dialect: 'modern',
+        publicationPolicy: 'published-active-only',
+        filters: { sentenceIds: [] },
+      },
+      { source: 'JURISPRUDENCIA' },
+    );
+    expect(JSON.stringify(query)).toContain('"match_none":{}');
+  });
+
+  it('filters a normalized Sala facet by its exact indexed aliases', () => {
+    const query = buildSearchQueryDsl(
+      parseSearchQuery('civil'),
+      {
+        visibility: 'PUBLIC',
+        dialect: 'modern',
+        publicationPolicy: 'published-active-only',
+        filters: { salas: ['A', 'Sala A'] },
+      },
+      { source: 'JURISPRUDENCIA' },
+    );
+    expect(JSON.stringify(query)).toContain(
+      '"terms":{"chamber":["A","Sala A"]}',
+    );
+  });
+
   it('uses lexical-token prefix for normal terms and exact tokens for quoted words', () => {
     const prefix = translateSearchNode(parseSearchQuery('responsab').root);
     const exact = translateSearchNode(parseSearchQuery('"civil"').root);

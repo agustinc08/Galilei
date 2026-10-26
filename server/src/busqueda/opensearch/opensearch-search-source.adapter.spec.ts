@@ -102,7 +102,15 @@ describe('OpenSearchSearchSourceAdapter', () => {
         },
         aggregations: {
           publicFacets: {
-            salas: { buckets: [{ key: 'Sala H', doc_count: 1 }] },
+            salas: {
+              buckets: [
+                { key: 'Sala H', doc_count: 1 },
+                { key: 'H', doc_count: 2 },
+                { key: 'Sala de Familia', doc_count: 3 },
+                { key: 'de Familia', doc_count: 4 },
+                { key: ' Sala   H ', doc_count: 5 },
+              ],
+            },
             years: { buckets: [{ key_as_string: '2024', doc_count: 1 }] },
           },
         },
@@ -128,7 +136,19 @@ describe('OpenSearchSearchSourceAdapter', () => {
     });
 
     expect(result.facets).toEqual({
-      salas: [{ value: 'Sala H', count: 1 }],
+      salas: [
+        {
+          value: 'Sala H',
+          count: 8,
+          filterValues: [' Sala   H ', 'H', 'Sala H'],
+        },
+        { value: 'de Familia', count: 4, filterValues: ['de Familia'] },
+        {
+          value: 'Sala de Familia',
+          count: 3,
+          filterValues: ['Sala de Familia'],
+        },
+      ],
       years: [{ value: 2024, count: 1 }],
     });
     const calls = search.mock.calls as unknown as Array<
@@ -139,6 +159,46 @@ describe('OpenSearchSearchSourceAdapter', () => {
       publicFacets: { filter: { match_all: {} } },
     });
     expect(requestBody?.query).toBeDefined();
+  });
+
+  it('requests enough raw Sala terms to merge one-letter aliases without merging distinct names', async () => {
+    const search = jest.fn().mockResolvedValue({
+      body: {
+        hits: { total: { value: 0, relation: 'eq' }, hits: [] },
+        aggregations: {
+          publicFacets: {
+            salas: {
+              buckets: [
+                { key: 'A', doc_count: 1 },
+                { key: 'Sala A', doc_count: 2 },
+              ],
+            },
+            years: { buckets: [] },
+          },
+        },
+      },
+    });
+    const adapter = new OpenSearchSearchSourceAdapter(
+      { search } as unknown as Client,
+      'galilei-search-active',
+      'JURISPRUDENCIA',
+      () => ({ total: 0, page: 1, pageSize: 10, results: [] }),
+    );
+
+    const result = await adapter.search(parseSearchQuery('civil'), {
+      ...context,
+      visibility: 'PUBLIC',
+      page: 1,
+      pageSize: 10,
+    });
+
+    expect(result.facets?.salas).toEqual([
+      { value: 'Sala A', count: 3, filterValues: ['A', 'Sala A'] },
+    ]);
+    const requestBody = (
+      search.mock.calls as unknown as Array<[{ body?: { aggs?: unknown } }]>
+    )[0]?.[0]?.body;
+    expect(JSON.stringify(requestBody?.aggs)).toContain('"size":256');
   });
 
   it('chunks large PostgreSQL hydration pages and restores the full Search order', async () => {

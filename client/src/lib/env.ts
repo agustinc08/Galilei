@@ -21,12 +21,18 @@ if (rawApiUrl.startsWith('/')) {
 export const API_BASE_URL = rawApiUrl.replace(/\/+$/u, '');
 export const API_ORIGIN = API_BASE_URL.startsWith('/') ? '' : new URL(API_BASE_URL).origin;
 
-export function buildApiUrl(path: string, query?: Record<string, string | number | boolean | undefined | null>) {
+export function buildApiUrl(path: string, query?: Record<string, string | number | boolean | string[] | undefined | null>) {
   const normalizedPath = path.replace(/^\/+/, '');
   const url = new URL(`${API_BASE_URL}/${normalizedPath}`, window.location.origin);
 
   if (query) {
     for (const [key, value] of Object.entries(query)) {
+      if (Array.isArray(value)) {
+        for (const entry of value) {
+          if (entry) url.searchParams.append(key, entry);
+        }
+        continue;
+      }
       if (value !== undefined && value !== null && value !== '') {
         url.searchParams.set(key, String(value));
       }

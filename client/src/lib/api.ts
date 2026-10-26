@@ -13,7 +13,7 @@ export class ApiError extends Error {
 }
 
 type RequestOptions = RequestInit & {
-  query?: Record<string, string | number | boolean | undefined | null>;
+  query?: Record<string, string | number | boolean | string[] | undefined | null>;
   skipAuth?: boolean;
 };
 

@@ -14,6 +14,8 @@ export type SearchContext = {
   pageSize?: number;
   filters?: {
     sala?: string;
+    /** Exact indexed chamber values represented by one normalized public facet. */
+    salas?: string[];
     fechaDesde?: string;
     fechaHastaExclusive?: string;
     /** ISO calendar dates; both endpoints are inclusive and use CorpusDocument.decisionDate. */
@@ -47,6 +49,8 @@ export type SearchContext = {
     soloConResumen?: boolean;
     destacada?: boolean;
     buscarEn?: string[];
+    /** Internal candidate restriction used by saved-search novelty evaluation. */
+    sentenceIds?: number[];
   };
   sourceSystems?: Array<'JURISPRUDENCIA' | 'DIGESTO' | 'CORPUS'>;
   /** Restricts the logical document types after the engine has selected a source. */
@@ -99,7 +103,7 @@ export type SearchResultPage = {
 };
 
 export type SearchResultFacets = {
-  salas: Array<{ value: string; count: number }>;
+  salas: Array<{ value: string; count: number; filterValues: string[] }>;
   years: Array<{ value: number; count: number }>;
 };
 

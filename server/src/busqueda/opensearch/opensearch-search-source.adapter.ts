@@ -655,7 +655,7 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
                     salas: {
                       terms: {
                         field: 'chamber',
-                        size: 30,
+                        size: 256,
                         order: { _count: 'desc' },
                       },
                     },
@@ -700,11 +700,47 @@ function parsePublicFacets(
     NonNullable<SearchResponseBody['aggregations']>['publicFacets']
   >,
 ): SearchResultFacets {
-  const salas = (value.salas?.buckets ?? []).flatMap((bucket) =>
-    typeof bucket.key === 'string' && Number.isSafeInteger(bucket.doc_count)
-      ? [{ value: bucket.key, count: bucket.doc_count as number }]
-      : [],
-  );
+  const salaGroups = new Map<
+    string,
+    { value: string; count: number; filterValues: Set<string> }
+  >();
+  for (const bucket of value.salas?.buckets ?? []) {
+    if (
+      typeof bucket.key !== 'string' ||
+      !bucket.key.trim() ||
+      !Number.isSafeInteger(bucket.doc_count) ||
+      (bucket.doc_count as number) < 0
+    )
+      continue;
+
+    const rawValue = bucket.key;
+    const collapsed = rawValue.trim().replace(/\s+/gu, ' ');
+    const code = collapsed.match(/^(?:sala\s+)?([\p{L}\d])$/iu)?.[1];
+    const canonicalCode = code?.toLocaleUpperCase('es-AR');
+    const identity = canonicalCode
+      ? `chamber-code:${canonicalCode}`
+      : `label:${collapsed}`;
+    const displayValue = canonicalCode ? `Sala ${canonicalCode}` : collapsed;
+    const group = salaGroups.get(identity) ?? {
+      value: displayValue,
+      count: 0,
+      filterValues: new Set<string>(),
+    };
+    group.count += bucket.doc_count as number;
+    group.filterValues.add(rawValue);
+    salaGroups.set(identity, group);
+  }
+  const salas = [...salaGroups.values()]
+    .map((group) => ({
+      ...group,
+      filterValues: [...group.filterValues].sort(compareUtf8OrderedStrings),
+    }))
+    .sort(
+      (left, right) =>
+        right.count - left.count ||
+        compareUtf8OrderedStrings(left.value, right.value),
+    )
+    .slice(0, 30);
   const years = (value.years?.buckets ?? []).flatMap((bucket) => {
     const year = Number(
       bucket.key_as_string ??

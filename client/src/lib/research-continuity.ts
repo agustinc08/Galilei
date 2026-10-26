@@ -7,6 +7,7 @@ export const PUBLIC_SEARCH_STATE_KEYS = [
   'operador',
   'tema',
   'sala',
+  'salas',
   'fechaDesde',
   'fechaHasta',
   'tipoFallo',
@@ -35,6 +36,11 @@ export type PublicSearchState = Partial<ConsultaPublicaFilters>;
 export function canonicalPublicSearchPath(search: URLSearchParams) {
   const params = new URLSearchParams();
   for (const key of PUBLIC_SEARCH_STATE_KEYS) {
+    if (key === 'salas') {
+      const values = [...new Set(search.getAll(key).map((value) => value.trim()).filter(Boolean))];
+      for (const value of values) params.append(key, value);
+      continue;
+    }
     const value = search.get(key)?.trim();
     if (!value) continue;
     if (key === 'operador' && value === 'AND') continue;
@@ -47,8 +53,13 @@ export function canonicalPublicSearchPath(search: URLSearchParams) {
 }
 
 export function publicSearchStateFromUrl(search: URLSearchParams): PublicSearchState {
-  const state: Record<string, string | number> = {};
+  const state: Record<string, string | number | string[]> = {};
   for (const key of PUBLIC_SEARCH_STATE_KEYS) {
+    if (key === 'salas') {
+      const values = [...new Set(search.getAll(key).map((value) => value.trim()).filter(Boolean))];
+      if (values.length) state[key] = values;
+      continue;
+    }
     const value = search.get(key)?.trim();
     if (!value) continue;
     if (key === 'page' || key === 'pageSize' || key === 'anio') {
@@ -70,6 +81,15 @@ export function publicSearchPathFromSaved(queryJson: Record<string, unknown>) {
   const state = savedState as Record<string, unknown>;
   for (const key of PUBLIC_SEARCH_STATE_KEYS) {
     const value = state[key];
+    if (key === 'salas' && Array.isArray(value)) {
+      const values = [...new Set(value.flatMap((entry) => {
+        if (typeof entry !== 'string') return [];
+        const normalized = entry.trim();
+        return normalized && isValidSavedValue(key, normalized) ? [normalized] : [];
+      }))];
+      for (const entry of values) params.append(key, entry);
+      continue;
+    }
     if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') continue;
     const normalized = String(value).trim();
     if (!normalized) continue;
@@ -81,6 +101,7 @@ export function publicSearchPathFromSaved(queryJson: Record<string, unknown>) {
 }
 
 function isValidSavedValue(key: typeof PUBLIC_SEARCH_STATE_KEYS[number], value: string) {
+  if (key === 'salas') return value.length > 0 && value.length <= 160;
   if (key === 'operador') return value === 'AND' || value === 'OR';
   if (key === 'sortOrder') return value === 'asc' || value === 'desc';
   if (key === 'sortBy') return ['fecha', 'relevancia', 'sala', 'numeroSentencia'].includes(value);

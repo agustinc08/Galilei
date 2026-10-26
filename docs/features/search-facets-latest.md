@@ -1,6 +1,8 @@
 # Facetas y jurisprudencia reciente
 
-La búsqueda pública expone facetas de **Sala** y **año de decisión**. OpenSearch las calcula en la misma petición, con el mismo query DSL y los filtros activos que producen la página de resultados. Las facetas no cambian el ranking, el orden, el total ni el contrato léxico; activar una faceta actualiza `sala` o `anio` en la URL y reinicia la paginación. Los conteos son exactos para la consulta filtrada. Se muestran hasta 30 salas y todos los años que devuelve el histograma del índice.
+La búsqueda pública expone facetas de **Sala** y **año de decisión**. OpenSearch las calcula en la misma petición, con el mismo query DSL y los filtros activos que producen la página de resultados. Las facetas no cambian el ranking, el orden, el total ni el contrato léxico; activar una faceta actualiza `sala` o `salas` (para alias agrupados) y `anio` en la URL, y reinicia la paginación. Los conteos son exactos para la consulta filtrada. Se muestran hasta 30 salas y todos los años que devuelve el histograma del índice.
+
+En Suite 2, sólo los alias que consisten en una letra/dígito —por ejemplo `H` y `Sala H`— se agrupan bajo `Sala H`. El frontend transmite todos los valores originales como parámetros `salas` repetidos; el backend aplica un `terms` exacto sobre esos valores, preservando el conteo agregado y evitando unir salas con nombres completos distintos. Las búsquedas guardadas conservan el array multivalor.
 
 La interfaz mantiene dos cronologías con significado explícito:
 

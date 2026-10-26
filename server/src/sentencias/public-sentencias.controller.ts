@@ -1,8 +1,9 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
 import { IaService } from '../ia/ia.service';
 import { SentenciasService } from './sentencias.service';
+import { SameExpedienteQueryDto } from './dto/same-expediente-query.dto';
 
 @ApiTags('public-sentencias')
 @Public()
@@ -63,6 +64,17 @@ export class PublicSentenciasController {
       throw new Error('Identidad pública de sentencia inválida');
     }
     return this.iaService.buscarSimilaresPublicos(identity.id, 5);
+  }
+
+  @Get(':slug/mismo-expediente')
+  @ApiOperation({
+    summary: 'Lista otras sentencias públicas del mismo expediente exacto',
+  })
+  mismoExpediente(
+    @Param('slug') slug: string,
+    @Query() query: SameExpedienteQueryDto,
+  ) {
+    return this.sentenciasService.findPublicSameExpediente(slug, query.limit);
   }
 
   @Get(':slug')
