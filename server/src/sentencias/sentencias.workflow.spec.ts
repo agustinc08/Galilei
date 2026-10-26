@@ -53,6 +53,38 @@ describe('Sprint J9 jurisprudencia workflow', () => {
     ).toContain('JURISPRUDENCIA');
   });
 
+  it('allows jurisprudence editors to view sentence PDFs without expanding write permissions', () => {
+    const guard = new RolesGuard(new Reflector());
+    const contextFor = (handler: object, role: string): ExecutionContext =>
+      ({
+        getHandler: () => handler,
+        getClass: () => ArchivosController,
+        switchToHttp: () => ({
+          getRequest: () => ({ user: { rol: { nombre: role } } }),
+        }),
+      }) as unknown as ExecutionContext;
+
+    expect(
+      guard.canActivate(
+        contextFor(ArchivosController.prototype.download, 'JURISPRUDENCIA'),
+      ),
+    ).toBe(true);
+    expect(() =>
+      guard.canActivate(
+        contextFor(ArchivosController.prototype.download, 'LECTOR'),
+      ),
+    ).toThrow(ForbiddenException);
+    expect(
+      Reflect.getMetadata(ROLES_KEY, ArchivosController.prototype.download),
+    ).toEqual(['ADMIN', 'OPERADOR', 'JURISPRUDENCIA']);
+    expect(
+      Reflect.getMetadata(
+        ROLES_KEY,
+        ArchivosController.prototype.uploadSentenciaPdf,
+      ),
+    ).toBeUndefined();
+  });
+
   it('forces a direct create request into draft state and strips workflow fields from metadata edits', async () => {
     const service = {
       create: jest.fn().mockResolvedValue({}),

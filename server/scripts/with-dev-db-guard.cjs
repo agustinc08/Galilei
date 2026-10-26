@@ -126,6 +126,8 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/opensearch-contract-check.ts',
   'opensearch-http-smoke':
     'pnpm.cmd exec ts-node scripts/dev/opensearch-http-smoke.ts',
+  'sprint4-search-readonly-golden':
+    'pnpm.cmd exec ts-node scripts/dev/sprint4-search-readonly-golden.ts',
   'int151-critical-reference':
     'pnpm.cmd exec ts-node scripts/dev/int151-critical-reference.ts',
   'int151-names-http': 'pnpm.cmd exec ts-node scripts/dev/int151-names-http.ts',
@@ -404,6 +406,7 @@ const actions = {
     'node scripts/dev/sprint-j8-civil-certification.cjs',
   'sprint-j9-readonly-audit': 'node scripts/dev/sprint-j9-readonly-audit.cjs',
   'sprint3-readonly-sample': 'node scripts/dev/sprint3-readonly-sample.cjs',
+  'editorial-gold-sample': 'node scripts/dev/editorial-gold-sample.cjs',
   'sprint-j911-readonly-audit':
     'node scripts/dev/sprint-j911-readonly-audit.cjs',
   'sprint-j901-eligibility':
@@ -798,7 +801,19 @@ const childEnv = {
     action === 'sprint3-readonly-sample'
       ? path.resolve(__dirname, '../../_recovery-work/galilei-structured-citations-suite3')
       : '',
+  BJC_EDITORIAL_GOLD_ARGS:
+    action === 'editorial-gold-sample'
+      ? JSON.stringify(process.argv.slice(3))
+      : '',
+  BJC_EDITORIAL_GOLD_EVIDENCE_ROOT:
+    action === 'editorial-gold-sample'
+      ? path.resolve(__dirname, '../../_recovery-work/galilei-editorial-gold-recall-suite4')
+      : '',
   BJC_SPRINT3_QA_SEED: action === 'sprint3-qa-seed' ? 'true' : '',
+  BJC_SPRINT3_QA_EVIDENCE_ROOT:
+    action === 'sprint3-qa-seed'
+      ? path.resolve(__dirname, '../../_recovery-work/galilei-editorial-gold-recall-suite4/p3-qa')
+      : '',
 };
 if (action === 'sprint151-ui-tests') {
   fs.mkdirSync(childEnv.BJC_CORPUS_STORAGE_PATH, { recursive: true });

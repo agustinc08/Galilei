@@ -32,3 +32,7 @@ No se resuelve por coincidencia aproximada, primer registro, año supuesto, text
 En una muestra read-only de 200 fallos se contaron 6.074 candidatos; 154 autoreferencias exactas se suprimieron. De 689 identificadores normalizables restantes, 68 coincidieron de forma única y 621 quedaron sin destino exacto; ninguno fue ambiguo. La revisión manual de 50 candidatos estratificados encontró referencias válidas en los 50; esta muestra no mide recall ni precisión corpus-wide. Los detalles y las formas observadas están en [investigación](research/argentine-citation-patterns-v2.md).
 
 Las fechas de dos dígitos no reciben siglo. Docket abreviado, documentos con expedientes acumulados, reporterías poco frecuentes y texto OCR pueden quedar sin resolver o requerir revisión. Esa incertidumbre se conserva en el candidato.
+
+## Benchmark exhaustivo civil-gold-v1
+
+El muestreo, la asignación de revisión y la evaluación reproducible se documentan en [Editorial Gold v1](research/editorial-gold-v1.md) y [análisis de recall](research/citation-recall-analysis.md). El set de 150 fallos de citas requiere anotación humana exhaustiva. Hasta recibirla, precisión, recall, F1, métricas por familia, resultados de resolución y prevalencia ponderada permanecen `PENDING_HUMAN_GOLD`. Los candidatos del parser se guardan aparte y no se usan como etiquetas. No se cambia la versión ni se escribe al corpus principal sin evidencia humana.

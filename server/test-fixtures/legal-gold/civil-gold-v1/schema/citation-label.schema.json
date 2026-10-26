@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://galilei.local/schemas/civil-gold-v1-citation-label.json",
+  "title": "Civil Gold v1 exhaustive citation annotation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sampleId", "documentId", "sourceHash", "status", "exhaustive", "reviewerId", "reviewedAt", "references"],
+  "properties": {
+    "sampleId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
+    "documentId": { "type": "string", "minLength": 1 },
+    "sourceHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "status": { "const": "HUMAN_REVIEW_COMPLETE" },
+    "exhaustive": { "const": true },
+    "reviewerId": { "type": "string", "minLength": 2, "maxLength": 80 },
+    "reviewedAt": { "type": "string", "format": "date-time" },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["page", "rawCitation", "decision", "family", "expectedParsedFields", "expectedTarget", "resolutionExpectation", "resolutionReason", "notes"],
+        "properties": {
+          "page": { "type": "integer", "minimum": 1 },
+          "rawCitation": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "decision": { "enum": ["DETECT", "DO_NOT_DETECT"] },
+          "family": { "type": ["string", "null"], "enum": ["EXPEDIENTE_IDENTIFIER", "CIVIL_EXPEDIENTE", "CNCIV_ROLLO", "CNCIV_SALA_DATE", "CSJN_FALLOS", "CSJN_CASE", "CSJN_DECISION_DATE", "OTHER_COURT", "STATUTE_REFERENCE", null] },
+          "expectedParsedFields": { "type": ["object", "null"], "additionalProperties": { "type": ["string", "number", "null"] } },
+          "expectedTarget": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["documentId", "sourceHash"],
+            "properties": {
+              "documentId": { "type": ["string", "null"] },
+              "sourceHash": { "type": ["string", "null"], "pattern": "^([a-f0-9]{64})?$" }
+            }
+          },
+          "resolutionExpectation": { "enum": ["UNIQUE", "AMBIGUOUS", "UNRESOLVED", "SELF_REFERENCE", "STATUTE_ONLY", "OUT_OF_SCOPE"] },
+          "resolutionReason": { "enum": ["NO_TARGET_IN_CORPUS", "INSUFFICIENT_TARGET_METADATA", "PARSER_FIELDS_INSUFFICIENT", "NORMALIZATION_MISMATCH", "MULTIPLE_TARGETS", "UNPUBLISHED_OR_INACTIVE", "UNSUPPORTED_EXTERNAL_COURT", "SELF_REFERENCE", "STATUTE_ONLY", "NOT_APPLICABLE", "OTHER"] },
+          "notes": { "type": ["string", "null"], "maxLength": 1000 }
+        }
+      }
+    }
+  }
+}

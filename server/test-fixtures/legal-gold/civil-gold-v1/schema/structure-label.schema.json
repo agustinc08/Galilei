@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://galilei.local/schemas/civil-gold-v1-structure-label.json",
+  "title": "Civil Gold v1 exhaustive structure annotation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sampleId", "documentId", "sourceHash", "status", "exhaustive", "reviewerId", "reviewedAt", "noStructuralHeading", "sections"],
+  "properties": {
+    "sampleId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
+    "documentId": { "type": "string", "minLength": 1 },
+    "sourceHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "status": { "const": "HUMAN_REVIEW_COMPLETE" },
+    "exhaustive": { "const": true },
+    "reviewerId": { "type": "string", "minLength": 2, "maxLength": 80 },
+    "reviewedAt": { "type": "string", "format": "date-time" },
+    "noStructuralHeading": { "type": "boolean" },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["page", "rawHeading", "expectedType", "ordinal", "notes"],
+        "properties": {
+          "page": { "type": "integer", "minimum": 1 },
+          "rawHeading": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "expectedType": { "enum": ["VISTOS", "RESULTANDO", "RESULTA", "CONSIDERANDO", "NUMBERED_CONSIDERATION", "RESUELVE", "FALLO", "OTHER_HEADING"] },
+          "ordinal": { "type": ["string", "null"], "maxLength": 60 },
+          "notes": { "type": ["string", "null"], "maxLength": 1000 }
+        }
+      }
+    }
+  }
+}

@@ -99,6 +99,7 @@ export class ArchivosController {
   }
 
   @Get(':id/download')
+  @Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Descarga un PDF' })
   async download(
     @Param('id', ParseIntPipe) id: number,

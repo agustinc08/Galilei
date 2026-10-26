@@ -1,5 +1,18 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Candidata — GALILEI SUPER SPRINT 4: gold editorial y cobertura (2026-10-26)
+
+| Gate | Estado | Evidencia / siguiente paso |
+|---|---|---|
+| Revisión editorial reproducible | **PAQUETES LISTOS / PENDING_HUMAN_GOLD** | Población pública/activa 6.014; muestra seed-fixed 400, 399 revisables y 1 OCR_REQUIRED excluido; 120 estructura y 150 citas con texto completo, hashes, pesos, esquemas y formulario vacío. ZIP ciego sin candidatos de parser. Esperar revisión externa. |
+| Evaluación automática | **PASS TÉCNICO / SIN MÉTRICAS DE CALIDAD** | 59 outlines, 170 secciones y 16.178 candidatos observados; métricas de precisión/recall/F1 `PENDING_HUMAN_GOLD`. Proyección: 243.236 detecciones totales y 25.409 filas de relaciones; es escala lineal, no calidad ni backfill. |
+| Reglas del parser / escritura | **SIN CAMBIOS** | No hay evidencia de gold humano para justificar reglas. No hubo migraciones, backfill ni escrituras en principal PostgreSQL, Search o Corpus. |
+| P3 Sprint 3 / E2E real | **PASS EN QA AISLADA / LIMPIA** | Visor, estructura, pinpoints, copia local, rechazo persistente, ACL y cuatro tamaños responsive. Se cerró el permiso GET PDF privado para rol JURISPRUDENCIA con regresión; upload/delete no se amplían. QA/credenciales retiradas, servicios principales intactos. |
+| Search principal | **READ-ONLY PASS** | V4 GREEN; 69.313 IDs exactos; outbox 0/0. Consultas públicas 4.759/3.369/1.826 y orden completo idéntico en dos recorridos por consulta; cero escrituras. |
+| Calidad / entrega | **LOCAL PASS / CI DEL SHA PUBLICADO** | Backend 580 PASS/10 opt-in omitidos; cliente 16/16; suite 2 enfocada 62/62; typecheck/lint/build/Prisma y auditorías de producción PASS. El informe de cierre registra el estado del CI exacto; no promover DEV/main. |
+
+Siguiente acción recomendada: obtener y validar las anotaciones humanas del paquete ciego; después calcular las métricas ponderadas y evaluar cambios conservadores con pruebas positivas y negativas. No generar gold con parser/LLM.
+
 ## Candidata — GALILEI SUPER SPRINT 3: estructura + citas pinpoint + parser argentino V2 (2026-10-26)
 
 | Gate | Estado | Evidencia / siguiente paso |

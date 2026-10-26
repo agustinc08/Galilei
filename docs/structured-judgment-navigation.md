@@ -28,3 +28,5 @@ Las rutas públicas usan el slug; las internas requieren la autorización habitu
 ## Auditoría observada
 
 La muestra de 200 fallos produjo 78 encabezados en 35 documentos; los 78 se comprobaron contra la página fuente. Otros 165 documentos no recibieron esquema. No se presenta ese último grupo como «fallos sin secciones» ni se afirma cobertura total. Ver [investigación de patrones](research/judgment-structure-patterns.md).
+
+La evaluación exhaustiva `civil-gold-v1` y su estado se describen en [análisis de recall estructural](research/structure-recall-analysis.md). Hasta que las 120 revisiones humanas estén completas, precisión, recall, F1 y métricas a nivel de fallo permanecen `PENDING_HUMAN_GOLD`; los candidatos calculados por el parser no constituyen etiquetas esperadas.

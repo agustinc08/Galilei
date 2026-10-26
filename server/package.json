@@ -94,6 +94,7 @@
     "search:v4:fresh-lifecycle": "node scripts/with-dev-db-guard.cjs search-v4-fresh-lifecycle",
     "search:opensearch:performance": "node scripts/with-dev-db-guard.cjs opensearch-performance",
     "search:opensearch:golden": "node scripts/with-dev-db-guard.cjs opensearch-fixture-golden",
+    "search:sprint4-readonly-golden": "node scripts/with-dev-db-guard.cjs sprint4-search-readonly-golden",
     "mantenimiento:publicar-legacy:dry": "ts-node scripts/publicar-legacy.ts --dry-run",
     "mantenimiento:publicar-legacy": "ts-node scripts/publicar-legacy.ts",
     "rag:index": "ts-node scripts/indexar-embeddings.ts",
@@ -107,7 +108,12 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:preprod-tls": "node scripts/prisma-cli-tls-blackbox.test.cjs",
     "j4:review": "node scripts/dev/sprint-j4-review-workflow.cjs",
-    "j4:review:test": "node --test scripts/dev/jurisprudencia-review-workflow.test.cjs"
+    "j4:review:test": "node --test scripts/dev/jurisprudencia-review-workflow.test.cjs",
+    "legal-gold:sample": "node scripts/with-dev-db-guard.cjs editorial-gold-sample",
+    "legal-gold:validate": "node scripts/dev/legal-gold-import.cjs --validate-only",
+    "legal-gold:import": "node scripts/dev/legal-gold-import.cjs --apply",
+    "legal-gold:evaluate": "node scripts/dev/legal-gold-evaluate.cjs",
+    "legal-gold:test": "node --test scripts/dev/legal-gold-tools.test.mjs"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

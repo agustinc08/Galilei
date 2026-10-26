@@ -7,11 +7,11 @@ const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 
 const repositoryRoot = path.resolve(__dirname, '../../..');
-const evidenceRoot = path.join(
-  repositoryRoot,
-  '_recovery-work',
-  'galilei-structured-citations-suite3',
-);
+const expectedEvidenceRoot = path.resolve(repositoryRoot, '_recovery-work/galilei-editorial-gold-recall-suite4/p3-qa');
+const evidenceRoot = path.resolve(process.env.BJC_SPRINT3_QA_EVIDENCE_ROOT || '');
+if (!process.env.BJC_SPRINT3_QA_EVIDENCE_ROOT || evidenceRoot !== expectedEvidenceRoot) {
+  throw new Error('SPRINT3_QA_EVIDENCE_ROOT_REJECTED');
+}
 const storageRoot = path.join(evidenceRoot, 'qa-storage');
 const makeId = () => `c${randomBytes(12).toString('hex')}`;
 
