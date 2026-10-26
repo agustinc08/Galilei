@@ -33,6 +33,7 @@ model Usuario {
   busquedas                  BusquedaGuardada[]
   researchCollections        ResearchCollection[]
   researchComparisons        ResearchComparison[]
+  researchTimelines          ResearchTimeline[]
   eventos                    EventoConsulta[]
   accionesLog                AccionLog[]
   workspaceMemberships       WorkspaceMembership[]
@@ -115,6 +116,7 @@ model Sentencia {
   favoritos                                Favorito[]
   researchCollectionItems                  ResearchCollectionItem[]
   researchComparisonItems                  ResearchComparisonItem[]
+  researchTimelineItems                    ResearchTimelineItem[]
   outgoingRelationshipCandidates           SentenciaRelationshipCandidate[] @relation("RelationshipCandidateSource")
   incomingRelationshipCandidates           SentenciaRelationshipCandidate[] @relation("RelationshipCandidateTarget")
   eventosConsulta                          EventoConsulta[]
@@ -412,6 +414,34 @@ model ResearchComparisonItem {
 
   @@unique([comparisonId, sentenciaId])
   @@unique([comparisonId, position])
+  @@index([sentenciaId])
+}
+
+// A private research workspace stores only ordered membership in public judgments.
+// Chronology is derived from the judgment decision date at read time.
+model ResearchTimeline {
+  id          Int                   @id @default(autoincrement())
+  ownerId     Int
+  name        String                @db.VarChar(120)
+  description String?               @db.VarChar(2000)
+  owner       Usuario               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items       ResearchTimelineItem[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([ownerId, updatedAt])
+}
+
+model ResearchTimelineItem {
+  id         Int             @id @default(autoincrement())
+  timelineId Int
+  sentenciaId Int
+  timeline   ResearchTimeline @relation(fields: [timelineId], references: [id], onDelete: Cascade)
+  sentencia  Sentencia       @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now())
+
+  @@unique([timelineId, sentenciaId])
+  @@index([timelineId])
   @@index([sentenciaId])
 }
 

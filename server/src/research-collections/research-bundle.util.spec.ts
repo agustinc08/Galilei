@@ -203,6 +203,73 @@ describe('reproducible research bundle', () => {
     ).toBe(true);
   });
 
+  it('adds a backward-compatible evolution context file and hashes it in the shared manifest', async () => {
+    const input = fixtureInput();
+    input.judgmentOrder = 'INPUT';
+    input.judgments.reverse();
+    input.evolution = {
+      name: 'Línea de responsabilidad',
+      selectedJudgmentIds: [2, 1],
+      chronologicalSlugs: ['fallo-2', 'fallo-1'],
+      relationTypes: ['VERIFIED_CITATION', 'SAME_EXPEDIENTE'],
+      verifiedCitationEdges: [
+        {
+          sourceSlug: 'fallo-2',
+          targetSlug: 'fallo-1',
+          evidence: 'Cita institucional verificada',
+          page: 7,
+        },
+      ],
+      sameExpedienteGroups: [
+        { expediente: 'CIV 12/2020', slugs: ['fallo-2', 'fallo-1'] },
+      ],
+    };
+    const bundle = buildResearchBundle(input);
+    const archive = await collect(createResearchBundleZip(bundle.files));
+    const entries = readZip(archive);
+    const evolutionPath = `${bundle.rootDirectory}/evolucion.json`;
+    const evolution = JSON.parse(
+      entries.get(evolutionPath)!.toString('utf8'),
+    ) as {
+      chronologicalSlugs: string[];
+      selectedJudgmentIds: number[];
+      relationTypes: string[];
+    };
+    const manifest = JSON.parse(
+      entries.get(`${bundle.rootDirectory}/manifest.json`)!.toString('utf8'),
+    ) as {
+      schemaVersion: string;
+      researchContext: {
+        chronologicalSlugs: string[];
+        relationTypes: string[];
+      };
+      hashes: Record<string, string>;
+      contents: { filesGenerated: number };
+    };
+    expect(evolution).toMatchObject({
+      chronologicalSlugs: ['fallo-2', 'fallo-1'],
+      selectedJudgmentIds: [2, 1],
+      relationTypes: ['VERIFIED_CITATION', 'SAME_EXPEDIENTE'],
+    });
+    expect(manifest.schemaVersion).toBe('galilei-research-bundle/1');
+    expect(manifest.researchContext.chronologicalSlugs).toEqual([
+      'fallo-2',
+      'fallo-1',
+    ]);
+    expect(manifest.researchContext.relationTypes).toEqual([
+      'VERIFIED_CITATION',
+      'SAME_EXPEDIENTE',
+    ]);
+    expect(manifest.contents.filesGenerated).toBe(entries.size);
+    expect(manifest.hashes[evolutionPath]).toBeDefined();
+    expect(
+      await import('node:crypto').then(({ createHash }) =>
+        createHash('sha256').update(entries.get(evolutionPath)!).digest('hex'),
+      ),
+    ).toBe(manifest.hashes[evolutionPath]);
+    expect(bundle.manifest.judgments.map((item) => item.id)).toEqual([2, 1]);
+  });
+
   it('benchmarks a complete 100-judgment ZIP and verifies all bundled hashes', async () => {
     const startedAt = performance.now();
     const bundle = buildResearchBundle(fixtureInput(100));

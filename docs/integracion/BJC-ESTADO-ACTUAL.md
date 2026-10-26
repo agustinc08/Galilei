@@ -1,5 +1,13 @@
 # Estado actual — Buscador Jurídico Civil
 
+## GALILEI — SUPER MEGA ULTRA SPRINT 6 — evolución jurisprudencial (2026-10-26)
+
+La candidata local `feature/jurisprudential-evolution-suite-6` parte de Suite 5 en `90fb74764ad28ffc8c30dec88a9008580ac157f2`. Agrega `/evolucion` para seleccionar 2–50 fallos publicados/activos, ordenar por fecha decisoria, mostrar “Sin fecha disponible”, agrupar por Sala y exponer sólo citas `VERIFIED` dirigidas y coincidencias determinísticas de expediente completo/año. Reutiliza la comparación 2–4 de Suite 5 y añade comparación adyacente; no infiere cambios doctrinales ni usa IA.
+
+Los espacios privados owner-only usan la migración aditiva 37 y revalidan disponibilidad en lectura/exportación. El dossier reutiliza el ZIP verificable de colecciones, con `evolucion.json`, manifest y SHA-256, sin incluir PDFs. La normalización del deep link del Viewer cubre Sentencia y Corpus y limita páginas sólo después de leer el total.
+
+Validación local: PostgreSQL QA aislado fresco 0→37 e incremental 36→37 PASS; backend completo 597 PASS/10 omitidas, cliente 22/22, E2E investigación 22/22, typecheck/lint/build PASS. El E2E con servicios reales verificó selección, cronología, relaciones, ACL owner/foreign, comparación, exportación e hashes, cuatro viewports y 0 errores de página. Search principal respondió por GET con OpenSearch 2.19.6 GREEN, alias V4 y 69.313 documentos; el chequeo HTTP de conteos/orden no se pudo repetir porque el guard abortó antes de conectarse por falta de la configuración local permitida. El chunk PDF.js >500 kB y la disponibilidad local de pnpm 11.25.0 frente al pin del repo 12.15.0 quedan como hallazgos. El SHA publicado y su CI exacto se registran en el informe de cierre; no promover a DEV/main ni desplegar a Sytec10. Detalle de contrato y límites: `docs/jurisprudential-evolution-workspace.md`.
+
 ## GALILEI — SUPER SPRINT 5 — workspace de comparación (2026-10-26)
 
 La candidata `feature/judgment-comparison-suite-5` parte del SHA exacto de Suite 4 `260b017e3fa3b2f26fea60c325790712db541bac`. Implementa una matriz `/comparar` para 2–4 fallos públicos, selección persistente entre rutas desde búsqueda/ficha/colecciones/favoritos, sumarios publicados, reseña editorial separada del resumen automático, expediente exacto, citas `VERIFIED`, notas personales de colecciones y visor PDF reutilizado con dos lados sólo bajo demanda. Comparaciones guardadas tienen propietario, nombre y referencias ordenadas; no admiten fallos privados ni enlaces compartidos con identificadores privados. Sin análisis jurídico generado ni cambios al gold Suite 4.

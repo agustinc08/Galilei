@@ -1,5 +1,17 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Candidata — GALILEI SUPER MEGA ULTRA SPRINT 6: evolución jurisprudencial (2026-10-26)
+
+| Gate | Estado | Evidencia / siguiente paso |
+|---|---|---|
+| Línea de tiempo y relaciones | **IMPLEMENTADO / REAL E2E PASS** | Selección 2–50 desde Search, ficha, favoritos, colecciones y comparación; cronología por fecha decisoria, undated separado, Sala, expediente exacto y citas dirigidas `VERIFIED`; candidatas/rechazadas fuera del mapa. Sin inferencias jurídicas ni IA. |
+| Espacios y dossier | **IMPLEMENTADO / ACL PASS** | Modelo owner-only con migration 37, revalidación pública al abrir/exportar, 404 genérico para otro usuario y ZIP de dossier reutilizado con `evolucion.json` y hashes SHA-256; no incluye PDFs. |
+| Suite 5 / Viewer | **IMPLEMENTADO / REGRESIÓN PASS** | Comparación seleccionada 2–4 y contigua reutilizan `/comparar`; parámetros de deep page inválidos/out-of-range se normalizan en Sentencia y Corpus después de conocer el page count. E2E research 22/22. |
+| Migraciones / QA | **LOCAL PASS** | 0→37 en PostgreSQL 16 aislado; 36→37 en clúster efímero loopback; E2E API/DB/OpenSearch real, ACL de exportación, ZIP/hashes y cuatro viewports PASS. QA usa fixtures sintéticos. |
+| Calidad local / entrega | **PASS LOCAL / GATE CI REMOTO** | Backend 597 PASS/10 omitidas; cliente 22 tests, lint/typecheck/build y E2E 22/22; backend lint/typecheck/build PASS. OpenSearch principal GET-only: GREEN/V4/69.313; el guard de conteos/orden abortó sin conectar porque falta la configuración local permitida, y los valores previos quedan como referencia histórica. El SHA publicado y su CI exacto se consignan en el informe de cierre. pnpm del host es 11.25 frente a pin 12.15; PDF.js conserva warning de chunk >500 kB. |
+
+Contrato y limitaciones: `docs/jurisprudential-evolution-workspace.md`. No desplegar a Sytec10 ni promover a DEV/main dentro de Sprint 6.
+
 ## Candidata — GALILEI SUPER SPRINT 5: workspace para comparar fallos (2026-10-26)
 
 | Gate | Estado | Evidencia / siguiente paso |

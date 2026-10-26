@@ -143,6 +143,46 @@ function makePdfFixture(pageTexts: string[]) {
   return Buffer.from(pdf, 'ascii');
 }
 
+function makeEvolutionFixture() {
+  return {
+    judgments: [
+      {
+        slug: 'qa-old', caratula: 'Caso temprano', cita: 'Caso temprano, Sala A, 02/04/2018, Expte. CIV 30/2020',
+        numeroSentencia: '10/2018', tipoFallo: 'Sentencia', sala: 'A', decisionDate: '2018-04-02T00:00:00.000Z',
+        dateStatus: 'AVAILABLE', year: 2018, expediente: 'CIV 30/2020', hasPdf: true, sumarioCount: 2,
+        verifiedCitesCount: 1, verifiedCitedByCount: 0,
+      },
+      {
+        slug: 'qa-other-year', caratula: 'Caso mismo número, otro año', cita: 'Caso mismo número, otro año, Sala B, 03/05/2021, Expte. CIV 30/2021',
+        numeroSentencia: '12/2021', tipoFallo: 'Sentencia', sala: 'B', decisionDate: '2021-05-03T00:00:00.000Z',
+        dateStatus: 'AVAILABLE', year: 2021, expediente: 'CIV 30/2021', hasPdf: false, sumarioCount: 0,
+        verifiedCitesCount: 0, verifiedCitedByCount: 0,
+      },
+      {
+        slug: 'qa-new', caratula: 'Caso posterior', cita: 'Caso posterior, Sala C, 10/06/2022, Expte. CIV 40/2022',
+        numeroSentencia: '20/2022', tipoFallo: 'Sentencia', sala: 'C', decisionDate: '2022-06-10T00:00:00.000Z',
+        dateStatus: 'AVAILABLE', year: 2022, expediente: 'CIV 40/2022', hasPdf: true, sumarioCount: 1,
+        verifiedCitesCount: 1, verifiedCitedByCount: 0,
+      },
+      {
+        slug: 'qa-undated', caratula: 'Caso sin fecha', cita: 'Caso sin fecha, Expte. CIV 30 - 2020',
+        numeroSentencia: null, tipoFallo: 'Sentencia', sala: null, decisionDate: null,
+        dateStatus: 'UNAVAILABLE', year: null, expediente: 'CIV 30 - 2020', hasPdf: false, sumarioCount: 0,
+        verifiedCitesCount: 0, verifiedCitedByCount: 0,
+      },
+    ],
+    verifiedCitationEdges: [{
+      type: 'VERIFIED_CITATION', sourceSlug: 'qa-new', targetSlug: 'qa-old',
+      evidence: 'CNCiv., Sala A', page: 4,
+    }],
+    sameExpedienteGroups: [{
+      type: 'SAME_EXPEDIENTE', expediente: 'CIV 30/2020', slugs: ['qa-old', 'qa-undated'],
+    }],
+    omittedCount: 0,
+    truncatedCitationEvidence: false,
+  };
+}
+
 async function installApiMocks(
   page: Page,
   authenticated = false,
@@ -795,6 +835,106 @@ test('Corpus PDF deep links normalize before React-PDF requests an invalid page'
   }
 
   expect(errors).toEqual([]);
+});
+
+test('public Search results can be added to the compact evolution tray', async ({ page }) => {
+  await installApiMocks(page);
+  await page.goto('/consulta?q=responsabilidad%20civil');
+  const addButton = page.getByRole('button', { name: 'Añadir a evolución' }).first();
+  await expect(addButton).toBeVisible();
+  await addButton.click();
+  await expect(page.getByRole('complementary', { name: 'Fallos seleccionados para evolución' })).toContainText('1 de 50 fallos');
+  await expect(page.getByRole('button', { name: 'Abrir evolución' })).toBeVisible();
+});
+
+test('evolution workspace orders dates, separates undated cases and shows only directed verified evidence', async ({ page }) => {
+  await installApiMocks(page, true);
+  const evolution = makeEvolutionFixture();
+  await page.route('**/api/research/evolution/resolve', async (route) => {
+    await route.fulfill({ json: { data: evolution } });
+  });
+  await page.route('**/api/research/comparisons/resolve**', async (route) => {
+    const compared = evolution.judgments.filter((item) => ['qa-old', 'qa-new'].includes(item.slug));
+    await route.fulfill({ json: { data: {
+      judgments: compared.map((item) => ({
+        slug: item.slug, caratula: item.caratula, numeroSentencia: item.numeroSentencia, tipoFallo: item.tipoFallo,
+        sala: item.sala, fecha: item.decisionDate, expediente: item.expediente, tribunalOrigen: null, objeto: null,
+        actor: null, demandado: null, magistrados: null, juez: null, resenaEditorial: null, resumenAi: null,
+        resumenAiFuente: null, sumarios: [], hasPdf: item.hasPdf, verifiedCitesCount: item.verifiedCitesCount,
+        verifiedCitedByCount: item.verifiedCitedByCount, sameExpedienteAs: [],
+      })),
+      verifiedCrossCitations: [],
+    } } });
+  });
+  await page.route('**/api/research/comparisons/notes**', async (route) => route.fulfill({ json: { data: [] } }));
+  await page.route('**/api/research/comparisons', async (route) => route.fulfill({ json: { data: [] } }));
+
+  await page.goto('/evolucion?ids=qa-old,qa-other-year,qa-new,qa-undated');
+  const timeline = page.getByRole('region', { name: 'Línea de tiempo de fallos seleccionados' });
+  await expect(timeline.getByRole('heading', { name: '2018' })).toBeVisible();
+  await expect(timeline.getByRole('heading', { name: '2021' })).toBeVisible();
+  await expect(timeline.getByRole('heading', { name: '2022' })).toBeVisible();
+  await expect(timeline.getByRole('heading', { name: 'Sin fecha disponible' })).toBeVisible();
+  const order = await timeline.getByRole('heading', { level: 3 }).allTextContents();
+  expect(order).toEqual(['Caso temprano', 'Caso mismo número, otro año', 'Caso posterior', 'Caso sin fecha']);
+  await expect(page.getByText('Caso posterior cita verificadamente a Caso temprano.')).toBeVisible();
+  await expect(page.getByText('Mismo expediente CIV 30/2020')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Caso mismo número, otro año', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: '4', exact: true })).toHaveAttribute('href', /page=4/u);
+
+  await timeline.locator('article').filter({ hasText: 'Caso temprano' }).getByRole('button', { name: 'Comparar con el siguiente', exact: true }).click();
+  await expect(page).toHaveURL(/\/comparar\?ids=qa-old,qa-other-year/u);
+  await page.goto('/evolucion?ids=qa-old,qa-other-year,qa-new,qa-undated');
+
+  await timeline.locator('article').filter({ hasText: 'Caso temprano' }).getByRole('button', { name: 'Seleccionar para comparar', exact: true }).click();
+  await timeline.locator('article').filter({ hasText: 'Caso posterior' }).getByRole('button', { name: 'Seleccionar para comparar', exact: true }).click();
+  await page.getByRole('button', { name: 'Comparar 2 seleccionados' }).click();
+  await expect(page).toHaveURL(/\/comparar\?ids=qa-old,qa-new/u);
+  await expect(page.getByRole('heading', { name: 'Comparar fallos' })).toBeVisible();
+});
+
+test('saved evolution stays private, reopens its membership and renders owner text safely', async ({ page }) => {
+  await installApiMocks(page, true);
+  const evolution = makeEvolutionFixture();
+  let saved = {
+    id: 55,
+    name: 'Evolución de QA',
+    description: null as string | null,
+    createdAt: '2026-10-26T00:00:00.000Z',
+    updatedAt: '2026-10-26T00:00:00.000Z',
+    slugs: evolution.judgments.map((item) => item.slug),
+    omittedCount: 0,
+    itemCount: 4,
+  };
+  await page.route('**/api/research/evolution/resolve', async (route) => {
+    await route.fulfill({ json: { data: evolution } });
+  });
+  await page.route('**/api/research/timelines**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/55/export') && route.request().method() === 'POST') {
+      return route.fulfill({ status: 200, headers: { 'content-type': 'application/zip' }, body: Buffer.from('verified-zip-fixture') });
+    }
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as { name: string; description: string | null; slugs: string[] };
+      saved = { ...saved, name: body.name, description: body.description, slugs: body.slugs, itemCount: body.slugs.length };
+      return route.fulfill({ json: { data: saved } });
+    }
+    if (path.endsWith('/55')) return route.fulfill({ json: { data: saved } });
+    return route.fulfill({ json: { data: [saved] } });
+  });
+
+  await page.goto('/evolucion?ids=qa-old,qa-other-year,qa-new,qa-undated');
+  await page.getByLabel('Nombre del espacio').fill('Evolución de QA');
+  const description = '<script>window.__evolutionXss = true</script>';
+  await page.getByLabel('Descripción privada (opcional)').fill(description);
+  await page.getByRole('button', { name: 'Guardar en mi cuenta' }).click();
+  await expect(page).toHaveURL(/\/evolucion\/guardada\/55$/u);
+  await expect(page.getByLabel('Descripción privada')).toHaveValue(description);
+  expect(await page.evaluate(() => (window as Window & { __evolutionXss?: boolean }).__evolutionXss)).toBeUndefined();
+  expect(new URL(page.url()).search).toBe('');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Exportar investigación' }).click();
+  expect((await download).suggestedFilename()).toBe('galilei-evolucion-55.zip');
 });
 
 test('search continuity controls remain usable without horizontal overflow at target viewports', async ({ page }) => {

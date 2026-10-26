@@ -18,6 +18,7 @@ import { formatTipoFallo } from '@/lib/jurisprudencia-labels';
 import type { ApiResponse } from '@/types/common';
 import type { PublicSentencia } from '@/types/sentencia';
 import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
+import { EvolutionAddButton } from '@/components/evolution/EvolutionAddButton';
 
 export default function ConsultaSentenciaPublicaPage() {
   const params = useParams<{ slug: string }>();
@@ -96,6 +97,7 @@ export default function ConsultaSentenciaPublicaPage() {
               {comparison.items.some((item) => item.slug === data.slugPublico) ? 'Quitar de comparación' : 'Agregar a comparación'}
             </Button>
           ) : null}
+          {data.slugPublico ? <EvolutionAddButton slug={data.slugPublico} title={data.caratula || data.numeroSentencia || data.expediente || `Sentencia ${data.id}`} /> : null}
           <ShareLinkButton url={currentUrl} label="Copiar enlace" sentenciaId={data.id} />
           {data.archivosPdf.length > 0 ? <Link href={`/fallos/${params.slug}?returnTo=${encodeURIComponent(backHref)}`}><Button>Abrir fallo</Button></Link> : null}
           <PrintButton

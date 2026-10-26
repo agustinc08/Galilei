@@ -276,6 +276,12 @@
   background: #ecfdf3;
 }
 
+.statusMessageInfo {
+  border-color: #b7c9d9;
+  color: #245273;
+  background: #f2f8fc;
+}
+
 .loading {
   display: flex;
   align-items: center;

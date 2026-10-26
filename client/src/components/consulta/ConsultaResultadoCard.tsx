@@ -16,6 +16,7 @@ import { copyToClipboard } from '@/lib/utils';
 import type { PublicSentencia } from '@/types/sentencia';
 import { AddToCollectionButton } from '@/components/research/AddToCollectionButton';
 import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
+import { EvolutionAddButton } from '@/components/evolution/EvolutionAddButton';
 
 type Props = {
   item: ConsultaPublicaResultado;
@@ -134,6 +135,7 @@ export function ConsultaResultadoCard({
             {inComparison ? 'Quitar de comparación' : 'Agregar a comparación'}
           </Button>
         ) : null}
+        {item.slugPublico ? <EvolutionAddButton slug={item.slugPublico} title={item.caratula || item.numeroSentencia || item.expediente || `Sentencia ${item.id}`} /> : null}
         {item.slugPublico ? (
           <Button variant="ghost" onClick={() => void copyCitation()} disabled={copyingCitation}>
             {copyingCitation ? 'Copiando cita…' : 'Copiar cita'}

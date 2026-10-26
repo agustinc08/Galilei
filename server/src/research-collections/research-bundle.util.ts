@@ -28,6 +28,23 @@ export type ResearchBundleInput = {
   omittedItemCount: number;
   generatedAt: Date;
   gitSha?: string;
+  judgmentOrder?: 'ADDED_AT' | 'INPUT';
+  evolution?: {
+    name: string;
+    selectedJudgmentIds: number[];
+    chronologicalSlugs: string[];
+    relationTypes: Array<'VERIFIED_CITATION' | 'SAME_EXPEDIENTE'>;
+    verifiedCitationEdges: Array<{
+      sourceSlug: string;
+      targetSlug: string;
+      evidence: string;
+      page: number | null;
+    }>;
+    sameExpedienteGroups: Array<{
+      expediente: string;
+      slugs: string[];
+    }>;
+  };
 };
 
 export type ResearchBundleFile = { path: string; content: string };
@@ -58,6 +75,13 @@ export type ResearchBundleManifest = {
     caratula: string | null;
     slugPublico: string | null;
   }>;
+  researchContext?: {
+    type: 'JURISPRUDENTIAL_EVOLUTION';
+    name: string;
+    selectedJudgmentIds: number[];
+    chronologicalSlugs: string[];
+    relationTypes: Array<'VERIFIED_CITATION' | 'SAME_EXPEDIENTE'>;
+  };
   hashes: Record<string, string>;
   warnings: Array<{ code: string; count: number; message: string }>;
 };
@@ -243,10 +267,14 @@ export function buildResearchBundle(
 ): ResearchBundle {
   const rootDirectory = `Investigacion-${safeCollectionSlug(input.collection.nombre, input.collection.id)}`;
   const generatedAt = input.generatedAt.toISOString();
-  const judgments = [...input.judgments].sort(
-    (left, right) =>
-      left.addedAt.getTime() - right.addedAt.getTime() || left.id - right.id,
-  );
+  const judgments =
+    input.judgmentOrder === 'INPUT'
+      ? [...input.judgments]
+      : [...input.judgments].sort(
+          (left, right) =>
+            left.addedAt.getTime() - right.addedAt.getTime() ||
+            left.id - right.id,
+        );
   const notes = judgments.filter((judgment) => Boolean(judgment.nota?.trim()));
   const warnings: ResearchBundleManifest['warnings'] = [];
   if (input.omittedItemCount > 0) {
@@ -338,6 +366,21 @@ export function buildResearchBundle(
     },
   );
 
+  if (input.evolution) {
+    files.push(
+      jsonFile(`${rootDirectory}/evolucion.json`, {
+        schemaVersion: 'galilei-evolution-dossier/1',
+        name: input.evolution.name,
+        generatedAt,
+        selectedJudgmentIds: input.evolution.selectedJudgmentIds,
+        chronologicalSlugs: input.evolution.chronologicalSlugs,
+        relationTypes: input.evolution.relationTypes,
+        verifiedCitationEdges: input.evolution.verifiedCitationEdges,
+        sameExpedienteGroups: input.evolution.sameExpedienteGroups,
+      }),
+    );
+  }
+
   const hashes = Object.fromEntries(
     files.map((file) => [file.path, sha256(file.content)]),
   );
@@ -366,6 +409,17 @@ export function buildResearchBundle(
       caratula: judgment.caratula,
       slugPublico: judgment.slugPublico,
     })),
+    ...(input.evolution
+      ? {
+          researchContext: {
+            type: 'JURISPRUDENTIAL_EVOLUTION' as const,
+            name: input.evolution.name,
+            selectedJudgmentIds: input.evolution.selectedJudgmentIds,
+            chronologicalSlugs: input.evolution.chronologicalSlugs,
+            relationTypes: input.evolution.relationTypes,
+          },
+        }
+      : {}),
     hashes,
     warnings,
   };

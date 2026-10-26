@@ -1,0 +1,74 @@
+.tray {
+  position: fixed;
+  z-index: 999;
+  inset: auto 16px 104px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 10px 14px;
+  border: 1px solid #b7c9d9;
+  border-radius: 12px;
+  background: #f7fbff;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, .18);
+}
+
+.summary,
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.summary { flex: 1; }
+.summary > span { color: #475467; white-space: nowrap; }
+.actions { justify-content: flex-end; }
+.message { color: #9a3412; font-size: 13px; }
+
+.removeList { position: relative; }
+.removeList summary { color: #175b91; cursor: pointer; }
+.removeList ul {
+  position: absolute;
+  z-index: 1001;
+  left: 0;
+  bottom: calc(100% + 12px);
+  width: min(420px, 80vw);
+  max-height: 50vh;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #c7d5e2;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(16, 24, 40, .18);
+  list-style: none;
+}
+.removeList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px;
+  border-bottom: 1px solid #edf1f5;
+}
+.removeList li:last-child { border-bottom: 0; }
+.removeList li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.removeList li button {
+  flex: 0 0 auto;
+  border: 0;
+  background: none;
+  color: #175b91;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .tray { inset: auto 8px 94px; align-items: stretch; flex-direction: column; padding: 10px; }
+  .summary { gap: 7px; }
+  .actions { justify-content: flex-end; }
+  .message { flex: 1 1 100%; }
+  .removeList ul { width: min(420px, 90vw); }
+}

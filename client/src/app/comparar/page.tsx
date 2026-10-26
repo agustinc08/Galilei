@@ -5,6 +5,7 @@ import { Link, useRouter, useSearchParams } from '@/lib/router-compat';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
+import { useEvolutionSelection } from '@/components/evolution/EvolutionSelection';
 import { PdfViewer } from '@/components/documento/PdfViewer';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -70,6 +71,7 @@ export default function JudgmentComparisonPage() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const selection = useComparisonSelection();
+  const evolutionSelection = useEvolutionSelection();
   const replaceSelection = selection.replace;
   const [comparison, setComparison] = useState<ComparisonPayload | null>(null);
   const [notesState, setNotesState] = useState<{ ownerId: number; idsKey: string; data: OwnedNote[] } | null>(null);
@@ -145,6 +147,16 @@ export default function JudgmentComparisonPage() {
   const judgments = useMemo(() => comparison?.judgments ?? [], [comparison]);
   const judgmentBySlug = useMemo(() => new Map(judgments.map((item) => [item.slug, item])), [judgments]);
   const returnToSearch = () => router.push(selection.returnTo || '/consulta');
+
+  const openEvolution = () => {
+    const next = [...evolutionSelection.items, ...judgments.map((item) => ({
+      slug: item.slug,
+      title: item.caratula || item.numeroSentencia || item.expediente || `Sentencia ${item.slug}`,
+    }))];
+    const unique = [...new Map(next.map((item) => [item.slug, item])).values()].slice(0, 50);
+    evolutionSelection.replace(unique);
+    router.push(`/evolucion?ids=${unique.map((item) => encodeURIComponent(item.slug)).join(',')}`);
+  };
 
   const toggleCurrent = (judgment: ComparedJudgment) => {
     const next = judgments.filter((item) => item.slug !== judgment.slug);
@@ -255,6 +267,7 @@ export default function JudgmentComparisonPage() {
     <main className={styles.page}>
       <div className={styles.actions}>
         <Button variant="ghost" onClick={returnToSearch}>Volver a búsqueda</Button>
+        <Button variant="ghost" onClick={openEvolution} disabled={judgments.length < 2}>Añadir fallos a evolución</Button>
         <Button variant="secondary" onClick={() => void copyShareLink()} disabled={judgments.length < 2}>Copiar enlace público</Button>
       </div>
       <PageHeader title="Comparar fallos" description="Revisá lado a lado los datos publicados y las relaciones de cita verificadas. Las diferencias no expresan una valoración jurídica." />

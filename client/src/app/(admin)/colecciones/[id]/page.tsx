@@ -11,6 +11,7 @@ import { StatusMessage } from '@/components/ui/StatusMessage';
 import type { ApiResponse } from '@/types/common';
 import styles from '@/components/research/research-collections.module.css';
 import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
+import { EvolutionAddButton } from '@/components/evolution/EvolutionAddButton';
 
 type CollectionItem = {
   id: number;
@@ -239,6 +240,7 @@ export default function ResearchCollectionDetailPage() {
                         {comparison.items.some((candidate) => candidate.slug === item.sentencia.slugPublico) ? 'Quitar de comparación' : 'Agregar a comparación'}
                       </Button>
                     ) : null}
+                    {item.sentencia.slugPublico ? <EvolutionAddButton slug={item.sentencia.slugPublico} title={title} /> : null}
                     <Button variant="ghost" onClick={() => void removeItem(item.id)}>Quitar de colección</Button>
                   </div>
                 </div>

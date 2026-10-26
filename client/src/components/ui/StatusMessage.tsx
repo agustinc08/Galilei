@@ -6,7 +6,7 @@ export function StatusMessage({
   title,
   message,
 }: {
-  variant: 'error' | 'success';
+  variant: 'error' | 'success' | 'info';
   title: string;
   message?: string;
 }) {
@@ -17,7 +17,9 @@ export function StatusMessage({
         styles.statusMessage,
         variant === 'error'
           ? styles.statusMessageError
-          : styles.statusMessageSuccess,
+          : variant === 'success'
+            ? styles.statusMessageSuccess
+            : styles.statusMessageInfo,
       )}
     >
       <strong>{title}</strong>

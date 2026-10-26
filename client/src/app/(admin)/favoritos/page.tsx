@@ -16,6 +16,7 @@ import type { ApiResponse } from '@/types/common';
 import type { Favorito } from '@/types/favorito';
 import { AddToCollectionButton } from '@/components/research/AddToCollectionButton';
 import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
+import { EvolutionAddButton } from '@/components/evolution/EvolutionAddButton';
 
 export default function FavoritosPage() {
   const comparison = useComparisonSelection();
@@ -109,6 +110,7 @@ export default function FavoritosPage() {
                           {comparison.items.some((item) => item.slug === favorito.sentencia.slugPublico) ? 'Quitar de comparación' : 'Agregar a comparación'}
                         </Button>
                       ) : null}
+                      {favorito.sentencia.slugPublico ? <EvolutionAddButton slug={favorito.sentencia.slugPublico} title={favorito.sentencia.caratula || favorito.sentencia.numeroSentencia || favorito.sentencia.expediente || `Sentencia ${favorito.sentenciaId}`} /> : null}
                       <Button
                         variant="danger"
                         onClick={async () => {
