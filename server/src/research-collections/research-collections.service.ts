@@ -2,13 +2,21 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
+import { LogsService } from '../logs/logs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CollectionItemsQueryDto } from './dto/collection-items-query.dto';
 import { CreateCollectionDto } from './dto/create-collection.dto';
 import { UpdateCollectionDto } from './dto/update-collection.dto';
 import { UpdateCollectionNoteDto } from './dto/update-collection-note.dto';
+import {
+  buildResearchBundle,
+  createResearchBundleZip,
+} from './research-bundle.util';
+
+const MAX_BUNDLE_JUDGMENTS = 1000;
 
 const PUBLIC_SENTENCE_SELECT = {
   id: true,
@@ -38,7 +46,86 @@ function isUniqueViolation(error: unknown): boolean {
 
 @Injectable()
 export class ResearchCollectionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logsService: LogsService,
+  ) {}
+
+  async exportBundle(usuarioId: number, id: number) {
+    const collection = await this.prisma.researchCollection.findFirst({
+      where: { id, usuarioId },
+      select: { id: true, nombre: true, createdAt: true, updatedAt: true },
+    });
+    if (!collection) throw new NotFoundException('Colección no encontrada');
+
+    const totalItemCount = await this.prisma.researchCollectionItem.count({
+      where: { collectionId: id },
+    });
+    if (totalItemCount > MAX_BUNDLE_JUDGMENTS) {
+      throw new PayloadTooLargeException(
+        `El dossier supera el límite seguro de ${MAX_BUNDLE_JUDGMENTS} fallos.`,
+      );
+    }
+
+    // Recheck the public ACL at export time. Notes are private to this owner's
+    // collection item, and only accessible public judgment metadata is selected.
+    const items = await this.prisma.researchCollectionItem.findMany({
+      where: {
+        collectionId: id,
+        sentencia: { is: { publicado: true, activo: true } },
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true,
+        nota: true,
+        createdAt: true,
+        sentencia: {
+          select: {
+            id: true,
+            slugPublico: true,
+            caratula: true,
+            numeroSentencia: true,
+            expediente: true,
+            sala: true,
+            fecha: true,
+            tipoFallo: true,
+          },
+        },
+      },
+    });
+    const generatedAt = new Date();
+    const bundle = buildResearchBundle({
+      collection,
+      generatedAt,
+      ...(process.env.GIT_SHA ? { gitSha: process.env.GIT_SHA } : {}),
+      omittedItemCount: Math.max(0, totalItemCount - items.length),
+      judgments: items.map(({ sentencia, nota, createdAt }) => ({
+        ...sentencia,
+        nota,
+        addedAt: createdAt,
+      })),
+    });
+
+    await this.logsService.registrarAccion({
+      usuarioId,
+      entidad: 'RESEARCH_COLLECTION',
+      entidadId: collection.id,
+      accion: 'RESEARCH_BUNDLE_EXPORT',
+      descripcion: `Exportó un dossier verificable con ${bundle.manifest.contents.judgmentCount} fallo(s).`,
+      datosDespues: {
+        bundleId: bundle.manifest.bundleId,
+        generatedAt: bundle.manifest.generatedAt,
+        judgmentCount: bundle.manifest.contents.judgmentCount,
+        noteCount: bundle.manifest.contents.noteCount,
+      },
+    });
+
+    return {
+      stream: createResearchBundleZip(bundle.files),
+      filename: bundle.downloadFilename,
+      manifest: bundle.manifest,
+    };
+  }
 
   async findAll(usuarioId: number) {
     const collections = await this.prisma.researchCollection.findMany({

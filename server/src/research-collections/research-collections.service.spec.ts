@@ -25,11 +25,16 @@ describe('ResearchCollectionsService', () => {
       sentencia: { findFirst: jest.fn() },
       ...overrides,
     };
+    const logsService = {
+      registrarAccion: jest.fn().mockResolvedValue(undefined),
+    };
     return {
       service: new ResearchCollectionsService(
         prisma as unknown as PrismaService,
+        logsService as never,
       ),
       prisma,
+      logsService,
     };
   };
 
@@ -77,6 +82,83 @@ describe('ResearchCollectionsService', () => {
       service.findOne(8, 10, { page: 1, pageSize: 25 }),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.researchCollectionItem.findMany).not.toHaveBeenCalled();
+  });
+
+  it('exports only currently public items and audits counts without note content', async () => {
+    const { service, prisma, logsService } = makeService();
+    const createdAt = new Date('2026-01-01T00:00:00.000Z');
+    prisma.researchCollection.findFirst.mockResolvedValue({
+      id: 10,
+      nombre: 'Daño civil',
+      createdAt,
+      updatedAt: createdAt,
+    });
+    prisma.researchCollectionItem.count.mockResolvedValue(2);
+    prisma.researchCollectionItem.findMany.mockResolvedValue([
+      {
+        id: 1,
+        nota: '<script>privada</script>',
+        createdAt,
+        sentencia: {
+          id: 25,
+          slugPublico: 'fallo-seguro',
+          caratula: 'Caso público',
+          numeroSentencia: '25/2026',
+          expediente: '123/2020',
+          sala: 'A',
+          fecha: new Date('2026-02-01T00:00:00.000Z'),
+          tipoFallo: 'Sentencia',
+        },
+      },
+    ]);
+
+    const exported = await service.exportBundle(7, 10);
+    expect(exported.filename).toMatch(
+      /^galilei-dano-civil-\d{4}-\d{2}-\d{2}\.zip$/u,
+    );
+    expect(exported.manifest.contents).toMatchObject({
+      judgmentCount: 1,
+      noteCount: 1,
+    });
+    expect(exported.manifest.warnings).toContainEqual(
+      expect.objectContaining({
+        code: 'ITEMS_OMITTED_UNAVAILABLE_OR_FORBIDDEN',
+        count: 1,
+      }),
+    );
+    expect(prisma.researchCollectionItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          collectionId: 10,
+          sentencia: { is: { publicado: true, activo: true } },
+        },
+      }),
+    );
+    expect(logsService.registrarAccion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usuarioId: 7,
+        accion: 'RESEARCH_BUNDLE_EXPORT',
+        datosDespues: expect.objectContaining({
+          judgmentCount: 1,
+          noteCount: 1,
+        }) as unknown,
+      }),
+    );
+    expect(
+      JSON.stringify(logsService.registrarAccion.mock.calls),
+    ).not.toContain('<script>privada</script>');
+    exported.stream.resume();
+  });
+
+  it('does not export a collection owned by another user', async () => {
+    const { service, prisma, logsService } = makeService();
+    prisma.researchCollection.findFirst.mockResolvedValue(null);
+
+    await expect(service.exportBundle(8, 10)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.researchCollectionItem.count).not.toHaveBeenCalled();
+    expect(logsService.registrarAccion).not.toHaveBeenCalled();
   });
 
   it('rejects unpublished or missing judgments before adding a reference', async () => {
@@ -155,5 +237,15 @@ describe('ResearchCollectionsService', () => {
       where: { id: 99, collectionId: 10, collection: { is: { usuarioId: 7 } } },
       data: { nota: null },
     });
+  });
+
+  it('does not expose or update a note through a foreign collection reference', async () => {
+    const { service, prisma } = makeService();
+    prisma.researchCollectionItem.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.updateNote(8, 10, 99, { nota: 'texto ajeno' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.researchCollectionItem.findFirst).not.toHaveBeenCalled();
   });
 });

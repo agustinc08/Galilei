@@ -8,8 +8,11 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { ROLES } from '../auth/constants';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -61,6 +64,25 @@ export class ResearchCollectionsController {
     @Query() query: CollectionItemsQueryDto,
   ) {
     return this.collections.findOne(user.id, id, query);
+  }
+
+  @Post(':id/export')
+  @ApiOperation({
+    summary: 'Exporta la colección propia como un dossier ZIP verificable',
+  })
+  async exportBundle(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const bundle = await this.collections.exportBundle(user.id, id);
+    response.setHeader('Content-Type', 'application/zip');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${bundle.filename}"`,
+    );
+    response.setHeader('Cache-Control', 'private, no-store');
+    return new StreamableFile(bundle.stream);
   }
 
   @Patch(':id')

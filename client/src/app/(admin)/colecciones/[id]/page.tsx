@@ -34,6 +34,19 @@ type CollectionDetail = {
 
 type PageMeta = { total: number; page: number; pageSize: number; pageCount: number };
 
+function collectionDownloadName(name: string, collectionId: number) {
+  const slug = name
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/gu, '')
+    .toLocaleLowerCase('en-US')
+    .replace(/[^a-z0-9]+/gu, '-')
+    .replace(/^-+|-+$/gu, '')
+    .slice(0, 72)
+    .replace(/-+$/gu, '');
+  const safeSlug = slug || `coleccion-${collectionId}`;
+  return `galilei-${safeSlug}-${new Date().toISOString().slice(0, 10)}.zip`;
+}
+
 export default function ResearchCollectionDetailPage() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
@@ -50,6 +63,7 @@ export default function ResearchCollectionDetailPage() {
   const [savingNoteIds, setSavingNoteIds] = useState<Set<number>>(() => new Set());
   const [message, setMessage] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!validId) return;
@@ -131,6 +145,31 @@ export default function ResearchCollectionDetailPage() {
     }
   };
 
+  const exportCollection = async (currentCollection: CollectionDetail) => {
+    setExporting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const blob = await api.download(`/research/collections/${id}/export`, {
+        method: 'POST',
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = collectionDownloadName(
+        currentCollection.nombre,
+        currentCollection.id,
+      );
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setMessage('Dossier descargado y listo para verificar con su manifest.json.');
+    } catch {
+      setError('No se pudo preparar el dossier. Revisá el acceso a la colección e intentá nuevamente.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const applySearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setPage(1);
@@ -157,6 +196,9 @@ export default function ResearchCollectionDetailPage() {
           <input id="collection-name" value={nameDraft} maxLength={100} onChange={(event) => setNameDraft(event.target.value)} required />
           <Button type="submit" variant="secondary" disabled={!nameDraft.trim() || nameDraft.trim() === collection.nombre}>Renombrar</Button>
         </form>
+        <Button variant="secondary" onClick={() => void exportCollection(collection)} disabled={exporting}>
+          {exporting ? 'Preparando dossier…' : 'Exportar dossier'}
+        </Button>
         <details>
           <summary>Eliminar colección</summary>
           <p>Se quitarán sus referencias y notas privadas. Los fallos originales no se eliminan.</p>
