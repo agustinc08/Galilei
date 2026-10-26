@@ -1,7 +1,7 @@
 generator client {
-  provider        = "prisma-client"
-  output          = "../src/generated/prisma"
-  moduleFormat    = "cjs"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
   importFileExtension = "js"
 }
 
@@ -21,32 +21,32 @@ model Rol {
 }
 
 model Usuario {
-  id                         Int                   @id @default(autoincrement())
+  id                         Int                              @id @default(autoincrement())
   nombre                     String
   apellido                   String?
-  email                      String                @unique
+  email                      String                           @unique
   passwordHash               String
-  activo                     Boolean               @default(true)
+  activo                     Boolean                          @default(true)
   rolId                      Int
-  rol                        Rol                   @relation(fields: [rolId], references: [id])
+  rol                        Rol                              @relation(fields: [rolId], references: [id])
   favoritos                  Favorito[]
   busquedas                  BusquedaGuardada[]
   researchCollections        ResearchCollection[]
   eventos                    EventoConsulta[]
   accionesLog                AccionLog[]
   workspaceMemberships       WorkspaceMembership[]
-  documentSourcesCreated     DocumentSource[]      @relation("DocumentSourceCreator")
-  workspaceFoldersCreated    WorkspaceFolder[]     @relation("WorkspaceFolderCreator")
-  workspaceDocumentsUploaded WorkspaceDocument[]   @relation("WorkspaceDocumentUploader")
-  personalWorkspaceDocuments WorkspaceDocument[]   @relation("WorkspaceDocumentOwner")
-  personalWorkspaceFolders   WorkspaceFolder[]     @relation("WorkspaceFolderOwner")
-  resenasActualizadas        Sentencia[]           @relation("ResenaUpdatedBy")
-  resenasPublicadas          Sentencia[]           @relation("ResenaPublishedBy")
-  citasCreadas               CitaFallo[]           @relation("CitaCreatedBy")
-  citasActualizadas          CitaFallo[]           @relation("CitaUpdatedBy")
+  documentSourcesCreated     DocumentSource[]                 @relation("DocumentSourceCreator")
+  workspaceFoldersCreated    WorkspaceFolder[]                @relation("WorkspaceFolderCreator")
+  workspaceDocumentsUploaded WorkspaceDocument[]              @relation("WorkspaceDocumentUploader")
+  personalWorkspaceDocuments WorkspaceDocument[]              @relation("WorkspaceDocumentOwner")
+  personalWorkspaceFolders   WorkspaceFolder[]                @relation("WorkspaceFolderOwner")
+  resenasActualizadas        Sentencia[]                      @relation("ResenaUpdatedBy")
+  resenasPublicadas          Sentencia[]                      @relation("ResenaPublishedBy")
+  citasCreadas               CitaFallo[]                      @relation("CitaCreatedBy")
+  citasActualizadas          CitaFallo[]                      @relation("CitaUpdatedBy")
   relationshipsReviewed      SentenciaRelationshipCandidate[] @relation("RelationshipCandidateReviewer")
-  createdAt                  DateTime              @default(now())
-  updatedAt                  DateTime              @updatedAt
+  createdAt                  DateTime                         @default(now())
+  updatedAt                  DateTime                         @updatedAt
 
   @@index([email])
   @@index([activo])
@@ -54,8 +54,8 @@ model Usuario {
 }
 
 model Sentencia {
-  id                                       Int                         @id @default(autoincrement())
-  legacyId                                 String?                     @unique
+  id                                       Int                              @id @default(autoincrement())
+  legacyId                                 String?                          @unique
   legacyLink                               String?
   numeroSentencia                          String?
   tipoFallo                                String?
@@ -72,53 +72,53 @@ model Sentencia {
   demandadoOriginal                        String?
   actorPublico                             String?
   demandadoPublico                         String?
-  anonimizado                              Boolean                     @default(false)
+  anonimizado                              Boolean                          @default(false)
   objeto                                   String?
   magistrados                              String?
   juez                                     String?
-  estadoCarga                              String                      @default("BORRADOR")
-  publicado                                Boolean                     @default(false)
+  estadoCarga                              String                           @default("BORRADOR")
+  publicado                                Boolean                          @default(false)
   publishedAt                              DateTime?
-  activo                                   Boolean                     @default(true)
+  activo                                   Boolean                          @default(true)
   observacionesInternas                    String?
   resumenIa                                String?
   resena                                   String?
   resenaAi                                 String?
-  resenaPublicada                          Boolean                     @default(false)
+  resenaPublicada                          Boolean                          @default(false)
   resenaUpdatedAt                          DateTime?
   resenaPublicadaAt                        DateTime?
   resenaUpdatedById                        Int?
   resenaPublicadaById                      Int?
-  resumenPublicado                         Boolean                     @default(false)
+  resumenPublicado                         Boolean                          @default(false)
   resumenFuente                            String?
   citaPersonalizada                        String?
-  slugPublico                              String?                     @unique
-  destacada                                Boolean                     @default(false)
+  slugPublico                              String?                          @unique
+  destacada                                Boolean                          @default(false)
   textoBusqueda                            String?
   textoBusquedaNormalizado                 String?
   caratula                                 String?
   anio                                     Int?
-  tienePdf                                 Boolean                     @default(false)
+  tienePdf                                 Boolean                          @default(false)
   sumarios                                 Sumario[]
   archivosPdf                              ArchivoPdf[]
   citasFallo                               CitaFallo[]
   referenciasNormativas                    ReferenciaNormativa[]
-  referenciasJurisprudenciales             ReferenciaJurisprudencial[] @relation("SentenciaReferenciaJurisprudencialOrigen")
-  referenciasJurisprudencialesRelacionadas ReferenciaJurisprudencial[] @relation("SentenciaReferenciaJurisprudencialDestino")
+  referenciasJurisprudenciales             ReferenciaJurisprudencial[]      @relation("SentenciaReferenciaJurisprudencialOrigen")
+  referenciasJurisprudencialesRelacionadas ReferenciaJurisprudencial[]      @relation("SentenciaReferenciaJurisprudencialDestino")
   referenciasDoctrinarias                  ReferenciaDoctrinaria[]
-  salaCatalogo                             Sala?                       @relation(fields: [salaId], references: [id], onDelete: SetNull)
-  tipoFalloCatalogo                        TipoFallo?                  @relation(fields: [tipoFalloId], references: [id], onDelete: SetNull)
-  tribunalOrigenCatalogo                   TribunalOrigen?             @relation(fields: [tribunalOrigenId], references: [id], onDelete: SetNull)
-  resenaUpdatedBy                          Usuario?                    @relation("ResenaUpdatedBy", fields: [resenaUpdatedById], references: [id], onDelete: SetNull)
-  resenaPublicadaBy                        Usuario?                    @relation("ResenaPublishedBy", fields: [resenaPublicadaById], references: [id], onDelete: SetNull)
+  salaCatalogo                             Sala?                            @relation(fields: [salaId], references: [id], onDelete: SetNull)
+  tipoFalloCatalogo                        TipoFallo?                       @relation(fields: [tipoFalloId], references: [id], onDelete: SetNull)
+  tribunalOrigenCatalogo                   TribunalOrigen?                  @relation(fields: [tribunalOrigenId], references: [id], onDelete: SetNull)
+  resenaUpdatedBy                          Usuario?                         @relation("ResenaUpdatedBy", fields: [resenaUpdatedById], references: [id], onDelete: SetNull)
+  resenaPublicadaBy                        Usuario?                         @relation("ResenaPublishedBy", fields: [resenaPublicadaById], references: [id], onDelete: SetNull)
   favoritos                                Favorito[]
   researchCollectionItems                  ResearchCollectionItem[]
   outgoingRelationshipCandidates           SentenciaRelationshipCandidate[] @relation("RelationshipCandidateSource")
   incomingRelationshipCandidates           SentenciaRelationshipCandidate[] @relation("RelationshipCandidateTarget")
   eventosConsulta                          EventoConsulta[]
   embeddingsDocumento                      EmbeddingDocumento[]
-  createdAt                                DateTime                    @default(now())
-  updatedAt                                DateTime                    @updatedAt
+  createdAt                                DateTime                         @default(now())
+  updatedAt                                DateTime                         @updatedAt
 
   @@index([fecha])
   @@index([sala])
@@ -328,13 +328,16 @@ model EmbeddingDocumento {
 }
 
 model BusquedaGuardada {
-  id        Int      @id @default(autoincrement())
-  usuarioId Int
-  nombre    String
-  queryJson Json
-  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              Int       @id @default(autoincrement())
+  usuarioId       Int
+  nombre          String
+  queryJson       Json
+  lastViewedAt    DateTime?
+  lastEvaluatedAt DateTime?
+  lastNewCount    Int       @default(0)
+  usuario         Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([usuarioId])
 }

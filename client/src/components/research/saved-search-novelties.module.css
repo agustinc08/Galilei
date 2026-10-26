@@ -1,0 +1,63 @@
+.panel {
+  display: grid;
+  gap: 14px;
+}
+
+.panel h2,
+.panel p {
+  margin: 0;
+}
+
+.panelHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panelHeader p {
+  margin-top: 4px;
+  color: #526170;
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #173b75;
+  background: #e7efff;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.results {
+  display: grid;
+  gap: 8px;
+}
+
+.result {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+}
+
+.result a {
+  color: #175cd3;
+}
+
+.result span {
+  color: #526170;
+  font-size: 13px;
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}

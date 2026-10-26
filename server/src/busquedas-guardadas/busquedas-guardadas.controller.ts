@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ROLES } from '../auth/constants';
@@ -16,6 +17,8 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { BusquedasGuardadasService } from './busquedas-guardadas.service';
 import { CreateBusquedaGuardadaDto } from './dto/create-busqueda-guardada.dto';
 import { UpdateBusquedaGuardadaDto } from './dto/update-busqueda-guardada.dto';
+import { SavedSearchNoveltiesQueryDto } from './dto/saved-search-novelties-query.dto';
+import { MarkNoveltiesViewedDto } from './dto/mark-novelties-viewed.dto';
 
 @ApiTags('busquedas-guardadas')
 @ApiBearerAuth()
@@ -30,6 +33,28 @@ export class BusquedasGuardadasController {
   @ApiOperation({ summary: 'Lista las busquedas guardadas del usuario' })
   findAll(@CurrentUser() user: AuthenticatedUser) {
     return this.busquedasGuardadasService.findAll(user.id);
+  }
+
+  @Get(':id/novedades')
+  @ApiOperation({
+    summary: 'Consulta los fallos publicados desde la última revisión',
+  })
+  novelties(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: SavedSearchNoveltiesQueryDto,
+  ) {
+    return this.busquedasGuardadasService.findNovelties(user.id, id, query);
+  }
+
+  @Post(':id/novedades/vistas')
+  @ApiOperation({ summary: 'Marca como revisadas las novedades mostradas' })
+  markNoveltiesViewed(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: MarkNoveltiesViewedDto,
+  ) {
+    return this.busquedasGuardadasService.markNoveltiesViewed(user.id, id, dto);
   }
 
   @Get(':id')
