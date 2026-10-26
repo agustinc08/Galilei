@@ -15,8 +15,10 @@ import { formatDate } from '@/lib/utils';
 import type { ApiResponse } from '@/types/common';
 import type { Favorito } from '@/types/favorito';
 import { AddToCollectionButton } from '@/components/research/AddToCollectionButton';
+import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
 
 export default function FavoritosPage() {
+  const comparison = useComparisonSelection();
   const [favoritos, setFavoritos] = useState<Favorito[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +101,14 @@ export default function FavoritosPage() {
                         <Button variant="secondary">Abrir</Button>
                       </Link>
                       <AddToCollectionButton sentenciaId={favorito.sentenciaId} />
+                      {favorito.sentencia.slugPublico ? (
+                        <Button
+                          variant={comparison.items.some((item) => item.slug === favorito.sentencia.slugPublico) ? 'secondary' : 'ghost'}
+                          onClick={() => comparison.toggle({ slug: favorito.sentencia.slugPublico!, title: favorito.sentencia.caratula || favorito.sentencia.numeroSentencia || favorito.sentencia.expediente || `Sentencia ${favorito.sentenciaId}` })}
+                        >
+                          {comparison.items.some((item) => item.slug === favorito.sentencia.slugPublico) ? 'Quitar de comparación' : 'Agregar a comparación'}
+                        </Button>
+                      ) : null}
                       <Button
                         variant="danger"
                         onClick={async () => {

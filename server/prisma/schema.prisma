@@ -32,6 +32,7 @@ model Usuario {
   favoritos                  Favorito[]
   busquedas                  BusquedaGuardada[]
   researchCollections        ResearchCollection[]
+  researchComparisons        ResearchComparison[]
   eventos                    EventoConsulta[]
   accionesLog                AccionLog[]
   workspaceMemberships       WorkspaceMembership[]
@@ -113,6 +114,7 @@ model Sentencia {
   resenaPublicadaBy                        Usuario?                         @relation("ResenaPublishedBy", fields: [resenaPublicadaById], references: [id], onDelete: SetNull)
   favoritos                                Favorito[]
   researchCollectionItems                  ResearchCollectionItem[]
+  researchComparisonItems                  ResearchComparisonItem[]
   outgoingRelationshipCandidates           SentenciaRelationshipCandidate[] @relation("RelationshipCandidateSource")
   incomingRelationshipCandidates           SentenciaRelationshipCandidate[] @relation("RelationshipCandidateTarget")
   eventosConsulta                          EventoConsulta[]
@@ -384,6 +386,33 @@ model ResearchCollectionItem {
   @@unique([collectionId, sentenciaId])
   @@index([sentenciaId])
   @@index([collectionId, updatedAt])
+}
+
+// A saved comparison stores only a user's ordered references to public judgments.
+model ResearchComparison {
+  id        Int                      @id @default(autoincrement())
+  ownerId   Int
+  name      String                   @db.VarChar(100)
+  owner     Usuario                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items     ResearchComparisonItem[]
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+
+  @@index([ownerId, updatedAt])
+}
+
+model ResearchComparisonItem {
+  id           Int                @id @default(autoincrement())
+  comparisonId Int
+  sentenciaId  Int
+  position     Int
+  comparison   ResearchComparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+  sentencia    Sentencia          @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
+  createdAt    DateTime           @default(now())
+
+  @@unique([comparisonId, sentenciaId])
+  @@unique([comparisonId, position])
+  @@index([sentenciaId])
 }
 
 model EventoConsulta {

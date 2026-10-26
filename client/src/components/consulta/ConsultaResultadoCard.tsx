@@ -15,6 +15,7 @@ import { api } from '@/lib/api';
 import { copyToClipboard } from '@/lib/utils';
 import type { PublicSentencia } from '@/types/sentencia';
 import { AddToCollectionButton } from '@/components/research/AddToCollectionButton';
+import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
 
 type Props = {
   item: ConsultaPublicaResultado;
@@ -45,12 +46,14 @@ export function ConsultaResultadoCard({
 }: Props) {
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [copyingCitation, setCopyingCitation] = useState(false);
+  const comparison = useComparisonSelection();
   const searchParams = useSearchParams();
   const returnTo = `/consulta${searchParams.size ? `?${searchParams.toString()}` : ''}`;
   const detailQuery = new URLSearchParams({ returnTo });
   if (query) detailQuery.set('q', query);
   const publicIdentifier = item.slugPublico ?? String(item.sentenciaId ?? item.id);
   const hasPdf = item.pdfDisponible === true || Boolean(item.archivoPdfId);
+  const inComparison = Boolean(item.slugPublico && comparison.items.some((candidate) => candidate.slug === item.slugPublico));
   const detailHref = publicIdentifier
     ? `/consulta/sentencia/${publicIdentifier}?${detailQuery.toString()}`
     : null;
@@ -126,6 +129,11 @@ export function ConsultaResultadoCard({
           />
         ) : null}
         {canAddToCollection ? <AddToCollectionButton sentenciaId={item.sentenciaId ?? item.id} /> : null}
+        {item.slugPublico ? (
+          <Button variant={inComparison ? 'secondary' : 'ghost'} onClick={() => comparison.toggle({ slug: item.slugPublico!, title: item.caratula || item.numeroSentencia || item.expediente || `Sentencia ${item.id}` })}>
+            {inComparison ? 'Quitar de comparación' : 'Agregar a comparación'}
+          </Button>
+        ) : null}
         {item.slugPublico ? (
           <Button variant="ghost" onClick={() => void copyCitation()} disabled={copyingCitation}>
             {copyingCitation ? 'Copiando cita…' : 'Copiar cita'}

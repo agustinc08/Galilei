@@ -23,16 +23,26 @@ try {
   // The package-local configuration remains the only option outside a Git checkout.
 }
 const defaultEnvFile = path.resolve(__dirname, '..', '.env.development.local');
+const allowIsolatedQa =
+  process.env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true';
 const historicalEnvFile = path.join(
   canonicalRepositoryRoot,
   'JurisprudenciaN',
   'back',
   '.env.development.local',
 );
-const configuredEnvFile = process.env.BJC_DEV_DB_GUARD_ENV_FILE;
-const permittedEnvFiles = [defaultEnvFile, historicalEnvFile].map((value) =>
-  path.resolve(value).toLowerCase(),
+const comparisonQaEnvFile = path.join(
+  canonicalRepositoryRoot,
+  '_recovery-work',
+  'galilei-judgment-comparison-suite5',
+  'qa.env',
 );
+const configuredEnvFile = process.env.BJC_DEV_DB_GUARD_ENV_FILE;
+const permittedEnvFiles = [
+  defaultEnvFile,
+  historicalEnvFile,
+  ...(allowIsolatedQa ? [comparisonQaEnvFile] : []),
+].map((value) => path.resolve(value).toLowerCase());
 const envFile = configuredEnvFile
   ? path.resolve(configuredEnvFile)
   : fs.existsSync(defaultEnvFile)
@@ -43,12 +53,12 @@ if (
   !permittedEnvFiles.includes(path.resolve(envFile).toLowerCase())
 ) {
   console.error(
-    'DEV_DB_GUARD=ABORT; config path must be the current or preserved local project backend file.',
+    'DEV_DB_GUARD=ABORT; config path must be the current local file, preserved local file, or exact isolated-QA file when QA mode is enabled.',
   );
   process.exit(2);
 }
 if (!fs.existsSync(envFile)) {
-  console.error('DEV_DB_GUARD=ABORT; .env.development.local is missing.');
+  console.error('DEV_DB_GUARD=ABORT; permitted local database configuration is missing.');
   process.exit(2);
 }
 
@@ -60,8 +70,6 @@ if (!match) {
 }
 
 const rawUrl = match[1].replace(/^(["'])(.*)\1$/, '$2');
-const allowIsolatedQa =
-  process.env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true';
 const validation = validateDevelopmentDatabaseUrl(rawUrl, {
   allowIsolatedQa,
   deploymentEnvironment: allowIsolatedQa
@@ -78,7 +86,7 @@ if (!validation.valid) {
   process.exit(2);
 }
 
-// Pass the already-validated local DEV URL to the child process. Several
+// Pass the already-validated local QA/DEV URL to the child process. Several
 // integration tests instantiate PrismaService directly and do not load Nest's
 // .env.development.local configuration on their own.
 process.env.DATABASE_URL = rawUrl;

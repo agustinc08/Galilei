@@ -21,6 +21,7 @@ import { ReferenciasDoctrinariasModule } from './referencias-doctrinarias/refere
 import { ReferenciasJurisprudencialesModule } from './referencias-jurisprudenciales/referencias-jurisprudenciales.module';
 import { ReferenciasNormativasModule } from './referencias-normativas/referencias-normativas.module';
 import { ResearchCollectionsModule } from './research-collections/research-collections.module';
+import { ResearchComparisonsModule } from './research-comparisons/research-comparisons.module';
 import { ResearchRelationshipsModule } from './research-relationships/research-relationships.module';
 import { RolesModule } from './roles/roles.module';
 import { SentenciasModule } from './sentencias/sentencias.module';
@@ -54,6 +55,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     ReferenciasJurisprudencialesModule,
     ReferenciasDoctrinariasModule,
     ResearchCollectionsModule,
+    ResearchComparisonsModule,
     ResearchRelationshipsModule,
   ],
   controllers: [HealthController],

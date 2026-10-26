@@ -1,0 +1,61 @@
+.tray {
+  position: fixed;
+  z-index: 1000;
+  inset: auto 16px 16px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 12px 14px;
+  border: 1px solid #b7c9d9;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 36px rgba(16, 24, 40, .2);
+}
+
+.trayItems,
+.trayActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.trayItems { flex: 1; }
+.count { color: #475467; font-size: 13px; white-space: nowrap; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(230px, 36vw);
+  min-height: 32px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  background: #eef4f8;
+  color: #263e53;
+  font-size: 12px;
+}
+.chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip button {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  background: #dce8f0;
+  color: #263e53;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+.chip button:focus-visible { outline: 3px solid #fdb022; outline-offset: 2px; }
+.message { color: #9a3412; font-size: 13px; }
+
+@media (max-width: 720px) {
+  .tray { inset: auto 8px 8px; align-items: stretch; flex-direction: column; padding: 10px; }
+  .trayActions { justify-content: flex-end; }
+  .message { flex: 1 1 100%; }
+}

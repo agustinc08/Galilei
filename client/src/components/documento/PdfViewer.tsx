@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -31,6 +31,8 @@ type Props = {
   searchQuery?: string;
   structurePath?: string | null;
   citationPath?: string | null;
+  pageLinkPath?: string | null;
+  syncPageToUrl?: boolean;
   onControlsChange?: (controls: PdfViewerControls) => void;
 };
 
@@ -56,8 +58,13 @@ export function PdfViewer({
   searchQuery,
   structurePath,
   citationPath,
+  pageLinkPath,
+  syncPageToUrl = true,
   onControlsChange,
 }: Props) {
+  const searchControlId = useId();
+  const searchInputId = `pdf-document-search-${searchControlId}`;
+  const searchStatusId = `${searchInputId}-status`;
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [blobData, setBlobData] = useState<Blob | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(downloadPath));
@@ -116,7 +123,7 @@ export function PdfViewer({
   }, [currentPage, searchQuery, zoom]);
 
   useEffect(() => {
-    if (!downloadPath || typeof window === 'undefined') return;
+    if (!downloadPath || !syncPageToUrl || typeof window === 'undefined') return;
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.set('page', String(currentPage));
     window.history.replaceState(
@@ -124,7 +131,7 @@ export function PdfViewer({
       '',
       `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`,
     );
-  }, [currentPage, downloadPath]);
+  }, [currentPage, downloadPath, syncPageToUrl]);
 
   useEffect(() => {
     onControlsChange?.(EMPTY_CONTROLS);
@@ -327,14 +334,16 @@ export function PdfViewer({
   const copyPageLink = useCallback(async () => {
     if (!pageCount || currentPage > pageCount) return;
     try {
-      const url = new URL(window.location.href);
+      const url = pageLinkPath
+        ? new URL(pageLinkPath, window.location.origin)
+        : new URL(window.location.href);
       url.searchParams.set('page', String(currentPage));
       await navigator.clipboard.writeText(url.toString());
       setCopyStatus('Enlace copiado');
     } catch {
       setCopyStatus('No se pudo copiar el enlace.');
     }
-  }, [currentPage, pageCount]);
+  }, [currentPage, pageCount, pageLinkPath]);
 
   const copyPageCitation = useCallback(async () => {
     if (!citationPath || !pageCount || currentPage > pageCount) return;
@@ -533,9 +542,9 @@ export function PdfViewer({
             className={styles.inDocumentSearchForm}
             onSubmit={(event) => submitSearch(event)}
           >
-            <label htmlFor="pdf-document-search">Buscar en este fallo</label>
+            <label htmlFor={searchInputId}>Buscar en este fallo</label>
             <input
-              id="pdf-document-search"
+              id={searchInputId}
               type="search"
               value={draftSearchQuery}
               onChange={(event) => setDraftQueryState({ source: searchQuery ?? '', value: event.target.value })}
@@ -547,7 +556,7 @@ export function PdfViewer({
                 }
               }}
               placeholder="Escribí una palabra o frase"
-              aria-describedby="pdf-document-search-status"
+              aria-describedby={searchStatusId}
             />
             <Button type="submit" disabled={pageTexts === null || !draftSearchQuery.trim()}>
               Buscar
@@ -580,7 +589,7 @@ export function PdfViewer({
               Limpiar
             </Button>
           </form>
-          <p id="pdf-document-search-status" className={styles.inDocumentSearchStatus} role="status" aria-live="polite">
+          <p id={searchStatusId} className={styles.inDocumentSearchStatus} role="status" aria-live="polite">
             {searchProgress
               ? searchProgress.total
                 ? `Leyendo página ${searchProgress.page} de ${searchProgress.total}…`

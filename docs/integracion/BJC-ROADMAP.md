@@ -1,5 +1,16 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Candidata — GALILEI SUPER SPRINT 5: workspace para comparar fallos (2026-10-26)
+
+| Gate | Estado | Evidencia / siguiente paso |
+|---|---|---|
+| Selección y matriz pública | **IMPLEMENTADO / REAL E2E PASS** | Búsqueda, ficha, colecciones y favoritos; 2–4 slugs públicos; matriz sin conclusiones jurídicas; selección preservada y vuelta al origen. |
+| Relaciones y procedencia | **IMPLEMENTADO / REAL E2E PASS** | Sumarios publicados, reseña editorial separada, mismo expediente exacto y sólo citas verificadas. Notas proceden de colecciones propias; nombres privados no sustituyen valores públicos faltantes si el fallo está anonimizado. |
+| PDF y comparaciones guardadas | **IMPLEMENTADO / REAL E2E PASS** | Reutiliza `PdfViewer`; dos documentos bajo demanda para comparación de dos, un visor para 3–4; migration 36 fresca e incremental 35→36 en QA aislada; owner-only y revalidación pública. |
+| Suite 4 / datos principales | **SIN CAMBIOS / READ-ONLY PASS** | No se tocan gold labels, semántica del parser ni datos principales. Search read-only: 4.759 / 3.369 / 1.826; 0 diferencias de orden; cero escrituras. |
+
+Builds, suites, auditorías y QA real local pasan; el informe externo registra rendimientos, regresiones y limpieza del entorno. Mantenerla en su feature branch y verificar CI para el SHA publicado; no promover a DEV/main. Las etiquetas humanas de Suite 4 siguen `PENDING_HUMAN_GOLD` y no bloquean este espacio.
+
 ## Candidata — GALILEI SUPER SPRINT 4: gold editorial y cobertura (2026-10-26)
 
 | Gate | Estado | Evidencia / siguiente paso |

@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusMessage } from '@/components/ui/StatusMessage';
 import type { ApiResponse } from '@/types/common';
 import styles from '@/components/research/research-collections.module.css';
+import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
 
 type CollectionItem = {
   id: number;
@@ -64,6 +65,7 @@ export default function ResearchCollectionDetailPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const comparison = useComparisonSelection();
 
   useEffect(() => {
     if (!validId) return;
@@ -228,7 +230,17 @@ export default function ResearchCollectionDetailPage() {
               <article className={styles.collectionItem} key={item.id}>
                 <div className={styles.collectionItemHeader}>
                   <h2><Link href={sentenceHref}>{title}</Link></h2>
-                  <Button variant="ghost" onClick={() => void removeItem(item.id)}>Quitar de colección</Button>
+                  <div className={styles.collectionActions}>
+                    {item.sentencia.slugPublico ? (
+                      <Button
+                        variant={comparison.items.some((candidate) => candidate.slug === item.sentencia.slugPublico) ? 'secondary' : 'ghost'}
+                        onClick={() => comparison.toggle({ slug: item.sentencia.slugPublico!, title })}
+                      >
+                        {comparison.items.some((candidate) => candidate.slug === item.sentencia.slugPublico) ? 'Quitar de comparación' : 'Agregar a comparación'}
+                      </Button>
+                    ) : null}
+                    <Button variant="ghost" onClick={() => void removeItem(item.id)}>Quitar de colección</Button>
+                  </div>
                 </div>
                 <p className={styles.collectionItemMeta}>
                   {[item.sentencia.sala, item.sentencia.fecha ? new Date(item.sentencia.fecha).toLocaleDateString('es-AR') : null, item.sentencia.expediente ? `Expte. ${item.sentencia.expediente}` : null, item.sentencia.numeroSentencia ? `Sentencia ${item.sentencia.numeroSentencia}` : null].filter(Boolean).join(' · ') || 'Sin metadatos adicionales'}

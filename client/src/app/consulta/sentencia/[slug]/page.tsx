@@ -17,11 +17,13 @@ import { formatDate } from '@/lib/utils';
 import { formatTipoFallo } from '@/lib/jurisprudencia-labels';
 import type { ApiResponse } from '@/types/common';
 import type { PublicSentencia } from '@/types/sentencia';
+import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
 
 export default function ConsultaSentenciaPublicaPage() {
   const params = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
   const requestedReturn = searchParams.get('returnTo') ?? '';
+  const comparison = useComparisonSelection();
   const backHref = requestedReturn.startsWith('/consulta') ? requestedReturn : '/consulta';
   const [data, setData] = useState<PublicSentencia | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -86,6 +88,14 @@ export default function ConsultaSentenciaPublicaPage() {
         </div>
         <div className={styles.inlineActions}>
           <CopyButton value={data.cita.citaCopiable} label="Copiar cita" />
+          {data.slugPublico ? (
+            <Button
+              variant={comparison.items.some((item) => item.slug === data.slugPublico) ? 'secondary' : 'ghost'}
+              onClick={() => comparison.toggle({ slug: data.slugPublico!, title: data.caratula || data.numeroSentencia || data.expediente || `Sentencia ${data.id}` })}
+            >
+              {comparison.items.some((item) => item.slug === data.slugPublico) ? 'Quitar de comparación' : 'Agregar a comparación'}
+            </Button>
+          ) : null}
           <ShareLinkButton url={currentUrl} label="Copiar enlace" sentenciaId={data.id} />
           {data.archivosPdf.length > 0 ? <Link href={`/fallos/${params.slug}?returnTo=${encodeURIComponent(backHref)}`}><Button>Abrir fallo</Button></Link> : null}
           <PrintButton
