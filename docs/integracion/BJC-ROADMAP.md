@@ -1,5 +1,17 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Candidata — GALILEI SUPER MEGA ULTRA SPRINT 8: revisión OCR humana (2026-10-26)
+
+| Gate | Estado | Evidencia / siguiente paso |
+|---|---|---|
+| Flujo de revisión | **IMPLEMENTADO / POSTGRESQL E2E PASS** | Cola interna paginada, roles y alcance, OCR local por página, corrección versionada, aprobar/sin texto/rechazar/reabrir y aprobación documental explícita. Original PDF inmutable; publicación, metadatos y citas separados. |
+| Search y outage | **REAL SERVICES PASS** | OpenSearch QA 2.19.6 aislado: aprobación y outbox persistieron con Search apagado; el worker procesó el mismo evento después de recuperar el clúster GREEN. |
+| Compatibilidad de esquema | **MATRIZ QA PASS** | PostgreSQL 16: 0→39, 37→39 y 38→39. Sin SQL destructivo; 37→39 aplica consecutivamente las migraciones Suites 7 y 8. |
+| Calidad local | **PASS** | Backend 599 aprobadas / 10 omitidas por gates opcionales / 0 fallidas; cliente 22/22; OCR real 2/2 + outage/recovery; Suite 7 10/10; Suite 5/6 research E2E 22/22; OCR UI, cuatro viewports, typecheck, lint y builds. Range 206 se referencia desde la certificación Suite 7 y no se repitió en esta candidata. |
+| UAT / publicación | **PENDING_HUMAN_UAT / EXACT_SHA_CI** | Guion institucional en `docs/uat-ocr-review.md`. El UAT humano y `PENDING_HUMAN_GOLD` siguen pendientes; el audit y CI deben verificar el SHA remoto final. No desplegar ni promover desde este sprint. |
+
+La arquitectura y límites están en `docs/ocr-human-review-architecture.md`; la guía funcional está en `docs/ocr-human-review.md`. Mantener OCR distinto de `PENDING_HUMAN_GOLD`.
+
 ## Candidata — GALILEI SUPER MEGA ULTRA SPRINT 6: evolución jurisprudencial (2026-10-26)
 
 | Gate | Estado | Evidencia / siguiente paso |

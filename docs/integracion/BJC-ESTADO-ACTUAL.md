@@ -1,5 +1,13 @@
 # Estado actual — Buscador Jurídico Civil
 
+## GALILEI — SUPER MEGA ULTRA SPRINT 8 — espacio de revisión OCR humana (2026-10-26)
+
+La candidata aislada `feature/ocr-human-review-suite-8` parte exactamente de Suite 7 en `f631eb9dc76c450fd0656ce5d6f341e4c711e116`. Agrega `/admin/jurisprudencia/ocr`, revisión de cada página, OCR local con procedencia, correcciones humanas versionadas, estados explícitos y aprobación documental. La aprobación crea una nueva `CorpusExtraction` y actualiza `CorpusDocument.searchText`; no modifica el PDF, metadatos jurídicos, citas ni publicación.
+
+Certificación local aislada completada: PostgreSQL 16 `127.0.0.1:55434`, cadena 0→39, 37→39 y 38→39 PASS; 37→39 aplica consecutivamente las migraciones Suite 7 y Suite 8. Nest/HTTP + OCR local verificó roles/alcance, SHA del original, historial, página sin texto, rechazo/reapertura, conflictos optimistas y aprobación. Suite 7 integración: 10/10. Suite 5/6 research E2E: 22/22 (harness de investigación simulado). OCR UI: Edge Chromium en cuatro viewports, navegación por teclado, foco, etiquetas, anuncios de estado, contraste AA y sin desbordamiento. Backend: 599 aprobadas, 10 omitidas por gates de integración opcionales y 0 fallidas; cliente: 22/22; typecheck, lint y build pasan.
+
+La integración real de Search probó que, con OpenSearch QA 2.19.6 aislado detenido, la aprobación persistió en PostgreSQL y el outbox quedó pendiente; tras recuperar el clúster QA GREEN, el worker existente procesó el mismo evento y el texto aprobado quedó visible en el alias QA. OCR de tres páginas: 1.869,2 ms; aprobación documental: 39,16 ms. La matriz y reportes están en `_recovery-work/galilei-ocr-human-review-suite8/evidence/`. Range 206/PDF Search figura PASS en la evidencia heredada de Suite 7, no se repitió en este sprint; la prueba de OCR verificó el visor PDF original en la ruta nueva. El audit de dependencias y CI se deben verificar contra el SHA publicado. UAT humano institucional y parser gold `PENDING_HUMAN_GOLD` siguen pendientes. No desplegar a Sytec10 ni promover a DEV/main desde este sprint.
+
 ## GALILEI — SUPER MEGA ULTRA SPRINT 6 — evolución jurisprudencial (2026-10-26)
 
 La candidata local `feature/jurisprudential-evolution-suite-6` parte de Suite 5 en `90fb74764ad28ffc8c30dec88a9008580ac157f2`. Agrega `/evolucion` para seleccionar 2–50 fallos publicados/activos, ordenar por fecha decisoria, mostrar “Sin fecha disponible”, agrupar por Sala y exponer sólo citas `VERIFIED` dirigidas y coincidencias determinísticas de expediente completo/año. Reutiliza la comparación 2–4 de Suite 5 y añade comparación adyacente; no infiere cambios doctrinales ni usa IA.

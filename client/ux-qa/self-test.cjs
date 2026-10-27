@@ -15,7 +15,7 @@ test('the responsive matrix contains the nine requested unique viewports', () =>
 
 test('public and authenticated routes have explicit availability', () => {
   assert.deepEqual(publicRoutes.map((route) => route.route), ['/', '/login', '/consulta', '/fallos/ux-qa-001']);
-  assert.deepEqual(authenticatedRoutes.map((route) => route.route), ['/galilei', '/personal', '/spaces/manage']);
+  assert.deepEqual(authenticatedRoutes.map((route) => route.route), ['/galilei', '/personal', '/spaces/manage', '/admin/jurisprudencia/ocr']);
   assert.ok(authenticatedRoutes.every((route) => route.expectedAvailability === 'PRESENT_AUTHENTICATED'));
   assert.deepEqual(authScenarios.map((scenario) => scenario.id), [
     'ONE_DEPENDENCY', 'MULTI_DEPENDENCY', 'PERSONAL_OWNER', 'SHARED_MEMBER',

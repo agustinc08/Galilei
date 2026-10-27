@@ -18,6 +18,8 @@ import { CorpusOcrWorkerService } from './corpus-ocr-worker.service';
 import { InstitutionalIngestionController } from './institutional-ingestion.controller';
 import { InstitutionalIngestionService } from './institutional-ingestion.service';
 import { LogsModule } from '../logs/logs.module';
+import { OcrHumanReviewController } from './ocr-human-review.controller';
+import { OcrHumanReviewService } from './ocr-human-review.service';
 
 @Module({
   imports: [BusquedaModule, LogsModule],
@@ -29,6 +31,7 @@ import { LogsModule } from '../logs/logs.module';
     PersonalDocumentController,
     DocumentSourceController,
     InstitutionalIngestionController,
+    OcrHumanReviewController,
   ],
   providers: [
     CorpusDocumentAccessService,
@@ -38,6 +41,7 @@ import { LogsModule } from '../logs/logs.module';
     DocumentSourceScanner,
     CorpusOcrWorkerService,
     InstitutionalIngestionService,
+    OcrHumanReviewService,
     {
       provide: LocalPdfOcrProcessor,
       useFactory: () => new LocalPdfOcrProcessor(),

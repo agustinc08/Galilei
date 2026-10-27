@@ -24,6 +24,7 @@ const authenticatedRoutes = [
   { id: 'GALILEI_HOME', route: '/galilei', coverageFiles: ['tests/galilei-navigation.e2e.spec.ts'] },
   { id: 'MY_DOCUMENTS', route: '/personal', coverageFiles: ['tests/copernic-ux-states.e2e.spec.ts', 'tests/workspace-uat.e2e.spec.ts'] },
   { id: 'SPACE_MANAGE', route: '/spaces/manage', coverageFiles: ['tests/galilei-navigation.e2e.spec.ts', 'tests/workspace-uat.e2e.spec.ts'] },
+  { id: 'OCR_HUMAN_REVIEW', route: '/admin/jurisprudencia/ocr', coverageFiles: ['tests/ux-ocr-review.spec.cjs'] },
 ].map((route) => ({
   ...route,
   requiresAuth: true,

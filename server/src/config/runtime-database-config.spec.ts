@@ -54,6 +54,46 @@ describe('canonical runtime PostgreSQL pool configuration', () => {
     });
   });
 
+  it('allows only the exact Suite 8 loopback database allowlist for isolated OCR integration', () => {
+    const config = getRuntimeDatabasePoolConfig({
+      NODE_ENV: 'development',
+      BJC_DEPLOYMENT_ENV: 'development',
+      BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE: 'true',
+      BJC_SPRINT8_ALLOW_ISOLATED_DATABASE: 'true',
+      DATABASE_URL:
+        'postgresql://bjc_dev:synthetic@127.0.0.1:55434/galilei_ocr_review_suite8_qa',
+    });
+    expect(config).toMatchObject({
+      host: '127.0.0.1',
+      port: 55434,
+      database: 'galilei_ocr_review_suite8_qa',
+      user: 'bjc_dev',
+      password: 'synthetic',
+    });
+    expect(() =>
+      getRuntimeDatabasePoolConfig({
+        NODE_ENV: 'development',
+        BJC_DEPLOYMENT_ENV: 'development',
+        BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE: 'true',
+        BJC_SPRINT8_ALLOW_ISOLATED_DATABASE: 'true',
+        DATABASE_URL:
+          'postgresql://bjc_dev:synthetic@127.0.0.1:55434/buscador_juridico_civil_deepqa',
+      }),
+    ).toThrow('SPRINT8_QA_DATABASE_TARGET_REJECTED');
+  });
+
+  it('requires explicit development mode for Suite 8 isolated databases', () => {
+    expect(() =>
+      getRuntimeDatabasePoolConfig({
+        NODE_ENV: 'development',
+        BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE: 'true',
+        BJC_SPRINT8_ALLOW_ISOLATED_DATABASE: 'true',
+        DATABASE_URL:
+          'postgresql://bjc_dev:synthetic@127.0.0.1:55434/galilei_ocr_review_suite8_qa',
+      }),
+    ).toThrow('SPRINT8_QA_DATABASE_REQUIRES_DEVELOPMENT_RUNTIME');
+  });
+
   it('requires an explicit development deployment mode for isolated deep-QA', () => {
     expect(() =>
       getRuntimeDatabasePoolConfig({

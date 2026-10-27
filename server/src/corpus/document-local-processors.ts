@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { readdirSync, statSync } from 'node:fs';
+import { createReadStream, readdirSync, statSync } from 'node:fs';
 import {
   mkdtemp,
   mkdir,
@@ -38,6 +38,7 @@ export type OcrPageResult = {
   text: string;
   confidence: number | null;
   fingerprint: string;
+  renderedImageSha256?: string;
 };
 
 export type OcrRunResult = {
@@ -210,6 +211,54 @@ export class LocalPdfOcrProcessor {
     ].join(';');
   }
 
+  async inspectPdfPageCount(content: Buffer): Promise<number> {
+    if (
+      content.byteLength > MAX_SOURCE_BYTES ||
+      !content.subarray(0, 5).equals(Buffer.from('%PDF-'))
+    )
+      throw new LocalDocumentProcessingError('FILE_INVALID');
+    const rendererPath = this.capabilities.rendererPath;
+    if (!rendererPath)
+      throw new LocalDocumentProcessingError('PDF_INFO_UNAVAILABLE');
+    const pdfinfoPath = path.join(
+      path.dirname(rendererPath),
+      path.extname(rendererPath).toLowerCase() === '.exe'
+        ? 'pdfinfo.exe'
+        : 'pdfinfo',
+    );
+    if (!isFileSync(pdfinfoPath))
+      throw new LocalDocumentProcessingError('PDF_INFO_UNAVAILABLE');
+    await mkdir(this.config.tempDir, { recursive: true });
+    await this.assertFreeDisk(this.config.tempDir);
+    const workDir = await mkdtemp(
+      path.join(this.config.tempDir, 'galilei-pdf-info-'),
+    );
+    const pdfPath = path.join(workDir, 'source.pdf');
+    try {
+      await writeFile(pdfPath, content, { flag: 'wx' });
+      const result = await runChild(
+        pdfinfoPath,
+        [pdfPath],
+        15_000,
+        MAX_STDERR_BYTES,
+      );
+      const match = result.stdout.match(/^Pages:\s*(\d+)\s*$/mu);
+      const pageCount = match ? Number(match[1]) : 0;
+      if (
+        !Number.isSafeInteger(pageCount) ||
+        pageCount < 1 ||
+        pageCount > this.config.maxPages
+      )
+        throw new LocalDocumentProcessingError('PDF_PAGE_COUNT_INVALID');
+      return pageCount;
+    } catch (error) {
+      if (error instanceof LocalDocumentProcessingError) throw error;
+      throw wrapProcessingError(error, 'PDF_INFO_UNAVAILABLE');
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
+  }
+
   fingerprint(
     fileSha256: string,
     pageNumbers: number[],
@@ -312,6 +361,14 @@ export class LocalPdfOcrProcessor {
         )
           throw new LocalDocumentProcessingError('OCR_RENDER_FAILED');
 
+        const imageHash = createHash('sha256');
+        for await (const chunk of createReadStream(imagePath)) {
+          if (!Buffer.isBuffer(chunk))
+            throw new LocalDocumentProcessingError('OCR_RENDER_FAILED');
+          imageHash.update(chunk);
+        }
+        const renderedImageSha256 = imageHash.digest('hex');
+
         let tsv: string;
         const tsvConfigAvailable = isFileSync(
           path.join(this.config.tessdataDir, 'configs', 'tsv'),
@@ -350,6 +407,7 @@ export class LocalPdfOcrProcessor {
           pageNumber,
           text: parsed.text,
           confidence: parsed.confidence,
+          renderedImageSha256,
           fingerprint: createHash('sha256')
             .update(
               [fileSha256, pageNumber, this.identity(dpi, languages)].join(
@@ -378,6 +436,7 @@ export class LocalPdfOcrProcessor {
             pageNumber: page.pageNumber,
             fingerprint: page.fingerprint,
             confidence: page.confidence,
+            renderedImageSha256: page.renderedImageSha256,
           })),
           processedAt: new Date().toISOString(),
           warnings: [],

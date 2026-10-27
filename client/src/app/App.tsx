@@ -40,7 +40,9 @@ const pages = Object.entries(pageLoaders).map(([file, load]) => {
 });
 
 const isAdminPage = (file: string) => file.startsWith('./(admin)/');
-const isAdminOnlyPage = (file: string) => file.startsWith('./(admin)/admin/');
+const isAdminOnlyPage = (file: string) =>
+  file.startsWith('./(admin)/admin/') &&
+  !file.startsWith('./(admin)/admin/jurisprudencia/ocr/');
 
 const publicRoutes = pages.filter(({ file }) => !isAdminPage(file)).map(({ route }) => route);
 const adminRoutes = pages

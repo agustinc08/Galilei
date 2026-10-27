@@ -20,6 +20,7 @@
     "qa:ux:responsive": "node ux-qa/run.cjs responsive",
     "qa:ux:viewer": "node ux-qa/run.cjs viewer",
     "qa:ux:auth": "node ux-qa/auth-preflight.cjs && node ux-qa/run.cjs auth",
+    "qa:ux:ocr-review": "node ux-qa/run.cjs ocr-review",
     "preprod:env:check": "node scripts/preprod-build-env.mjs",
     "preprod:env:test": "node --test scripts/preprod-build-env.test.mjs"
   },

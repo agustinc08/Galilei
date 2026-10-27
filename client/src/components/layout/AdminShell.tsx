@@ -24,7 +24,8 @@ function activeDestination(pathname: string) {
     pathname.startsWith('/jurisprudencia') ||
     pathname.startsWith('/sentencias') ||
     pathname.startsWith('/sumarios') ||
-    pathname.startsWith('/revision')
+    pathname.startsWith('/revision') ||
+    pathname.startsWith('/admin/jurisprudencia/ocr')
   ) {
     return 'jurisprudencia';
   }
@@ -79,6 +80,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           ) : null}
           {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user?.rol.nombre ?? '') ? (
             <Link href="/citas-pendientes">Revisión editorial de citas</Link>
+          ) : null}
+          {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user?.rol.nombre ?? '') ? (
+            <Link href="/admin/jurisprudencia/ocr">Revisión humana de OCR</Link>
           ) : null}
           <Button variant="secondary" onClick={logout}>
             Cerrar sesión

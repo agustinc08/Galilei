@@ -26,7 +26,9 @@ const defaultEnvFile = path.resolve(__dirname, '..', '.env.development.local');
 const allowDeepQa = process.env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true';
 const allowSuite7Qa =
   process.env.BJC_SPRINT7_ALLOW_ISOLATED_DATABASE === 'true';
-const allowIsolatedQa = allowDeepQa || allowSuite7Qa;
+const allowSuite8Qa =
+  process.env.BJC_SPRINT8_ALLOW_ISOLATED_DATABASE === 'true';
+const allowIsolatedQa = allowDeepQa || allowSuite7Qa || allowSuite8Qa;
 const historicalEnvFile = path.join(
   canonicalRepositoryRoot,
   'JurisprudenciaN',
@@ -45,12 +47,19 @@ const suite7QaEnvFile = path.join(
   'galilei-institutional-ingestion-suite7',
   'qa.env',
 );
+const suite8QaEnvFile = path.join(
+  canonicalRepositoryRoot,
+  '_recovery-work',
+  'galilei-ocr-human-review-suite8',
+  'qa.env',
+);
 const configuredEnvFile = process.env.BJC_DEV_DB_GUARD_ENV_FILE;
 const permittedEnvFiles = [
   defaultEnvFile,
   historicalEnvFile,
   ...(allowDeepQa ? [comparisonQaEnvFile] : []),
   ...(allowSuite7Qa ? [suite7QaEnvFile] : []),
+  ...(allowSuite8Qa ? [suite8QaEnvFile] : []),
 ].map((value) => path.resolve(value).toLowerCase());
 const envFile = configuredEnvFile
   ? path.resolve(configuredEnvFile)
@@ -80,10 +89,31 @@ if (!match) {
   process.exit(2);
 }
 
-const rawUrl = match[1].replace(/^(["'])(.*)\1$/, '$2');
+let rawUrl = match[1].replace(/^(["'])(.*)\1$/, '$2');
+if (allowSuite8Qa && process.env.BJC_SPRINT8_DATABASE) {
+  const allowedDatabases = new Set([
+    'galilei_ocr_review_suite8_qa',
+    'galilei_ocr_review_suite8_fresh',
+    'galilei_ocr_review_suite8_from37',
+    'galilei_ocr_review_suite8_from38',
+  ]);
+  if (!allowedDatabases.has(process.env.BJC_SPRINT8_DATABASE)) {
+    console.error('SPRINT8_QA_DB_GUARD=ABORT; database is not on the isolated Suite 8 allowlist.');
+    process.exit(2);
+  }
+  try {
+    const suite8Url = new URL(rawUrl);
+    suite8Url.pathname = '/' + process.env.BJC_SPRINT8_DATABASE;
+    rawUrl = suite8Url.toString();
+  } catch {
+    console.error('SPRINT8_QA_DB_GUARD=ABORT; isolated Suite 8 database URL is invalid.');
+    process.exit(2);
+  }
+}
 const validation = validateDevelopmentDatabaseUrl(rawUrl, {
   allowIsolatedQa,
   allowSuite7Qa,
+  allowSuite8Qa,
   deploymentEnvironment: allowIsolatedQa
     ? process.env.BJC_DEPLOYMENT_ENV
     : process.env.BJC_DEPLOYMENT_ENV || process.env.NODE_ENV || 'development',
@@ -92,9 +122,11 @@ const validation = validateDevelopmentDatabaseUrl(rawUrl, {
 if (!validation.valid) {
   console.error(
     allowIsolatedQa
-      ? allowSuite7Qa
-        ? 'SPRINT7_QA_DB_GUARD=ABORT; expected development bjc_dev@127.0.0.1:55434/buscador_juridico_civil_deepqa.'
-        : 'DEEP_QA_DB_GUARD=ABORT; expected development bjc_dev@127.0.0.1:55434/buscador_juridico_civil_deepqa.'
+      ? allowSuite8Qa
+        ? 'SPRINT8_QA_DB_GUARD=ABORT; expected development bjc_dev@127.0.0.1:55434 and an allowlisted Suite 8 QA database.'
+        : allowSuite7Qa
+          ? 'SPRINT7_QA_DB_GUARD=ABORT; expected development bjc_dev@127.0.0.1:55434/buscador_juridico_civil_deepqa.'
+          : 'DEEP_QA_DB_GUARD=ABORT; expected development bjc_dev@127.0.0.1:55434/buscador_juridico_civil_deepqa.'
       : 'DEV_DB_GUARD=ABORT; expected bjc_dev@127.0.0.1:55432/buscador_juridico_civil_dev.',
   );
   process.exit(2);
@@ -202,6 +234,16 @@ const actions = {
   'int12-search-census':
     'pnpm.cmd exec ts-node scripts/dev/search-integration-census.ts',
   test: 'pnpm.cmd test --runInBand',
+  'ocr-review-build': 'pnpm.cmd exec nest build',
+  'ocr-review-typecheck': 'pnpm.cmd typecheck',
+  'ocr-review-full-test': 'pnpm.cmd test',
+  'ocr-review-full-build': 'pnpm.cmd build',
+  'ocr-review-integration':
+    'set NODE_OPTIONS=--experimental-vm-modules&& pnpm.cmd exec jest --runInBand --testTimeout=180000 --testPathPatterns=ocr-human-review.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SUITE8',
+  'ocr-review-search-integration':
+    'set NODE_OPTIONS=--experimental-vm-modules&& pnpm.cmd exec jest --runInBand --testTimeout=480000 --testPathPatterns=ocr-human-review.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SUITE8 --testNamePattern=outage',
+  'ocr-review-migration-matrix':
+    'node scripts/dev/ocr-human-review-migration-matrix.cjs',
   'int1-storage-audit': 'node scripts/dev/int1-storage-audit.cjs',
   'int1-orphan-private-upload-audit':
     'node scripts/dev/int1-cleanup-orphan-private-upload.cjs audit',
@@ -535,6 +577,8 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/smoke-search-regression.ts',
   'sprint7-institutional-e2e':
     'node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --testPathPatterns=corpus/institutional-ingestion.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SUITE7',
+  'suite7-regression-suite8-qa':
+    'node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --testTimeout=300000 --testPathPatterns=corpus/institutional-ingestion.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SUITE7',
   'sprint7-migration-incremental':
     'node scripts/dev/sprint7-migration-incremental.cjs',
   'sprint7-opensearch-qa-bootstrap':
@@ -590,6 +634,14 @@ const childEnv = {
       ? (process.argv[3] ?? '')
       : process.env.OPENSEARCH_CANDIDATE_INDEX,
   DATABASE_URL: childDatabaseUrl,
+  BJC_DEPLOYMENT_ENV:
+    action === 'ocr-review-search-integration'
+      ? 'development'
+      : process.env.BJC_DEPLOYMENT_ENV,
+  BJC_SPRINT8_DATABASE:
+    action === 'ocr-review-search-integration'
+      ? 'galilei_ocr_review_suite8_qa'
+      : process.env.BJC_SPRINT8_DATABASE,
   BJC_INT1_TEMP_DB: action.startsWith('int1-temp-') ? int1TempDatabase : '',
   BJC_SPRINT_INT1:
     action === 'int1-dev-backup' || action === 'int1-final-backup'
@@ -804,7 +856,18 @@ const childEnv = {
   BJC_SPRINT148_INGEST_MODE:
     action === 'sprint148-ingest-preflight' ? 'preflight' : '',
   BJC_CORPUS_STORAGE_PATH:
-    action === 'sprint148-ingest'
+    action === 'ocr-review-integration' ||
+    action === 'ocr-review-search-integration'
+      ? path.resolve(
+          __dirname,
+          '../../_recovery-work/galilei-ocr-human-review-suite8/runtime/corpus',
+        )
+      : action === 'suite7-regression-suite8-qa'
+        ? path.resolve(
+            __dirname,
+            '../../_recovery-work/galilei-ocr-human-review-suite8/runtime/corpus',
+          )
+      : action === 'sprint148-ingest'
       ? path.resolve(__dirname, '../../_dev-corpus-storage')
       : action === 'sprint151-ui-tests'
         ? path.resolve(__dirname, '../../_dev-corpus-storage-test/sprint151-ui')
@@ -816,8 +879,52 @@ const childEnv = {
               '../../_recovery-work/galilei-institutional-ingestion-suite7/runtime/corpus',
             )
           : process.env.BJC_CORPUS_STORAGE_PATH,
+  OCR_TEMP_DIR:
+    action === 'ocr-review-integration' ||
+    action === 'ocr-review-search-integration'
+      ? path.resolve(
+          __dirname,
+          '../../_recovery-work/galilei-ocr-human-review-suite8/runtime/ocr-temp',
+        )
+      : process.env.OCR_TEMP_DIR,
+  OCR_ENABLED:
+    action === 'ocr-review-integration' ||
+    action === 'ocr-review-search-integration'
+      ? 'true'
+      : process.env.OCR_ENABLED,
+  BJC_SPRINT8_OCR_REVIEW_TEST:
+    action === 'ocr-review-integration' ||
+    action === 'ocr-review-search-integration'
+      ? '1'
+      : '',
+  BJC_SPRINT8_SEARCH_INTEGRATION_TEST:
+    action === 'ocr-review-search-integration' ? '1' : '',
+  BJC_SPRINT8_OPENSEARCH_QA_SCRIPT:
+    action === 'ocr-review-search-integration'
+      ? path.resolve(__dirname, 'dev/ocr-human-review-opensearch-qa.ps1')
+      : '',
+  OPENSEARCH_NODE:
+    action === 'ocr-review-search-integration'
+      ? 'http://127.0.0.1:19284'
+      : process.env.OPENSEARCH_NODE,
+  OPENSEARCH_ALLOW_INSECURE_LOCAL:
+    action === 'ocr-review-search-integration'
+      ? 'true'
+      : process.env.OPENSEARCH_ALLOW_INSECURE_LOCAL,
+  OPENSEARCH_INDEX_ALIAS:
+    action === 'ocr-review-search-integration'
+      ? 'galilei-suite8-ocr-active'
+      : process.env.OPENSEARCH_INDEX_ALIAS,
+  OPENSEARCH_INDEX_PREFIX:
+    action === 'ocr-review-search-integration'
+      ? 'galilei-suite8-ocr'
+      : process.env.OPENSEARCH_INDEX_PREFIX,
+  OPENSEARCH_SEARCH_SCHEMA_VERSION:
+    action === 'ocr-review-search-integration'
+      ? '3'
+      : process.env.OPENSEARCH_SEARCH_SCHEMA_VERSION,
   SPRINT7_INSTITUTIONAL_POSTGRES_TEST:
-    action === 'sprint7-institutional-e2e' ? '1' : '',
+    action === 'sprint7-institutional-e2e' || action === 'suite7-regression-suite8-qa' ? '1' : '',
   SPRINT7_QA_FIXTURE_CLEANUP:
     action === 'sprint7-cleanup-synthetic-qa' ? 'true' : '',
   BJC_INSTITUTIONAL_ARGS: action.startsWith('institutional-')
@@ -864,12 +971,28 @@ const childEnv = {
         )
       : '',
 };
+if (action === 'ocr-review-full-test' && allowSuite8Qa) {
+  // The ordinary Jest suite is unit-only and has fixtures pinned to the DEV
+  // connection shape. Give it a deliberately invalid local password after the
+  // outer guard verifies the real isolated Suite 8 QA target, so an accidental
+  // connection cannot authenticate to principal DEV.
+  childEnv.BJC_SPRINT8_ALLOW_ISOLATED_DATABASE = '';
+  childEnv.BJC_SPRINT7_ALLOW_ISOLATED_DATABASE = '';
+  childEnv.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE = '';
+  childEnv.DATABASE_URL =
+    'postgresql://bjc_dev:suite8-unit-test-deny@127.0.0.1:55432/buscador_juridico_civil_dev';
+  childEnv.BJC_SPRINT8_UNIT_TEST_NO_DATABASE = 'true';
+}
 if (action === 'sprint151-ui-tests') {
   fs.mkdirSync(childEnv.BJC_CORPUS_STORAGE_PATH, { recursive: true });
 }
 console.log(
-  allowSuite7Qa
-    ? 'SPRINT7_QA_DB_GUARD=PASS; host=127.0.0.1; port=55434; database=buscador_juridico_civil_deepqa; role=bjc_dev'
+  allowSuite8Qa
+    ? 'SPRINT8_QA_DB_GUARD=PASS; host=127.0.0.1; port=55434; database=' +
+      new URL(rawUrl).pathname.slice(1) +
+      '; role=bjc_dev'
+    : allowSuite7Qa
+      ? 'SPRINT7_QA_DB_GUARD=PASS; host=127.0.0.1; port=55434; database=buscador_juridico_civil_deepqa; role=bjc_dev'
     : allowIsolatedQa
       ? 'DEEP_QA_DB_GUARD=PASS; host=127.0.0.1; port=55434; database=buscador_juridico_civil_deepqa; role=bjc_dev'
       : 'DEV_DB_GUARD=PASS; host=127.0.0.1; port=55432; database=buscador_juridico_civil_dev; role=bjc_dev',

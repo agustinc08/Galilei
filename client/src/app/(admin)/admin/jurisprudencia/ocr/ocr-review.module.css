@@ -1,0 +1,457 @@
+.page {
+  display: grid;
+  gap: 1rem;
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.notice {
+  padding: 0.8rem 1rem;
+  border: 1px solid #bed7f4;
+  border-radius: 0.75rem;
+  background: #f1f7ff;
+  color: #163e69;
+  line-height: 1.5;
+}
+
+.error,
+.warning,
+.unsaved {
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.6rem;
+  line-height: 1.45;
+}
+
+.error {
+  border: 1px solid #e3a4a4;
+  background: #fff2f2;
+  color: #802121;
+}
+
+.warning,
+.unsaved {
+  border: 1px solid #e8ce8b;
+  background: #fff9e8;
+  color: #674b0c;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 350px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.queueColumn,
+.reviewColumn {
+  min-width: 0;
+}
+
+.queueColumn > section,
+.reviewColumn > section {
+  padding: 1rem;
+}
+
+.queueColumn > section {
+  position: sticky;
+  top: 1rem;
+}
+
+.queueHeader,
+.documentHeading,
+.panelHeading,
+.runSummary,
+.finalApproval,
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.queueHeader h2,
+.documentHeading h2,
+.panelHeading h3,
+.finalApproval h3 {
+  margin: 0;
+}
+
+.queueHeader p,
+.documentHeading p,
+.panelHeading p,
+.finalApproval p {
+  margin: 0.35rem 0 0;
+  color: #586579;
+}
+
+.filterLabel,
+.editorLabel,
+.reasonLabel {
+  display: block;
+  margin: 1rem 0 0.35rem;
+  font-weight: 650;
+}
+
+.queueColumn select,
+.textCard select,
+.pageControls input {
+  min-height: 2.5rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #b9c4d2;
+  border-radius: 0.45rem;
+  background: #fff;
+  color: #172033;
+}
+
+.filterLabel + select {
+  width: 100%;
+}
+
+.queueList {
+  display: grid;
+  gap: 0.55rem;
+  max-height: min(65vh, 760px);
+  margin: 0.85rem 0;
+  overflow: auto;
+}
+
+.queueItem {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d4dce7;
+  border-radius: 0.65rem;
+  background: #fff;
+  color: #1d2939;
+  text-align: left;
+  cursor: pointer;
+}
+
+.queueItem:hover,
+.queueItemActive {
+  border-color: #467bb5;
+  background: #f2f7fd;
+}
+
+.queueItem:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.queueItem span,
+.muted {
+  color: #606c7d;
+  font-size: 0.88rem;
+}
+
+.pagination {
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 0.88rem;
+}
+
+.reviewColumn {
+  display: grid;
+  gap: 1rem;
+}
+
+.documentHeading {
+  align-items: flex-start;
+}
+
+.documentHeading h2 {
+  margin: 0.25rem 0;
+  overflow-wrap: anywhere;
+}
+
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.statusBadge {
+  flex: none;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: #edf3fa;
+  color: #254a74;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.fileFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 0.9rem 0;
+  color: #586579;
+  font-size: 0.86rem;
+}
+
+.fileFacts strong {
+  color: #28613f;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.primaryButton {
+  background: #174e86;
+  color: #fff;
+}
+
+.secondaryButton {
+  border-color: #aebccc;
+  background: #fff;
+  color: #24364b;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: #103c69;
+}
+
+.secondaryButton:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.runSummary {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e2e8f0;
+  color: #455468;
+  font-size: 0.88rem;
+}
+
+.reviewGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.pdfCard,
+.textCard {
+  min-width: 0;
+  padding: 0.9rem !important;
+}
+
+.panelHeading {
+  align-items: flex-start;
+  margin-bottom: 0.8rem;
+}
+
+.panelHeading h3 {
+  margin: 0;
+}
+
+.panelHeading > span {
+  color: #586579;
+  font-size: 0.86rem;
+}
+
+.pageControls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+.pageControls label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.pageControls input {
+  width: 4.75rem;
+}
+
+.pdfPane {
+  min-height: 28rem;
+  max-height: 78vh;
+  overflow: auto;
+  border: 1px solid #d4dce7;
+  border-radius: 0.5rem;
+  background: #eef1f5;
+  padding: 0.25rem;
+}
+
+.textSource {
+  padding: 0.7rem;
+  border: 1px solid #d9e0e9;
+  border-radius: 0.55rem;
+  background: #f7f9fb;
+}
+
+.textSource h4 {
+  margin: 0 0 0.5rem;
+}
+
+.textSource pre {
+  max-height: 16rem;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 0.91rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.editorLabel {
+  margin-top: 0.8rem;
+}
+
+.textCard textarea {
+  display: block;
+  width: 100%;
+  min-height: 18rem;
+  resize: vertical;
+  padding: 0.7rem;
+  border: 1px solid #9aa9bb;
+  border-radius: 0.5rem;
+  color: #172033;
+  font: 0.94rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.textCard textarea:focus,
+.textCard select:focus,
+.pageControls input:focus,
+.queueColumn select:focus {
+  outline: 3px solid #9dc5ed;
+  outline-offset: 1px;
+}
+
+.actionRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.actionRow .reasonLabel {
+  margin: 0 0 0 0.25rem;
+}
+
+.provenance {
+  margin-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.75rem;
+}
+
+.provenance summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.provenance dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.35fr) minmax(0, 1fr);
+  gap: 0.35rem 0.65rem;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+
+.provenance dt {
+  color: #586579;
+}
+
+.provenance dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.finalApproval {
+  align-items: center;
+}
+
+.finalApproval > div {
+  max-width: 48rem;
+}
+
+.emptyState {
+  min-height: 13rem;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+  color: #586579;
+}
+
+.emptyState h2 {
+  margin: 0;
+  color: #24364b;
+}
+
+@media (max-width: 1100px) {
+  .workspace {
+    grid-template-columns: minmax(250px, 0.75fr) minmax(0, 1.5fr);
+  }
+
+  .reviewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .pdfPane {
+    max-height: 65vh;
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 0.65rem;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .queueColumn > section {
+    position: static;
+  }
+
+  .queueList {
+    max-height: 24rem;
+  }
+
+  .finalApproval,
+  .documentHeading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .finalApproval .primaryButton {
+    width: 100%;
+  }
+
+  .pageControls > * {
+    flex: 1 1 auto;
+  }
+
+  .pdfPane {
+    min-height: 22rem;
+    max-height: 60vh;
+  }
+
+  .actionRow > button {
+    flex: 1 1 45%;
+  }
+}

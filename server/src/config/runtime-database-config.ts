@@ -24,7 +24,7 @@ export function getRuntimeDatabasePoolConfig(
     .pgConfig as ApprovedRuntimePgConfig;
 }
 
-/** Parse local DEV or explicitly enabled isolated deep-QA input and give pg explicit fields only. */
+/** Parse local DEV or an explicitly enabled, allowlisted isolated-QA input. */
 export function getDevelopmentDatabaseConfig(
   databaseUrl: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -36,16 +36,35 @@ export function getDevelopmentDatabaseConfig(
     throw new Error('DATABASE_URL no es una URL válida para el entorno local.');
   }
 
-  const isolatedQaEnabled = env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true';
+  const suite8QaEnabled = env.BJC_SPRINT8_ALLOW_ISOLATED_DATABASE === 'true';
+  const suite7QaEnabled =
+    env.BJC_SPRINT7_ALLOW_ISOLATED_DATABASE === 'true' && !suite8QaEnabled;
+  const deepQaEnabled =
+    env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true' &&
+    !suite7QaEnabled &&
+    !suite8QaEnabled;
+  const isolatedQaEnabled = suite8QaEnabled || suite7QaEnabled || deepQaEnabled;
+  const allowedQaDatabases = suite8QaEnabled
+    ? [
+        'galilei_ocr_review_suite8_qa',
+        'galilei_ocr_review_suite8_fresh',
+        'galilei_ocr_review_suite8_from37',
+        'galilei_ocr_review_suite8_from38',
+      ]
+    : ['buscador_juridico_civil_deepqa'];
   if (isolatedQaEnabled && env.BJC_DEPLOYMENT_ENV !== 'development') {
-    throw new Error('DEEP_QA_DATABASE_REQUIRES_DEVELOPMENT_RUNTIME');
+    throw new Error(
+      suite8QaEnabled
+        ? 'SPRINT8_QA_DATABASE_REQUIRES_DEVELOPMENT_RUNTIME'
+        : 'DEEP_QA_DATABASE_REQUIRES_DEVELOPMENT_RUNTIME',
+    );
   }
   if (
     isolatedQaEnabled &&
     (target.protocol !== 'postgresql:' ||
       target.hostname !== '127.0.0.1' ||
       target.port !== '55434' ||
-      target.pathname !== '/buscador_juridico_civil_deepqa' ||
+      !allowedQaDatabases.includes(target.pathname.slice(1)) ||
       target.username !== 'bjc_dev' ||
       target.search !== '' ||
       target.hash !== '' ||
@@ -53,7 +72,11 @@ export function getDevelopmentDatabaseConfig(
       databaseUrl.includes('#') ||
       !target.password)
   ) {
-    throw new Error('DEEP_QA_DATABASE_TARGET_REJECTED');
+    throw new Error(
+      suite8QaEnabled
+        ? 'SPRINT8_QA_DATABASE_TARGET_REJECTED'
+        : 'DEEP_QA_DATABASE_TARGET_REJECTED',
+    );
   }
 
   if (
@@ -92,7 +115,7 @@ export function getDevelopmentDatabaseConfig(
     host: '127.0.0.1',
     port: isolatedQaEnabled ? 55434 : 55432,
     database: isolatedQaEnabled
-      ? 'buscador_juridico_civil_deepqa'
+      ? target.pathname.slice(1)
       : 'buscador_juridico_civil_dev',
     user: 'bjc_dev',
     password,

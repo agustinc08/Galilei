@@ -21,36 +21,41 @@ model Rol {
 }
 
 model Usuario {
-  id                         Int                              @id @default(autoincrement())
-  nombre                     String
-  apellido                   String?
-  email                      String                           @unique
-  passwordHash               String
-  activo                     Boolean                          @default(true)
-  rolId                      Int
-  rol                        Rol                              @relation(fields: [rolId], references: [id])
-  favoritos                  Favorito[]
-  busquedas                  BusquedaGuardada[]
-  researchCollections        ResearchCollection[]
-  researchComparisons        ResearchComparison[]
-  researchTimelines          ResearchTimeline[]
-  eventos                    EventoConsulta[]
-  accionesLog                AccionLog[]
-  workspaceMemberships       WorkspaceMembership[]
-  documentSourcesCreated     DocumentSource[]                 @relation("DocumentSourceCreator")
-  institutionalIngestionsCreated InstitutionalIngestion[]      @relation("InstitutionalIngestionCreator")
-  institutionalIngestionEvents InstitutionalIngestionEvent[]   @relation("InstitutionalIngestionEventActor")
-  workspaceFoldersCreated    WorkspaceFolder[]                @relation("WorkspaceFolderCreator")
-  workspaceDocumentsUploaded WorkspaceDocument[]              @relation("WorkspaceDocumentUploader")
-  personalWorkspaceDocuments WorkspaceDocument[]              @relation("WorkspaceDocumentOwner")
-  personalWorkspaceFolders   WorkspaceFolder[]                @relation("WorkspaceFolderOwner")
-  resenasActualizadas        Sentencia[]                      @relation("ResenaUpdatedBy")
-  resenasPublicadas          Sentencia[]                      @relation("ResenaPublishedBy")
-  citasCreadas               CitaFallo[]                      @relation("CitaCreatedBy")
-  citasActualizadas          CitaFallo[]                      @relation("CitaUpdatedBy")
-  relationshipsReviewed      SentenciaRelationshipCandidate[] @relation("RelationshipCandidateReviewer")
-  createdAt                  DateTime                         @default(now())
-  updatedAt                  DateTime                         @updatedAt
+  id                             Int                              @id @default(autoincrement())
+  nombre                         String
+  apellido                       String?
+  email                          String                           @unique
+  passwordHash                   String
+  activo                         Boolean                          @default(true)
+  rolId                          Int
+  rol                            Rol                              @relation(fields: [rolId], references: [id])
+  favoritos                      Favorito[]
+  busquedas                      BusquedaGuardada[]
+  researchCollections            ResearchCollection[]
+  researchComparisons            ResearchComparison[]
+  researchTimelines              ResearchTimeline[]
+  eventos                        EventoConsulta[]
+  accionesLog                    AccionLog[]
+  workspaceMemberships           WorkspaceMembership[]
+  documentSourcesCreated         DocumentSource[]                 @relation("DocumentSourceCreator")
+  institutionalIngestionsCreated InstitutionalIngestion[]         @relation("InstitutionalIngestionCreator")
+  institutionalIngestionEvents   InstitutionalIngestionEvent[]    @relation("InstitutionalIngestionEventActor")
+  ocrReviewsCreated              OcrHumanReview[]                 @relation("OcrHumanReviewCreator")
+  ocrReviewsAssigned             OcrHumanReview[]                 @relation("OcrHumanReviewAssignee")
+  ocrReviewRunsCreated           OcrHumanReviewRun[]              @relation("OcrHumanReviewRunCreator")
+  ocrReviewRevisions             OcrHumanReviewRevision[]         @relation("OcrHumanReviewRevisionActor")
+  ocrReviewApprovals             OcrHumanReviewApproval[]         @relation("OcrHumanReviewApprovalActor")
+  workspaceFoldersCreated        WorkspaceFolder[]                @relation("WorkspaceFolderCreator")
+  workspaceDocumentsUploaded     WorkspaceDocument[]              @relation("WorkspaceDocumentUploader")
+  personalWorkspaceDocuments     WorkspaceDocument[]              @relation("WorkspaceDocumentOwner")
+  personalWorkspaceFolders       WorkspaceFolder[]                @relation("WorkspaceFolderOwner")
+  resenasActualizadas            Sentencia[]                      @relation("ResenaUpdatedBy")
+  resenasPublicadas              Sentencia[]                      @relation("ResenaPublishedBy")
+  citasCreadas                   CitaFallo[]                      @relation("CitaCreatedBy")
+  citasActualizadas              CitaFallo[]                      @relation("CitaUpdatedBy")
+  relationshipsReviewed          SentenciaRelationshipCandidate[] @relation("RelationshipCandidateReviewer")
+  createdAt                      DateTime                         @default(now())
+  updatedAt                      DateTime                         @updatedAt
 
   @@index([email])
   @@index([activo])
@@ -105,7 +110,7 @@ model Sentencia {
   tienePdf                                 Boolean                          @default(false)
   sumarios                                 Sumario[]
   archivosPdf                              ArchivoPdf[]
-  institutionalIngestions                 InstitutionalIngestion[]         @relation("InstitutionalIngestionLinkedSentencia")
+  institutionalIngestions                  InstitutionalIngestion[]         @relation("InstitutionalIngestionLinkedSentencia")
   citasFallo                               CitaFallo[]
   referenciasNormativas                    ReferenciaNormativa[]
   referenciasJurisprudenciales             ReferenciaJurisprudencial[]      @relation("SentenciaReferenciaJurisprudencialOrigen")
@@ -423,25 +428,25 @@ model ResearchComparisonItem {
 // A private research workspace stores only ordered membership in public judgments.
 // Chronology is derived from the judgment decision date at read time.
 model ResearchTimeline {
-  id          Int                   @id @default(autoincrement())
+  id          Int                    @id @default(autoincrement())
   ownerId     Int
-  name        String                @db.VarChar(120)
-  description String?               @db.VarChar(2000)
-  owner       Usuario               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name        String                 @db.VarChar(120)
+  description String?                @db.VarChar(2000)
+  owner       Usuario                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   items       ResearchTimelineItem[]
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
   @@index([ownerId, updatedAt])
 }
 
 model ResearchTimelineItem {
-  id         Int             @id @default(autoincrement())
-  timelineId Int
+  id          Int              @id @default(autoincrement())
+  timelineId  Int
   sentenciaId Int
-  timeline   ResearchTimeline @relation(fields: [timelineId], references: [id], onDelete: Cascade)
-  sentencia  Sentencia       @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
-  createdAt  DateTime        @default(now())
+  timeline    ResearchTimeline @relation(fields: [timelineId], references: [id], onDelete: Cascade)
+  sentencia   Sentencia        @relation(fields: [sentenciaId], references: [id], onDelete: Cascade)
+  createdAt   DateTime         @default(now())
 
   @@unique([timelineId, sentenciaId])
   @@index([timelineId])
@@ -601,44 +606,45 @@ model CorpusSourceSystem {
 }
 
 model CorpusDocument {
-  id                  String                         @id @default(cuid())
-  documentType        String                         @default("DOCUMENT")
-  title               String
-  subtitle            String?
-  jurisdiction        String                         @default("CIVIL")
-  court               String?
-  chamber             String?
-  instance            String?
-  caseNumber          String?
-  docket              String?
-  decisionDate        DateTime?
-  visibility          String                         @default("INTERNAL")
-  documentScope       CorpusDocumentScope            @default(GENERAL)
-  status              String                         @default("DISCOVERED")
-  editorialStatus     String                         @default("NO_REVIEWED")
-  anonymizationStatus String                         @default("REVIEW_REQUIRED")
-  metadata            Json?
-  metadataOriginal    Json?
-  searchText          String                         @default("") @db.Text
-  latestExtractionId  String?
-  files               CorpusDocumentFile[]
-  ingestions          CorpusIngestionRecord[]
-  extractions         CorpusExtraction[]
-  ocrJobs             CorpusOcrJob[]
-  links               CorpusDocumentLink[]
-  locations           CorpusDocumentLocation[]
-  associations        CorpusDocumentAssociation[]
-  classifications     CorpusDocumentClassification[]
-  digestoCollections  DigestoCollectionMembership[]
-  digestoTopics       CorpusDocumentTopic[]
-  digestoTags         CorpusDocumentTag[]
-  workspaceDocuments  WorkspaceDocument[]
-  sourceFiles         SourceFile[]
-  importRunItems      CorpusImportRunItem[]
+  id                      String                         @id @default(cuid())
+  documentType            String                         @default("DOCUMENT")
+  title                   String
+  subtitle                String?
+  jurisdiction            String                         @default("CIVIL")
+  court                   String?
+  chamber                 String?
+  instance                String?
+  caseNumber              String?
+  docket                  String?
+  decisionDate            DateTime?
+  visibility              String                         @default("INTERNAL")
+  documentScope           CorpusDocumentScope            @default(GENERAL)
+  status                  String                         @default("DISCOVERED")
+  editorialStatus         String                         @default("NO_REVIEWED")
+  anonymizationStatus     String                         @default("REVIEW_REQUIRED")
+  metadata                Json?
+  metadataOriginal        Json?
+  searchText              String                         @default("") @db.Text
+  latestExtractionId      String?
+  files                   CorpusDocumentFile[]
+  ingestions              CorpusIngestionRecord[]
+  extractions             CorpusExtraction[]
+  ocrJobs                 CorpusOcrJob[]
+  links                   CorpusDocumentLink[]
+  locations               CorpusDocumentLocation[]
+  associations            CorpusDocumentAssociation[]
+  classifications         CorpusDocumentClassification[]
+  digestoCollections      DigestoCollectionMembership[]
+  digestoTopics           CorpusDocumentTopic[]
+  digestoTags             CorpusDocumentTag[]
+  workspaceDocuments      WorkspaceDocument[]
+  sourceFiles             SourceFile[]
+  importRunItems          CorpusImportRunItem[]
   institutionalIngestions InstitutionalIngestion[]
-  latestExtraction    CorpusExtraction?              @relation("LatestCorpusExtraction", fields: [latestExtractionId], references: [id], onDelete: SetNull)
-  createdAt           DateTime                       @default(now())
-  updatedAt           DateTime                       @updatedAt
+  ocrReviews              OcrHumanReview[]
+  latestExtraction        CorpusExtraction?              @relation("LatestCorpusExtraction", fields: [latestExtractionId], references: [id], onDelete: SetNull)
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
 
   @@index([visibility, status])
   @@index([documentScope, visibility, status])
@@ -1037,22 +1043,23 @@ model CorpusDocumentClassification {
 }
 
 model CorpusDocumentFile {
-  id               String                  @id @default(cuid())
-  documentId       String
-  storageProvider  String                  @default("LOCAL_DEV")
-  storageKey       String
-  originalFilename String
-  mimeType         String
-  sizeBytes        BigInt
-  sha256           String
-  pageCount        Int?
-  version          Int                     @default(1)
-  document         CorpusDocument          @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  extractions      CorpusExtraction[]
-  ocrJobs          CorpusOcrJob[]
-  ingestions       CorpusIngestionRecord[]
+  id                      String                   @id @default(cuid())
+  documentId              String
+  storageProvider         String                   @default("LOCAL_DEV")
+  storageKey              String
+  originalFilename        String
+  mimeType                String
+  sizeBytes               BigInt
+  sha256                  String
+  pageCount               Int?
+  version                 Int                      @default(1)
+  document                CorpusDocument           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  extractions             CorpusExtraction[]
+  ocrJobs                 CorpusOcrJob[]
+  ingestions              CorpusIngestionRecord[]
   institutionalIngestions InstitutionalIngestion[]
-  createdAt        DateTime                @default(now())
+  ocrReviews              OcrHumanReview[]
+  createdAt               DateTime                 @default(now())
 
   @@unique([documentId, sha256])
   @@index([sha256])
@@ -1094,18 +1101,18 @@ model CorpusIngestionRecord {
 // Workflow ledger for human-authorized institutional PDF intake. The PDF bytes,
 // canonical document, and extraction remain owned by the existing Corpus models.
 model InstitutionalIngestion {
-  id                  String   @id @default(cuid())
+  id                  String                        @id @default(cuid())
   createdById         Int
-  status              String   @default("UPLOADED")
+  status              String                        @default("UPLOADED")
   originalFilename    String
   mimeType            String
   sizeBytes           BigInt
   sha256              String
-  duplicateDetected   Boolean  @default(false)
+  duplicateDetected   Boolean                       @default(false)
   extractionStatus    String?
   matchClassification String?
   candidateIds        Json?
-  idempotencyKey      String   @unique
+  idempotencyKey      String                        @unique
   documentId          String?
   fileId              String?
   corpusIngestionId   String?
@@ -1114,13 +1121,13 @@ model InstitutionalIngestion {
   failureCode         String?
   failureMessageSafe  String?
   completedAt         DateTime?
-  createdBy           Usuario  @relation("InstitutionalIngestionCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  document            CorpusDocument? @relation(fields: [documentId], references: [id], onDelete: Restrict)
-  file                CorpusDocumentFile? @relation(fields: [fileId], references: [id], onDelete: Restrict)
-  linkedSentencia     Sentencia? @relation("InstitutionalIngestionLinkedSentencia", fields: [linkedSentenciaId], references: [id], onDelete: SetNull)
+  createdBy           Usuario                       @relation("InstitutionalIngestionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  document            CorpusDocument?               @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  file                CorpusDocumentFile?           @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  linkedSentencia     Sentencia?                    @relation("InstitutionalIngestionLinkedSentencia", fields: [linkedSentenciaId], references: [id], onDelete: SetNull)
   events              InstitutionalIngestionEvent[]
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
 
   @@index([status, createdAt, id])
   @@index([createdById, status, createdAt])
@@ -1129,39 +1136,160 @@ model InstitutionalIngestion {
 }
 
 model InstitutionalIngestionEvent {
-  id          String @id @default(cuid())
+  id          String                 @id @default(cuid())
   ingestionId String
   actorId     Int
   action      String
   fromStatus  String?
   toStatus    String?
   safeOutcome Json?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime               @default(now())
   ingestion   InstitutionalIngestion @relation(fields: [ingestionId], references: [id], onDelete: Cascade)
-  actor       Usuario @relation("InstitutionalIngestionEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+  actor       Usuario                @relation("InstitutionalIngestionEventActor", fields: [actorId], references: [id], onDelete: Restrict)
 
   @@index([ingestionId, createdAt, id])
   @@index([actorId, createdAt])
 }
 
-model CorpusExtraction {
-  id               String               @id @default(cuid())
+model OcrHumanReview {
+  id               String                   @id @default(cuid())
   documentId       String
   fileId           String
-  extractor        String
-  extractorVersion String
-  status           String
-  text             String               @default("") @db.Text
-  error            String?
-  errorStage       String?
-  errorAt          DateTime?
-  retryable        Boolean              @default(false)
-  provenance       Json?
-  extractedAt      DateTime             @default(now())
-  document         CorpusDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  file             CorpusDocumentFile   @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  pages            CorpusDocumentPage[]
-  latestFor        CorpusDocument[]     @relation("LatestCorpusExtraction")
+  createdById      Int
+  assignedToId     Int?
+  activeRunId      String?
+  activeApprovalId String?
+  status           String                   @default("PENDING")
+  version          Int                      @default(1)
+  document         CorpusDocument           @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  file             CorpusDocumentFile       @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  createdBy        Usuario                  @relation("OcrHumanReviewCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  assignedTo       Usuario?                 @relation("OcrHumanReviewAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  activeRun        OcrHumanReviewRun?       @relation("OcrHumanReviewActiveRun", fields: [activeRunId], references: [id], onDelete: SetNull)
+  activeApproval   OcrHumanReviewApproval?  @relation("OcrHumanReviewCurrentApproval", fields: [activeApprovalId], references: [id], onDelete: SetNull)
+  runs             OcrHumanReviewRun[]      @relation("OcrHumanReviewRuns")
+  approvals        OcrHumanReviewApproval[] @relation("OcrHumanReviewApprovalHistory")
+  revisions        OcrHumanReviewRevision[] @relation("OcrHumanReviewRevisionHistory")
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@unique([documentId, fileId])
+  @@index([status, updatedAt, id])
+  @@index([assignedToId, status, updatedAt])
+  @@index([fileId])
+}
+
+model OcrHumanReviewRun {
+  id               String                   @id @default(cuid())
+  reviewId         String
+  createdById      Int
+  runNumber        Int
+  fingerprint      String
+  sourceFileSha256 String
+  processorVersion String
+  status           String                   @default("RUNNING")
+  pageCount        Int
+  provenance       Json
+  review           OcrHumanReview           @relation("OcrHumanReviewRuns", fields: [reviewId], references: [id], onDelete: Cascade)
+  createdBy        Usuario                  @relation("OcrHumanReviewRunCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  activeFor        OcrHumanReview[]         @relation("OcrHumanReviewActiveRun")
+  pages            OcrHumanReviewPage[]
+  approvals        OcrHumanReviewApproval[]
+  createdAt        DateTime                 @default(now())
+
+  @@unique([reviewId, runNumber])
+  @@index([reviewId, fingerprint])
+  @@index([reviewId, createdAt])
+  @@index([sourceFileSha256, fingerprint])
+}
+
+model OcrHumanReviewPage {
+  id                  String                   @id @default(cuid())
+  runId               String
+  pageNumber          Int
+  version             Int                      @default(1)
+  status              String                   @default("NEEDS_REVIEW")
+  ocrText             String                   @default("") @db.Text
+  correctedText       String?                  @db.Text
+  ocrChecksum         String
+  renderedImageSha256 String?
+  confidence          Float?
+  processingError     String?
+  approvedById        Int?
+  approvedAt          DateTime?
+  approvedChecksum    String?
+  run                 OcrHumanReviewRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  revisions           OcrHumanReviewRevision[]
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@unique([runId, pageNumber])
+  @@index([runId, status, pageNumber])
+  @@index([approvedById, approvedAt])
+}
+
+model OcrHumanReviewRevision {
+  id               String              @id @default(cuid())
+  reviewId         String
+  pageId           String?
+  actorId          Int
+  action           String
+  fromStatus       String?
+  toStatus         String?
+  previousChecksum String?
+  newChecksum      String?
+  textSnapshot     String?             @db.Text
+  details          Json?
+  review           OcrHumanReview      @relation("OcrHumanReviewRevisionHistory", fields: [reviewId], references: [id], onDelete: Cascade)
+  page             OcrHumanReviewPage? @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  actor            Usuario             @relation("OcrHumanReviewRevisionActor", fields: [actorId], references: [id], onDelete: Restrict)
+  createdAt        DateTime            @default(now())
+
+  @@index([reviewId, createdAt, id])
+  @@index([pageId, createdAt, id])
+  @@index([actorId, createdAt])
+}
+
+model OcrHumanReviewApproval {
+  id                 String            @id @default(cuid())
+  reviewId           String
+  runId              String
+  extractionId       String            @unique
+  sequence           Int
+  approvedById       Int
+  sourceFileSha256   String
+  documentChecksum   String
+  searchTextChecksum String
+  review             OcrHumanReview    @relation("OcrHumanReviewApprovalHistory", fields: [reviewId], references: [id], onDelete: Restrict)
+  currentFor         OcrHumanReview[]  @relation("OcrHumanReviewCurrentApproval")
+  run                OcrHumanReviewRun @relation(fields: [runId], references: [id], onDelete: Restrict)
+  extraction         CorpusExtraction  @relation(fields: [extractionId], references: [id], onDelete: Restrict)
+  approvedBy         Usuario           @relation("OcrHumanReviewApprovalActor", fields: [approvedById], references: [id], onDelete: Restrict)
+  approvedAt         DateTime          @default(now())
+
+  @@unique([reviewId, sequence])
+  @@index([reviewId, approvedAt])
+}
+
+model CorpusExtraction {
+  id                String                  @id @default(cuid())
+  documentId        String
+  fileId            String
+  extractor         String
+  extractorVersion  String
+  status            String
+  text              String                  @default("") @db.Text
+  error             String?
+  errorStage        String?
+  errorAt           DateTime?
+  retryable         Boolean                 @default(false)
+  provenance        Json?
+  extractedAt       DateTime                @default(now())
+  document          CorpusDocument          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  file              CorpusDocumentFile      @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  pages             CorpusDocumentPage[]
+  latestFor         CorpusDocument[]        @relation("LatestCorpusExtraction")
+  ocrReviewApproval OcrHumanReviewApproval?
 
   @@index([documentId, extractedAt])
   @@index([fileId, extractor, extractorVersion])

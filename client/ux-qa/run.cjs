@@ -7,9 +7,9 @@ const { createMockServer } = require('./mock-server.cjs');
 
 const frontDir = path.resolve(__dirname, '..');
 const mode = process.argv[2] || 'public';
-const grepByMode = { public: '@public', responsive: '@responsive', viewer: '@viewer', auth: '@auth' };
+const grepByMode = { public: '@public', responsive: '@responsive', viewer: '@viewer', auth: '@auth', 'ocr-review': '@ocr-review' };
 if (!grepByMode[mode]) {
-  process.stderr.write('Usage: node ux-qa/run.cjs public|responsive|viewer|auth\n');
+  process.stderr.write('Usage: node ux-qa/run.cjs public|responsive|viewer|auth|ocr-review\n');
   process.exit(2);
 }
 
