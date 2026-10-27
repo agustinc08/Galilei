@@ -8,7 +8,7 @@
 | Search y outage | **REAL SERVICES PASS** | OpenSearch QA 2.19.6 aislado: aprobación y outbox persistieron con Search apagado; el worker procesó el mismo evento después de recuperar el clúster GREEN. |
 | Compatibilidad de esquema | **MATRIZ QA PASS** | PostgreSQL 16: 0→39, 37→39 y 38→39. Sin SQL destructivo; 37→39 aplica consecutivamente las migraciones Suites 7 y 8. |
 | Calidad local | **PASS** | Backend 599 aprobadas / 10 omitidas por gates opcionales / 0 fallidas; cliente 22/22; OCR real 2/2 + outage/recovery; Suite 7 10/10; Suite 5/6 research E2E 22/22; OCR UI, cuatro viewports, typecheck, lint y builds. Range 206 se referencia desde la certificación Suite 7 y no se repitió en esta candidata. |
-| UAT / publicación | **PENDING_HUMAN_UAT / EXACT_SHA_CI** | Guion institucional en `docs/uat-ocr-review.md`. El UAT humano y `PENDING_HUMAN_GOLD` siguen pendientes; el audit y CI deben verificar el SHA remoto final. No desplegar ni promover desde este sprint. |
+| UAT / publicación | **CI PASS / PENDING_HUMAN_UAT** | GitHub Actions run 9 pasó en el SHA de código `1a7aac274b8a6c0a25833b937f3fc97780978c43` (Client, Server y Production dependency audit). Guion institucional en `docs/uat-ocr-review.md`; UAT humano y `PENDING_HUMAN_GOLD` siguen pendientes. No desplegar ni promover desde este sprint. |
 
 La arquitectura y límites están en `docs/ocr-human-review-architecture.md`; la guía funcional está en `docs/ocr-human-review.md`. Mantener OCR distinto de `PENDING_HUMAN_GOLD`.
 
