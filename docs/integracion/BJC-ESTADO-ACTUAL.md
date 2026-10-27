@@ -20,7 +20,7 @@ Calidad local: backend typecheck/lint/tests/build y cliente typecheck/lint/tests
 
 QA final: PostgreSQL aislado `127.0.0.1:55435/galilei_page_aware_suite9_fresh` quedó en cero documentos/páginas Corpus, sentencias, sumarios y usuarios sintéticos; 988 eventos de outbox procesados, 0 pendientes y 0 fallidos. El índice QA quedó en cero documentos sintéticos; PostgreSQL QA y OpenSearch QA están detenidos y PGDATA se preserva. Los puertos QA están libres; los servicios principales y SYTEC10 no fueron modificados.
 
-Estado de release: **PASS_WITH_FINDINGS**, sin bloqueadores técnicos P0/P1/P2 conocidos. El candidato sólo puede declararse remoto certificado cuando la rama feature esté publicada sin force y pase CI sobre el SHA exacto. Aun entonces no ejecutar despliegue ni habilitar beta en esta misión. El check read-only de `top_queries` y el smoke final por rol siguen como gates de Office go-live.
+Estado de release: **PASS_WITH_FINDINGS**, sin bloqueadores técnicos P0/P1/P2 conocidos. La rama feature fue publicada sin force; el informe de cierre externo identifica el SHA y el run de CI exactos de la punta certificada. No ejecutar despliegue ni habilitar beta en esta misión. El check read-only de `top_queries` y el smoke final por rol siguen como gates de Office go-live. Cualquier commit posterior requiere nueva validación CI del SHA actualizado.
 
 
 ## GALILEI — SUPER MEGA ULTRA SPRINT 9 — búsqueda legal por página con OCR revisado (2026-10-27)
