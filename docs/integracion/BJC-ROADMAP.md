@@ -4,17 +4,17 @@
 
 | Gate | Estado | Evidencia / siguiente paso |
 |---|---|---|
-| Candidato | LOCAL FEATURE CANDIDATE | Rama feature/page-aware-ocr-research-suite-9-closure, base c57efa6a88738166f959efb3d9ec80fa7d9a1f25; commits locales de cierre. Sin push, promoción ni cambios en DEV/main. |
-| OCR institucional | PASS | INSTITUTIONAL_UPLOAD está admitido por curación y revisión humana; integración real PostgreSQL/OpenSearch 4/4, cleanup sintético verificado. |
-| Visor PDF | PASS | Search → OCR aprobado → página física 50; HTTP Range 206 y PDF válido; historial Back/Forward; PDF pequeño/mediano/grande y matriz de páginas; rutas autenticadas en cuatro viewports. |
-| Regresión | PASS | Backend 612 tests PASS / 10 opt-in omitidos; cliente 22/22; typecheck/lint/build y Prisma validate PASS; 39 migraciones sólo en QA aislada. |
-| Roles/ACL | PASS_WITH_SCOPE | Enforcement backend cubierto por suites de OCR/workspace/ACL; E2E visual autenticada como ADMIN sintético. No equivale a UAT institucional por persona. |
-| Search 503 Office | P2 OPEN | 0/60 respuestas 503 en escenario sintético aislado; raíz Office no reproducida ni atribuida. Deadline fail-closed de 5 s es un mecanismo posible, no RCA. Requiere evidencia del host de oficina. |
-| Office | NOT DEPLOYABLE | No se accedió a SYTEC10 y no se habilita deploy mientras la P2 siga abierta. |
+| Candidato | RC LOCAL; PUSH + CI EXACTO PENDIENTE | Rama `feature/page-aware-ocr-research-suite-9-closure`; baseline de cierre `ca39a31cc629358f3bf1f48a96da748d6e7264c3`. No modificar ni reescribir ese baseline; publicar sólo esta rama sin force y certificar el SHA remoto exacto. |
+| OCR institucional y visor | PASS | INSTITUTIONAL_UPLOAD → curación/OCR humano → Search aprobado → PDF página 50, Range 206 y canvas real; dossier, comparación, evolución y cuatro viewports en QA aislada. |
+| Migraciones y regresión | PASS | PostgreSQL QA `0→39`, `37→39`, `38→39`, `39→39`; sin migración 40. Typecheck/lint/tests/E2E/build de cliente y servidor pasan; auditoría de producción Critical=0 / High=0. |
+| Roles/ACL | PASS_WITH_SCOPE | Roles, OCR ACL, workspace propio/ajeno y negativos HTTP verificados. El E2E local usó cuenta ADMIN sintética; UAT institucional por persona queda pendiente. |
+| Search 503 Office histórico | P3 MONITOREAR | No reproducido en QA sintética ni en la muestra real autenticada de Office: Agustin1 71/71; size10 20/20; size20 20/20; cuatro roles 20/20; 0 solicitudes ≥3 s. RCA desconocida, no se afirma corregido. Sin bloqueador actual; mantener monitoreo. |
+| Salud Office | PASS EN EVIDENCIA OPERATIVA | Agustin1 p50/p95/max 40,89/54,08/110,88 ms. PostgreSQL 16.3/schema37 sano; OpenSearch 2.19.6 GREEN, 63.269 documentos, cero rechazos. Suite 9 no está desplegada ni la beta habilitada. |
+| Observabilidad Search | IMPLEMENTADA; SIN CAMBIO SEMÁNTICO | Correlación UUID, timings por fuente, slow/503, lookup y rotación JSONL acotada; sin consulta, credenciales ni texto judicial/OCR. Matching, ranking, filtros, ACL y orden permanecen iguales. |
+| Privacidad `top_queries` | PENDING_OFFICE / P3 GO-LIVE | Índice nativo Office 122 documentos; el mapeo incluye `source.query`, pero los valores no se inspeccionaron. Inspección read-only pendiente antes del go-live de Office; no bloquea el RC remoto y no alterar el índice aquí. |
+| Cierre QA | PASS / SERVICIOS DETENIDOS | Cero fixtures sintéticos en PostgreSQL/OpenSearch QA; outbox 988 procesados, 0 pendientes/0 fallidos; PostgreSQL/OpenSearch QA detenidos y PGDATA preservado. Principal y SYTEC10 sin cambios. |
 
-El snapshot QA final quedó limpio: 0 documentos/páginas/sentencias/sumarios y usuarios sintéticos, outbox 958 procesados / 0 pendientes / 0 fallidos; listeners QA libres, PGDATA QA preservado. El data path de OpenSearch QA sintético fue retirado tras verificar marcador y contenido.
-
-Siguiente acción: capturar una traza de la solicitud que falla en SYTEC10, con perfiles por fuente y runtime/configuración efectivos; mantener el candidato Suite 9 separado hasta cerrar esa RCA.
+P3 adicionales: `PENDING_HUMAN_UAT`, `PENDING_HUMAN_GOLD`, advertencia de bundle PDF.js >500 kB y la inspección read-only `top_queries`. La RCA del 503 continúa como desconocida; se requiere monitoreo en beta y revisión de la traza si reaparece. Próximo paso de esta misión: publicar sólo la rama feature y obtener CI SUCCESS para el SHA exacto; no desplegar a SYTEC10 ni activar beta. Para Office go-live completar la revisión read-only de telemetría, UI y smoke final por rol.
 
 
 ## Candidata — GALILEI SUPER MEGA ULTRA SPRINT 9: investigación jurídica por página (2026-10-27)
