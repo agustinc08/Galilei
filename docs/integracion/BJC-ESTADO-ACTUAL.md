@@ -1,5 +1,15 @@
 # Estado actual — Buscador Jurídico Civil
 
+## GALILEI — SUPER MEGA ULTRA SPRINT 9 — búsqueda legal por página con OCR revisado (2026-10-27)
+
+La candidata aislada `feature/page-aware-ocr-research-suite-9` parte exactamente de Suite 8, SHA `48736d1f82152d2e021b0fb9a660e3648a13b3ed`. Une cada resultado Corpus con la página física activa y su procedencia (`PDF_TEXT` u `OCR_HUMAN_APPROVED`), genera fragmentos sólo desde esa página y abre el PDF en el número físico indicado. Conserva la semántica Copernic/V4, el orden del buscador y la ACL existente. El texto OCR sin aprobar queda excluido; las citas provenientes de OCR siguen siendo candidatas y requieren verificación humana. El PDF, la publicación y los metadatos jurídicos no se modifican.
+
+Decisión: schema 39 es suficiente; no se agrega migración 40, mapping Search ni rebuild completo. En QA aislada PostgreSQL 16.15 pasó 0→39, 37→39, 38→39 y 39→39. OpenSearch QA 2.19.6 aislado pasó 4/4 E2E de servicios reales: workflow Suite 8, deduplicación por SHA, hidratar páginas mezcladas en un PDF sintético de 50 páginas con exclusión de OCR draft, y aprobar durante caída de Search seguido de recuperación del mismo outbox. La verificación confirmó el checksum original.
+
+Regresión local final: cliente y servidor typecheck/lint/build PASS; tests monorepo PASS (612 backend, 10 omitidos opt-in; cliente 22/22); research Playwright 23/23 incluyendo OCR por página, resaltado XSS-safe y cuatro anchos responsive. El build mantiene la advertencia no bloqueante de chunk PDF.js >500 kB. UAT institucional y `PENDING_HUMAN_GOLD` permanecen pendientes. Los reportes de cada dimensión y la distinción entre PASS y PENDING se guardan en `_recovery-work/galilei-page-aware-ocr-research-suite9/evidence/`. Push/CI exactos se consignarán al cerrar el branch; no promover a DEV/main ni desplegar a Sytec10.
+
+Guía: `docs/page-aware-ocr-research.md`. Evaluación de arquitectura: `docs/page-aware-ocr-research-architecture.md`.
+
 ## GALILEI — SUPER MEGA ULTRA SPRINT 8 — espacio de revisión OCR humana (2026-10-26)
 
 La candidata aislada `feature/ocr-human-review-suite-8` parte exactamente de Suite 7 en `f631eb9dc76c450fd0656ce5d6f341e4c711e116`. Agrega `/admin/jurisprudencia/ocr`, revisión de cada página, OCR local con procedencia, correcciones humanas versionadas, estados explícitos y aprobación documental. La aprobación crea una nueva `CorpusExtraction` y actualiza `CorpusDocument.searchText`; no modifica el PDF, metadatos jurídicos, citas ni publicación.

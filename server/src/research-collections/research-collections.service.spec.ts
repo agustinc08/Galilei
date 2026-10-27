@@ -23,6 +23,7 @@ describe('ResearchCollectionsService', () => {
         updateMany: jest.fn(),
       },
       sentencia: { findFirst: jest.fn() },
+      corpusDocumentLink: { findMany: jest.fn().mockResolvedValue([]) },
       ...overrides,
     };
     const logsService = {
@@ -108,6 +109,7 @@ describe('ResearchCollectionsService', () => {
           sala: 'A',
           fecha: new Date('2026-02-01T00:00:00.000Z'),
           tipoFallo: 'Sentencia',
+          archivosPdf: [],
         },
       },
     ]);

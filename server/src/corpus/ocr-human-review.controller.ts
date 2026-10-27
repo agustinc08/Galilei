@@ -14,6 +14,10 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ROLES } from '../auth/constants';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
+import {
+  ReviewPageVersionDto,
+  SaveOcrReviewPageDto,
+} from './ocr-human-review.dto';
 import { safeContentDisposition } from './corpus-document-access.service';
 import { OcrHumanReviewService } from './ocr-human-review.service';
 
@@ -124,7 +128,7 @@ export class OcrHumanReviewController {
   savePage(
     @Param('reviewId') reviewId: string,
     @Param('pageNumber', ParseIntPipe) pageNumber: number,
-    @Body() body: { expectedVersion: number; correctedText: string | null },
+    @Body() body: SaveOcrReviewPageDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reviews.savePage(
@@ -141,7 +145,7 @@ export class OcrHumanReviewController {
   approvePage(
     @Param('reviewId') reviewId: string,
     @Param('pageNumber', ParseIntPipe) pageNumber: number,
-    @Body() body: { expectedVersion: number },
+    @Body() body: ReviewPageVersionDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reviews.approvePage(
@@ -160,7 +164,7 @@ export class OcrHumanReviewController {
   noText(
     @Param('reviewId') reviewId: string,
     @Param('pageNumber', ParseIntPipe) pageNumber: number,
-    @Body() body: { expectedVersion: number },
+    @Body() body: ReviewPageVersionDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reviews.markNoText(

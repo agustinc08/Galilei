@@ -1,4 +1,12 @@
-import { Controller, Get, Headers, Param, Query, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Query,
+  Res,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ROLES } from '../auth/constants';
@@ -60,7 +68,7 @@ export class CorpusDocumentController {
     return this.documents.metadata(
       id,
       user.rol.nombre === ROLES.ADMIN ? 'ADMIN' : 'INTERNAL',
-      parsePage(pageNumber),
+      parseOptionalPage(pageNumber),
     );
   }
 
@@ -77,6 +85,25 @@ export class CorpusDocumentController {
       id,
       user.rol.nombre === ROLES.ADMIN ? 'ADMIN' : 'INTERNAL',
       query ?? '',
+    );
+  }
+
+  @Get(':id/citation')
+  @ApiOperation({
+    summary: 'Forma una cita con página a partir del documento autorizado',
+  })
+  citation(
+    @Param('id') id: string,
+    @Query('page') page: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const pageNumber = parseOptionalPage(page);
+    if (pageNumber === undefined)
+      throw new BadRequestException('La página debe ser un entero positivo.');
+    return this.documents.citation(
+      id,
+      user.rol.nombre === ROLES.ADMIN ? 'ADMIN' : 'INTERNAL',
+      pageNumber,
     );
   }
 
@@ -126,7 +153,7 @@ export class PublicCorpusDocumentController {
     @Param('id') id: string,
     @Query('pageNumber') pageNumber: string | undefined,
   ) {
-    return this.documents.metadata(id, 'PUBLIC', parsePage(pageNumber));
+    return this.documents.metadata(id, 'PUBLIC', parseOptionalPage(pageNumber));
   }
 
   @Get(':id/structure')
@@ -156,6 +183,15 @@ function parsePage(value?: string) {
   if (value === undefined) return undefined;
   const page = Number(value);
   return Number.isInteger(page) && page > 0 ? page : undefined;
+}
+
+function parseOptionalPage(value?: string) {
+  if (value === undefined) return undefined;
+  const page = Number(value);
+  if (!Number.isSafeInteger(page) || page < 1 || page > 100_000) {
+    throw new BadRequestException('La página debe ser un entero positivo.');
+  }
+  return page;
 }
 
 export function sendDocument(

@@ -63,11 +63,21 @@ export async function findLinkedCorpusTextSource(
     if (
       document.documentScope !== 'GENERAL' ||
       !extraction ||
+      !['TEXT_EXTRACTED', 'OCR_HUMAN_APPROVED'].includes(extraction.status) ||
       resolvePath(storage.root, extraction.file.storageKey) !== viewerPath
     ) {
       return [];
     }
-    return [extraction];
+    const approvedPages = extraction.pages.filter(
+      (page) =>
+        page.textKind === 'NATIVE' ||
+        (page.textKind === 'OCR' &&
+          extraction.status === 'OCR_HUMAN_APPROVED' &&
+          page.processingStatus === 'OCR_HUMAN_APPROVED'),
+    );
+    return approvedPages.length
+      ? [{ ...extraction, pages: approvedPages }]
+      : [];
   });
   const uniqueSources = [
     ...new Map(sources.map((source) => [source.file.sha256, source])).values(),

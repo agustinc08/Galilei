@@ -187,7 +187,7 @@ async function installApiMocks(
   page: Page,
   authenticated = false,
   roleName = ADMIN.rol.nombre,
-  options: { seedNovelties?: boolean; failNovelties?: boolean; failExport?: boolean } = {},
+  options: { seedNovelties?: boolean; failNovelties?: boolean; failExport?: boolean; pageAwareCorpusResult?: boolean } = {},
 ) {
   const authenticatedUser = { ...ADMIN, rol: { ...ADMIN.rol, nombre: roleName } };
   const favorites = new Set<number>();
@@ -272,6 +272,41 @@ async function installApiMocks(
     }
     if (path === '/public/busqueda/interpretacion' && method === 'GET') {
       return route.fulfill({ json: { data: { summary: 'La consulta busca desde el inicio de cada palabra.', notes: 'Las tildes se toleran; ñ se mantiene distinta de n.' } } });
+    }
+    if (path === '/busqueda/avanzada' && method === 'GET' && options.pageAwareCorpusResult) {
+      return route.fulfill({ json: {
+        data: [],
+        meta: {
+          total: 0,
+          page: Number(url.searchParams.get('page') ?? '1'),
+          pageSize: Number(url.searchParams.get('pageSize') ?? '10'),
+          pageCount: 1,
+          sortUsed: 'relevancia',
+          facets: { salas: [], years: [] },
+        },
+        federated: {
+          total: 1,
+          totalExact: true,
+          hasMore: false,
+          page: 1,
+          pageSize: 10,
+          results: [{
+            id: 'corpus-ocr-qa-1',
+            sourceSystem: 'CORPUS',
+            sourceType: 'DOCUMENTO',
+            sourceId: 'corpus-doc-qa-1',
+            title: 'Fallo OCR aprobado de prueba',
+            subtitle: null,
+            date: '2024-06-03T00:00:00.000Z',
+            snippet: 'La Cámara examinó responsabilidad objetiva y reparó daños; revisó sobreobjetiva, objetivamente. <img src=x onerror="window.__ocrSnippetXss=true">',
+            matchedFields: ['approvedPageText'],
+            score: 1,
+            metadata: { matchSource: 'OCR_APPROVED', pageNumber: 50 },
+            visibility: 'INTERNAL',
+            document: { href: null, mimeType: 'application/pdf' },
+          }],
+        },
+      } });
     }
     if (path === '/public/busqueda/temas') return route.fulfill({ json: { data: [] } });
     if (path === '/public/sentencias/recientes') {
@@ -685,6 +720,41 @@ test('collection and citation research tools fit narrow and desktop viewports', 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.goto('/citas-pendientes');
     await expect(page.getByRole('heading', { name: 'Revisión de citas' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
+test('page-aware Corpus results highlight the positive phrase safely and keep the OCR page link', async ({ page }) => {
+  const { calls } = await installApiMocks(page, true, ADMIN.rol.nombre, { pageAwareCorpusResult: true });
+  await page.goto('/busqueda-avanzada');
+  await page.getByLabel('Buscar jurisprudencia').fill('"responsabilidad objetíva" NOT daños');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+
+  const result = page.getByRole('region', { name: 'Documentos del Corpus' });
+  await expect(result).toBeVisible();
+  await expect(result.getByLabel('Texto proveniente de OCR revisado por una persona')).toHaveText('OCR revisado');
+  await expect(result.locator('mark')).toHaveCount(1);
+  await expect(result.locator('mark')).toHaveText('responsabilidad objetiva');
+  await expect(result).toContainText('<img src=x onerror="window.__ocrSnippetXss=true">');
+  await expect(result.locator('img, script')).toHaveCount(0);
+  expect(await page.evaluate(() => (window as Window & { __ocrSnippetXss?: boolean }).__ocrSnippetXss)).toBeUndefined();
+  await expect(result.getByText('Página física 50')).toBeVisible();
+  await expect(result.getByRole('link', { name: 'Abrir Fallo OCR aprobado de prueba en página 50' })).toHaveAttribute('href', /page=50/u);
+  expect(calls.some((call) => call.path === '/busqueda/avanzada' && call.method === 'GET' && call.search.includes('q=%22responsabilidad'))).toBe(true);
+
+  const query = page.getByLabel('Buscar jurisprudencia');
+  await query.fill('objetiva');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(result.locator('mark')).toHaveCount(2);
+  expect(await result.locator('mark').allTextContents()).toEqual(['objetiva', 'objetiva']);
+  await query.fill('"objetiva"');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(result.locator('mark')).toHaveCount(1);
+  await expect(result.locator('mark')).toHaveText('objetiva');
+
+  for (const viewport of [{ width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
+    await page.setViewportSize(viewport);
+    await expect(result.getByRole('link', { name: 'Abrir Fallo OCR aprobado de prueba en página 50' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
 });

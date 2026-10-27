@@ -1,5 +1,18 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Candidata — GALILEI SUPER MEGA ULTRA SPRINT 9: investigación jurídica por página (2026-10-27)
+
+| Gate | Estado | Evidencia / siguiente paso |
+|---|---|---|
+| Procedencia y página | **IMPLEMENTADO / E2E REAL PASS** | La hidratación PostgreSQL vincula el hit Search al texto de la página física del `latestExtractionId`; etiquetas de fuente nativa/OCR aprobado, snippet acotado y deep link al visor. El texto OCR draft queda fuera. |
+| Citas y espacios de investigación | **IMPLEMENTADO / REGRESIÓN LOCAL PASS** | Dossier conserva procedencia; comparación/evolución no convierten OCR en doctrina ni en relación verificada. Las citas OCR permanecen candidatas, no auto-verificadas. |
+| Schema y Search | **0→39, 37→39, 38→39, 39→39 PASS** | Schema 39 ya posee el estado/procedencia necesarios. Sin migración 40, cambio de mapping V4 o rebuild completo. |
+| Servicios reales | **PASS EN QA AISLADA** | PostgreSQL 16.15 + OpenSearch 2.19.6, 4/4 E2E; PDF sintético de 50 páginas; caída/recuperación de Search por outbox; checksum del PDF original preservado. |
+| Calidad local | **PASS_WITH_FINDINGS** | Cliente/backend typecheck, lint, suite y build PASS; 22 tests cliente, 612 backend, 10 opt-in omitidos. Advertencia de bundle PDF.js >500 kB. Investigación E2E 23/23; Corpus OCR card verificada en 390/768/1366/1920 px, inclusión/exclusión y XSS como texto. Responsive general 18/18 y OCR review UI 1/1. Latencia de corpus productivo y ataques HTTP/Parser dirigidos quedan `PENDING`. |
+| UAT / CI | **PENDING CIERRE REMOTO** | Falta publicar exclusivamente `feature/page-aware-ocr-research-suite-9` y verificar CI para el SHA remoto exacto. `PENDING_HUMAN_UAT` y `PENDING_HUMAN_GOLD`. No promover a DEV/main ni desplegar a Sytec10. |
+
+Siguiente dirección de producto recomendada tras cerrar CI: búsqueda de jurisprudencia con alertas de seguimiento basadas en búsquedas guardadas, sin inferencias doctrinales. Mantener las etiquetas de OCR separadas del gold del parser.
+
 ## Candidata — GALILEI SUPER MEGA ULTRA SPRINT 8: revisión OCR humana (2026-10-26)
 
 | Gate | Estado | Evidencia / siguiente paso |

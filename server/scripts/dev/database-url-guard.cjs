@@ -4,6 +4,7 @@ function validateDevelopmentDatabaseUrl(rawUrl, options = {}) {
   const allowIsolatedQa = options.allowIsolatedQa === true;
   const allowSuite7Qa = options.allowSuite7Qa === true;
   const allowSuite8Qa = options.allowSuite8Qa === true;
+  const allowSuite9PageAwareQa = options.allowSuite9PageAwareQa === true;
   const deploymentEnvironment =
     options.deploymentEnvironment ?? (allowIsolatedQa ? '' : 'development');
   let target;
@@ -13,7 +14,15 @@ function validateDevelopmentDatabaseUrl(rawUrl, options = {}) {
   } catch {
     return {
       valid: false,
-      target: allowSuite8Qa ? 'suite8-qa' : allowSuite7Qa ? 'suite7-qa' : allowIsolatedQa ? 'deep-qa' : 'dev',
+      target: allowSuite9PageAwareQa
+        ? 'suite9-page-aware-qa'
+        : allowSuite8Qa
+          ? 'suite8-qa'
+          : allowSuite7Qa
+            ? 'suite7-qa'
+            : allowIsolatedQa
+              ? 'deep-qa'
+              : 'dev',
     };
   }
 
@@ -30,6 +39,7 @@ function validateDevelopmentDatabaseUrl(rawUrl, options = {}) {
     allowIsolatedQa &&
     !allowSuite7Qa &&
     !allowSuite8Qa &&
+    !allowSuite9PageAwareQa &&
     deploymentEnvironment === 'development' &&
     common &&
     target.port === '55434' &&
@@ -37,12 +47,14 @@ function validateDevelopmentDatabaseUrl(rawUrl, options = {}) {
   const validSuite7Qa =
     allowSuite7Qa &&
     !allowSuite8Qa &&
+    !allowSuite9PageAwareQa &&
     deploymentEnvironment === 'development' &&
     common &&
     target.port === '55434' &&
     target.pathname === '/buscador_juridico_civil_deepqa';
   const validSuite8Qa =
     allowSuite8Qa &&
+    !allowSuite9PageAwareQa &&
     deploymentEnvironment === 'development' &&
     common &&
     target.port === '55434' &&
@@ -52,6 +64,19 @@ function validateDevelopmentDatabaseUrl(rawUrl, options = {}) {
       '/galilei_ocr_review_suite8_from37',
       '/galilei_ocr_review_suite8_from38',
     ].includes(target.pathname);
+  const validSuite9PageAwareQa =
+    allowSuite9PageAwareQa &&
+    !allowSuite7Qa &&
+    !allowSuite8Qa &&
+    deploymentEnvironment === 'development' &&
+    common &&
+    target.port === '55435' &&
+    [
+      '/galilei_page_aware_suite9_fresh',
+      '/galilei_page_aware_suite9_from37',
+      '/galilei_page_aware_suite9_from38',
+      '/galilei_page_aware_suite9_from39',
+    ].includes(target.pathname);
   const validDev =
     !allowIsolatedQa &&
     common &&
@@ -59,8 +84,21 @@ function validateDevelopmentDatabaseUrl(rawUrl, options = {}) {
     target.pathname === '/buscador_juridico_civil_dev';
 
   return {
-    valid: validQa || validSuite7Qa || validSuite8Qa || validDev,
-    target: allowSuite8Qa ? 'suite8-qa' : allowSuite7Qa ? 'suite7-qa' : allowIsolatedQa ? 'deep-qa' : 'dev',
+    valid:
+      validQa ||
+      validSuite7Qa ||
+      validSuite8Qa ||
+      validSuite9PageAwareQa ||
+      validDev,
+    target: allowSuite9PageAwareQa
+      ? 'suite9-page-aware-qa'
+      : allowSuite8Qa
+        ? 'suite8-qa'
+        : allowSuite7Qa
+          ? 'suite7-qa'
+          : allowIsolatedQa
+            ? 'deep-qa'
+            : 'dev',
   };
 }
 

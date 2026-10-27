@@ -8,6 +8,7 @@ import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/hooks/use-auth';
 import { downloadBlob } from '@/lib/utils';
 import { clampPdfPage, parsePdfPageParam } from '@/lib/pdf-page';
+import { formatPdfPassageCitation } from '@/lib/pdf-text-search';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import styles from './viewer.module.css';
@@ -25,7 +26,7 @@ type DocumentInfo = {
   source?: { code: string; sourceReference?: string | null; checksum?: string | null } | null;
   file?: { filename: string; pageCount?: number | null; mimeType: string } | null;
   extraction?: { status: string; extractor: string; extractorVersion: string; extractedAt: string; pageCount: number } | null;
-  selectedPage?: { pageNumber: number; text: string; textKind?: 'NATIVE' | 'OCR' } | null;
+  selectedPage?: { pageNumber: number; text: string; textKind?: 'NATIVE' | 'OCR'; processingStatus?: string } | null;
 };
 type DocumentMatches = {
   total: number;
@@ -100,6 +101,7 @@ export default function CorpusDocumentPage() {
   const [selectionNote, setSelectionNote] = useState('');
   const [curationBusy, setCurationBusy] = useState(false);
   const [pageCount, setPageCount] = useState(0);
+  const [copyStatus, setCopyStatus] = useState('');
   const [sourcePageState, setSourcePageState] = useState<{ key: string; text: string } | null>(null);
   const searchRequest = useRef(0);
   const sourcePageKey = `${params.id}:${page}`;
@@ -247,9 +249,31 @@ export default function CorpusDocumentPage() {
     downloadBlob(blob, document?.file?.filename ?? 'documento.pdf');
   };
 
+  const copyFragmentCitation = async () => {
+    const match = matches?.matches[activeMatch];
+    if (!match) return;
+    try {
+      const citation = await api.get<{ data: { citaConPagina?: string } }>(
+        `/corpus/documents/${params.id}/citation`,
+        { query: { page: match.page } },
+      );
+      const value = citation.data.citaConPagina
+        ? formatPdfPassageCitation(match.text, citation.data.citaConPagina)
+        : null;
+      if (!value) {
+        setCopyStatus('No se pudo formar una cita para esta página.');
+        return;
+      }
+      await navigator.clipboard.writeText(value);
+      setCopyStatus('Fragmento y cita copiados.');
+    } catch {
+      setCopyStatus('No se pudo copiar el fragmento y la cita.');
+    }
+  };
+
   return (
     <div className={styles.page}>
-      <PageHeader title={document?.title ?? 'Documento'} description={document?.extraction?.extractor === 'Tesseract OCR' ? 'Texto obtenido por OCR local. El PDF original se conserva sin cambios.' : 'Documento con procedencia y acceso controlado.'} />
+      <PageHeader title={document?.title ?? 'Documento'} description={document?.extraction?.status === 'OCR_HUMAN_APPROVED' ? 'El texto OCR revisado ayuda a encontrar pasajes; el PDF original permanece disponible para verificación.' : 'Documento con procedencia y acceso controlado.'} />
       {error ? <p className={styles.error} role="alert">{error}</p> : null}
       <div className={styles.toolbar}>
         <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>Página anterior</button>
@@ -287,6 +311,9 @@ export default function CorpusDocumentPage() {
                 <span>{matches.total ? `${activeMatch + 1} de ${matches.total}` : '0 de 0'}</span>
                 <button type="button" disabled={!matches.total} onClick={() => navigateMatch(1)}>Siguiente →</button>
               </div>
+              {matches.matches[activeMatch]?.textKind === 'OCR' ? <p role="status">Fragmento basado en OCR revisado; consultá el PDF original en la página física indicada.</p> : null}
+              {matches.matches[activeMatch] ? <button type="button" onClick={() => void copyFragmentCitation()}>Copiar fragmento + cita</button> : null}
+              {copyStatus ? <p role="status" aria-live="polite">{copyStatus}</p> : null}
               <ol className={styles.matches}>{matches.matches.map((match) => <li key={`${match.ordinal}-${match.page}`}>
                 <button type="button" onClick={() => { setActiveMatch(match.ordinal - 1); setPage(match.page); }}>Coincidencia {match.ordinal} — página {match.page}</button>
                 <p>{match.context}</p>

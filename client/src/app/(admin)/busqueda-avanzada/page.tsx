@@ -15,6 +15,7 @@ import { api } from '@/lib/api';
 import { limpiarFiltrosBusqueda } from '@/lib/busqueda';
 import { trackEvento } from '@/lib/tracking';
 import { downloadBlob } from '@/lib/utils';
+import { highlightSearchSnippet } from '@/lib/search-snippet-highlight';
 import { useAuth } from '@/hooks/use-auth';
 import { Link } from "@/lib/router-compat";
 import type { PaginatedResponse } from '@/types/common';
@@ -228,15 +229,17 @@ export default function BusquedaAvanzadaPage() {
                     <div className={styles.inlineActions}>
                       <strong>{item.title ?? 'Documento institucional'}</strong>
                       <span className={styles.badge}>CORPUS · INTERNO</span>
+                      {item.metadata.matchSource === 'OCR_APPROVED' ? <span className={styles.badge} aria-label="Texto proveniente de OCR revisado por una persona">OCR revisado</span> : null}
+                      {item.metadata.matchSource === 'PDF_TEXT' ? <span className={styles.badge} aria-label="Texto extraído del PDF">Texto PDF</span> : null}
                       {typeof item.metadata.digestoCollections === 'string' && item.metadata.digestoCollections ? <span className={styles.badge}>DIGESTO · {item.metadata.digestoCollections}</span> : null}
                     </div>
                     <span>{[item.metadata.court, item.metadata.chamber, item.date ? new Date(item.date).toLocaleDateString('es-AR') : null].filter(Boolean).join(' · ') || 'Metadatos pendientes de revisión'}</span>
                     {typeof item.metadata.digestoTopics === 'string' && item.metadata.digestoTopics ? <span>Temas Digesto: {item.metadata.digestoTopics}</span> : null}
                     {typeof item.metadata.digestoTags === 'string' && item.metadata.digestoTags ? <span>Etiquetas: {item.metadata.digestoTags}</span> : null}
-                    {item.snippet ? <p>{item.snippet}</p> : null}
-                    {item.metadata.pageNumber ? <span>Página {item.metadata.pageNumber}</span> : null}
+                    {item.snippet ? <p>{highlightSearchSnippet(item.snippet, { query: filters.q, exactPhrase: filters.fraseExacta, excluded: filters.excluir, className: styles.snippetMatch })}</p> : null}
+                    {typeof item.metadata.pageNumber === 'number' && item.metadata.pageNumber > 0 ? <span>Página física {item.metadata.pageNumber}</span> : null}
                     <div className={styles.inlineActions}>
-                      <Link href={`/corpus/${encodeURIComponent(item.sourceId)}?q=${encodeURIComponent(filters.q ?? '')}${item.metadata.pageNumber ? `&page=${item.metadata.pageNumber}` : ''}`}>Abrir documento</Link>
+                      <Link aria-label={typeof item.metadata.pageNumber === 'number' && item.metadata.pageNumber > 0 ? `Abrir ${item.title ?? 'documento'} en página ${item.metadata.pageNumber}` : `Abrir ${item.title ?? 'documento'}`} href={`/corpus/${encodeURIComponent(item.sourceId)}?q=${encodeURIComponent(filters.q ?? '')}${typeof item.metadata.pageNumber === 'number' && item.metadata.pageNumber > 0 ? `&page=${item.metadata.pageNumber}` : ''}`}>{typeof item.metadata.pageNumber === 'number' && item.metadata.pageNumber > 0 ? `Abrir en página ${item.metadata.pageNumber}` : 'Abrir documento'}</Link>
                     </div>
                   </div>
                 </Card>

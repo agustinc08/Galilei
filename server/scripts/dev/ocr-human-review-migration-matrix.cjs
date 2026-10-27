@@ -18,11 +18,25 @@ const prismaCli = path.join(
   'build',
   'index.js',
 );
-const allowedDatabases = [
-  'galilei_ocr_review_suite8_fresh',
-  'galilei_ocr_review_suite8_from37',
-  'galilei_ocr_review_suite8_from38',
-];
+const suite9PageAwareQa =
+  process.env.BJC_SPRINT9_PAGE_AWARE_ALLOW_ISOLATED_DATABASE === 'true';
+const suite8Qa =
+  process.env.BJC_SPRINT8_ALLOW_ISOLATED_DATABASE === 'true' &&
+  !suite9PageAwareQa;
+const sprintLabel = suite9PageAwareQa ? 'SPRINT9' : 'SPRINT8';
+const qaPort = suite9PageAwareQa ? '55435' : '55434';
+const allowedDatabases = suite9PageAwareQa
+  ? [
+      'galilei_page_aware_suite9_fresh',
+      'galilei_page_aware_suite9_from37',
+      'galilei_page_aware_suite9_from38',
+      'galilei_page_aware_suite9_from39',
+    ]
+  : [
+      'galilei_ocr_review_suite8_fresh',
+      'galilei_ocr_review_suite8_from37',
+      'galilei_ocr_review_suite8_from38',
+    ];
 const expectedFinalMigrations = [
   '20261026160000_institutional_ingestion_workflow',
   '20261026170000_ocr_human_review',
@@ -30,23 +44,24 @@ const expectedFinalMigrations = [
 
 function safeDatabaseUrl(database) {
   const source = process.env.DATABASE_URL;
-  if (!source || process.env.BJC_SPRINT8_ALLOW_ISOLATED_DATABASE !== 'true') {
-    throw new Error('SPRINT8_MIGRATION_MATRIX_REQUIRES_GUARDED_QA');
+  if (!source || (!suite8Qa && !suite9PageAwareQa)) {
+    throw new Error('PAGE_AWARE_MIGRATION_MATRIX_REQUIRES_GUARDED_QA');
   }
   const url = new URL(source);
   url.pathname = `/${database}`;
   const validation = validateDevelopmentDatabaseUrl(url.toString(), {
     allowIsolatedQa: true,
-    allowSuite8Qa: true,
+    allowSuite8Qa: suite8Qa,
+    allowSuite9PageAwareQa: suite9PageAwareQa,
     deploymentEnvironment: process.env.BJC_DEPLOYMENT_ENV,
   });
   if (
     !validation.valid ||
     url.hostname !== '127.0.0.1' ||
-    url.port !== '55434' ||
+    url.port !== qaPort ||
     decodeURIComponent(url.username) !== 'bjc_dev'
   ) {
-    throw new Error(`SPRINT8_MIGRATION_MATRIX_TARGET_REJECTED:${database}`);
+    throw new Error(`PAGE_AWARE_MIGRATION_MATRIX_TARGET_REJECTED:${database}`);
   }
   return url.toString();
 }
@@ -64,17 +79,17 @@ async function inspectDatabase(connectionString) {
     const connectedHost = String(identity.rows[0].host ?? '').split('/')[0];
     if (
       connectedHost !== '127.0.0.1' ||
-      Number(identity.rows[0].port) !== 55434 ||
+      Number(identity.rows[0].port) !== Number(qaPort) ||
       identity.rows[0].role !== 'bjc_dev' ||
       Number(identity.rows[0].version_num) < 160000
     ) {
       throw new Error(
-        `SPRINT8_MIGRATION_MATRIX_SERVER_IDENTITY_MISMATCH:${JSON.stringify(identity.rows[0])}`,
+        `${sprintLabel}_MIGRATION_MATRIX_SERVER_IDENTITY_MISMATCH:${JSON.stringify(identity.rows[0])}`,
       );
     }
     if (Number(tableCount.rows[0].count) !== 0) {
       throw new Error(
-        `SPRINT8_MIGRATION_MATRIX_DATABASE_NOT_EMPTY:${identity.rows[0].database}`,
+        `${sprintLabel}_MIGRATION_MATRIX_DATABASE_NOT_EMPTY:${identity.rows[0].database}`,
       );
     }
     return {
@@ -174,10 +189,10 @@ async function executeMatrix() {
     JSON.stringify(migrations.slice(-2)) !==
       JSON.stringify(expectedFinalMigrations)
   ) {
-    throw new Error('SPRINT8_MIGRATION_MATRIX_EXPECTED_37_PLUS_TWO_MIGRATIONS');
+    throw new Error(`${sprintLabel}_MIGRATION_MATRIX_EXPECTED_37_PLUS_TWO_MIGRATIONS`);
   }
   if (!fs.existsSync(prismaCli))
-    throw new Error('SPRINT8_PRISMA_CLI_NOT_FOUND');
+    throw new Error(`${sprintLabel}_PRISMA_CLI_NOT_FOUND`);
 
   const destructiveTokens =
     /\b(DROP\s+TABLE|DROP\s+COLUMN|TRUNCATE|DELETE\s+FROM)\b/iu;
@@ -185,7 +200,7 @@ async function executeMatrix() {
     fs.readFileSync(path.join(migrationRoot, name, 'migration.sql'), 'utf8'),
   );
   if (lastTwoSql.some((sql) => destructiveTokens.test(sql))) {
-    throw new Error('SPRINT8_MIGRATION_MATRIX_DESTRUCTIVE_SQL_DETECTED');
+    throw new Error(`${sprintLabel}_MIGRATION_MATRIX_DESTRUCTIVE_SQL_DETECTED`);
   }
 
   const reports = [];
@@ -198,8 +213,9 @@ async function executeMatrix() {
     let temporary = null;
     let configPath = null;
     try {
-      if (database === 'galilei_ocr_review_suite8_from37') baselineCount = 37;
-      if (database === 'galilei_ocr_review_suite8_from38') baselineCount = 38;
+      if (database.endsWith('_from37')) baselineCount = 37;
+      if (database.endsWith('_from38')) baselineCount = 38;
+      if (database.endsWith('_from39')) baselineCount = 39;
       if (baselineCount > 0) {
         temporary = ensureMigrationPrefix(migrations, baselineCount);
         const schemaPath = path.join(temporary.scratch, 'schema.prisma');
@@ -239,7 +255,7 @@ async function executeMatrix() {
         status: 'PASS',
       };
       reports.push(report);
-      console.log(`SPRINT8_MIGRATION_MATRIX_PASS ${JSON.stringify(report)}`);
+      console.log(`${sprintLabel}_MIGRATION_MATRIX_PASS ${JSON.stringify(report)}`);
     } finally {
       if (configPath && fs.existsSync(configPath)) fs.rmSync(configPath);
       if (temporary?.scratch && fs.existsSync(temporary.scratch)) {

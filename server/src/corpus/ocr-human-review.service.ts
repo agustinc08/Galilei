@@ -15,8 +15,9 @@ import {
   LocalDocumentProcessingError,
   LocalPdfOcrProcessor,
 } from './document-local-processors';
+import { OCR_REVIEW_PAGE_TEXT_LIMIT } from './ocr-human-review.dto';
 
-const PAGE_TEXT_LIMIT = 120_000;
+const PAGE_TEXT_LIMIT = OCR_REVIEW_PAGE_TEXT_LIMIT;
 const PAGE_COUNT_LIMIT = 2_000;
 const SOURCE_CODES = ['JURISPRUDENCIA_LOCAL_PDF', 'DIGESTO_LOCAL'];
 type ReviewRole = RoleName;

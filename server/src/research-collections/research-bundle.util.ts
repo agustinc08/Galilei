@@ -4,6 +4,18 @@ import { PassThrough } from 'node:stream';
 
 export const RESEARCH_BUNDLE_SCHEMA_VERSION = 'galilei-research-bundle/1';
 
+export type ResearchTextSourceProvenance = {
+  source: 'PDF_TEXT' | 'OCR_APPROVED' | 'MIXED';
+  pdfSha256: string;
+  extractorVersion: string;
+  documentTextSha256?: string;
+  pages: Array<{
+    pageNumber: number;
+    source: 'PDF_TEXT' | 'OCR_APPROVED';
+    textSha256?: string;
+  }>;
+};
+
 export type ResearchBundleJudgment = {
   id: number;
   slugPublico: string | null;
@@ -15,6 +27,7 @@ export type ResearchBundleJudgment = {
   tipoFallo: string | null;
   nota: string | null;
   addedAt: Date;
+  textProvenance?: ResearchTextSourceProvenance;
 };
 
 export type ResearchBundleInput = {
@@ -74,6 +87,7 @@ export type ResearchBundleManifest = {
     expediente: string | null;
     caratula: string | null;
     slugPublico: string | null;
+    textProvenance?: ResearchTextSourceProvenance;
   }>;
   researchContext?: {
     type: 'JURISPRUDENTIAL_EVOLUTION';
@@ -194,7 +208,14 @@ function renderIndex(
     const link = path
       ? `<a href="${html(path)}">Abrir publicación</a>`
       : '<span>Sin enlace público disponible</span>';
-    return `<article><h2>${title}</h2><p class="metadata">${metadata || 'Sin metadatos adicionales'}</p><p class="reference">${html(reference(judgment))}</p>${note}<p>${link}</p></article>`;
+    const ocrPages =
+      judgment.textProvenance?.pages
+        .filter((page) => page.source === 'OCR_APPROVED')
+        .map((page) => page.pageNumber) ?? [];
+    const provenance = judgment.textProvenance
+      ? `<p class="metadata">Texto de investigación: ${html(judgment.textProvenance.source === 'MIXED' ? 'PDF y OCR revisado' : judgment.textProvenance.source === 'OCR_APPROVED' ? 'OCR revisado' : 'texto del PDF')}${ocrPages.length ? ` · páginas físicas ${html(ocrPages.join(', '))}` : ''}</p>`
+      : '';
+    return `<article><h2>${title}</h2><p class="metadata">${metadata || 'Sin metadatos adicionales'}</p><p class="reference">${html(reference(judgment))}</p>${provenance}${note}<p>${link}</p></article>`;
   });
   const warningHtml = warnings.length
     ? `<section class="warnings"><h2>Advertencias</h2><ul>${warnings
@@ -241,6 +262,14 @@ function renderReadme(
       `- Sentencia: ${markdownText(judgment.numeroSentencia ?? 'No informada')}`,
       `- Publicación: ${path ? `[Abrir fallo](${path})` : 'No disponible'}`,
     );
+    if (judgment.textProvenance) {
+      const ocrPages = judgment.textProvenance.pages
+        .filter((page) => page.source === 'OCR_APPROVED')
+        .map((page) => page.pageNumber);
+      lines.push(
+        `- Fuente textual activa: ${markdownText(judgment.textProvenance.source)}${ocrPages.length ? ` · páginas físicas con OCR revisado: ${ocrPages.join(', ')}` : ''}`,
+      );
+    }
     if (judgment.nota) {
       const fence = codeFence(judgment.nota);
       lines.push('', 'Nota privada:', '', fence, judgment.nota, fence);
@@ -326,6 +355,9 @@ export function buildResearchBundle(
       expediente: judgment.expediente,
       caratula: judgment.caratula,
       slugPublico: judgment.slugPublico,
+      ...(judgment.textProvenance
+        ? { textProvenance: judgment.textProvenance }
+        : {}),
     };
     files.push(
       jsonFile(`${directory}/metadata.json`, metadata),
@@ -408,6 +440,9 @@ export function buildResearchBundle(
       expediente: judgment.expediente,
       caratula: judgment.caratula,
       slugPublico: judgment.slugPublico,
+      ...(judgment.textProvenance
+        ? { textProvenance: judgment.textProvenance }
+        : {}),
     })),
     ...(input.evolution
       ? {

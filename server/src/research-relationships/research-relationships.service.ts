@@ -164,7 +164,10 @@ export class ResearchRelationshipsService {
           (citation) =>
             citation.identifierType !== null &&
             citation.normalizedIdentifier !== null &&
-            citation.resolutionOutcome !== 'SELF_REFERENCE',
+            citation.resolutionOutcome !== 'SELF_REFERENCE' &&
+            sourceExtraction!.pages.some(
+              (page) => page.pageNumber === citation.sourcePage,
+            ),
         )
         .map(async (citation) => {
           const resolution = await this.resolveParsedCandidate(
@@ -186,7 +189,20 @@ export class ResearchRelationshipsService {
             sourceChecksum: sourceExtraction!.file.sha256,
             parserVersion: citation.parserVersion,
             citationFamily: citation.family,
-            parsedFields: citation.parsedFields,
+            parsedFields: {
+              ...citation.parsedFields,
+              sourceProvenance:
+                citation.sourceTextKind === 'OCR' ? 'OCR_APPROVED' : 'PDF_TEXT',
+              sourceTextChecksum: createHash('sha256')
+                .update(
+                  sourceExtraction!.pages.find(
+                    (page) => page.pageNumber === citation.sourcePage,
+                  )!.text,
+                  'utf8',
+                )
+                .digest('hex'),
+              sourceExtractorVersion: sourceExtraction!.extractorVersion,
+            },
             sourcePage: citation.sourcePage,
             sourceStartOffset: citation.sourceStartOffset,
             sourceEndOffset: citation.sourceEndOffset,

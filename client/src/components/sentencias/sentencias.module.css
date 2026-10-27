@@ -297,6 +297,15 @@
   color: #b42318;
 }
 
+.snippetMatch {
+  border-radius: 2px;
+  background: #fff0b3;
+  color: #3b2f00;
+  font-weight: 700;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
 .textActions {
   display: flex;
   flex-wrap: wrap;

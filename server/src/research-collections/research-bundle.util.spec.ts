@@ -185,6 +185,41 @@ describe('reproducible research bundle', () => {
     ).toBe(true);
   });
 
+  it('includes optional OCR page provenance without changing bundle v1 or exposing text', () => {
+    const input = fixtureInput(1);
+    input.judgments[0].textProvenance = {
+      source: 'MIXED',
+      pdfSha256: 'a'.repeat(64),
+      extractorVersion: 'suite8-approved-v1',
+      documentTextSha256: 'b'.repeat(64),
+      pages: [
+        { pageNumber: 1, source: 'PDF_TEXT' },
+        { pageNumber: 17, source: 'OCR_APPROVED', textSha256: 'c'.repeat(64) },
+      ],
+    };
+    const bundle = buildResearchBundle(input);
+    const metadata = bundle.files.find((file) =>
+      file.path.endsWith('/fallos/sentencia-1/metadata.json'),
+    )!;
+    const index = bundle.files.find((file) =>
+      file.path.endsWith('/INDEX.html'),
+    )!;
+    expect(bundle.manifest.schemaVersion).toBe('galilei-research-bundle/1');
+    expect(
+      bundle.manifest.judgments[0]?.textProvenance?.pages[1],
+    ).toMatchObject({
+      pageNumber: 17,
+      source: 'OCR_APPROVED',
+      textSha256: 'c'.repeat(64),
+    });
+    expect(metadata.content).toContain('OCR_APPROVED');
+    expect(index.content).toContain('OCR revisado');
+    expect(index.content).toContain('páginas físicas 17');
+    expect(
+      bundle.files.some((file) => file.content.includes('approved page text')),
+    ).toBe(false);
+  });
+
   it('creates a valid empty-collection archive', async () => {
     const bundle = buildResearchBundle({
       ...fixtureInput(0),

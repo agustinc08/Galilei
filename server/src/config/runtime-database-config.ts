@@ -36,34 +36,54 @@ export function getDevelopmentDatabaseConfig(
     throw new Error('DATABASE_URL no es una URL válida para el entorno local.');
   }
 
-  const suite8QaEnabled = env.BJC_SPRINT8_ALLOW_ISOLATED_DATABASE === 'true';
+  const suite9PageAwareQaEnabled =
+    env.BJC_SPRINT9_PAGE_AWARE_ALLOW_ISOLATED_DATABASE === 'true';
+  const suite8QaEnabled =
+    env.BJC_SPRINT8_ALLOW_ISOLATED_DATABASE === 'true' &&
+    !suite9PageAwareQaEnabled;
   const suite7QaEnabled =
-    env.BJC_SPRINT7_ALLOW_ISOLATED_DATABASE === 'true' && !suite8QaEnabled;
+    env.BJC_SPRINT7_ALLOW_ISOLATED_DATABASE === 'true' &&
+    !suite8QaEnabled &&
+    !suite9PageAwareQaEnabled;
   const deepQaEnabled =
     env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true' &&
     !suite7QaEnabled &&
-    !suite8QaEnabled;
-  const isolatedQaEnabled = suite8QaEnabled || suite7QaEnabled || deepQaEnabled;
-  const allowedQaDatabases = suite8QaEnabled
+    !suite8QaEnabled &&
+    !suite9PageAwareQaEnabled;
+  const isolatedQaEnabled =
+    suite9PageAwareQaEnabled ||
+    suite8QaEnabled ||
+    suite7QaEnabled ||
+    deepQaEnabled;
+  const allowedQaDatabases = suite9PageAwareQaEnabled
     ? [
-        'galilei_ocr_review_suite8_qa',
-        'galilei_ocr_review_suite8_fresh',
-        'galilei_ocr_review_suite8_from37',
-        'galilei_ocr_review_suite8_from38',
+        'galilei_page_aware_suite9_fresh',
+        'galilei_page_aware_suite9_from37',
+        'galilei_page_aware_suite9_from38',
+        'galilei_page_aware_suite9_from39',
       ]
-    : ['buscador_juridico_civil_deepqa'];
+    : suite8QaEnabled
+      ? [
+          'galilei_ocr_review_suite8_qa',
+          'galilei_ocr_review_suite8_fresh',
+          'galilei_ocr_review_suite8_from37',
+          'galilei_ocr_review_suite8_from38',
+        ]
+      : ['buscador_juridico_civil_deepqa'];
   if (isolatedQaEnabled && env.BJC_DEPLOYMENT_ENV !== 'development') {
     throw new Error(
       suite8QaEnabled
         ? 'SPRINT8_QA_DATABASE_REQUIRES_DEVELOPMENT_RUNTIME'
-        : 'DEEP_QA_DATABASE_REQUIRES_DEVELOPMENT_RUNTIME',
+        : suite9PageAwareQaEnabled
+          ? 'SPRINT9_PAGE_AWARE_QA_DATABASE_REQUIRES_DEVELOPMENT_RUNTIME'
+          : 'DEEP_QA_DATABASE_REQUIRES_DEVELOPMENT_RUNTIME',
     );
   }
   if (
     isolatedQaEnabled &&
     (target.protocol !== 'postgresql:' ||
       target.hostname !== '127.0.0.1' ||
-      target.port !== '55434' ||
+      target.port !== (suite9PageAwareQaEnabled ? '55435' : '55434') ||
       !allowedQaDatabases.includes(target.pathname.slice(1)) ||
       target.username !== 'bjc_dev' ||
       target.search !== '' ||
@@ -75,7 +95,9 @@ export function getDevelopmentDatabaseConfig(
     throw new Error(
       suite8QaEnabled
         ? 'SPRINT8_QA_DATABASE_TARGET_REJECTED'
-        : 'DEEP_QA_DATABASE_TARGET_REJECTED',
+        : suite9PageAwareQaEnabled
+          ? 'SPRINT9_PAGE_AWARE_QA_DATABASE_TARGET_REJECTED'
+          : 'DEEP_QA_DATABASE_TARGET_REJECTED',
     );
   }
 
@@ -113,7 +135,7 @@ export function getDevelopmentDatabaseConfig(
 
   return {
     host: '127.0.0.1',
-    port: isolatedQaEnabled ? 55434 : 55432,
+    port: suite9PageAwareQaEnabled ? 55435 : isolatedQaEnabled ? 55434 : 55432,
     database: isolatedQaEnabled
       ? target.pathname.slice(1)
       : 'buscador_juridico_civil_dev',

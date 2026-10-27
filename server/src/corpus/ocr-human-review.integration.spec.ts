@@ -19,21 +19,33 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { CorpusDocumentAccessService } from './corpus-document-access.service';
+import { CorpusDocumentController } from './corpus-document.controller';
+import { CorpusSearchSourceAdapter } from './corpus-search.adapter';
 import { LocalDocumentStorageAdapter } from './document-storage.adapter';
 import { LocalPdfOcrProcessor } from './document-local-processors';
 import { OcrHumanReviewController } from './ocr-human-review.controller';
 import { OcrHumanReviewService } from './ocr-human-review.service';
+import { parseSearchQuery } from '../busqueda/utils/search-parser';
 
 // Supertest types JSON payloads as `any`; these HTTP contract tests validate each
 // response at runtime through explicit status, state, and provenance assertions.
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 
-const enabled = process.env.BJC_SPRINT8_OCR_REVIEW_TEST === '1';
+const pageAwareQaEnabled =
+  process.env.BJC_SPRINT9_PAGE_AWARE_POSTGRES_TEST === '1';
+const pageAwareSearchEnabled =
+  process.env.BJC_SPRINT9_PAGE_AWARE_SEARCH_TEST === '1';
+const enabled =
+  process.env.BJC_SPRINT8_OCR_REVIEW_TEST === '1' || pageAwareQaEnabled;
 const searchIntegrationEnabled =
-  process.env.BJC_SPRINT8_SEARCH_INTEGRATION_TEST === '1';
+  process.env.BJC_SPRINT8_SEARCH_INTEGRATION_TEST === '1' ||
+  pageAwareSearchEnabled;
 const runId = randomUUID().replaceAll('-', '').slice(0, 12);
 const sourceCode = 'JURISPRUDENCIA_LOCAL_PDF';
-const qaDatabase = 'galilei_ocr_review_suite8_qa';
+const qaDatabase = pageAwareQaEnabled
+  ? 'galilei_page_aware_suite9_fresh'
+  : 'galilei_ocr_review_suite8_qa';
+const qaPort = pageAwareQaEnabled ? '55435' : '55434';
 
 class SyntheticIdentityGuard implements CanActivate {
   canActivate(context: ExecutionContext) {
@@ -110,6 +122,8 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
   let actorIds: number[] = [];
   let passedTests = 0;
   let passedSearchTest = false;
+  let suite9SearchRuntime: OpenSearchRuntimeService | null = null;
+  let suite9SearchTarget: string | null = null;
   const documentIds: string[] = [];
   const storageKeys = new Set<string>();
   const runMeasurements: Record<string, number> = {};
@@ -130,7 +144,9 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
   });
   const controlSearchQa = (action: 'start' | 'stop') =>
     new Promise<void>((resolveControl, rejectControl) => {
-      const script = process.env.BJC_SPRINT8_OPENSEARCH_QA_SCRIPT;
+      const script = pageAwareSearchEnabled
+        ? process.env.BJC_SPRINT9_PAGE_AWARE_OPENSEARCH_QA_SCRIPT
+        : process.env.BJC_SPRINT8_OPENSEARCH_QA_SCRIPT;
       if (!script) {
         rejectControl(new Error('SPRINT8_QA_OPENSEARCH_SCRIPT_REQUIRED'));
         return;
@@ -161,7 +177,7 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
     });
   const traceSearch = (phase: string) => {
     if (searchIntegrationEnabled)
-      process.stdout.write(`[suite8-search] ${phase}\n`);
+      process.stdout.write(`[suite9-search] ${phase}\n`);
   };
 
   beforeAll(async () => {
@@ -170,7 +186,7 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
     const parsed = new URL(process.env.DATABASE_URL ?? '');
     if (
       parsed.hostname !== '127.0.0.1' ||
-      parsed.port !== '55434' ||
+      parsed.port !== qaPort ||
       decodeURIComponent(parsed.username) !== 'bjc_dev' ||
       parsed.pathname !== `/${qaDatabase}`
     )
@@ -181,7 +197,7 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
     storage = new LocalDocumentStorageAdapter(storageRoot);
 
     const moduleRef = await Test.createTestingModule({
-      controllers: [OcrHumanReviewController],
+      controllers: [OcrHumanReviewController, CorpusDocumentController],
       providers: [
         PrismaService,
         CorpusDocumentAccessService,
@@ -261,10 +277,57 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
       lectorId,
     ];
     traceSearch('qa-identities-ready');
-  }, 30000);
+    if (pageAwareSearchEnabled) {
+      const bootstrapStarted = performance.now();
+      await controlSearchQa('start');
+      const stamp = new Date()
+        .toISOString()
+        .replace(/[-:.]/gu, '')
+        .toLowerCase();
+      suite9SearchTarget = `galilei-search-v004-${stamp}-${randomUUID().replaceAll('-', '').slice(0, 8)}`;
+      process.env.OPENSEARCH_SEARCH_TARGET = suite9SearchTarget;
+      suite9SearchRuntime = new OpenSearchRuntimeService();
+      const versionResponse = await suite9SearchRuntime.client.info();
+      const versionBody =
+        'body' in versionResponse ? versionResponse.body : versionResponse;
+      if (versionBody.version.number !== '2.19.6') {
+        throw new Error('SPRINT9_QA_OPENSEARCH_VERSION_MISMATCH');
+      }
+      const highWatermark =
+        await suite9SearchRuntime.index.captureFreshV4HighWatermark();
+      await suite9SearchRuntime.index.createFreshV4Index(suite9SearchTarget);
+      const projected =
+        await suite9SearchRuntime.index.projectFreshV4(suite9SearchTarget);
+      const parity =
+        await suite9SearchRuntime.index.verifyFreshV4SourceParity(
+          suite9SearchTarget,
+        );
+      if (!projected.countCheck.pass || !parity.pass) {
+        throw new Error('SPRINT9_QA_FRESH_V4_SOURCE_PARITY_FAILED');
+      }
+      const activated =
+        await suite9SearchRuntime.index.reconcileAndActivateFreshV4(
+          suite9SearchTarget,
+          highWatermark,
+        );
+      if (activated.aliasTarget !== suite9SearchTarget) {
+        throw new Error('SPRINT9_QA_FRESH_V4_ALIAS_TARGET_MISMATCH');
+      }
+      runMeasurements.freshV4BootstrapMs = Math.round(
+        performance.now() - bootstrapStarted,
+      );
+      suite9SearchRuntime.syncWorker.start();
+      traceSearch('fresh-v4-bootstrap-pass');
+    }
+  }, 180_000);
 
   afterAll(async () => {
     try {
+      if (suite9SearchRuntime) {
+        await suite9SearchRuntime.syncWorker.stop();
+        await suite9SearchRuntime.onModuleDestroy();
+        suite9SearchRuntime = null;
+      }
       if (searchIntegrationEnabled) {
         try {
           await controlSearchQa('stop');
@@ -336,11 +399,13 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
         mkdirSync(evidenceRoot, { recursive: true });
         if (passedTests > 0) {
           const metrics = {
-            database: '127.0.0.1:55434/' + qaDatabase,
+            database: `127.0.0.1:${qaPort}/` + qaDatabase,
             method:
               'Authenticated HTTP against NestJS, real PostgreSQL 16, local Poppler/Tesseract OCR, synthetic PDFs and Corpus files; no production or principal services.',
             localOcrProcessor: enabled,
-            passed: passedTests === 2,
+            passed: pageAwareQaEnabled
+              ? passedTests === 3 && passedSearchTest
+              : passedTests === 2,
             passedTests,
             measurementsMs: runMeasurements,
             completedAt: new Date().toISOString(),
@@ -369,7 +434,32 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
         if (searchIntegrationEnabled) {
           writeFileSync(
             resolve(evidenceRoot, 'search-promotion.json'),
-            `${JSON.stringify({ passed: passedSearchTest, clusterVersion: '2.19.6', clusterHealth: 'GREEN', endpoints: ['127.0.0.1:19284', '127.0.0.1:19384'], database: '127.0.0.1:55434/' + qaDatabase, indexSchemaVersion: 3, alias: 'galilei-suite8-ocr-active', outage: 'approval persisted in PostgreSQL; outbox stayed pending while isolated Search was stopped', recovery: 'same outbox event projected and marked processed after Search restart', approvedSearchTextVisible: passedSearchTest, originalPdfSha256: searchDocumentId ? (sourcePdfShaByDocument.get(searchDocumentId) ?? null) : null, syntheticOnly: true, completedAt: new Date().toISOString() }, null, 2)}\n`,
+            `${JSON.stringify(
+              {
+                passed: passedSearchTest,
+                clusterVersion: '2.19.6',
+                clusterHealth: 'GREEN',
+                endpoints: ['127.0.0.1:19284', '127.0.0.1:19384'],
+                database: `127.0.0.1:${qaPort}/` + qaDatabase,
+                indexSchemaVersion: pageAwareSearchEnabled ? 4 : 3,
+                alias: pageAwareSearchEnabled
+                  ? 'galilei-search-active'
+                  : 'galilei-suite8-ocr-active',
+                outage:
+                  'approval persisted in PostgreSQL; outbox stayed pending while isolated Search was stopped',
+                recovery:
+                  'same outbox event projected and marked processed after Search restart',
+                approvedSearchTextVisible: passedSearchTest,
+                pageAwareHydration: pageAwareSearchEnabled,
+                originalPdfSha256: searchDocumentId
+                  ? (sourcePdfShaByDocument.get(searchDocumentId) ?? null)
+                  : null,
+                syntheticOnly: true,
+                completedAt: new Date().toISOString(),
+              },
+              null,
+              2,
+            )}\n`,
             'utf8',
           );
         }
@@ -385,6 +475,7 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
     options: {
       scope?: 'GENERAL' | 'PRIVATE_WORKSPACE';
       visibility?: 'INTERNAL' | 'PRIVATE';
+      pageCount?: number;
     } = {},
   ) {
     const filename = `${title.replace(/[^a-z0-9-]/giu, '-')}.pdf`;
@@ -410,7 +501,7 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
             mimeType: 'application/pdf',
             sizeBytes: BigInt(stored.sizeBytes),
             sha256: stored.sha256,
-            pageCount: 3,
+            pageCount: options.pageCount ?? 3,
           },
         },
         ingestions: {
@@ -838,6 +929,194 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
     passedTests += 1;
   }, 90000);
 
+  it('hydrates mixed native and approved OCR pages from the active 50-page extraction', async () => {
+    if (!enabled) return;
+    const pageTexts = Array.from({ length: 50 }, (_, index) => {
+      if (index === 0) return 'pagina nativa inicial controlada';
+      if (index === 2) return 'responsabilidad objetiva especial';
+      if (index === 16) return 'daño resarcible controlado';
+      if (index === 49) return 'doctrina sintetica de cierre';
+      return `contenido sintetico de la pagina ${index + 1}`;
+    });
+    const pdfBytes = fixturePdf(`Suite9 page-aware ${runId}`, pageTexts);
+    const document = await createSyntheticDocument(
+      pdfBytes,
+      `suite9-page-aware-50-${runId}`,
+      { pageCount: 50 },
+    );
+    const file = document.files[0];
+    if (!file) throw new Error('SPRINT9_QA_PDF_FILE_MISSING');
+    const approvedExtraction = await prisma.corpusExtraction.create({
+      data: {
+        documentId: document.id,
+        fileId: file.id,
+        extractor: 'synthetic-human-approved-fixture',
+        extractorVersion: 'suite9-page-aware-fixture-v1',
+        status: 'OCR_HUMAN_APPROVED',
+        text: pageTexts.join('\n'),
+        provenance: {
+          synthetic: true,
+          purpose: 'page-aware-search-real-postgresql-fixture',
+          originalPdfSha256: file.sha256,
+        },
+        pages: {
+          create: pageTexts.map((text, index) => {
+            const native = index === 0 || index === 9;
+            return {
+              pageNumber: index + 1,
+              text,
+              textKind: native ? 'NATIVE' : 'OCR',
+              processingStatus: native ? 'TEXT_NATIVE' : 'OCR_HUMAN_APPROVED',
+            };
+          }),
+        },
+      },
+    });
+    await prisma.corpusDocument.update({
+      where: { id: document.id },
+      data: {
+        latestExtractionId: approvedExtraction.id,
+        status: 'INDEXED',
+        searchText: pageTexts.join('\n'),
+      },
+    });
+
+    const adapter = new CorpusSearchSourceAdapter(
+      process.env.DATABASE_URL ?? '',
+    );
+    try {
+      const search = async (phrase: string) =>
+        adapter.search(
+          parseSearchQuery(`"${phrase}"`),
+          {
+            visibility: 'INTERNAL',
+            dialect: 'modern',
+            publicationPolicy: 'published-active-only',
+            page: 1,
+            pageSize: 20,
+          },
+          [document.id],
+        );
+      const pageOne = await search('pagina nativa inicial controlada');
+      expect(pageOne.results[0]?.metadata).toMatchObject({
+        pageNumber: 1,
+        matchSource: 'PDF_TEXT',
+      });
+      const pageThree = await search('responsabilidad objetiva especial');
+      expect(pageThree.results[0]?.metadata).toMatchObject({
+        pageNumber: 3,
+        matchSource: 'OCR_APPROVED',
+      });
+      const pageSeventeen = await search('daño resarcible controlado');
+      expect(pageSeventeen.results[0]?.metadata).toMatchObject({
+        pageNumber: 17,
+        matchSource: 'OCR_APPROVED',
+      });
+      const pageFifty = await search('doctrina sintetica de cierre');
+      expect(pageFifty.results[0]).toMatchObject({
+        snippet: expect.stringContaining('doctrina sintetica de cierre'),
+        metadata: {
+          pageNumber: 50,
+          matchSource: 'OCR_APPROVED',
+          matchedPageCount: 1,
+        },
+      });
+      expect(pageFifty.results[0]?.metadata.pageTextSha256).toMatch(
+        /^[0-9a-f]{64}$/u,
+      );
+
+      const rawOcrText = `ocr oculto sin aprobar suite9 ${runId}`;
+      const unapprovedDocument = await createSyntheticDocument(
+        fixturePdf(`Suite9 unapproved OCR ${runId}`, [null]),
+        `suite9-unapproved-ocr-${runId}`,
+        { pageCount: 1 },
+      );
+      const unapprovedFile = unapprovedDocument.files[0];
+      if (!unapprovedFile)
+        throw new Error('SPRINT9_QA_UNAPPROVED_PDF_FILE_MISSING');
+      const unapprovedExtraction = await prisma.corpusExtraction.create({
+        data: {
+          documentId: unapprovedDocument.id,
+          fileId: unapprovedFile.id,
+          extractor: 'synthetic-raw-ocr-fixture',
+          extractorVersion: 'suite9-raw-ocr-fixture-v1',
+          status: 'OCR_DRAFT',
+          text: rawOcrText,
+          provenance: { synthetic: true, purpose: 'raw-ocr-search-exclusion' },
+          pages: {
+            create: [
+              {
+                pageNumber: 1,
+                text: rawOcrText,
+                textKind: 'OCR',
+                processingStatus: 'OCR_DRAFT',
+              },
+            ],
+          },
+        },
+      });
+      await prisma.corpusDocument.update({
+        where: { id: unapprovedDocument.id },
+        data: {
+          latestExtractionId: unapprovedExtraction.id,
+          searchText: unapprovedDocument.title,
+          status: 'OCR_REQUIRED',
+        },
+      });
+      const rawOcrQuery = parseSearchQuery(`"${rawOcrText}"`);
+      const unapprovedSearchContext = {
+        visibility: 'INTERNAL' as const,
+        dialect: 'modern' as const,
+        publicationPolicy: 'published-active-only' as const,
+        page: 1,
+        pageSize: 10,
+      };
+      const rawOcrSearch = await adapter.search(
+        rawOcrQuery,
+        unapprovedSearchContext,
+      );
+      expect(rawOcrSearch.results).toHaveLength(0);
+      const unapprovedHydration = await adapter.search(
+        rawOcrQuery,
+        unapprovedSearchContext,
+        [unapprovedDocument.id],
+      );
+      expect(unapprovedHydration.results[0]?.metadata).toMatchObject({
+        pageNumber: null,
+        matchSource: null,
+        matchedPageCount: 0,
+      });
+      expect(unapprovedHydration.results[0]?.snippet).not.toContain(rawOcrText);
+      const metadata = await request(server())
+        .get(`/api/corpus/documents/${document.id}?pageNumber=50`)
+        .set(auth(reviewerId, 'REVISOR'))
+        .expect(200);
+      expect(metadata.body.selectedPage).toMatchObject({
+        pageNumber: 50,
+        textKind: 'OCR',
+        processingStatus: 'OCR_HUMAN_APPROVED',
+      });
+      await request(server())
+        .get(`/api/corpus/documents/${document.id}?pageNumber=999`)
+        .set(auth(reviewerId, 'REVISOR'))
+        .expect(400);
+      const citation = await request(server())
+        .get(`/api/corpus/documents/${document.id}/citation?page=50`)
+        .set(auth(reviewerId, 'REVISOR'))
+        .expect(200);
+      expect(JSON.stringify(citation.body)).toMatch(/50/u);
+      const range = await request(server())
+        .get(`/api/corpus/documents/${document.id}/file`)
+        .set(auth(reviewerId, 'REVISOR'))
+        .set('Range', 'bytes=0-4')
+        .expect(206);
+      expect(range.body.toString('ascii')).toBe('%PDF-');
+      passedTests += 1;
+    } finally {
+      await adapter.close();
+    }
+  }, 90000);
+
   it('keeps approved OCR in PostgreSQL/outbox during Search outage and projects it after recovery', async () => {
     if (!enabled || !searchIntegrationEnabled) return;
     let runtime: OpenSearchRuntimeService | null = null;
@@ -845,22 +1124,31 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
       traceSearch('test-start');
       await controlSearchQa('start');
       traceSearch('search-started');
-      runtime = new OpenSearchRuntimeService();
+      runtime = pageAwareSearchEnabled
+        ? suite9SearchRuntime
+        : new OpenSearchRuntimeService();
+      if (!runtime) throw new Error('SPRINT9_QA_SEARCH_RUNTIME_REQUIRED');
       traceSearch('search-runtime-created');
       const versionResponse = await runtime.client.info();
       const versionBody =
         'body' in versionResponse ? versionResponse.body : versionResponse;
       expect(versionBody.version.number).toBe('2.19.6');
-      const baseline = await runtime.index.rebuild();
+      if (pageAwareSearchEnabled) {
+        if (!suite9SearchTarget)
+          throw new Error('SPRINT9_QA_FRESH_V4_TARGET_REQUIRED');
+        const active = await runtime.index.verifyActive();
+        expect(active).toMatchObject({
+          schemaVersion: 4,
+          physicalIndex: suite9SearchTarget,
+        });
+      } else {
+        const baseline = await runtime.index.rebuild();
+        expect(baseline.integrity.schemaVersion).toBe(3);
+        expect(baseline.aliasPromoted).toBe(true);
+      }
       traceSearch('baseline-built');
-      expect(baseline.integrity.schemaVersion).toBe(3);
-      expect(baseline.aliasPromoted).toBe(true);
       const measuredDocument = await createSyntheticDocument(
-        fixturePdf(`Suite8 outage ${runId}`, [
-          'synthetic first page for search outage recovery',
-          'synthetic second page for search outage recovery',
-          'synthetic third page for search outage recovery',
-        ]),
+        fixturePdf(`Suite8 outage ${runId}`, [null, null, null]),
         `suite8-outage-${runId}`,
       );
       searchDocumentId = measuredDocument.id;
@@ -882,10 +1170,29 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
       traceSearch('local-ocr-complete');
       expect(generated.body.activeRun.provenance.engine).toBeTruthy();
 
+      const pageSearch = new CorpusSearchSourceAdapter(
+        process.env.DATABASE_URL ?? '',
+      );
+      try {
+        const beforeApproval = await pageSearch.search(
+          parseSearchQuery(`"suite8 approved outage recovery ${runId}"`),
+          {
+            visibility: 'INTERNAL',
+            dialect: 'modern',
+            publicationPolicy: 'published-active-only',
+            page: 1,
+            pageSize: 10,
+          },
+        );
+        expect(beforeApproval.results).toHaveLength(0);
+      } finally {
+        await pageSearch.close();
+      }
+
       await runtime.syncWorker.tick();
       traceSearch('pre-approval-projected');
       const beforeApprovalResponse = await runtime.client.get({
-        index: 'galilei-suite8-ocr-active',
+        index: runtime.config.alias,
         id: measuredDocument.id,
       });
       const beforeApprovalBody =
@@ -896,6 +1203,7 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
         measuredDocument.title,
       );
 
+      if (pageAwareSearchEnabled) await runtime.syncWorker.stop();
       await controlSearchQa('stop');
       traceSearch('search-stopped');
       let review = await request(server())
@@ -921,7 +1229,8 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
             .expect(201);
           expectedVersion = review.body.activeRun.pages[0].version as number;
         }
-        const action = page.ocrText.trim() ? 'approve' : 'no-text';
+        const action =
+          page.pageNumber === 1 || page.ocrText.trim() ? 'approve' : 'no-text';
         review = await request(server())
           .post(
             `/api/ocr-human-review/${outageReviewId}/pages/${page.pageNumber}/${action}`,
@@ -945,6 +1254,39 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
       expect(databaseTruth.searchText).toContain(
         `suite8 approved outage recovery ${runId}`,
       );
+      const approvedPageSearch = new CorpusSearchSourceAdapter(
+        process.env.DATABASE_URL ?? '',
+      );
+      try {
+        const pageResult = await approvedPageSearch.search(
+          parseSearchQuery(`"suite8 approved outage recovery ${runId}"`),
+          {
+            visibility: 'INTERNAL',
+            dialect: 'modern',
+            publicationPolicy: 'published-active-only',
+            page: 1,
+            pageSize: 10,
+          },
+        );
+        expect(pageResult.results[0]).toMatchObject({
+          snippet: expect.stringContaining(
+            `suite8 approved outage recovery ${runId}`,
+          ),
+          metadata: {
+            pageNumber: 1,
+            matchSource: 'OCR_APPROVED',
+            matchedPageCount: 1,
+          },
+        });
+        expect(pageResult.results[0]?.metadata.pageTextSha256).toMatch(
+          /^[0-9a-f]{64}$/u,
+        );
+        expect(JSON.stringify(pageResult.results[0])).not.toContain(
+          'sourceExtractionId',
+        );
+      } finally {
+        await approvedPageSearch.close();
+      }
       const eventBeforeRecovery =
         await prisma.searchIndexOutbox.findFirstOrThrow({
           where: {
@@ -989,7 +1331,7 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
       expect(eventAfterRecovery.processedAt).toBeTruthy();
       expect(eventAfterRecovery.failedAt).toBeNull();
       const recoveredResponse = await runtime.client.get({
-        index: 'galilei-suite8-ocr-active',
+        index: runtime.config.alias,
         id: measuredDocument.id,
       });
       const recoveredBody =
@@ -1004,7 +1346,11 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
       passedSearchTest = true;
       traceSearch('test-pass');
     } finally {
-      if (runtime) await runtime.onModuleDestroy();
+      if (runtime) {
+        await runtime.syncWorker.stop();
+        await runtime.onModuleDestroy();
+        if (pageAwareSearchEnabled) suite9SearchRuntime = null;
+      }
       await controlSearchQa('stop');
     }
   }, 240000);

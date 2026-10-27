@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   InternalServerErrorException,
@@ -17,6 +18,7 @@ import {
   parseStructuredJudgment,
   STRUCTURED_JUDGMENT_PARSER_VERSION,
 } from '../sentencias/structured-judgment-parser';
+import { formatCitation } from '../sentencias/utils/citation-formatter';
 
 @Injectable()
 export class CorpusDocumentAccessService {
@@ -66,6 +68,23 @@ export class CorpusDocumentAccessService {
             },
           })
         : null;
+    if (pageNumber !== undefined) {
+      const pageCount = latestFile?.pageCount;
+      if (
+        !Number.isSafeInteger(pageNumber) ||
+        pageNumber < 1 ||
+        pageNumber > 100_000 ||
+        (pageCount !== null &&
+          pageCount !== undefined &&
+          pageNumber > pageCount) ||
+        !page ||
+        !isUsablePage(latestExtraction?.status, page)
+      ) {
+        throw new BadRequestException(
+          'La página solicitada no está disponible.',
+        );
+      }
+    }
     return {
       id: document.id,
       documentType: document.documentType,
@@ -119,6 +138,57 @@ export class CorpusDocumentAccessService {
           }
         : null,
       ...(page ? { selectedPage: page } : {}),
+    };
+  }
+
+  async citation(
+    documentId: string,
+    visibility: SearchVisibility,
+    pageNumber: number,
+  ) {
+    const document = await this.visibleDocument(documentId, visibility);
+    const citationPage = document.latestExtraction?.pages.find(
+      (page) => page.pageNumber === pageNumber,
+    );
+    if (
+      !Number.isSafeInteger(pageNumber) ||
+      pageNumber < 1 ||
+      pageNumber > 100_000 ||
+      (document.files[0]?.pageCount !== null &&
+        document.files[0]?.pageCount !== undefined &&
+        pageNumber > document.files[0].pageCount) ||
+      !citationPage ||
+      !isUsablePage(document.latestExtraction?.status, citationPage)
+    ) {
+      throw new BadRequestException(
+        'La página indicada no tiene texto fuente asociado.',
+      );
+    }
+    const metadata =
+      typeof document.metadata === 'object' &&
+      document.metadata !== null &&
+      !Array.isArray(document.metadata)
+        ? (document.metadata as Record<string, unknown>)
+        : {};
+    const text = (...keys: string[]) => {
+      const value = keys
+        .map((key) => metadata[key])
+        .find((item) => typeof item === 'string');
+      return typeof value === 'string' && value.trim() ? value.trim() : null;
+    };
+    return {
+      data: formatCitation(
+        {
+          actor: text('actor', 'actorPublico'),
+          demandado: text('demandado', 'demandadoPublico'),
+          sala: document.chamber,
+          fecha: document.decisionDate,
+          expediente: document.caseNumber,
+          numeroSentencia: text('numeroSentencia'),
+          citaPersonalizada: text('citaPersonalizada'),
+        },
+        { page: pageNumber },
+      ),
     };
   }
 
@@ -190,9 +260,15 @@ export class CorpusDocumentAccessService {
       ? await this.prisma.corpusExtraction.findUnique({
           where: { id: document.latestExtractionId },
           select: {
+            status: true,
             pages: {
               orderBy: { pageNumber: 'asc' },
-              select: { pageNumber: true, text: true, textKind: true },
+              select: {
+                pageNumber: true,
+                text: true,
+                textKind: true,
+                processingStatus: true,
+              },
             },
           },
         })
@@ -209,11 +285,13 @@ export class CorpusDocumentAccessService {
         .find((item) => typeof item === 'string');
       return typeof value === 'string' ? value : null;
     };
-    const pages = (extraction?.pages ?? []).map((page) => ({
-      ...page,
-      textKind:
-        page.textKind === 'OCR' ? ('OCR' as const) : ('NATIVE' as const),
-    }));
+    const pages = (extraction?.pages ?? [])
+      .filter((page) => isUsablePage(extraction?.status, page))
+      .map((page) => ({
+        ...page,
+        textKind:
+          page.textKind === 'OCR' ? ('OCR' as const) : ('NATIVE' as const),
+      }));
     return findDocumentMatches(pages, query, 500, {
       tema: document.subtitle,
       sala: document.chamber,
@@ -262,12 +340,15 @@ export class CorpusDocumentAccessService {
           },
         })
       : null;
-    const pages = extraction?.pages ?? [];
+    const pages = (extraction?.pages ?? []).filter((page) =>
+      isUsablePage(extraction?.status, page),
+    );
     const sequentialPages = pages.every(
       (page, index) => page.pageNumber === index + 1,
     );
     const complete =
-      extraction?.status === 'TEXT_EXTRACTED' &&
+      (extraction?.status === 'TEXT_EXTRACTED' ||
+        extraction?.status === 'OCR_HUMAN_APPROVED') &&
       sequentialPages &&
       (extraction.file.pageCount === null ||
         extraction.file.pageCount === pages.length);
@@ -287,7 +368,6 @@ export class CorpusDocumentAccessService {
               checksum: extraction.file.sha256,
               extractor: extraction.extractor,
               extractorVersion: extraction.extractorVersion,
-              extractionId: extraction.id,
               pageCount: extraction.file.pageCount,
               extractedPages: pages.length,
               complete,
@@ -597,7 +677,11 @@ export class CorpusDocumentAccessService {
           include: {
             pages: {
               orderBy: { pageNumber: 'asc' },
-              select: { pageNumber: true },
+              select: {
+                pageNumber: true,
+                textKind: true,
+                processingStatus: true,
+              },
             },
           },
         },
@@ -611,6 +695,18 @@ export class CorpusDocumentAccessService {
     if (!document) throw new NotFoundException('Documento no encontrado.');
     return document;
   }
+}
+
+function isUsablePage(
+  extractionStatus: string | null | undefined,
+  page: { textKind?: string | null; processingStatus?: string | null },
+) {
+  if (page.textKind === 'NATIVE') return true;
+  return (
+    page.textKind === 'OCR' &&
+    extractionStatus === 'OCR_HUMAN_APPROVED' &&
+    page.processingStatus === 'OCR_HUMAN_APPROVED'
+  );
 }
 
 export function singleByteRange(rangeHeader: string | undefined, size: number) {

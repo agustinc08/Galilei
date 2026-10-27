@@ -4,7 +4,10 @@ import {
   NotFoundException,
   PayloadTooLargeException,
 } from '@nestjs/common';
+import { resolve as resolvePath } from 'node:path';
 import { Prisma } from '../generated/prisma/client';
+import { obtenerPdfsReales } from '../archivos/pdf-real.util';
+import { LocalDocumentStorageAdapter } from '../corpus/document-storage.adapter';
 import { LogsService } from '../logs/logs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CollectionItemsQueryDto } from './dto/collection-items-query.dto';
@@ -14,6 +17,7 @@ import { UpdateCollectionNoteDto } from './dto/update-collection-note.dto';
 import {
   buildResearchBundle,
   createResearchBundleZip,
+  type ResearchTextSourceProvenance,
 } from './research-bundle.util';
 
 const MAX_BUNDLE_JUDGMENTS = 1000;
@@ -89,10 +93,144 @@ export class ResearchCollectionsService {
             sala: true,
             fecha: true,
             tipoFallo: true,
+            archivosPdf: {
+              orderBy: { createdAt: 'desc' },
+              select: { id: true, rutaArchivo: true },
+            },
           },
         },
       },
     });
+    const sentencePaths = new Map(
+      items.map(({ sentencia }) => [
+        String(sentencia.id),
+        obtenerPdfsReales(sentencia.archivosPdf).map((file) =>
+          resolvePath(file.rutaArchivo),
+        ),
+      ]),
+    );
+    const storage = new LocalDocumentStorageAdapter();
+    const sourceLinks = items.length
+      ? await this.prisma.corpusDocumentLink.findMany({
+          where: {
+            targetDomain: 'JURISPRUDENCIA',
+            targetType: 'SENTENCIA',
+            relationship: 'ASSOCIATED_WITH',
+            targetId: {
+              in: items.map(({ sentencia }) => String(sentencia.id)),
+            },
+            document: { is: { documentScope: 'GENERAL' } },
+          },
+          select: {
+            targetId: true,
+            document: {
+              select: {
+                documentScope: true,
+                latestExtraction: {
+                  select: {
+                    status: true,
+                    extractorVersion: true,
+                    file: { select: { sha256: true, storageKey: true } },
+                    pages: {
+                      orderBy: { pageNumber: 'asc' },
+                      select: {
+                        pageNumber: true,
+                        textKind: true,
+                        processingStatus: true,
+                      },
+                    },
+                    ocrReviewApproval: {
+                      select: {
+                        searchTextChecksum: true,
+                        run: {
+                          select: {
+                            pages: {
+                              select: {
+                                pageNumber: true,
+                                status: true,
+                                approvedChecksum: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        })
+      : [];
+    const provenanceBySentence = new Map<
+      string,
+      ResearchTextSourceProvenance
+    >();
+    const sourcesBySentence = new Map<
+      string,
+      Map<string, ResearchTextSourceProvenance>
+    >();
+    for (const link of sourceLinks) {
+      const extraction = link.document.latestExtraction;
+      if (
+        link.document.documentScope !== 'GENERAL' ||
+        !extraction ||
+        !['TEXT_EXTRACTED', 'OCR_HUMAN_APPROVED'].includes(extraction.status) ||
+        !sentencePaths
+          .get(link.targetId)
+          ?.includes(resolvePath(storage.root, extraction.file.storageKey))
+      )
+        continue;
+      const approvedPageChecksums = new Map(
+        extraction.ocrReviewApproval?.run.pages.map((page) => [
+          page.pageNumber,
+          page.status === 'APPROVED' ? page.approvedChecksum : null,
+        ]) ?? [],
+      );
+      const pages: ResearchTextSourceProvenance['pages'] = [];
+      for (const page of extraction.pages) {
+        if (page.textKind === 'NATIVE') {
+          pages.push({ pageNumber: page.pageNumber, source: 'PDF_TEXT' });
+          continue;
+        }
+        const textSha256 = approvedPageChecksums.get(page.pageNumber);
+        if (
+          page.textKind === 'OCR' &&
+          extraction.status === 'OCR_HUMAN_APPROVED' &&
+          page.processingStatus === 'OCR_HUMAN_APPROVED' &&
+          textSha256
+        ) {
+          pages.push({
+            pageNumber: page.pageNumber,
+            source: 'OCR_APPROVED',
+            textSha256,
+          });
+        }
+      }
+      if (!pages.length) continue;
+      const pageSources = new Set(pages.map((page) => page.source));
+      const provenance: ResearchTextSourceProvenance = {
+        source: pageSources.size > 1 ? 'MIXED' : pages[0].source,
+        pdfSha256: extraction.file.sha256,
+        extractorVersion: extraction.extractorVersion,
+        ...(extraction.ocrReviewApproval?.searchTextChecksum
+          ? {
+              documentTextSha256:
+                extraction.ocrReviewApproval.searchTextChecksum,
+            }
+          : {}),
+        pages,
+      };
+      const sources =
+        sourcesBySentence.get(link.targetId) ??
+        new Map<string, ResearchTextSourceProvenance>();
+      sources.set(extraction.file.sha256, provenance);
+      sourcesBySentence.set(link.targetId, sources);
+    }
+    for (const [sentenceId, sources] of sourcesBySentence) {
+      if (sources.size === 1)
+        provenanceBySentence.set(sentenceId, [...sources.values()][0]);
+    }
     const generatedAt = new Date();
     const bundle = buildResearchBundle({
       collection,
@@ -103,6 +241,9 @@ export class ResearchCollectionsService {
         ...sentencia,
         nota,
         addedAt: createdAt,
+        ...(provenanceBySentence.has(String(sentencia.id))
+          ? { textProvenance: provenanceBySentence.get(String(sentencia.id)) }
+          : {}),
       })),
     });
 

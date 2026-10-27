@@ -2090,7 +2090,8 @@ export class SentenciasService {
       (page, index) => page.pageNumber === index + 1,
     );
     const complete =
-      extraction.status === 'TEXT_EXTRACTED' &&
+      (extraction.status === 'TEXT_EXTRACTED' ||
+        extraction.status === 'OCR_HUMAN_APPROVED') &&
       sequentialPages &&
       (extraction.file.pageCount === null ||
         extraction.file.pageCount === pages.length);
@@ -2111,7 +2112,6 @@ export class SentenciasService {
           checksum: extraction.file.sha256,
           extractor: extraction.extractor,
           extractorVersion: extraction.extractorVersion,
-          extractionId: extraction.id,
           extractedAt: extraction.extractedAt,
           pageCount: extraction.file.pageCount,
           extractedPages: pages.length,

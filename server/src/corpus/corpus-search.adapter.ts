@@ -40,7 +40,6 @@ type SearchRow = {
   visibility: string;
   snippetSource?: string;
   searchText?: string;
-  extractedText?: string;
   snippetText?: string | null;
   fileId: string | null;
   fileMimeType: string | null;
@@ -50,6 +49,11 @@ type SearchRow = {
   externalId: string | null;
   sourceReference: string | null;
   matchedPage: number | null;
+  matchedPageText?: string | null;
+  matchedPageTextKind?: string | null;
+  matchedPageProcessingStatus?: string | null;
+  matchedPageCount?: number | null;
+  activeExtractionStatus?: string | null;
   total: string;
   hasMore: boolean;
   totalExact?: boolean;
@@ -62,6 +66,23 @@ type SearchRow = {
   digestoTopics: string | null;
   digestoTags: string | null;
 };
+
+function pageMatchSource(row: SearchRow): 'PDF_TEXT' | 'OCR_APPROVED' | null {
+  if (
+    !Number.isInteger(row.matchedPage) ||
+    (row.matchedPage ?? 0) < 1 ||
+    !row.matchedPageText
+  )
+    return null;
+  if (row.matchedPageTextKind === 'NATIVE') return 'PDF_TEXT';
+  if (
+    row.matchedPageTextKind === 'OCR' &&
+    row.activeExtractionStatus === 'OCR_HUMAN_APPROVED' &&
+    row.matchedPageProcessingStatus === 'OCR_HUMAN_APPROVED'
+  )
+    return 'OCR_APPROVED';
+  return null;
+}
 
 function escapeLike(value: string) {
   return value.replace(/[\\%_]/gu, '\\$&');
@@ -143,7 +164,9 @@ function buildBooleanCandidateCte(
   const addLiteral = (node: SearchLiteralNode) => {
     if (useTokenProjection && !node.field) {
       const normalizedValue = normalizeSearchText(node.value);
-      const tokens = [...new Set(normalizedValue.split(/\s+/u).filter(Boolean))];
+      const tokens = [
+        ...new Set(normalizedValue.split(/\s+/u).filter(Boolean)),
+      ];
       if (node.type === 'phrase' && tokens.length > 0) {
         // Intersect every indexable phrase token. A single common-word anchor
         // can leave most of the corpus to verify; retaining substring
@@ -153,10 +176,18 @@ function buildBooleanCandidateCte(
           .map((value, index) => ({ value, index }))
           .filter(({ value }) => [...value].length >= 3)
           .map(({ index }) => index);
-        const tokenIndexes = selectiveTokenIndexes.length > 0
-          ? selectiveTokenIndexes
-          : [tokens.reduce((best, value, index, candidates) =>
-              [...value].length > [...candidates[best]].length ? index : best, 0)];
+        const tokenIndexes =
+          selectiveTokenIndexes.length > 0
+            ? selectiveTokenIndexes
+            : [
+                tokens.reduce(
+                  (best, value, index, candidates) =>
+                    [...value].length > [...candidates[best]].length
+                      ? index
+                      : best,
+                  0,
+                ),
+              ];
         const tokenCandidates = tokenIndexes.map((tokenIndex) => {
           const value = tokens[tokenIndex];
           const name = nextName();
@@ -194,7 +225,11 @@ function buildBooleanCandidateCte(
         )`);
         return verifiedName;
       }
-      if (tokens.length === 1 && node.type === 'term' && node.matchMode === 'prefix') {
+      if (
+        tokens.length === 1 &&
+        node.type === 'term' &&
+        node.matchMode === 'prefix'
+      ) {
         const name = nextName();
         values.push(`${escapeLike(tokens[0])}%`);
         ctes.push(`${name} AS MATERIALIZED (
@@ -205,7 +240,11 @@ function buildBooleanCandidateCte(
         )`);
         return name;
       }
-      if (tokens.length === 1 && node.type === 'term' && node.matchMode === 'suffix') {
+      if (
+        tokens.length === 1 &&
+        node.type === 'term' &&
+        node.matchMode === 'suffix'
+      ) {
         const name = nextName();
         const reversed = [...tokens[0]].reverse().join('');
         values.push(`${escapeLike(reversed)}%`);
@@ -226,7 +265,12 @@ function buildBooleanCandidateCte(
             JOIN "CorpusDocument" d ON d."id" = token."documentId"
            WHERE ${eligible} AND token."token" ILIKE $${values.length} ESCAPE E'\\\\'
         )`);
-        if (node.type === 'term' && node.matchMode === 'contains' && tokens[0].length >= 3) return name;
+        if (
+          node.type === 'term' &&
+          node.matchMode === 'contains' &&
+          tokens[0].length >= 3
+        )
+          return name;
         const candidateDocuments = nextName();
         ctes.push(`${candidateDocuments} AS MATERIALIZED (
           SELECT d."id", d."searchText" FROM ${name} candidates
@@ -271,7 +315,9 @@ function buildBooleanCandidateCte(
         const child = addNode(node.operand);
         const universe = addUniverse();
         const name = nextName();
-        ctes.push(`${name} AS MATERIALIZED (SELECT "id" FROM ${universe} EXCEPT SELECT "id" FROM ${child})`);
+        ctes.push(
+          `${name} AS MATERIALIZED (SELECT "id" FROM ${universe} EXCEPT SELECT "id" FROM ${child})`,
+        );
         return name;
       }
       case 'and':
@@ -280,13 +326,17 @@ function buildBooleanCandidateCte(
         if (!children.length) return addUniverse();
         const name = nextName();
         const operator = node.type === 'and' ? 'INTERSECT' : 'UNION';
-        ctes.push(`${name} AS MATERIALIZED (${children.map((child) => `SELECT "id" FROM ${child}`).join(` ${operator} `)})`);
+        ctes.push(
+          `${name} AS MATERIALIZED (${children.map((child) => `SELECT "id" FROM ${child}`).join(` ${operator} `)})`,
+        );
         return name;
       }
     }
   };
   const root = addNode(query.root);
-  ctes.push(`"corpusSearchCandidates" AS MATERIALIZED (SELECT "id" FROM ${root})`);
+  ctes.push(
+    `"corpusSearchCandidates" AS MATERIALIZED (SELECT "id" FROM ${root})`,
+  );
   return `WITH ${ctes.join(',\n')}`;
 }
 
@@ -332,8 +382,29 @@ function snippet(text: string, literals: SearchLiteralNode[]) {
 export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
   private readonly pool: Pool;
   private readonly candidateStrategy: 'predicate-v1' | 'set-algebra-v2';
-  private lastSearchProfile: { countMs: number; pageQueryMs: number; resultPageMs: number; combinedCandidatePageMs?: number; candidateStrategy?: string; candidateCount?: number; candidateGenerationCount?: number; windowExpansions?: number; windowSizes?: number[]; exactHitsByWindow?: number[]; stageTimings?: Record<string, number | number[]>; resultRows: number; failedQuery?: 'COUNT' | 'PAGE'; errorCode?: string; errorMessage?: string; queryCount: number; queryFingerprints: string[] } | null = null;
-  constructor(databaseConfig?: string | ApprovedRuntimePgConfig, candidateStrategy: 'predicate-v1' | 'set-algebra-v2' = 'set-algebra-v2') {
+  private lastSearchProfile: {
+    countMs: number;
+    pageQueryMs: number;
+    resultPageMs: number;
+    combinedCandidatePageMs?: number;
+    candidateStrategy?: string;
+    candidateCount?: number;
+    candidateGenerationCount?: number;
+    windowExpansions?: number;
+    windowSizes?: number[];
+    exactHitsByWindow?: number[];
+    stageTimings?: Record<string, number | number[]>;
+    resultRows: number;
+    failedQuery?: 'COUNT' | 'PAGE';
+    errorCode?: string;
+    errorMessage?: string;
+    queryCount: number;
+    queryFingerprints: string[];
+  } | null = null;
+  constructor(
+    databaseConfig?: string | ApprovedRuntimePgConfig,
+    candidateStrategy: 'predicate-v1' | 'set-algebra-v2' = 'set-algebra-v2',
+  ) {
     this.pool = new Pool({
       ...resolveSearchDatabasePoolConfig(databaseConfig),
       // Corpus is the high-volume source in federated search. A small pool
@@ -349,7 +420,10 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
 
   getLastSearchProfile() {
     return this.lastSearchProfile
-      ? { ...this.lastSearchProfile, resultRows: this.lastSearchProfile.resultRows }
+      ? {
+          ...this.lastSearchProfile,
+          resultRows: this.lastSearchProfile.resultRows,
+        }
       : null;
   }
 
@@ -378,7 +452,14 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     if (context.sourceSystems && !context.sourceSystems.includes('CORPUS'))
       return { total: 0, page, pageSize, results: [] };
     if (candidateDocumentIds && candidateDocumentIds.length === 0) {
-      return { total: 0, totalExact: true, hasMore: false, page, pageSize, results: [] };
+      return {
+        total: 0,
+        totalExact: true,
+        hasMore: false,
+        page,
+        pageSize,
+        results: [],
+      };
     }
     this.lastSearchProfile = null;
     const resultPageStartedAt = performance.now();
@@ -400,42 +481,69 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       }
     }
     const documentScopeValue: unknown = context.documentScope;
-    const documentScope = typeof documentScopeValue === 'object' && documentScopeValue !== null
-      ? documentScopeValue as { kind?: unknown; workspaceId?: unknown; userId?: unknown; folderId?: unknown; sourceId?: unknown; sourceFolder?: unknown }
-      : undefined;
+    const documentScope =
+      typeof documentScopeValue === 'object' && documentScopeValue !== null
+        ? (documentScopeValue as {
+            kind?: unknown;
+            workspaceId?: unknown;
+            userId?: unknown;
+            folderId?: unknown;
+            sourceId?: unknown;
+            sourceFolder?: unknown;
+          })
+        : undefined;
     const isWorkspaceScope = documentScope?.kind === 'WORKSPACE';
     const isPersonalScope = documentScope?.kind === 'PERSONAL';
-    const workspaceId = isWorkspaceScope && typeof documentScope.workspaceId === 'string'
-      ? documentScope.workspaceId
-      : null;
-    const userId = (isWorkspaceScope || isPersonalScope) && Number.isSafeInteger(documentScope?.userId) && Number(documentScope?.userId) > 0
-      ? Number(documentScope?.userId)
-      : null;
+    const workspaceId =
+      isWorkspaceScope && typeof documentScope.workspaceId === 'string'
+        ? documentScope.workspaceId
+        : null;
+    const userId =
+      (isWorkspaceScope || isPersonalScope) &&
+      Number.isSafeInteger(documentScope?.userId) &&
+      Number(documentScope?.userId) > 0
+        ? Number(documentScope?.userId)
+        : null;
     const folderId = isWorkspaceScope ? documentScope.folderId : undefined;
     const scopedFolderId = isPersonalScope ? documentScope.folderId : folderId;
-    const workspaceFolderId = typeof scopedFolderId === 'string' || scopedFolderId === null ? scopedFolderId : undefined;
-    const hasWorkspaceFolderScope = Boolean((isWorkspaceScope || isPersonalScope) && documentScope && Object.prototype.hasOwnProperty.call(documentScope, 'folderId') && (typeof workspaceFolderId === 'string' || workspaceFolderId === null));
+    const workspaceFolderId =
+      typeof scopedFolderId === 'string' || scopedFolderId === null
+        ? scopedFolderId
+        : undefined;
+    const hasWorkspaceFolderScope = Boolean(
+      (isWorkspaceScope || isPersonalScope) &&
+      documentScope &&
+      Object.prototype.hasOwnProperty.call(documentScope, 'folderId') &&
+      (typeof workspaceFolderId === 'string' || workspaceFolderId === null),
+    );
     const values: SqlValue[] = [allowedVisibility(context.visibility)];
     if (workspaceId) values.push(workspaceId);
-    const workspaceFolderIdIndex = typeof workspaceFolderId === 'string' ? values.push(workspaceFolderId) : null;
+    const workspaceFolderIdIndex =
+      typeof workspaceFolderId === 'string'
+        ? values.push(workspaceFolderId)
+        : null;
     const userIdIndex = userId !== null ? values.push(userId) : null;
     const workspaceScope = workspaceId !== null;
     const personalScope = isPersonalScope && userId !== null;
-    const sourceId = isWorkspaceScope && typeof documentScope?.sourceId === 'string'
-      ? documentScope.sourceId
-      : null;
-    const sourceFolder = isWorkspaceScope && typeof documentScope?.sourceFolder === 'string'
-      ? documentScope.sourceFolder
-      : null;
-    const sourceIdIndex = sourceId && sourceId !== '__manual_upload__'
-      ? values.push(sourceId)
-      : null;
+    const sourceId =
+      isWorkspaceScope && typeof documentScope?.sourceId === 'string'
+        ? documentScope.sourceId
+        : null;
+    const sourceFolder =
+      isWorkspaceScope && typeof documentScope?.sourceFolder === 'string'
+        ? documentScope.sourceFolder
+        : null;
+    const sourceIdIndex =
+      sourceId && sourceId !== '__manual_upload__'
+        ? values.push(sourceId)
+        : null;
     const sourceFolderIndex = sourceFolder ? values.push(sourceFolder) : null;
-    const sourcePredicate = sourceId === '__manual_upload__'
-      ? ' AND NOT EXISTS (SELECT 1 FROM "SourceFile" sourceFile JOIN "DocumentSource" source ON source."id" = sourceFile."sourceId" WHERE sourceFile."documentId" = d."id" AND source."workspaceId" = $2)'
-      : sourceIdIndex
-        ? ` AND EXISTS (SELECT 1 FROM "SourceFile" sourceFile JOIN "DocumentSource" source ON source."id" = sourceFile."sourceId" WHERE sourceFile."documentId" = d."id" AND sourceFile."sourceId" = $${sourceIdIndex} AND source."workspaceId" = $2${sourceFolderIndex ? ` AND (sourceFile."normalizedPath" = $${sourceFolderIndex} OR (left(sourceFile."normalizedPath", char_length($${sourceFolderIndex})) = $${sourceFolderIndex} AND substring(sourceFile."normalizedPath" from char_length($${sourceFolderIndex}) + 1 for 1) = E'\\\\'))` : ''})`
-        : '';
+    const sourcePredicate =
+      sourceId === '__manual_upload__'
+        ? ' AND NOT EXISTS (SELECT 1 FROM "SourceFile" sourceFile JOIN "DocumentSource" source ON source."id" = sourceFile."sourceId" WHERE sourceFile."documentId" = d."id" AND source."workspaceId" = $2)'
+        : sourceIdIndex
+          ? ` AND EXISTS (SELECT 1 FROM "SourceFile" sourceFile JOIN "DocumentSource" source ON source."id" = sourceFile."sourceId" WHERE sourceFile."documentId" = d."id" AND sourceFile."sourceId" = $${sourceIdIndex} AND source."workspaceId" = $2${sourceFolderIndex ? ` AND (sourceFile."normalizedPath" = $${sourceFolderIndex} OR (left(sourceFile."normalizedPath", char_length($${sourceFolderIndex})) = $${sourceFolderIndex} AND substring(sourceFile."normalizedPath" from char_length($${sourceFolderIndex}) + 1 for 1) = E'\\\\'))` : ''})`
+          : '';
     const workspaceMembershipAcl = userIdIndex
       ? `EXISTS (
           SELECT 1 FROM "WorkspaceMembership" membership
@@ -510,13 +618,14 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
               OR chain."visibilityScope" = 'RESTRICTED'
         )`
       : ' AND FALSE';
-    const scopePredicate = workspaceId && userIdIndex
-      ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND ${workspaceMembershipAcl} AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2 AND workspaceDocument."ownerUserId" IS NULL${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${workspaceFolderAcl})${sourcePredicate}`
-      : isPersonalScope && userIdIndex
-        ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" IS NULL AND workspaceDocument."ownerUserId" = $${userIdIndex}${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${personalFolderAcl})`
-        : isWorkspaceScope || isPersonalScope
-          ? `FALSE`
-          : `d."documentScope" = 'GENERAL'`;
+    const scopePredicate =
+      workspaceId && userIdIndex
+        ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND ${workspaceMembershipAcl} AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2 AND workspaceDocument."ownerUserId" IS NULL${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${workspaceFolderAcl})${sourcePredicate}`
+        : isPersonalScope && userIdIndex
+          ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" IS NULL AND workspaceDocument."ownerUserId" = $${userIdIndex}${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${personalFolderAcl})`
+          : isWorkspaceScope || isPersonalScope
+            ? `FALSE`
+            : `d."documentScope" = 'GENERAL'`;
     const dateRange = validateSearchDateRange(
       context.filters?.dateFrom,
       context.filters?.dateTo,
@@ -529,7 +638,9 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     }
     if (dateRange.dateTo) {
       values.push(dateRange.dateTo);
-      filterPredicates.push(`d."decisionDate" < ($${values.length}::date + INTERVAL '1 day')`);
+      filterPredicates.push(
+        `d."decisionDate" < ($${values.length}::date + INTERVAL '1 day')`,
+      );
     }
     if (types) {
       values.push(mimeTypesForCorpusTypes(types));
@@ -547,21 +658,43 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const candidateScopePredicate = filterPredicate
       ? `(${scopePredicate}) AND (${filterPredicate})`
       : scopePredicate;
-    const shortTermWindow = !candidateDocumentIds && useTokenProjection && query.root?.type === 'term' && !query.root.field &&
-      query.root.matchMode === 'contains' && [...normalizeSearchText(query.root.value)].length < 3;
-    const deferredSinglePhrase = !candidateDocumentIds && useTokenProjection && query.root?.type === 'phrase';
-    const candidateSinglePhraseHydration =
-      Boolean(candidateDocumentIds) && query.root?.type === 'phrase';
+    const shortTermWindow =
+      !candidateDocumentIds &&
+      useTokenProjection &&
+      query.root?.type === 'term' &&
+      !query.root.field &&
+      query.root.matchMode === 'contains' &&
+      [...normalizeSearchText(query.root.value)].length < 3;
+    const deferredSinglePhrase =
+      !candidateDocumentIds &&
+      useTokenProjection &&
+      query.root?.type === 'phrase';
     const candidateValuesStart = values.length + 1;
     const candidateBuildStartedAt = performance.now();
-    const candidateCte = !candidateDocumentIds && this.candidateStrategy === 'set-algebra-v2' && !shortTermWindow
-      ? buildBooleanCandidateCte(query, values, useTokenProjection, deferredSinglePhrase, candidateScopePredicate)
-      : null;
+    const candidateCte =
+      !candidateDocumentIds &&
+      this.candidateStrategy === 'set-algebra-v2' &&
+      !shortTermWindow
+        ? buildBooleanCandidateCte(
+            query,
+            values,
+            useTokenProjection,
+            deferredSinglePhrase,
+            candidateScopePredicate,
+          )
+        : null;
     const candidateValuesEnd = candidateCte ? values.length : values.length - 1;
     const candidateBuildMs = performance.now() - candidateBuildStartedAt;
-    const activeCandidateStrategy = this.candidateStrategy === 'predicate-v1'
-      ? 'predicate-v1'
-      : useTokenProjection ? (shortTermWindow ? 'token-projection-short-window-v2' : deferredSinglePhrase ? 'token-projection-phrase-setwise-exact-v9' : 'token-projection-v2') : 'document-text-fallback-v2';
+    const activeCandidateStrategy =
+      this.candidateStrategy === 'predicate-v1'
+        ? 'predicate-v1'
+        : useTokenProjection
+          ? shortTermWindow
+            ? 'token-projection-short-window-v2'
+            : deferredSinglePhrase
+              ? 'token-projection-phrase-setwise-exact-v9'
+              : 'token-projection-v2'
+          : 'document-text-fallback-v2';
     const boundedCandidatePage = this.candidateStrategy === 'set-algebra-v2';
     const predicates = [
       `d."visibility" = ANY($1::text[])`,
@@ -575,8 +708,11 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     }
     if (shortTermWindow && query.root?.type === 'term') {
       values.push(pattern(query.root));
-      predicates.push(`EXISTS (SELECT 1 FROM "CorpusSearchToken" token WHERE token."documentId" = d."id" AND token."token" ILIKE $${values.length} ESCAPE E'\\\\')`);
-    } else if (!candidateCte && !candidateDocumentIds) predicates.push(`(${compileNode(query.root, values)})`);
+      predicates.push(
+        `EXISTS (SELECT 1 FROM "CorpusSearchToken" token WHERE token."documentId" = d."id" AND token."token" ILIKE $${values.length} ESCAPE E'\\\\')`,
+      );
+    } else if (!candidateCte && !candidateDocumentIds)
+      predicates.push(`(${compileNode(query.root, values)})`);
     if (context.filters?.sala) {
       values.push(context.filters.sala);
       predicates.push(`d."chamber" = $${values.length}`);
@@ -590,7 +726,13 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       predicates.push(`d."decisionDate" < $${values.length}::date`);
     }
     const structured: Array<
-      [Exclude<keyof NonNullable<SearchContext['filters']>, 'dateFrom' | 'dateTo' | 'types'>, string]
+      [
+        Exclude<
+          keyof NonNullable<SearchContext['filters']>,
+          'dateFrom' | 'dateTo' | 'types'
+        >,
+        string,
+      ]
     > = [
       ['expediente', 'd."caseNumber"'],
       ['numeroSentencia', 'd."caseNumber"'],
@@ -610,37 +752,53 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     }
     if (context.filters?.digestoCollectionId) {
       values.push(context.filters.digestoCollectionId);
-      predicates.push(`EXISTS (SELECT 1 FROM "DigestoCollectionMembership" m WHERE m."documentId" = d."id" AND m."collectionId" = $${values.length})`);
+      predicates.push(
+        `EXISTS (SELECT 1 FROM "DigestoCollectionMembership" m WHERE m."documentId" = d."id" AND m."collectionId" = $${values.length})`,
+      );
     }
     if (context.filters?.digestoTopicId) {
       values.push(context.filters.digestoTopicId);
-      predicates.push(`EXISTS (SELECT 1 FROM "CorpusDocumentTopic" dt JOIN "DigestoTopic" t ON t."id" = dt."topicId" WHERE dt."documentId" = d."id" AND dt."topicId" = $${values.length} AND t."active" = true)`);
+      predicates.push(
+        `EXISTS (SELECT 1 FROM "CorpusDocumentTopic" dt JOIN "DigestoTopic" t ON t."id" = dt."topicId" WHERE dt."documentId" = d."id" AND dt."topicId" = $${values.length} AND t."active" = true)`,
+      );
     }
     if (context.filters?.digestoTagId) {
       values.push(context.filters.digestoTagId);
-      predicates.push(`EXISTS (SELECT 1 FROM "CorpusDocumentTag" dt WHERE dt."documentId" = d."id" AND dt."tagId" = $${values.length})`);
+      predicates.push(
+        `EXISTS (SELECT 1 FROM "CorpusDocumentTag" dt WHERE dt."documentId" = d."id" AND dt."tagId" = $${values.length})`,
+      );
     }
-    const exactPhraseVerification = deferredSinglePhrase ? compileNode(query.root, values) : null;
-    const phraseSnippetParam = deferredSinglePhrase && query.root?.type === 'phrase'
-      ? `$${values.push(normalizeSearchText(query.root.value))}`
+    const exactPhraseVerification = deferredSinglePhrase
+      ? compileNode(query.root, values)
       : null;
-    const phraseSnippetSource = `COALESCE(NULLIF(e."text", ''), d."searchText", '')`;
+    const phraseSnippetParam =
+      deferredSinglePhrase && query.root?.type === 'phrase'
+        ? `$${values.push(normalizeSearchText(query.root.value))}`
+        : null;
+    const phraseSnippetSource = `COALESCE(NULLIF(pageMatch."text", ''), NULLIF(d."searchText", ''), '')`;
     const phraseSnippetNormalized = `translate(lower(${phraseSnippetSource}), 'áéíóúü', 'aeiouu')`;
-    const phraseSnippetPosition = phraseSnippetParam ? `strpos(${phraseSnippetNormalized}, ${phraseSnippetParam})` : null;
+    const phraseSnippetPosition = phraseSnippetParam
+      ? `strpos(${phraseSnippetNormalized}, ${phraseSnippetParam})`
+      : null;
     const phraseSnippetStart = phraseSnippetPosition
       ? `GREATEST(1, COALESCE(NULLIF(${phraseSnippetPosition}, 0), 1) - 90)`
       : null;
-    const phraseSnippetProjection = phraseSnippetStart && phraseSnippetPosition
-      ? `CASE WHEN ${phraseSnippetSource} = '' THEN NULL ELSE
+    const phraseSnippetProjection =
+      phraseSnippetStart && phraseSnippetPosition
+        ? `CASE WHEN ${phraseSnippetSource} = '' THEN NULL ELSE
            (CASE WHEN ${phraseSnippetPosition} > 90 THEN '…' ELSE '' END) ||
            substring(${phraseSnippetSource} FROM ${phraseSnippetStart} FOR 280) ||
            (CASE WHEN ${phraseSnippetStart} + 279 < char_length(${phraseSnippetSource}) THEN '…' ELSE '' END)
          END`
-      : null;
+        : null;
     const where = predicates.join(' AND ');
     const queryFingerprints = [
-      queryFingerprint(`${candidateCte ? 'CANDIDATE_SET_V2' : 'COUNT_V1'}|${where}`),
-      queryFingerprint(`${candidateCte ? 'COMBINED_PAGE_V2' : 'PAGE_V1'}|${where}|pagePatterns|pageSize|offset|snippet|digesto|provenance`),
+      queryFingerprint(
+        `${candidateCte ? 'CANDIDATE_SET_V2' : 'COUNT_V1'}|${where}`,
+      ),
+      queryFingerprint(
+        `${candidateCte ? 'COMBINED_PAGE_V2' : 'PAGE_V1'}|${where}|pagePatterns|pageSize|offset|snippet|digesto|provenance`,
+      ),
     ];
     let countMs = 0;
     let pageQueryMs = 0;
@@ -651,14 +809,13 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     visitSearchLiterals(query.root, (literal, negated) => {
       if (!negated) literals.push(literal);
     });
-    const pagePatterns = literals.map(pattern);
+    // Only positive, unfielded literals describe a page-text hit. Fielded
+    // metadata terms and negated terms must never select an arbitrary page.
+    const pagePatterns = literals
+      .filter((literal) => !literal.field)
+      .map(pattern);
     const offsetValue = (page - 1) * pageSize;
-    const rowValues = [
-      ...values,
-      pagePatterns,
-      pageSize,
-      offsetValue,
-    ];
+    const rowValues = [...values, pagePatterns, pageSize, offsetValue];
     const limit = `$${rowValues.length - 1}`;
     const offset = `$${rowValues.length}`;
     let rows: QueryResult<SearchRow>;
@@ -733,7 +890,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
               `${candidateCte ? `${deferredSinglePhrase ? candidateCte.replace(/^WITH\s+/u, 'WITH RECURSIVE ') : candidateCte},` : 'WITH'} ${candidateWindowCtes}
                SELECT d."id", d."title", d."subtitle", d."decisionDate", d."documentType", d."jurisdiction",
                       d."court", d."chamber", d."instance", d."caseNumber", d."visibility",
-                      ${deferredSinglePhrase && phraseSnippetProjection ? `${phraseSnippetProjection} AS "snippetText"` : candidateSinglePhraseHydration ? `d."searchText" AS "snippetSource"` : `COALESCE(NULLIF(e."text", ''), d."searchText", '') AS "snippetSource"`} ,
+                      ${deferredSinglePhrase && phraseSnippetProjection ? `${phraseSnippetProjection} AS "snippetText"` : `COALESCE(NULLIF(pageMatch."text", ''), NULLIF(d."searchText", ''), '') AS "snippetSource"`} ,
                       stats."total", stats."hasMore", stats."totalExact", stats."candidateCount", stats."probeCount",
                       ${deferredSinglePhrase ? 'stats."candidateWindowSizes", stats."exactHitsByWindow",' : ''}
                       f."id" AS "fileId", f."mimeType" AS "fileMimeType",
@@ -743,9 +900,29 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
                       (SELECT string_agg(c."name", ' · ' ORDER BY c."name") FROM "DigestoCollectionMembership" m JOIN "DigestoCollection" c ON c."id"=m."collectionId" WHERE m."documentId"=d."id" AND c."status"='ACTIVE') AS "digestoCollections",
                       (SELECT string_agg(t."name", ' · ' ORDER BY t."name") FROM "CorpusDocumentTopic" dt JOIN "DigestoTopic" t ON t."id"=dt."topicId" WHERE dt."documentId"=d."id" AND t."active"=true) AS "digestoTopics",
                       (SELECT string_agg(t."name", ' · ' ORDER BY t."name") FROM "CorpusDocumentTag" dt JOIN "DigestoTag" t ON t."id"=dt."tagId" WHERE dt."documentId"=d."id") AS "digestoTags",
-                      (SELECT p."pageNumber" FROM "CorpusDocumentPage" p WHERE p."extractionId"=e."id" AND cardinality(${pagePatternsParam}::text[])>0 AND (' ' || COALESCE(translate(lower(p."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY(${pagePatternsParam}::text[]) ORDER BY p."pageNumber" LIMIT 1) AS "matchedPage"
+                      e."status" AS "activeExtractionStatus",
+                      pageMatch."pageNumber" AS "matchedPage", pageMatch."text" AS "matchedPageText",
+                      pageMatch."textKind" AS "matchedPageTextKind", pageMatch."processingStatus" AS "matchedPageProcessingStatus",
+                      pageMatch."matchedPageCount" AS "matchedPageCount"
                  FROM ${deferredSinglePhrase ? '"pageStats" stats LEFT JOIN "pagedCandidates" selected ON TRUE LEFT JOIN "CorpusDocument" d ON d."id"=selected."id"' : '"pagedCandidates" selected CROSS JOIN "pageStats" stats JOIN "CorpusDocument" d ON d."id"=selected."id"'}
                  LEFT JOIN "CorpusExtraction" e ON e."id"=d."latestExtractionId"
+                 LEFT JOIN LATERAL (
+                   SELECT p."pageNumber", p."text", p."textKind", p."processingStatus",
+                          (SELECT count(*)::integer
+                             FROM "CorpusDocumentPage" counted
+                            WHERE counted."extractionId"=e."id"
+                              AND cardinality(${pagePatternsParam}::text[])>0
+                              AND (' ' || COALESCE(translate(lower(counted."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY(${pagePatternsParam}::text[])
+                              AND (counted."textKind"='NATIVE' OR (e."status"='OCR_HUMAN_APPROVED' AND counted."textKind"='OCR' AND counted."processingStatus"='OCR_HUMAN_APPROVED'))
+                          ) AS "matchedPageCount"
+                     FROM "CorpusDocumentPage" p
+                    WHERE p."extractionId"=e."id"
+                      AND cardinality(${pagePatternsParam}::text[])>0
+                      AND (' ' || COALESCE(translate(lower(p."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY(${pagePatternsParam}::text[])
+                      AND (p."textKind"='NATIVE' OR (e."status"='OCR_HUMAN_APPROVED' AND p."textKind"='OCR' AND p."processingStatus"='OCR_HUMAN_APPROVED'))
+                    ORDER BY p."pageNumber"
+                    LIMIT 1
+                 ) pageMatch ON TRUE
                  LEFT JOIN LATERAL (SELECT cf.* FROM "CorpusDocumentFile" cf WHERE cf."documentId"=d."id" ORDER BY cf."version" DESC LIMIT 1) f ON TRUE
                  LEFT JOIN LATERAL (SELECT ci.* FROM "CorpusIngestionRecord" ci WHERE ci."documentId"=d."id" ORDER BY ci."ingestedAt" DESC LIMIT 1) ing ON TRUE
                  LEFT JOIN "CorpusSourceSystem" src ON src."id"=ing."sourceSystemId"
@@ -756,11 +933,11 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
             if (deferredSinglePhrase)
               pageSnippetHydrationMs = performance.now() - phraseSqlStartedAt;
           } catch (error) {
-          pageQueryMs += performance.now() - pageQueryStartedAt;
-          failedQuery = 'PAGE';
-          errorCode = (error as { code?: string })?.code;
-          errorMessage = (error as { message?: string })?.message;
-          throw error;
+            pageQueryMs += performance.now() - pageQueryStartedAt;
+            failedQuery = 'PAGE';
+            errorCode = (error as { code?: string })?.code;
+            errorMessage = (error as { message?: string })?.message;
+            throw error;
           }
           if (!deferredSinglePhrase) break;
           phraseCandidateCount = Number(rows.rows[0]?.candidateCount ?? 0);
@@ -771,22 +948,26 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         total = Number(rows.rows[0]?.total ?? (page - 1) * pageSize);
       } else {
         const countStartedAt = performance.now();
-        const countPromise = this.pool.query<{ total: string }>(
-          `SELECT COUNT(*)::text AS total FROM "CorpusDocument" d WHERE ${where}`,
-          values,
-        ).then((result) => {
-          countMs = performance.now() - countStartedAt;
-          return result;
-        }).catch((error: unknown) => {
-          countMs = performance.now() - countStartedAt;
-          failedQuery = 'COUNT';
-          errorCode = (error as { code?: string })?.code;
-          errorMessage = (error as { message?: string })?.message;
-          throw error;
-        });
+        const countPromise = this.pool
+          .query<{ total: string }>(
+            `SELECT COUNT(*)::text AS total FROM "CorpusDocument" d WHERE ${where}`,
+            values,
+          )
+          .then((result) => {
+            countMs = performance.now() - countStartedAt;
+            return result;
+          })
+          .catch((error: unknown) => {
+            countMs = performance.now() - countStartedAt;
+            failedQuery = 'COUNT';
+            errorCode = (error as { code?: string })?.code;
+            errorMessage = (error as { message?: string })?.message;
+            throw error;
+          });
         const legacyPageStartedAt = performance.now();
-        const legacyRows = this.pool.query<SearchRow>(
-          `WITH "pageDocs" AS (
+        const legacyRows = this.pool
+          .query<SearchRow>(
+            `WITH "pageDocs" AS (
              SELECT d."id", d."decisionDate", d."updatedAt"
                FROM "CorpusDocument" d WHERE ${where}
               ORDER BY d."decisionDate" DESC NULLS LAST, d."updatedAt" DESC, d."id"
@@ -794,7 +975,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
            )
            SELECT d."id", d."title", d."subtitle", d."decisionDate", d."documentType", d."jurisdiction",
                   d."court", d."chamber", d."instance", d."caseNumber", d."visibility",
-                  COALESCE(NULLIF(e."text", ''), d."searchText", '') AS "snippetSource",
+                  COALESCE(NULLIF(pageMatch."text", ''), NULLIF(d."searchText", ''), '') AS "snippetSource",
                   ''::text AS "total", false AS "hasMore", f."id" AS "fileId", f."mimeType" AS "fileMimeType",
                   f."sha256" AS "checksum", f."originalFilename" AS "filename", src."code" AS "sourceCode",
                   ing."externalId", ing."sourceReference",
@@ -802,34 +983,64 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
                   (SELECT string_agg(c."name", ' · ' ORDER BY c."name") FROM "DigestoCollectionMembership" m JOIN "DigestoCollection" c ON c."id" = m."collectionId" WHERE m."documentId" = d."id" AND c."status" = 'ACTIVE') AS "digestoCollections",
                   (SELECT string_agg(t."name", ' · ' ORDER BY t."name") FROM "CorpusDocumentTopic" dt JOIN "DigestoTopic" t ON t."id" = dt."topicId" WHERE dt."documentId" = d."id" AND t."active" = true) AS "digestoTopics",
                   (SELECT string_agg(t."name", ' · ' ORDER BY t."name") FROM "CorpusDocumentTag" dt JOIN "DigestoTag" t ON t."id" = dt."tagId" WHERE dt."documentId" = d."id") AS "digestoTags",
-                  (SELECT p."pageNumber" FROM "CorpusDocumentPage" p WHERE p."extractionId" = e."id" AND cardinality($${values.length + 1}::text[]) > 0 AND (' ' || COALESCE(translate(lower(p."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY($${values.length + 1}::text[]) ORDER BY p."pageNumber" LIMIT 1) AS "matchedPage"
+                  e."status" AS "activeExtractionStatus",
+                  pageMatch."pageNumber" AS "matchedPage", pageMatch."text" AS "matchedPageText",
+                  pageMatch."textKind" AS "matchedPageTextKind", pageMatch."processingStatus" AS "matchedPageProcessingStatus",
+                  pageMatch."matchedPageCount" AS "matchedPageCount"
              FROM "pageDocs" selected JOIN "CorpusDocument" d ON d."id" = selected."id"
              LEFT JOIN "CorpusExtraction" e ON e."id" = d."latestExtractionId"
+             LEFT JOIN LATERAL (
+               SELECT p."pageNumber", p."text", p."textKind", p."processingStatus",
+                      (SELECT count(*)::integer
+                         FROM "CorpusDocumentPage" counted
+                        WHERE counted."extractionId"=e."id"
+                          AND cardinality($${values.length + 1}::text[])>0
+                          AND (' ' || COALESCE(translate(lower(counted."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY($${values.length + 1}::text[])
+                          AND (counted."textKind"='NATIVE' OR (e."status"='OCR_HUMAN_APPROVED' AND counted."textKind"='OCR' AND counted."processingStatus"='OCR_HUMAN_APPROVED'))
+                      ) AS "matchedPageCount"
+                 FROM "CorpusDocumentPage" p
+                WHERE p."extractionId"=e."id"
+                  AND cardinality($${values.length + 1}::text[])>0
+                  AND (' ' || COALESCE(translate(lower(p."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY($${values.length + 1}::text[])
+                  AND (p."textKind"='NATIVE' OR (e."status"='OCR_HUMAN_APPROVED' AND p."textKind"='OCR' AND p."processingStatus"='OCR_HUMAN_APPROVED'))
+                ORDER BY p."pageNumber"
+                LIMIT 1
+             ) pageMatch ON TRUE
              LEFT JOIN LATERAL (SELECT cf.* FROM "CorpusDocumentFile" cf WHERE cf."documentId" = d."id" ORDER BY cf."version" DESC LIMIT 1) f ON TRUE
              LEFT JOIN LATERAL (SELECT ci.* FROM "CorpusIngestionRecord" ci WHERE ci."documentId" = d."id" ORDER BY ci."ingestedAt" DESC LIMIT 1) ing ON TRUE
              LEFT JOIN "CorpusSourceSystem" src ON src."id" = ing."sourceSystemId"
             ORDER BY selected."decisionDate" DESC NULLS LAST, selected."updatedAt" DESC, selected."id"`,
-          rowValues,
-        ).then((result) => {
-          pageQueryMs = performance.now() - legacyPageStartedAt;
-          return result;
-        }).catch((error: unknown) => {
-          pageQueryMs = performance.now() - legacyPageStartedAt;
-          failedQuery = failedQuery ?? 'PAGE';
-          errorCode = errorCode ?? (error as { code?: string })?.code;
-          errorMessage = errorMessage ?? (error as { message?: string })?.message;
-          throw error;
-        });
+            rowValues,
+          )
+          .then((result) => {
+            pageQueryMs = performance.now() - legacyPageStartedAt;
+            return result;
+          })
+          .catch((error: unknown) => {
+            pageQueryMs = performance.now() - legacyPageStartedAt;
+            failedQuery = failedQuery ?? 'PAGE';
+            errorCode = errorCode ?? (error as { code?: string })?.code;
+            errorMessage =
+              errorMessage ?? (error as { message?: string })?.message;
+            throw error;
+          });
         const [count, oldRows] = await Promise.all([countPromise, legacyRows]);
         rows = oldRows;
         total = Number(count.rows[0]?.total ?? 0);
         queryCount = 2;
       }
-      if (!candidateDocumentIds && workspaceScope && query.root?.type === 'term' && boundedCandidatePage) {
+      if (
+        !candidateDocumentIds &&
+        workspaceScope &&
+        query.root?.type === 'term' &&
+        boundedCandidatePage
+      ) {
         const exactValues = [...values];
         const exactQueryPredicate = compileNode(query.root, exactValues);
         const candidateParameterTypeChecks = Array.from(
-          { length: Math.max(0, candidateValuesEnd - candidateValuesStart + 1) },
+          {
+            length: Math.max(0, candidateValuesEnd - candidateValuesStart + 1),
+          },
           (_, index) => `$${candidateValuesStart + index}::text IS NOT NULL`,
         ).join(' AND ');
         const exactCountStartedAt = performance.now();
@@ -880,39 +1091,64 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       this.lastSearchProfile = {
         countMs: Math.round(countMs * 100) / 100,
         pageQueryMs: Math.round(pageQueryMs * 100) / 100,
-        resultPageMs: Math.round((performance.now() - resultPageStartedAt) * 100) / 100,
+        resultPageMs:
+          Math.round((performance.now() - resultPageStartedAt) * 100) / 100,
         candidateStrategy: activeCandidateStrategy,
         resultRows: 0,
         failedQuery,
         errorCode,
         errorMessage,
-          queryCount,
-          queryFingerprints,
-          ...(deferredSinglePhrase ? { candidateCount: phraseCandidateCount, candidateGenerationCount: 1, windowExpansions: Math.max(0, windowSizes.length - 1), windowSizes, exactHitsByWindow } : {}),
-          stageTimings: {
-            readinessMs, candidateBuildMs,
-            candidateGenerationIntersectionsEligibilityExactCountPageAndSnippetSqlMs: pageSnippetHydrationMs,
-            responseMappingMs, totalAdapterMs: performance.now() - resultPageStartedAt,
-          },
+        queryCount,
+        queryFingerprints,
+        ...(deferredSinglePhrase
+          ? {
+              candidateCount: phraseCandidateCount,
+              candidateGenerationCount: 1,
+              windowExpansions: Math.max(0, windowSizes.length - 1),
+              windowSizes,
+              exactHitsByWindow,
+            }
+          : {}),
+        stageTimings: {
+          readinessMs,
+          candidateBuildMs,
+          candidateGenerationIntersectionsEligibilityExactCountPageAndSnippetSqlMs:
+            pageSnippetHydrationMs,
+          responseMappingMs,
+          totalAdapterMs: performance.now() - resultPageStartedAt,
+        },
       };
       throw error;
     }
     const resultPageMs = performance.now() - resultPageStartedAt;
-    const hydratedRows = rows.rows.filter((row): row is SearchRow & { id: string } => row.id !== null);
+    const hydratedRows = rows.rows.filter(
+      (row): row is SearchRow & { id: string } => row.id !== null,
+    );
     const hasMore = boundedCandidatePage
       ? Boolean(rows.rows[0]?.hasMore)
       : false;
-    const totalExact = workspaceTermTotalExact || outOfRangeTotalExact || (boundedCandidatePage
-        ? (deferredSinglePhrase ? Boolean(rows.rows[0]?.totalExact) : (rows.rows.length === 0 ? page === 1 : !hasMore))
+    const totalExact =
+      workspaceTermTotalExact ||
+      outOfRangeTotalExact ||
+      (boundedCandidatePage
+        ? deferredSinglePhrase
+          ? Boolean(rows.rows[0]?.totalExact)
+          : rows.rows.length === 0
+            ? page === 1
+            : !hasMore
         : true);
     const mappingStartedAt = performance.now();
     const snippetGenerationMsByRow: number[] = [];
     const snippetSourceCharsByRow: number[] = [];
     const mappedResults = hydratedRows.map((row): SearchResult => {
-      const snippetSource = row.snippetSource ?? row.extractedText ?? row.searchText ?? '';
+      const matchSource = pageMatchSource(row);
+      const snippetSource =
+        (matchSource ? row.matchedPageText : null) ??
+        row.snippetSource ??
+        row.searchText ??
+        '';
       const snippetStartedAt = performance.now();
-      const resultSnippet =
-        row.snippetText ?? snippet(snippetSource, literals);
+      const resultSnippet = row.snippetText ?? snippet(snippetSource, literals);
       snippetGenerationMsByRow.push(performance.now() - snippetStartedAt);
       snippetSourceCharsByRow.push(snippetSource.length);
       return {
@@ -939,7 +1175,16 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
           checksum: row.checksum,
           filename: row.filename,
           fileId: row.fileId,
-          pageNumber: row.matchedPage,
+          pageNumber: matchSource ? row.matchedPage : null,
+          matchSource,
+          matchedPageCount: matchSource
+            ? Math.max(0, Number(row.matchedPageCount ?? 0))
+            : 0,
+          pageTextSha256: matchSource
+            ? createHash('sha256')
+                .update(row.matchedPageText!, 'utf8')
+                .digest('hex')
+            : null,
           digestoCollections: row.digestoCollections,
           digestoTopics: row.digestoTopics,
           digestoTags: row.digestoTags,
@@ -951,26 +1196,48 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
             ? `/api/workspaces/${workspaceId}/documents/${row.id}/file`
             : personalScope
               ? `/api/personal/documents/${row.id}/file`
-            : row.visibility === 'PUBLIC'
-            ? `/api/public/corpus/documents/${row.id}/file`
-            : `/api/corpus/documents/${row.id}/file`,
+              : row.visibility === 'PUBLIC'
+                ? `/api/public/corpus/documents/${row.id}/file`
+                : `/api/corpus/documents/${row.id}/file`,
           mimeType: row.fileMimeType,
         },
       };
     });
     responseMappingMs = performance.now() - mappingStartedAt;
     this.lastSearchProfile = {
-      countMs, pageQueryMs: Math.round(pageQueryMs * 100) / 100, resultPageMs, ...(candidateCte ? { combinedCandidatePageMs: resultPageMs } : {}),
-      candidateStrategy: activeCandidateStrategy, resultRows: hydratedRows.length, queryCount, queryFingerprints,
-      ...(deferredSinglePhrase ? { candidateCount: phraseCandidateCount, candidateGenerationCount: 1, windowExpansions: Math.max(0, windowSizes.length - 1), windowSizes, exactHitsByWindow } : {}),
+      countMs,
+      pageQueryMs: Math.round(pageQueryMs * 100) / 100,
+      resultPageMs,
+      ...(candidateCte ? { combinedCandidatePageMs: resultPageMs } : {}),
+      candidateStrategy: activeCandidateStrategy,
+      resultRows: hydratedRows.length,
+      queryCount,
+      queryFingerprints,
+      ...(deferredSinglePhrase
+        ? {
+            candidateCount: phraseCandidateCount,
+            candidateGenerationCount: 1,
+            windowExpansions: Math.max(0, windowSizes.length - 1),
+            windowSizes,
+            exactHitsByWindow,
+          }
+        : {}),
       stageTimings: {
-        readinessMs, candidateBuildMs,
-        candidateGenerationIntersectionsEligibilityExactCountPageAndSnippetSqlMs: pageSnippetHydrationMs,
+        readinessMs,
+        candidateBuildMs,
+        candidateGenerationIntersectionsEligibilityExactCountPageAndSnippetSqlMs:
+          pageSnippetHydrationMs,
         responseMappingMs,
-        snippetGenerationMs: snippetGenerationMsByRow.reduce((sum, value) => sum + value, 0),
+        snippetGenerationMs: snippetGenerationMsByRow.reduce(
+          (sum, value) => sum + value,
+          0,
+        ),
         snippetGenerationMsByRow,
         snippetSourceCharsByRow,
-        snippetSourceCharsTotal: snippetSourceCharsByRow.reduce((sum, value) => sum + value, 0),
+        snippetSourceCharsTotal: snippetSourceCharsByRow.reduce(
+          (sum, value) => sum + value,
+          0,
+        ),
         snippetSourceCharsMax: Math.max(...snippetSourceCharsByRow, 0),
         totalAdapterMs: performance.now() - resultPageStartedAt,
       },
@@ -991,11 +1258,16 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
 }
 
 function queryFingerprint(template: string) {
-  return createHash('sha256').update(template.replace(/\s+/gu, ' ').trim()).digest('hex').slice(0, 16);
+  return createHash('sha256')
+    .update(template.replace(/\s+/gu, ' ').trim())
+    .digest('hex')
+    .slice(0, 16);
 }
 
 function searchStatementTimeoutMs() {
-  const configured = Number(process.env.BJC_SEARCH_STATEMENT_TIMEOUT_MS ?? 4000);
+  const configured = Number(
+    process.env.BJC_SEARCH_STATEMENT_TIMEOUT_MS ?? 4000,
+  );
   return Number.isInteger(configured) && configured >= 500 && configured <= 4500
     ? configured
     : 4000;

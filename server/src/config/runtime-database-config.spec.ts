@@ -82,6 +82,32 @@ describe('canonical runtime PostgreSQL pool configuration', () => {
     ).toThrow('SPRINT8_QA_DATABASE_TARGET_REJECTED');
   });
 
+  it('allows only Suite 9 page-aware synthetic QA databases on port 55435', () => {
+    const config = getRuntimeDatabasePoolConfig({
+      NODE_ENV: 'development',
+      BJC_DEPLOYMENT_ENV: 'development',
+      BJC_SPRINT9_PAGE_AWARE_ALLOW_ISOLATED_DATABASE: 'true',
+      DATABASE_URL:
+        'postgresql://bjc_dev:synthetic@127.0.0.1:55435/galilei_page_aware_suite9_fresh',
+    });
+    expect(config).toMatchObject({
+      host: '127.0.0.1',
+      port: 55435,
+      database: 'galilei_page_aware_suite9_fresh',
+      user: 'bjc_dev',
+      password: 'synthetic',
+    });
+    expect(() =>
+      getRuntimeDatabasePoolConfig({
+        NODE_ENV: 'development',
+        BJC_DEPLOYMENT_ENV: 'development',
+        BJC_SPRINT9_PAGE_AWARE_ALLOW_ISOLATED_DATABASE: 'true',
+        DATABASE_URL:
+          'postgresql://bjc_dev:synthetic@127.0.0.1:55434/galilei_page_aware_suite9_fresh',
+      }),
+    ).toThrow('SPRINT9_PAGE_AWARE_QA_DATABASE_TARGET_REJECTED');
+  });
+
   it('requires explicit development mode for Suite 8 isolated databases', () => {
     expect(() =>
       getRuntimeDatabasePoolConfig({
