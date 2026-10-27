@@ -2,11 +2,17 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { NextFunction, Request, Response } from 'express';
-import { randomUUID } from 'node:crypto';
 import { AppModule } from './app.module';
 import { SafeExceptionFilter } from './safe-exception.filter';
 import { LocalApiRateLimiter } from './rate-limit.middleware';
 import { createApplicationAfterPreflight } from './config/runtime-bootstrap';
+import {
+  createSearchRequestId,
+  isSearchRoute,
+  safeBuildIdentity,
+  searchObservability,
+  withSearchRequestContext,
+} from './busqueda/search-observability';
 
 async function bootstrap() {
   const { deploymentEnvironment, application: app } =
@@ -25,11 +31,9 @@ async function bootstrap() {
     next();
   });
   app.use((request: Request, response: Response, next: NextFunction) => {
-    const provided = request.get('x-request-id');
-    const requestId =
-      provided && /^[A-Za-z0-9._-]{8,80}$/u.test(provided)
-        ? provided
-        : randomUUID();
+    // Correlation IDs are generated here so a caller cannot inject a token,
+    // identity, or other sensitive value into diagnostic logs.
+    const requestId = createSearchRequestId();
     response.setHeader('X-Request-Id', requestId);
     const startedAt = performance.now();
     response.on('finish', () => {
@@ -39,7 +43,14 @@ async function bootstrap() {
       const route = typeof routePath === 'string' ? routePath : 'unmatched';
       const durationMs =
         Math.round((performance.now() - startedAt) * 100) / 100;
-      if (response.statusCode >= 400) {
+      const searchRoute = isSearchRoute(route, request.baseUrl);
+      if (searchRoute) {
+        searchObservability.recordHttpSearchCompletion(
+          requestId,
+          response.statusCode,
+          durationMs,
+        );
+      } else if (response.statusCode >= 400) {
         const category =
           response.statusCode === 429
             ? 'rate_limited'
@@ -62,22 +73,8 @@ async function bootstrap() {
           }),
         );
       }
-      if (
-        route === '/api/busqueda/avanzada' &&
-        durationMs >= slowSearchThresholdMs()
-      ) {
-        console.warn(
-          JSON.stringify({
-            event: 'slow_search',
-            requestId,
-            route,
-            durationMs,
-            status: response.statusCode,
-          }),
-        );
-      }
     });
-    next();
+    withSearchRequestContext(requestId, next);
   });
   app.use(new LocalApiRateLimiter().middleware());
   app.useGlobalFilters(new SafeExceptionFilter());
@@ -141,19 +138,13 @@ async function bootstrap() {
   }
 
   await app.listen(port, bindHost);
+  console.log(
+    JSON.stringify({ event: 'build_identity', ...safeBuildIdentity() }),
+  );
   console.log(`Backend escuchando en ${bindHost}:${port}/api`);
   if (process.env.NODE_ENV !== 'production') {
     console.log(`Swagger en http://localhost:${port}/api/docs`);
   }
   console.log(`CORS habilitado para: ${allowedOrigins.join(', ')}`);
-}
-
-function slowSearchThresholdMs() {
-  const configured = Number(process.env.BJC_SLOW_SEARCH_MS ?? 1500);
-  return Number.isFinite(configured) &&
-    configured >= 100 &&
-    configured <= 60_000
-    ? configured
-    : 1500;
 }
 void bootstrap();

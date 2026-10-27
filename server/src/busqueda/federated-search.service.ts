@@ -10,6 +10,7 @@ import type {
 } from './adapters/search-source.adapter';
 import type { SearchQueryAst } from './utils/search-ast';
 import { getPrismaPoolDiagnostics } from '../prisma/create-prisma-client';
+import { searchObservability } from './search-observability';
 
 export type FederatedSourceStatus = {
   source: string;
@@ -78,6 +79,17 @@ export class FederatedSearchService implements OnModuleDestroy {
     query: SearchQueryAst,
     context: SearchContext,
   ): Promise<FederatedSearchPage> {
+    return searchObservability.measure(
+      'federated.search',
+      () => this.searchInternal(query, context),
+      { pageSize: context.pageSize },
+    );
+  }
+
+  private async searchInternal(
+    query: SearchQueryAst,
+    context: SearchContext,
+  ): Promise<FederatedSearchPage> {
     const started = Date.now();
     const page = Math.max(1, Math.trunc(context.page ?? 1));
     const pageSize = Math.min(
@@ -103,14 +115,22 @@ export class FederatedSearchService implements OnModuleDestroy {
       active.map(async ({ name, adapter }) => {
         const sourceStart = Date.now();
         try {
-          const result = await withTimeout(
-            adapter!.search(query, {
-              ...context,
-              page: singleSource ? page : 1,
-              pageSize: singleSource ? pageSize : fetchLimit,
-              sourceSystems: [name],
-            }),
-            this.timeoutMs,
+          const effectivePageSize = singleSource ? pageSize : fetchLimit;
+          const result = await searchObservability.measure(
+            name === 'JURISPRUDENCIA'
+              ? 'source.jurisprudencia.search'
+              : 'source.corpus.search',
+            () =>
+              withTimeout(
+                adapter!.search(query, {
+                  ...context,
+                  page: singleSource ? page : 1,
+                  pageSize: effectivePageSize,
+                  sourceSystems: [name],
+                }),
+                this.timeoutMs,
+              ),
+            { source: name, pageSize: effectivePageSize },
           );
           return {
             name,

@@ -8,6 +8,7 @@ import type {
   SearchSourceAdapter,
 } from '../adapters/search-source.adapter';
 import type { SearchQueryAst } from '../utils/search-ast';
+import { searchObservability } from '../search-observability';
 import { buildSearchQueryDsl } from './search-dsl';
 import {
   SEARCH_INDEX_SCHEMA_VERSION,
@@ -293,7 +294,11 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
     });
     const dslBuildMs = performance.now() - dslStarted;
     const engineStarted = performance.now();
-    const body = await this.searchPage(searchQuery, from, pageSize, context);
+    const body = await searchObservability.measure(
+      'opensearch.search',
+      () => this.searchPage(searchQuery, from, pageSize, context),
+      { source: this.source, pageSize },
+    );
     const clientWallMs = performance.now() - engineStarted;
     const total = body.hits?.total?.value;
     if (!Number.isSafeInteger(total) || body.hits?.total?.relation !== 'eq') {
@@ -308,8 +313,16 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
     );
     const pageIdExtractionMs = performance.now() - pageIdExtractionStarted;
     const hydrationStarted = performance.now();
+    const privateWorkspaceSearch =
+      this.source === 'CORPUS' &&
+      (context.documentScope?.kind === 'WORKSPACE' ||
+        context.documentScope?.kind === 'PERSONAL');
     const hydrated = ids.length
-      ? await this.hydrateCandidateIds(query, context, ids)
+      ? await searchObservability.measure(
+          privateWorkspaceSearch ? 'workspace.acl' : 'postgres.hydrate',
+          () => this.hydrateCandidateIds(query, context, ids),
+          { source: this.source, pageSize: ids.length },
+        )
       : { total: 0, page: 1, pageSize, results: [] };
     const postgresHydrationMs = performance.now() - hydrationStarted;
     const reorderStarted = performance.now();
@@ -452,17 +465,24 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
       while (true) {
         if (searchQueryCount >= MAX_PRIVATE_PIT_REQUESTS)
           throw new Error('SEARCH_PRIVATE_SCAN_LIMIT_EXCEEDED');
-        const response = await this.client.search({
-          body: {
-            size: batchSize,
-            track_total_hits: rawTotal === null,
-            pit: { id: pitId, keep_alive: '1m' },
-            _source: false,
-            query: searchQuery,
-            sort,
-            ...(searchAfter ? { search_after: searchAfter } : {}),
-          },
-        });
+        const activePitId = pitId;
+        if (!activePitId) throw new Error('SEARCH_PRIVATE_PIT_CREATE_FAILED');
+        const response = await searchObservability.measure(
+          'opensearch.search',
+          () =>
+            this.client.search({
+              body: {
+                size: batchSize,
+                track_total_hits: rawTotal === null,
+                pit: { id: activePitId, keep_alive: '1m' },
+                _source: false,
+                query: searchQuery,
+                sort,
+                ...(searchAfter ? { search_after: searchAfter } : {}),
+              },
+            }),
+          { source: this.source, pageSize: batchSize },
+        );
         searchQueryCount += 1;
         const body = unwrapSearchResponse(response);
         pitId = body.pit_id ?? pitId;
@@ -553,7 +573,11 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
           throw new Error('SEARCH_PRIVATE_CANDIDATE_SCAN_INCOMPLETE');
 
         const authorizationStarted = performance.now();
-        const hydrated = await this.hydrateCandidateIds(query, context, ids);
+        const hydrated = await searchObservability.measure(
+          'workspace.acl',
+          () => this.hydrateCandidateIds(query, context, ids),
+          { source: this.source, pageSize: ids.length },
+        );
         authorizationMs += performance.now() - authorizationStarted;
         authorizationBatchCount += 1;
         const hydratedById = new Map(

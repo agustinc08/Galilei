@@ -16,6 +16,7 @@ import {
 import path from 'node:path';
 import { BusquedaService } from '../busqueda/busqueda.service';
 import type { SearchResultPage } from '../busqueda/adapters/search-source.adapter';
+import { searchObservability } from '../busqueda/search-observability';
 import { OpenSearchRuntimeService } from '../busqueda/opensearch/opensearch-runtime.service';
 import {
   SEARCH_INDEX_SCHEMA_VERSION,
@@ -2002,19 +2003,24 @@ export class WorkspaceDocumentService {
           'La búsqueda no está disponible temporalmente.',
         );
       try {
-        return await this.searchWorkspaceNamesOpenSearch({
-          workspaceId,
-          userId: user.id,
-          term,
-          folderId,
-          sourceId,
-          sourceFolder: normalizedSourceFolder,
-          types,
-          dateRange,
-          page: safePage,
-          pageSize: safePageSize,
-          from,
-        });
+        return await searchObservability.measure(
+          'workspace.acl',
+          () =>
+            this.searchWorkspaceNamesOpenSearch({
+              workspaceId,
+              userId: user.id,
+              term,
+              folderId,
+              sourceId,
+              sourceFolder: normalizedSourceFolder,
+              types,
+              dateRange,
+              page: safePage,
+              pageSize: safePageSize,
+              from,
+            }),
+          { source: 'CORPUS', pageSize: safePageSize },
+        );
       } catch {
         throw new ServiceUnavailableException(
           'La búsqueda no está disponible temporalmente.',
@@ -2086,20 +2092,25 @@ export class WorkspaceDocumentService {
     from: Prisma.Sql;
   }) {
     const query = buildWorkspaceNameSearchDsl(input);
-    const response = await this.searchRuntime!.client.search({
-      index: this.searchRuntime!.config.alias,
-      body: {
-        from: (input.page - 1) * input.pageSize,
-        size: input.pageSize,
-        track_total_hits: true,
-        _source: false,
-        query,
-        sort: [
-          { workspaceLinkedAt: { order: 'desc', missing: '_last' } },
-          { _id: { order: 'asc' } },
-        ],
-      },
-    });
+    const response = await searchObservability.measure(
+      'opensearch.search',
+      () =>
+        this.searchRuntime!.client.search({
+          index: this.searchRuntime!.config.alias,
+          body: {
+            from: (input.page - 1) * input.pageSize,
+            size: input.pageSize,
+            track_total_hits: true,
+            _source: false,
+            query,
+            sort: [
+              { workspaceLinkedAt: { order: 'desc', missing: '_last' } },
+              { _id: { order: 'asc' } },
+            ],
+          },
+        }),
+      { source: 'CORPUS', pageSize: input.pageSize },
+    );
     const body =
       (
         response as unknown as {
@@ -2120,18 +2131,21 @@ export class WorkspaceDocumentService {
     const hits = body.hits?.hits ?? [];
     const ids = hits.map((hit) => hit._id);
     const links = ids.length
-      ? await this.prisma.$queryRaw<
-          Array<{
-            documentId: string;
-            title: string;
-            status: string;
-            filename: string | null;
-            mimeType: string | null;
-            uploadedAt: Date;
-            folderId: string | null;
-            folderName: string | null;
-          }>
-        >(Prisma.sql`
+      ? await searchObservability.measure(
+          'postgres.hydrate',
+          () =>
+            this.prisma.$queryRaw<
+              Array<{
+                documentId: string;
+                title: string;
+                status: string;
+                filename: string | null;
+                mimeType: string | null;
+                uploadedAt: Date;
+                folderId: string | null;
+                folderName: string | null;
+              }>
+            >(Prisma.sql`
           SELECT workspaceDocument."documentId" AS "documentId",
                  document."title" AS "title",
                  document."status" AS "status",
@@ -2143,7 +2157,9 @@ export class WorkspaceDocumentService {
             ${input.from}
            AND document."id" IN (${Prisma.join(ids)})
            ORDER BY array_position(ARRAY[${Prisma.join(ids)}]::text[], document."id")
-        `)
+        `),
+          { source: 'CORPUS', pageSize: ids.length },
+        )
       : [];
     if (links.length !== ids.length)
       throw new Error('WORKSPACE_NAME_SEARCH_HYDRATION_STALE');
