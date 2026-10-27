@@ -23,8 +23,10 @@ try {
   // The package-local configuration remains the only option outside a Git checkout.
 }
 const defaultEnvFile = path.resolve(__dirname, '..', '.env.development.local');
-const allowIsolatedQa =
-  process.env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true';
+const allowDeepQa = process.env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true';
+const allowSuite7Qa =
+  process.env.BJC_SPRINT7_ALLOW_ISOLATED_DATABASE === 'true';
+const allowIsolatedQa = allowDeepQa || allowSuite7Qa;
 const historicalEnvFile = path.join(
   canonicalRepositoryRoot,
   'JurisprudenciaN',
@@ -37,11 +39,18 @@ const comparisonQaEnvFile = path.join(
   'galilei-judgment-comparison-suite5',
   'qa.env',
 );
+const suite7QaEnvFile = path.join(
+  canonicalRepositoryRoot,
+  '_recovery-work',
+  'galilei-institutional-ingestion-suite7',
+  'qa.env',
+);
 const configuredEnvFile = process.env.BJC_DEV_DB_GUARD_ENV_FILE;
 const permittedEnvFiles = [
   defaultEnvFile,
   historicalEnvFile,
-  ...(allowIsolatedQa ? [comparisonQaEnvFile] : []),
+  ...(allowDeepQa ? [comparisonQaEnvFile] : []),
+  ...(allowSuite7Qa ? [suite7QaEnvFile] : []),
 ].map((value) => path.resolve(value).toLowerCase());
 const envFile = configuredEnvFile
   ? path.resolve(configuredEnvFile)
@@ -58,7 +67,9 @@ if (
   process.exit(2);
 }
 if (!fs.existsSync(envFile)) {
-  console.error('DEV_DB_GUARD=ABORT; permitted local database configuration is missing.');
+  console.error(
+    'DEV_DB_GUARD=ABORT; permitted local database configuration is missing.',
+  );
   process.exit(2);
 }
 
@@ -72,6 +83,7 @@ if (!match) {
 const rawUrl = match[1].replace(/^(["'])(.*)\1$/, '$2');
 const validation = validateDevelopmentDatabaseUrl(rawUrl, {
   allowIsolatedQa,
+  allowSuite7Qa,
   deploymentEnvironment: allowIsolatedQa
     ? process.env.BJC_DEPLOYMENT_ENV
     : process.env.BJC_DEPLOYMENT_ENV || process.env.NODE_ENV || 'development',
@@ -80,7 +92,9 @@ const validation = validateDevelopmentDatabaseUrl(rawUrl, {
 if (!validation.valid) {
   console.error(
     allowIsolatedQa
-      ? 'DEEP_QA_DB_GUARD=ABORT; expected development bjc_dev@127.0.0.1:55434/buscador_juridico_civil_deepqa.'
+      ? allowSuite7Qa
+        ? 'SPRINT7_QA_DB_GUARD=ABORT; expected development bjc_dev@127.0.0.1:55434/buscador_juridico_civil_deepqa.'
+        : 'DEEP_QA_DB_GUARD=ABORT; expected development bjc_dev@127.0.0.1:55434/buscador_juridico_civil_deepqa.'
       : 'DEV_DB_GUARD=ABORT; expected bjc_dev@127.0.0.1:55432/buscador_juridico_civil_dev.',
   );
   process.exit(2);
@@ -519,6 +533,18 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/reconcile-institutional-associations.ts',
   'search-smoke':
     'pnpm.cmd exec ts-node scripts/dev/smoke-search-regression.ts',
+  'sprint7-institutional-e2e':
+    'node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --testPathPatterns=corpus/institutional-ingestion.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SUITE7',
+  'sprint7-migration-incremental':
+    'node scripts/dev/sprint7-migration-incremental.cjs',
+  'sprint7-opensearch-qa-bootstrap':
+    'node scripts/dev/sprint7-opensearch-qa-bootstrap.cjs',
+  'sprint7-opensearch-qa-reconcile':
+    'node scripts/dev/sprint7-opensearch-qa-reconcile.cjs',
+  'sprint7-cleanup-synthetic-qa':
+    'node scripts/dev/sprint7-cleanup-synthetic-qa.cjs',
+  'sprint7-real-services-smoke':
+    'node scripts/dev/sprint7-real-services-smoke.cjs',
   build: 'pnpm.cmd build',
   serve: 'pnpm.cmd exec node dist/src/main.js',
 };
@@ -558,6 +584,7 @@ if (
 
 const childEnv = {
   ...process.env,
+  BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE: allowIsolatedQa ? 'true' : '',
   OPENSEARCH_CANDIDATE_INDEX:
     action === 'opensearch-http-smoke'
       ? (process.argv[3] ?? '')
@@ -630,10 +657,7 @@ const childEnv = {
     : action.startsWith('sprint1491-search-')
       ? path.resolve(__dirname, '../../_recovery-work/sprint1491')
       : action.startsWith('sprint121-search-')
-        ? path.resolve(
-            __dirname,
-            '../../_recovery-work/sprint121/performance',
-          )
+        ? path.resolve(__dirname, '../../_recovery-work/sprint121/performance')
         : action.startsWith('sprint122-search-')
           ? path.resolve(
               __dirname,
@@ -783,11 +807,19 @@ const childEnv = {
     action === 'sprint148-ingest'
       ? path.resolve(__dirname, '../../_dev-corpus-storage')
       : action === 'sprint151-ui-tests'
-        ? path.resolve(
-            __dirname,
-            '../../_dev-corpus-storage-test/sprint151-ui',
-          )
-        : process.env.BJC_CORPUS_STORAGE_PATH,
+        ? path.resolve(__dirname, '../../_dev-corpus-storage-test/sprint151-ui')
+      : action === 'sprint7-institutional-e2e' ||
+          action === 'sprint7-cleanup-synthetic-qa' ||
+            action === 'sprint7-real-services-smoke'
+          ? path.resolve(
+              __dirname,
+              '../../_recovery-work/galilei-institutional-ingestion-suite7/runtime/corpus',
+            )
+          : process.env.BJC_CORPUS_STORAGE_PATH,
+  SPRINT7_INSTITUTIONAL_POSTGRES_TEST:
+    action === 'sprint7-institutional-e2e' ? '1' : '',
+  SPRINT7_QA_FIXTURE_CLEANUP:
+    action === 'sprint7-cleanup-synthetic-qa' ? 'true' : '',
   BJC_INSTITUTIONAL_ARGS: action.startsWith('institutional-')
     ? JSON.stringify(process.argv.slice(3))
     : '',
@@ -807,7 +839,10 @@ const childEnv = {
       : '',
   BJC_SPRINT3_EVIDENCE_ROOT:
     action === 'sprint3-readonly-sample'
-      ? path.resolve(__dirname, '../../_recovery-work/galilei-structured-citations-suite3')
+      ? path.resolve(
+          __dirname,
+          '../../_recovery-work/galilei-structured-citations-suite3',
+        )
       : '',
   BJC_EDITORIAL_GOLD_ARGS:
     action === 'editorial-gold-sample'
@@ -815,21 +850,29 @@ const childEnv = {
       : '',
   BJC_EDITORIAL_GOLD_EVIDENCE_ROOT:
     action === 'editorial-gold-sample'
-      ? path.resolve(__dirname, '../../_recovery-work/galilei-editorial-gold-recall-suite4')
+      ? path.resolve(
+          __dirname,
+          '../../_recovery-work/galilei-editorial-gold-recall-suite4',
+        )
       : '',
   BJC_SPRINT3_QA_SEED: action === 'sprint3-qa-seed' ? 'true' : '',
   BJC_SPRINT3_QA_EVIDENCE_ROOT:
     action === 'sprint3-qa-seed'
-      ? path.resolve(__dirname, '../../_recovery-work/galilei-editorial-gold-recall-suite4/p3-qa')
+      ? path.resolve(
+          __dirname,
+          '../../_recovery-work/galilei-editorial-gold-recall-suite4/p3-qa',
+        )
       : '',
 };
 if (action === 'sprint151-ui-tests') {
   fs.mkdirSync(childEnv.BJC_CORPUS_STORAGE_PATH, { recursive: true });
 }
 console.log(
-  allowIsolatedQa
-    ? 'DEEP_QA_DB_GUARD=PASS; host=127.0.0.1; port=55434; database=buscador_juridico_civil_deepqa; role=bjc_dev'
-    : 'DEV_DB_GUARD=PASS; host=127.0.0.1; port=55432; database=buscador_juridico_civil_dev; role=bjc_dev',
+  allowSuite7Qa
+    ? 'SPRINT7_QA_DB_GUARD=PASS; host=127.0.0.1; port=55434; database=buscador_juridico_civil_deepqa; role=bjc_dev'
+    : allowIsolatedQa
+      ? 'DEEP_QA_DB_GUARD=PASS; host=127.0.0.1; port=55434; database=buscador_juridico_civil_deepqa; role=bjc_dev'
+      : 'DEV_DB_GUARD=PASS; host=127.0.0.1; port=55432; database=buscador_juridico_civil_dev; role=bjc_dev',
 );
 
 const child = spawn(

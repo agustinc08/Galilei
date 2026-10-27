@@ -2,6 +2,7 @@
 
 function validateDevelopmentDatabaseUrl(rawUrl, options = {}) {
   const allowIsolatedQa = options.allowIsolatedQa === true;
+  const allowSuite7Qa = options.allowSuite7Qa === true;
   const deploymentEnvironment =
     options.deploymentEnvironment ?? (allowIsolatedQa ? '' : 'development');
   let target;
@@ -9,7 +10,10 @@ function validateDevelopmentDatabaseUrl(rawUrl, options = {}) {
   try {
     target = new URL(rawUrl);
   } catch {
-    return { valid: false, target: allowIsolatedQa ? 'deep-qa' : 'dev' };
+    return {
+      valid: false,
+      target: allowSuite7Qa ? 'suite7-qa' : allowIsolatedQa ? 'deep-qa' : 'dev',
+    };
   }
 
   const common =
@@ -27,6 +31,12 @@ function validateDevelopmentDatabaseUrl(rawUrl, options = {}) {
     common &&
     target.port === '55434' &&
     target.pathname === '/buscador_juridico_civil_deepqa';
+  const validSuite7Qa =
+    allowSuite7Qa &&
+    deploymentEnvironment === 'development' &&
+    common &&
+    target.port === '55434' &&
+    target.pathname === '/buscador_juridico_civil_deepqa';
   const validDev =
     !allowIsolatedQa &&
     common &&
@@ -34,8 +44,8 @@ function validateDevelopmentDatabaseUrl(rawUrl, options = {}) {
     target.pathname === '/buscador_juridico_civil_dev';
 
   return {
-    valid: validQa || validDev,
-    target: allowIsolatedQa ? 'deep-qa' : 'dev',
+    valid: validQa || validSuite7Qa || validDev,
+    target: allowSuite7Qa ? 'suite7-qa' : allowIsolatedQa ? 'deep-qa' : 'dev',
   };
 }
 

@@ -38,6 +38,8 @@ model Usuario {
   accionesLog                AccionLog[]
   workspaceMemberships       WorkspaceMembership[]
   documentSourcesCreated     DocumentSource[]                 @relation("DocumentSourceCreator")
+  institutionalIngestionsCreated InstitutionalIngestion[]      @relation("InstitutionalIngestionCreator")
+  institutionalIngestionEvents InstitutionalIngestionEvent[]   @relation("InstitutionalIngestionEventActor")
   workspaceFoldersCreated    WorkspaceFolder[]                @relation("WorkspaceFolderCreator")
   workspaceDocumentsUploaded WorkspaceDocument[]              @relation("WorkspaceDocumentUploader")
   personalWorkspaceDocuments WorkspaceDocument[]              @relation("WorkspaceDocumentOwner")
@@ -103,6 +105,7 @@ model Sentencia {
   tienePdf                                 Boolean                          @default(false)
   sumarios                                 Sumario[]
   archivosPdf                              ArchivoPdf[]
+  institutionalIngestions                 InstitutionalIngestion[]         @relation("InstitutionalIngestionLinkedSentencia")
   citasFallo                               CitaFallo[]
   referenciasNormativas                    ReferenciaNormativa[]
   referenciasJurisprudenciales             ReferenciaJurisprudencial[]      @relation("SentenciaReferenciaJurisprudencialOrigen")
@@ -632,6 +635,7 @@ model CorpusDocument {
   workspaceDocuments  WorkspaceDocument[]
   sourceFiles         SourceFile[]
   importRunItems      CorpusImportRunItem[]
+  institutionalIngestions InstitutionalIngestion[]
   latestExtraction    CorpusExtraction?              @relation("LatestCorpusExtraction", fields: [latestExtractionId], references: [id], onDelete: SetNull)
   createdAt           DateTime                       @default(now())
   updatedAt           DateTime                       @updatedAt
@@ -1047,6 +1051,7 @@ model CorpusDocumentFile {
   extractions      CorpusExtraction[]
   ocrJobs          CorpusOcrJob[]
   ingestions       CorpusIngestionRecord[]
+  institutionalIngestions InstitutionalIngestion[]
   createdAt        DateTime                @default(now())
 
   @@unique([documentId, sha256])
@@ -1084,6 +1089,59 @@ model CorpusIngestionRecord {
   @@index([documentId, ingestedAt])
   @@index([status, ingestedAt])
   @@index([checksum])
+}
+
+// Workflow ledger for human-authorized institutional PDF intake. The PDF bytes,
+// canonical document, and extraction remain owned by the existing Corpus models.
+model InstitutionalIngestion {
+  id                  String   @id @default(cuid())
+  createdById         Int
+  status              String   @default("UPLOADED")
+  originalFilename    String
+  mimeType            String
+  sizeBytes           BigInt
+  sha256              String
+  duplicateDetected   Boolean  @default(false)
+  extractionStatus    String?
+  matchClassification String?
+  candidateIds        Json?
+  idempotencyKey      String   @unique
+  documentId          String?
+  fileId              String?
+  corpusIngestionId   String?
+  linkedSentenciaId   Int?
+  confirmedMetadata   Json?
+  failureCode         String?
+  failureMessageSafe  String?
+  completedAt         DateTime?
+  createdBy           Usuario  @relation("InstitutionalIngestionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  document            CorpusDocument? @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  file                CorpusDocumentFile? @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  linkedSentencia     Sentencia? @relation("InstitutionalIngestionLinkedSentencia", fields: [linkedSentenciaId], references: [id], onDelete: SetNull)
+  events              InstitutionalIngestionEvent[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([status, createdAt, id])
+  @@index([createdById, status, createdAt])
+  @@index([sha256])
+  @@index([linkedSentenciaId])
+}
+
+model InstitutionalIngestionEvent {
+  id          String @id @default(cuid())
+  ingestionId String
+  actorId     Int
+  action      String
+  fromStatus  String?
+  toStatus    String?
+  safeOutcome Json?
+  createdAt   DateTime @default(now())
+  ingestion   InstitutionalIngestion @relation(fields: [ingestionId], references: [id], onDelete: Cascade)
+  actor       Usuario @relation("InstitutionalIngestionEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([ingestionId, createdAt, id])
+  @@index([actorId, createdAt])
 }
 
 model CorpusExtraction {

@@ -15,9 +15,12 @@ import { DocumentSourceService } from './document-source.service';
 import { DocumentSourceScanner } from './document-source-scanner';
 import { LocalPdfOcrProcessor } from './document-local-processors';
 import { CorpusOcrWorkerService } from './corpus-ocr-worker.service';
+import { InstitutionalIngestionController } from './institutional-ingestion.controller';
+import { InstitutionalIngestionService } from './institutional-ingestion.service';
+import { LogsModule } from '../logs/logs.module';
 
 @Module({
-  imports: [BusquedaModule],
+  imports: [BusquedaModule, LogsModule],
   controllers: [
     CorpusDocumentController,
     PublicCorpusDocumentController,
@@ -25,6 +28,7 @@ import { CorpusOcrWorkerService } from './corpus-ocr-worker.service';
     WorkspaceDocumentController,
     PersonalDocumentController,
     DocumentSourceController,
+    InstitutionalIngestionController,
   ],
   providers: [
     CorpusDocumentAccessService,
@@ -33,6 +37,7 @@ import { CorpusOcrWorkerService } from './corpus-ocr-worker.service';
     DocumentSourceService,
     DocumentSourceScanner,
     CorpusOcrWorkerService,
+    InstitutionalIngestionService,
     {
       provide: LocalPdfOcrProcessor,
       useFactory: () => new LocalPdfOcrProcessor(),

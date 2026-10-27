@@ -75,6 +75,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </div>
           ) : null}
           {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user?.rol.nombre ?? '') ? (
+            <Link href="/jurisprudencia/ingreso">Ingreso de jurisprudencia</Link>
+          ) : null}
+          {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user?.rol.nombre ?? '') ? (
             <Link href="/citas-pendientes">Revisión editorial de citas</Link>
           ) : null}
           <Button variant="secondary" onClick={logout}>

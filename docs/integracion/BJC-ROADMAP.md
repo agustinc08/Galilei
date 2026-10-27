@@ -657,3 +657,11 @@ Siguiente: completar proyección y paridad, probar Golden ASC/DESC, Search y ACL
 
 Sprint paralelo desde UAT congelado `e06139e3075ef20a90d586973a7d301515ee5a67` en `feature/research-continuity-1`. Implementa continuidad de investigación pública: enlace canónico, favorito, cita autoritativa + enlace Galilei, explicación española desde el parser, ayuda y consulta guardada privada por usuario usando el modelo/API actual. No requiere migración ni escritura en servicios principales. Typecheck/lint/tests/build pasaron; Playwright aislado 3/3. Las cifras históricas de Search no se reejecutaron porque el API local no escuchaba en `127.0.0.1:4000`; no se ejecutó el golden de integración que escribe fixtures. No se alteró el camino de Search, ranking, conteos, orden, filtros ni Search index. Resultado `PASS_WITH_FINDINGS`, sólo la rama feature se publica. Evidencia: `docs/features/research-continuity.md`.
 
+## Sprint 7 — ingreso institucional (2026-10-26)
+
+**Implementación local candidata; CI exacto pendiente del push de la rama feature.** Se construyó el flujo de carga institucional desde la base certificada de Suite 6. El usuario puede validar un PDF, revisar extracción y metadatos, resolver coincidencias deterministas y confirmar un vínculo o crear un borrador no publicado. No se admite publicación automática ni matching difuso automático. La migración aditiva sube Suite 6 de 37 a 38 migraciones.
+
+QA de servicios reales aislados terminó con 10/10 pruebas PostgreSQL, 26/26 checks del smoke Nest/Vite/Edge, Search 10/10 con paridad de ID/source, fixture QA eliminado y cero outbox pendiente/fallido. `pnpm test` 597/597 PASS y 10 SKIP existentes; Playwright de continuidad 22/22 PASS; `pnpm lint`, `pnpm typecheck`, `pnpm build` y `pnpm audit --prod` PASS. El aviso de chunk PDF.js >500 kB se conserva. Se reporta el estado como candidato hasta confirmar CI para el SHA exacto publicado; no se promueve a `dev` ni `main`.
+
+**Única próxima dirección de producto recomendada:** una bandeja institucional de revisión asistida de OCR que permita recibir el resultado externo/local de OCR con provenance, vista de página, comparación contra el PDF y aceptación humana explícita, sin clasificar ni publicar automáticamente.
+

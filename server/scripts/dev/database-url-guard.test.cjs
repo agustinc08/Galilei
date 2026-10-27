@@ -4,14 +4,22 @@ const assert = require('node:assert/strict');
 const { validateDevelopmentDatabaseUrl } = require('./database-url-guard.cjs');
 
 const dev =
-  'postgresql://bjc_dev:test@127.0.0.1:55432/buscador_juridico_civil_dev';
+  'postgresql://bjc_dev:test-only-placeholder@127.0.0.1:55432/buscador_juridico_civil_dev';
 const qa =
-  'postgresql://bjc_dev:test@127.0.0.1:55434/buscador_juridico_civil_deepqa';
+  'postgresql://bjc_dev:test-only-placeholder@127.0.0.1:55434/buscador_juridico_civil_deepqa';
 const allowQa = { allowIsolatedQa: true, deploymentEnvironment: 'development' };
 
 assert.equal(validateDevelopmentDatabaseUrl(dev).valid, true);
 assert.equal(validateDevelopmentDatabaseUrl(qa).valid, false);
 assert.equal(validateDevelopmentDatabaseUrl(qa, allowQa).valid, true);
+assert.equal(
+  validateDevelopmentDatabaseUrl(qa, {
+    allowIsolatedQa: true,
+    allowSuite7Qa: true,
+    deploymentEnvironment: 'development',
+  }).target,
+  'suite7-qa',
+);
 assert.equal(
   validateDevelopmentDatabaseUrl(qa, { allowIsolatedQa: true }).valid,
   false,
@@ -41,4 +49,4 @@ assert.equal(
   false,
 );
 
-process.stdout.write('database URL guard: 9 assertions passed\n');
+process.stdout.write('database URL guard: 10 assertions passed\n');
