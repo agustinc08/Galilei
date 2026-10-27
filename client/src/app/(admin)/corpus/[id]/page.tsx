@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from "@/lib/router-compat";
 import { useParams, useSearchParams } from '@/lib/router-compat';
 import { CorpusPdfViewer } from './CorpusPdfViewer';
@@ -162,18 +162,21 @@ export default function CorpusDocumentPage() {
   }, [params.id, setError]);
 
   useEffect(() => {
+    if (!document || !Number.isSafeInteger(pageCount) || pageCount < 1) return;
+    const requestedPage = clampPdfPage(page, pageCount);
+    if (requestedPage !== page) return;
     let active = true;
     void api.get<DocumentInfo>(`/corpus/documents/${params.id}`, {
-      query: { pageNumber: page },
+      query: { pageNumber: requestedPage },
     }).then((info) => {
-      if (active && info.selectedPage?.pageNumber === page) {
+      if (active && info.selectedPage?.pageNumber === requestedPage) {
         setSourcePageState({ key: sourcePageKey, text: info.selectedPage.text });
       }
     }).catch(() => {
       // The PDF viewer keeps its context-only fail-closed fallback when page text is unavailable.
     });
     return () => { active = false; };
-  }, [page, params.id, sourcePageKey]);
+  }, [document, page, pageCount, params.id, sourcePageKey]);
 
   useEffect(() => {
     let active = true;
@@ -299,7 +302,9 @@ export default function CorpusDocumentPage() {
           {matches?.matches[activeMatch]?.textKind === 'OCR' && (
             <p role="status">Texto OCR reconocido para esta página. La navegación y el contexto están disponibles; no se dibujan resaltados visuales de OCR.</p>
           )}
-          {pdfUrl ? <CorpusPdfViewer file={pdfUrl} page={page} sourceText={sourcePageText} matches={matches?.matches ?? []} activeMatch={activeMatch} onLoadSuccess={handlePdfLoadSuccess} structurePath={`/corpus/documents/${params.id}/structure`} onGoToPage={setPage} /> : documentLoading ? <Card><p role="status">Cargando PDF…</p></Card> : <Card><p role="status">{documentUnavailable ? 'Documento no disponible.' : 'No se pudo abrir el PDF.'}</p></Card>}
+          {pdfUrl ? <Suspense fallback={<Card><p role="status" aria-label="Preparando visor PDF">Preparando visor PDF…</p></Card>}>
+            <CorpusPdfViewer file={pdfUrl} page={page} sourceText={sourcePageText} matches={matches?.matches ?? []} activeMatch={activeMatch} onLoadSuccess={handlePdfLoadSuccess} structurePath={`/corpus/documents/${params.id}/structure`} onGoToPage={setPage} />
+          </Suspense> : documentLoading ? <Card><p role="status">Cargando PDF…</p></Card> : <Card><p role="status">{documentUnavailable ? 'Documento no disponible.' : 'No se pudo abrir el PDF.'}</p></Card>}
         </section>
         <aside className={styles.sidePanel}>
           <Card>

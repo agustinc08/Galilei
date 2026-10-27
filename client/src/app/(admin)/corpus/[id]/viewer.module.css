@@ -8,6 +8,8 @@
 .pdfPanel { min-width: 0; height: min(72vh, 820px); min-height: min(440px, 60vh); background: #e5eaf0; border-radius: .65rem; overflow: hidden; }
 .pdfPanel iframe { width: 100%; height: 100%; border: 0; background: #fff; }
 .pdfDocument { width: 100%; height: 100%; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: .75rem; }
+.viewerStatus { margin: 0 auto .5rem; max-width: 72rem; color: #166534; font-size: .82rem; }
+.viewerError { margin: .5rem auto; max-width: 72rem; padding: .55rem .7rem; border: 1px solid #fca5a5; border-radius: .4rem; background: #fef2f2; color: #991b1b; font-size: .85rem; }
 .structurePanel { margin: 0 auto .75rem; max-width: 72rem; padding: .55rem .7rem; border: 1px solid #cbd5e1; border-radius: .45rem; background: #fff; color: #334155; }
 .structurePanel summary { cursor: pointer; font-weight: 700; }
 .structurePanel nav { display: grid; gap: .3rem; max-height: 10rem; overflow: auto; margin-top: .5rem; }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from '@/components/sentencias/sentencias.module.css';
 import { BusquedaJurisprudenciaForm } from '@/components/busqueda/BusquedaJurisprudenciaForm';
 import { ResultadosJurisprudencia } from '@/components/busqueda/ResultadosJurisprudencia';
@@ -63,14 +63,51 @@ const defaultFilters: BusquedaAvanzadaFilters = {
   pageSize: 10,
 };
 
+const SEARCH_HISTORY_STATE_KEY = '__bjcAdvancedSearchFilters';
+
+function readSearchHistoryState(): BusquedaAvanzadaFilters | null {
+  if (typeof window === 'undefined') return null;
+  const state = window.history.state;
+  if (!state || typeof state !== 'object') return null;
+  const stored = (state as Record<string, unknown>)[SEARCH_HISTORY_STATE_KEY];
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return null;
+  const value = stored as Partial<BusquedaAvanzadaFilters>;
+  const page = Number(value.page);
+  const pageSize = Number(value.pageSize);
+  return {
+    ...defaultFilters,
+    ...value,
+    page: Number.isSafeInteger(page) && page > 0 ? page : defaultFilters.page,
+    pageSize: Number.isSafeInteger(pageSize) && pageSize > 0 ? pageSize : defaultFilters.pageSize,
+  };
+}
+
+function saveSearchHistoryState(filters: BusquedaAvanzadaFilters) {
+  const currentState = window.history.state;
+  const state = currentState && typeof currentState === 'object'
+    ? { ...currentState }
+    : {};
+  state[SEARCH_HISTORY_STATE_KEY] = filters;
+  window.history.replaceState(state, '', window.location.href);
+}
+
+function clearSearchHistoryState() {
+  const currentState = window.history.state;
+  if (!currentState || typeof currentState !== 'object') return;
+  const state = { ...currentState };
+  delete state[SEARCH_HISTORY_STATE_KEY];
+  window.history.replaceState(state, '', window.location.href);
+}
+
 export default function BusquedaAvanzadaPage() {
   const { user } = useAuth();
+  const [restoredFilters] = useState(() => readSearchHistoryState());
   const {
     salas: catalogoSalas,
     tiposFallo: catalogoTiposFallo,
     tribunalesOrigen: catalogoTribunalesOrigen,
   } = useCatalogos();
-  const [filters, setFilters] = useState<BusquedaAvanzadaFilters>(defaultFilters);
+  const [filters, setFilters] = useState<BusquedaAvanzadaFilters>(restoredFilters ?? defaultFilters);
   const [result, setResult] = useState<AdvancedResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +115,7 @@ export default function BusquedaAvanzadaPage() {
   const [collections, setCollections] = useState<CollectionOption[]>([]);
   const [topics, setTopics] = useState<TaxonomyOption[]>([]);
   const [tags, setTags] = useState<TaxonomyOption[]>([]);
+  const restoreSearchOnMount = useRef(Boolean(restoredFilters?.q?.trim()));
   const canAdministerSearch = ['ADMIN', 'OPERADOR'].includes(user?.rol.nombre ?? '');
   useEffect(() => {
     void api.get<CollectionOption[]>('/corpus/curation/digesto/collections').then(setCollections).catch(() => setCollections([]));
@@ -94,7 +132,8 @@ export default function BusquedaAvanzadaPage() {
     ? (corpusOnlySearch ? Math.max(1, Math.ceil(displayedTotal / displayedPageSize)) : (result?.meta.pageCount ?? 1))
     : (result?.meta.page ?? 1) + (displayedHasMore ? 1 : 0);
 
-  const load = async (nextFilters = filters) => {
+  const load = useCallback(async (nextFilters = filters) => {
+    saveSearchHistoryState(nextFilters);
     setIsLoading(true);
     setError(null);
     try {
@@ -107,7 +146,13 @@ export default function BusquedaAvanzadaPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    if (!restoreSearchOnMount.current) return;
+    restoreSearchOnMount.current = false;
+    void load(filters);
+  }, [filters, load]);
 
   const saveSearch = async () => {
     const nombre = window.prompt('Nombre para guardar esta búsqueda administrativa');
@@ -154,6 +199,7 @@ export default function BusquedaAvanzadaPage() {
           void load(next);
         }}
         onLimpiar={() => {
+          clearSearchHistoryState();
           setFilters(defaultFilters);
           setResult(null);
         }}

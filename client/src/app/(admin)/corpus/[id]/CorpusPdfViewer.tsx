@@ -52,8 +52,15 @@ export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, 
     file: string;
     count: number;
   } | null>(null);
+  const [renderState, setRenderState] = useState<{
+    key: string;
+    status: 'ready' | 'error';
+  } | null>(null);
   const pageCount = pageCountState?.file === file ? pageCountState.count : null;
   const renderedPage = pageCount ? clampPdfPage(page, pageCount) : 1;
+  const renderKey = `${file}:${renderedPage}`;
+  const pageReady = renderState?.key === renderKey && renderState.status === 'ready';
+  const pageError = renderState?.key === renderKey && renderState.status === 'error';
   const [structureState, setStructureState] = useState<{
     path: string;
     sections: Array<{ label: string; pageStart: number }>;
@@ -165,10 +172,17 @@ export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, 
       Encontramos la coincidencia en el texto del documento, pero no pudimos señalarla en la página. Podés continuar desde la lista de coincidencias.
       {(active.context || active.text) && <span> Contexto: {active.context || active.text}</span>}
     </p>}
-    <Document file={file} loading={<p>Cargando PDF…</p>} error={<p>No se pudo mostrar el PDF. Podés descargarlo y consultar la información del documento.</p>} onLoadSuccess={({ numPages }) => {
+    <Document file={file} loading={<p role="status" aria-label="Cargando PDF">Cargando PDF…</p>} error={<p role="alert">No se pudo mostrar el PDF. Podés descargarlo y consultar la información del documento.</p>} onLoadSuccess={({ numPages }) => {
+      setRenderState(null);
       setPageCountState({ file, count: numPages });
       onLoadSuccess(numPages);
     }}>
+      {pageReady ? <p className={styles.viewerStatus} role="status" aria-live="polite" aria-label={`Documento PDF cargado, página ${renderedPage}`} data-testid="pdf-viewer-ready">
+        Documento cargado · página {renderedPage}
+      </p> : null}
+      {pageError ? <p className={styles.viewerError} role="alert">
+        No se pudo dibujar esta página del PDF. Podés intentar otra página o descargar el documento.
+      </p> : null}
       <Page
         key={`${renderedPage}-${activeMatch}`}
         pageNumber={renderedPage}
@@ -177,6 +191,8 @@ export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, 
         renderAnnotationLayer
         customTextRenderer={renderText}
         onGetTextSuccess={handleTextSuccess}
+        onRenderSuccess={() => setRenderState({ key: renderKey, status: 'ready' })}
+        onRenderError={() => setRenderState({ key: renderKey, status: 'error' })}
       />
     </Document>
   </div>;
