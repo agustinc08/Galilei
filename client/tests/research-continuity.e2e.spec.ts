@@ -901,7 +901,9 @@ test('Corpus PDF deep links normalize before React-PDF requests an invalid page'
   for (const { suffix, expected } of cases) {
     await page.goto(`/corpus/77${suffix}`);
     await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe(expected);
-    await expect(page.getByLabel('Página')).toHaveValue(expected);
+    await expect(
+      page.getByRole('spinbutton', { name: 'Página' }),
+    ).toHaveValue(expected);
   }
 
   expect(errors).toEqual([]);

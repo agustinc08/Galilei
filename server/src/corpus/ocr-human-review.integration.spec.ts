@@ -1203,6 +1203,18 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
       expect(pageFifty.results[0]?.metadata.pageTextSha256).toMatch(
         /^[0-9a-f]{64}$/u,
       );
+      const unpublishedPublicSearch = await adapter.search(
+        parseSearchQuery('"doctrina sintetica de cierre"'),
+        {
+          visibility: 'PUBLIC',
+          dialect: 'modern',
+          publicationPolicy: 'published-active-only',
+          page: 1,
+          pageSize: 10,
+        },
+        [document.id],
+      );
+      expect(unpublishedPublicSearch.results).toHaveLength(0);
 
       const rawOcrText = `ocr oculto sin aprobar suite9 ${runId}`;
       const unapprovedDocument = await createSyntheticDocument(
@@ -1446,7 +1458,7 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
             candidateIds,
           ),
       );
-      const approvedPhrase = `suite9 approved page fifty ${runId}`;
+      const approvedPhrase = `suite9 approved page fifty ${runId} civ 987654/2026`;
       const queryApprovedPhrase = () =>
         indexedSearch.search(parseSearchQuery(`"${approvedPhrase}"`), {
           visibility: 'INTERNAL',

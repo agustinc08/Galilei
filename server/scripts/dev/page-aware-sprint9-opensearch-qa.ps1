@@ -45,16 +45,39 @@ function Get-QaRoot {
   catch { return $null }
 }
 
+function Test-QaProcessIdentity($process) {
+  return $process -and
+    $process.Name -eq 'java.exe' -and
+    $process.ExecutablePath -eq (Join-Path $distribution 'jdk\bin\java.exe') -and
+    $process.CommandLine -like "*$configPath*" -and
+    $process.CommandLine -like "*$distribution*"
+}
+
+function Get-QaRuntimeIdentity($process) {
+  if (-not (Test-QaProcessIdentity $process)) { return $null }
+  $listeners = @(Get-NetTCPConnection -LocalPort $httpPort,$transportPort -State Listen -ErrorAction SilentlyContinue)
+  if ($listeners.Count -ne 2 -or @($listeners | Where-Object OwningProcess -ne $process.ProcessId).Count -gt 0) { return $null }
+  $root = Get-QaRoot
+  if (-not $root -or $root.version.number -ne '2.19.6' -or $root.cluster_name -ne 'galilei-suite9-page-aware-qa') { return $null }
+  try {
+    $health = Invoke-RestMethod -Uri "http://127.0.0.1:$httpPort/_cluster/health" -TimeoutSec 5
+    $nodes = Invoke-RestMethod -Uri "http://127.0.0.1:$httpPort/_nodes?filter_path=nodes.*.name,nodes.*.settings.path.data,nodes.*.settings.path.logs" -TimeoutSec 5
+  } catch { return $null }
+  $qaNodes = @($nodes.nodes.PSObject.Properties | ForEach-Object { $_.Value })
+  if ($health.status -ne 'green' -or $qaNodes.Count -ne 1 -or $qaNodes[0].name -ne 'suite9-page-aware-qa') { return $null }
+  $nodeData = @($qaNodes[0].settings.path.data)
+  if ($nodeData.Count -ne 1 -or [IO.Path]::GetFullPath($nodeData[0]) -ne [IO.Path]::GetFullPath($dataPath)) { return $null }
+  return [pscustomobject]@{ root = $root; health = $health; process = $process }
+}
+
 if ($Action -eq 'status') {
   Assert-QaRuntimeOwnership
   $root = Get-QaRoot
   if (-not $root) { Write-Output 'SPRINT9_OPENSEARCH_QA=STOPPED'; exit 1 }
   $listener = Get-QaListener
-  if (-not $listener -or $listener.Name -ne 'java.exe' -or $listener.CommandLine -notlike "*$processMarker*") {
-    throw 'Refusing to report a listener not owned by the Suite 9 QA marker.'
-  }
-  $health = Invoke-RestMethod -Uri "http://127.0.0.1:$httpPort/_cluster/health" -TimeoutSec 5
-  [pscustomobject]@{ status = 'RUNNING'; version = $root.version.number; health = $health.status; pid = $listener.ProcessId; http = "127.0.0.1:$httpPort"; transport = "127.0.0.1:$transportPort" } | ConvertTo-Json -Compress
+  $identity = Get-QaRuntimeIdentity $listener
+  if (-not $identity) { throw 'Refusing to report a process without the exact Suite 9 QA config, ports, cluster, and data path.' }
+  [pscustomobject]@{ status = 'RUNNING'; version = $identity.root.version.number; health = $identity.health.status; pid = $identity.process.ProcessId; http = "127.0.0.1:$httpPort"; transport = "127.0.0.1:$transportPort" } | ConvertTo-Json -Compress
   exit 0
 }
 
@@ -64,21 +87,14 @@ if ($Action -eq 'stop') {
   if (-not (Test-Path -LiteralPath $pidPath)) {
     if (-not $listeners) { Write-Output 'SPRINT9_OPENSEARCH_QA=ALREADY_STOPPED'; exit 0 }
     $listener = Get-QaListener
-    if (-not $listener -or $listener.Name -ne 'java.exe' -or $listener.CommandLine -notlike "*$processMarker*") {
-      throw 'Refusing to stop an unowned listener without the Suite 9 QA PID file.'
-    }
-    if (@($listeners | Where-Object OwningProcess -ne $listener.ProcessId).Count -gt 0) {
-      throw 'Suite 9 QA ports include a listener not owned by the exact QA Java process.'
-    }
+    if (-not (Get-QaRuntimeIdentity $listener)) { throw 'Refusing to stop a process without the exact Suite 9 QA config, ports, cluster, and data path.' }
     $id = [int]$listener.ProcessId
   } else {
     $id = [int](Get-Content -Raw -LiteralPath $pidPath)
   }
   $process = Get-CimInstance Win32_Process -Filter "ProcessId = $id" -ErrorAction SilentlyContinue
   if ($process) {
-    if ($process.Name -ne 'java.exe' -or $process.CommandLine -notlike "*$processMarker*") {
-      throw 'Refusing to stop a process without the exact Suite 9 QA marker.'
-    }
+    if (-not (Get-QaRuntimeIdentity $process)) { throw 'Refusing to stop a process without the exact Suite 9 QA config, ports, cluster, and data path.' }
     Stop-Process -Id $id -Force
     $deadline = (Get-Date).AddSeconds(25)
     do {
@@ -98,13 +114,11 @@ $occupied = Get-NetTCPConnection -LocalPort $httpPort,$transportPort -State List
 if ($occupied) {
   $existing = Get-QaListener
   $root = Get-QaRoot
-  if ($existing -and $existing.Name -eq 'java.exe' -and $existing.CommandLine -like "*$processMarker*" -and $root -and $root.version.number -eq '2.19.6') {
-    $health = Invoke-RestMethod -Uri "http://127.0.0.1:$httpPort/_cluster/health?wait_for_status=green&timeout=5s" -TimeoutSec 10
-    if ($health.status -eq 'green') {
-      Set-Content -LiteralPath $pidPath -Value $existing.ProcessId -Encoding ASCII
-      [pscustomobject]@{ status = 'ALREADY_RUNNING'; version = $root.version.number; health = $health.status; pid = $existing.ProcessId; http = "127.0.0.1:$httpPort"; transport = "127.0.0.1:$transportPort" } | ConvertTo-Json -Compress
-      exit 0
-    }
+  $identity = Get-QaRuntimeIdentity $existing
+  if ($identity -and $root) {
+    Set-Content -LiteralPath $pidPath -Value $existing.ProcessId -Encoding ASCII
+    [pscustomobject]@{ status = 'ALREADY_RUNNING'; version = $identity.root.version.number; health = $identity.health.status; pid = $existing.ProcessId; http = "127.0.0.1:$httpPort"; transport = "127.0.0.1:$transportPort" } | ConvertTo-Json -Compress
+    exit 0
   }
   throw 'Suite 9 OpenSearch QA ports are occupied by an unrecognized runtime; refusing to reuse it.'
 }
@@ -166,8 +180,18 @@ do {
   }
 } while ((Get-Date) -lt $deadline)
 if (-not $root -or $root.version.number -ne '2.19.6') { throw 'Suite 9 OpenSearch did not become ready as version 2.19.6.' }
-$health = Invoke-RestMethod -Uri "http://127.0.0.1:$httpPort/_cluster/health?wait_for_status=green&timeout=10s" -TimeoutSec 15
-if ($health.status -ne 'green') { throw 'Suite 9 OpenSearch QA cluster is not GREEN.' }
+$healthDeadline = (Get-Date).AddMinutes(3)
+$health = $null
+do {
+  try {
+    $health = Invoke-RestMethod -Uri "http://127.0.0.1:$httpPort/_cluster/health?timeout=5s" -TimeoutSec 8
+  } catch {
+    $health = $null
+  }
+  if ($health -and $health.status -eq 'green') { break }
+  Start-Sleep -Seconds 2
+} while ((Get-Date) -lt $healthDeadline)
+if (-not $health -or $health.status -ne 'green') { throw 'Suite 9 OpenSearch QA cluster did not become GREEN within three minutes.' }
 $listener = Get-QaListener
 if (-not $listener -or $listener.Name -ne 'java.exe' -or $listener.CommandLine -notlike "*$processMarker*") { throw 'Suite 9 OpenSearch listener identity could not be verified.' }
 Set-Content -LiteralPath $pidPath -Value $listener.ProcessId -Encoding ASCII

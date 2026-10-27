@@ -25,6 +25,11 @@ type ScannedOcrFixture = {
   sizeBytes: number;
   mimeType: string;
   originalPdfSha256: string;
+  sourceSentenceId: number;
+  targetSentenceId: number;
+  sourceSlug: string;
+  targetSlug: string;
+  citationIdentifier: string;
   syntheticOnly: boolean;
 };
 
@@ -42,6 +47,7 @@ test('real approved OCR Search opens and renders its physical page 50', async ({
   const databaseUrl = process.env.DATABASE_URL ?? '';
   const sizeFixturePath = process.env.BJC_QA_VIEWER_SIZE_FIXTURE_JSON ?? '';
   const scannedFixturePath = process.env.BJC_QA_FIXTURE_JSON ?? '';
+  const apiBase = process.env.BJC_SPRINT9_REAL_API_BASE ?? 'http://127.0.0.1:4011/api';
   if (!email || !password || !documentId || !title || !phrase || !evidenceRoot || !qaServerRoot || !databaseUrl || !sizeFixturePath || !scannedFixturePath) {
     throw new Error('SUITE9_REAL_BROWSER_FIXTURE_ENV_REQUIRED');
   }
@@ -73,6 +79,12 @@ test('real approved OCR Search opens and renders its physical page 50', async ({
     scannedFixture.syntheticOnly !== true ||
     scannedFixture.pageNumber !== 50 ||
     scannedFixture.pageCount !== 50 ||
+    !Number.isInteger(scannedFixture.sourceSentenceId) ||
+    !Number.isInteger(scannedFixture.targetSentenceId) ||
+    scannedFixture.sourceSentenceId === scannedFixture.targetSentenceId ||
+    !scannedFixture.sourceSlug.startsWith('suite9-browser-') ||
+    !scannedFixture.targetSlug.startsWith('suite9-browser-') ||
+    scannedFixture.citationIdentifier !== '987654/2026' ||
     scannedFixture.mimeType !== 'application/pdf' ||
     scannedFixture.sizeBytes <= 32 * 1024 ||
     !/^[a-f0-9]{64}$/u.test(scannedFixture.originalPdfSha256)
@@ -178,6 +190,7 @@ test('real approved OCR Search opens and renders its physical page 50', async ({
   const browserHistory = { backToSearch: false, forwardToViewer: false };
   let missingDocument: { status: string; userMessage: string; technicalDetailsHidden: boolean } | null = null;
   let consoleErrorsBeforeMissingCount = 0;
+  let expectedNonInstitutionalCuration404Count = 0;
   let expectedMissing404Count = 0;
   let expectedNavigationAbortCount = 0;
   let unexpectedHttpErrors: Array<{ url: string; status: number }> = [];
@@ -203,6 +216,13 @@ test('real approved OCR Search opens and renders its physical page 50', async ({
     waitMs: number;
     projectedCollectionIds: string[];
   } | null = null;
+  let securityNegatives: Record<string, number | boolean> | null = null;
+  let publicSearchNegative: { status: number; resultCount: number; leakedDocument: boolean } | null = null;
+  let citationEvidence: { status: number; page50Present: boolean } | null = null;
+  let citationWorkflowEvidence: Record<string, unknown> | null = null;
+  let dossierWorkflowEvidence: Record<string, unknown> | null = null;
+  let comparisonWorkflowEvidence: Record<string, unknown> | null = null;
+  let evolutionWorkflowEvidence: Record<string, unknown> | null = null;
   let outcome = 'FAILED';
   const startedAt = Date.now();
 
@@ -214,6 +234,231 @@ test('real approved OCR Search opens and renders its physical page 50', async ({
     accessToken = (await loginResponse.json() as AuthResponse).accessToken ?? '';
     expect(accessToken).toBeTruthy();
     const authorization = { Authorization: `Bearer ${accessToken}` };
+
+    const anonymousMetadata = await request.get(
+      `${apiBase}/corpus/documents/${encodeURIComponent(documentId)}?pageNumber=50`,
+    );
+    const anonymousPdf = await request.get(
+      `${apiBase}/corpus/documents/${encodeURIComponent(documentId)}/file`,
+    );
+    const anonymousOcr = await request.get(`${apiBase}/ocr-human-review/queue`);
+    const publicInternalMetadata = await request.get(
+      `${apiBase}/public/corpus/documents/${encodeURIComponent(documentId)}?pageNumber=50`,
+    );
+    const publicInternalPdf = await request.get(
+      `${apiBase}/public/corpus/documents/${encodeURIComponent(documentId)}/file`,
+    );
+    for (const response of [anonymousMetadata, anonymousPdf, anonymousOcr]) {
+      expect(response.status()).toBe(401);
+    }
+    expect(publicInternalMetadata.status()).toBe(404);
+    expect(publicInternalPdf.status()).toBe(404);
+    securityNegatives = {
+      anonymousProtectedOcrMetadata: anonymousMetadata.status(),
+      anonymousProtectedPdf: anonymousPdf.status(),
+      anonymousOcrQueue: anonymousOcr.status(),
+      publicInternalOcrMetadata: publicInternalMetadata.status(),
+      publicInternalPdf: publicInternalPdf.status(),
+    };
+    const publicSearchResponse = await request.get(
+      `${apiBase}/public/busqueda`,
+      { params: { q: phrase, pageSize: '10' } },
+    );
+    expect(publicSearchResponse.status()).toBe(200);
+    const publicSearchBody = await publicSearchResponse.json().catch(() => ({})) as {
+      federated?: { results?: Array<{ sourceId?: string }> };
+      data?: Array<{ id?: string }>;
+    };
+    const publicResultIds = publicSearchBody.federated?.results
+      ? publicSearchBody.federated.results.map((result) => result.sourceId)
+      : (publicSearchBody.data ?? []).map((result) => result.id);
+    const leakedDocument = publicResultIds.some((resultId) => resultId === documentId);
+    expect(leakedDocument).toBe(false);
+    publicSearchNegative = {
+      status: publicSearchResponse.status(),
+      resultCount: publicResultIds.length,
+      leakedDocument,
+    };
+    const citationResponse = await request.get(
+      `${apiBase}/corpus/documents/${encodeURIComponent(documentId)}/citation?page=50`,
+      { headers: authorization },
+    );
+    expect(citationResponse.status()).toBe(200);
+    const citationBody = await citationResponse.json().catch(() => ({}));
+    const page50Present = JSON.stringify(citationBody).includes('50');
+    expect(page50Present).toBe(true);
+    citationEvidence = { status: citationResponse.status(), page50Present };
+
+    const citationExtractResponse = await request.post(
+      `${apiBase}/research/citation-candidates/${scannedFixture.sourceSentenceId}/extract`,
+      { headers: authorization },
+    );
+    expect(citationExtractResponse.status()).toBe(201);
+    const citationExtractBody = await citationExtractResponse.json() as {
+      data?: { created?: number; candidates?: Array<Record<string, unknown>> };
+    };
+    const candidates = citationExtractBody.data?.candidates ?? [];
+    const page50Candidate = candidates.find(
+      (candidate) => candidate.sourcePage === 50 &&
+        candidate.sourceTextKind === 'OCR' &&
+        candidate.normalizedIdentifier === '987654/2026',
+    );
+    expect(page50Candidate).toMatchObject({
+      sourceSentenceId: scannedFixture.sourceSentenceId,
+      targetSentenceId: scannedFixture.targetSentenceId,
+      sourcePage: 50,
+      sourceTextKind: 'OCR',
+      status: 'DETECTED_CANDIDATE',
+      resolutionOutcome: 'RESOLVED_UNIQUE',
+      confidence: null,
+    });
+    const citationCandidateId = Number(page50Candidate?.id);
+    expect(Number.isInteger(citationCandidateId)).toBe(true);
+    const unresolvedPublicRelation = await request.get(
+      `${apiBase}/public/sentencias/${encodeURIComponent(scannedFixture.sourceSlug)}/relaciones-verificadas`,
+    );
+    expect(unresolvedPublicRelation.status()).toBe(200);
+    expect(JSON.stringify(await unresolvedPublicRelation.json())).not.toContain(
+      scannedFixture.targetSlug,
+    );
+    const citationReviewResponse = await request.patch(
+      `${apiBase}/research/citation-candidates/${citationCandidateId}/review`,
+      {
+        headers: authorization,
+        data: {
+          status: 'VERIFIED',
+          targetSentenceId: scannedFixture.targetSentenceId,
+        },
+      },
+    );
+    expect(citationReviewResponse.status()).toBe(200);
+    const citationReviewBody = await citationReviewResponse.json() as {
+      data?: Record<string, unknown>;
+    };
+    expect(citationReviewBody.data).toMatchObject({
+      status: 'VERIFIED',
+      targetSentenceId: scannedFixture.targetSentenceId,
+      sourcePage: 50,
+      sourceTextKind: 'OCR',
+    });
+    citationWorkflowEvidence = {
+      extracted: citationExtractResponse.status(),
+      parser: page50Candidate?.parserVersion,
+      citationFamily: page50Candidate?.citationFamily,
+      sourcePage: page50Candidate?.sourcePage,
+      sourceTextKind: page50Candidate?.sourceTextKind,
+      candidateWasUnpublishedUntilExplicitReview:
+        unresolvedPublicRelation.status() === 200,
+      humanReview: citationReviewResponse.status(),
+      finalStatus: citationReviewBody.data?.status,
+      targetResolved: citationReviewBody.data?.targetSentenceId === scannedFixture.targetSentenceId,
+      automaticPublication: false,
+    };
+
+    const researchCollectionResponse = await request.post(
+      `${apiBase}/research/collections`,
+      {
+        headers: authorization,
+        data: { nombre: `Suite 9 research QA ${Date.now()}` },
+      },
+    );
+    expect(researchCollectionResponse.status()).toBe(201);
+    const researchCollectionBody = await researchCollectionResponse.json() as {
+      data?: { id?: number };
+    };
+    const researchCollectionId = researchCollectionBody.data?.id;
+    expect(Number.isInteger(researchCollectionId)).toBe(true);
+    for (const sentenceId of [
+      scannedFixture.sourceSentenceId,
+      scannedFixture.targetSentenceId,
+    ]) {
+      const added = await request.post(
+        `${apiBase}/research/collections/${researchCollectionId}/items/${sentenceId}`,
+        { headers: authorization },
+      );
+      expect(added.status()).toBe(201);
+    }
+    const researchCollectionDetail = await request.get(
+      `${apiBase}/research/collections/${researchCollectionId}`,
+      { headers: authorization },
+    );
+    expect(researchCollectionDetail.status()).toBe(200);
+    const researchCollectionJson = JSON.stringify(await researchCollectionDetail.json());
+    expect(researchCollectionJson).toContain(scannedFixture.sourceSlug);
+    expect(researchCollectionJson).toContain(scannedFixture.targetSlug);
+    const dossierExport = await request.post(
+      `${apiBase}/research/collections/${researchCollectionId}/export`,
+      { headers: authorization },
+    );
+    const dossierBytes = await dossierExport.body();
+    // Nest's default status for this POST export route is 201; validate the
+    // returned ZIP payload below as the functional contract.
+    expect(dossierExport.status()).toBe(201);
+    expect(dossierExport.headers()['content-type']).toContain('application/zip');
+    expect(dossierBytes.subarray(0, 4).toString('binary')).toBe('PK\u0003\u0004');
+    dossierWorkflowEvidence = {
+      created: researchCollectionResponse.status(),
+      itemsAdded: 2,
+      detailStatus: researchCollectionDetail.status(),
+      exportStatus: dossierExport.status(),
+      exportZipSignature: dossierBytes.subarray(0, 4).toString('hex'),
+    };
+
+    const slugs = [scannedFixture.sourceSlug, scannedFixture.targetSlug];
+    const comparisonResponse = await request.post(
+      `${apiBase}/research/comparisons`,
+      {
+        headers: authorization,
+        data: { name: `Suite 9 comparison QA ${Date.now()}`, slugs },
+      },
+    );
+    expect(comparisonResponse.status()).toBe(201);
+    const comparisonResolve = await request.get(
+      `${apiBase}/research/comparisons/resolve`,
+      { params: { ids: slugs.join(',') } },
+    );
+    expect(comparisonResolve.status()).toBe(200);
+    const comparisonResolveJson = JSON.stringify(await comparisonResolve.json());
+    expect(comparisonResolveJson).toContain(scannedFixture.sourceSlug);
+    expect(comparisonResolveJson).toContain(scannedFixture.targetSlug);
+    expect(comparisonResolveJson).toContain(scannedFixture.citationIdentifier);
+    comparisonWorkflowEvidence = {
+      saved: comparisonResponse.status(),
+      resolved: comparisonResolve.status(),
+      bothSyntheticJudgmentsPresent: true,
+      verifiedCitationPage50Present: comparisonResolveJson.includes('50'),
+    };
+
+    const timelineResponse = await request.post(
+      `${apiBase}/research/timelines`,
+      {
+        headers: authorization,
+        data: {
+          name: `Suite 9 evolution QA ${Date.now()}`,
+          description: 'Synthetic E2E fixture.',
+          slugs,
+        },
+      },
+    );
+    expect(timelineResponse.status()).toBe(201);
+    const timelineDetail = await request.post(
+      `${apiBase}/research/evolution/resolve`,
+      { data: { slugs } },
+    );
+    // This resolver is a POST endpoint and Nest returns its default 201.
+    expect(timelineDetail.status()).toBe(201);
+    const timelineJson = JSON.stringify(await timelineDetail.json());
+    expect(timelineJson).toContain(scannedFixture.sourceSlug);
+    expect(timelineJson).toContain(scannedFixture.targetSlug);
+    expect(timelineJson).toContain('VERIFIED_CITATION');
+    expect(timelineJson).toContain(scannedFixture.citationIdentifier);
+    expect(timelineJson).toContain('50');
+    evolutionWorkflowEvidence = {
+      saved: timelineResponse.status(),
+      resolved: timelineDetail.status(),
+      verifiedCitationEdgePresent: timelineJson.includes('VERIFIED_CITATION'),
+      sourcePage50Present: timelineJson.includes('50'),
+    };
 
     const collectionResponse = await request.post(
       '/api/corpus/curation/digesto/collections',
@@ -311,7 +556,6 @@ test('real approved OCR Search opens and renders its physical page 50', async ({
     };
     expect(membershipIndexed, 'Search projection must include the newly added collection before querying it').toBe(true);
 
-    const apiBase = process.env.BJC_SPRINT9_REAL_API_BASE ?? 'http://127.0.0.1:4011/api';
     const rangeResponse = await request.get(
       `${apiBase}/corpus/documents/${encodeURIComponent(documentId)}/file`,
       {
@@ -626,9 +870,36 @@ test('real approved OCR Search opens and renders its physical page 50', async ({
   }
   expect(pdfSizeMatrix.map((entry) => entry.category).sort()).toEqual(['large', 'medium', 'small']);
 
+  const viewerSizeFixtureIds = new Set(
+    [...sizeFixtures.values()].map((fixture) => fixture.documentId),
+  );
+  const isExpectedCuration404 = (response: { url: string; status: number }) =>
+    response.status === 404 &&
+    [...viewerSizeFixtureIds].some((fixtureId) =>
+      response.url.includes(`/api/corpus/curation/documents/${fixtureId}`),
+    );
+  const expectedCuration404s = httpErrorResponses.filter(isExpectedCuration404);
+  expectedNonInstitutionalCuration404Count = expectedCuration404s.length;
+  for (const fixtureId of viewerSizeFixtureIds) {
+    expect(
+      expectedCuration404s.some((response) => response.url.includes(fixtureId)),
+      'non-institutional size fixture should omit institutional curation metadata',
+    ).toBe(true);
+  }
   consoleErrorsBeforeMissingCount = consoleErrors.length;
-  expect(consoleErrors, 'viewer console errors before missing-document case').toEqual([]);
-  expect(httpErrorResponses, 'unexpected HTTP errors before missing-document case').toEqual([]);
+  expect(
+    httpErrorResponses.filter((response) => !isExpectedCuration404(response)),
+    'unexpected HTTP errors before missing-document case',
+  ).toEqual([]);
+  expect(consoleErrors.length).toBe(expectedCuration404s.length);
+  expect(
+    consoleErrors.every(
+      (message) =>
+        message ===
+        'Failed to load resource: the server responded with a status of 404 (Not Found)',
+    ),
+    'only expected missing curation metadata may reach the browser console',
+  ).toBe(true);
 
     const missingDocumentId = `suite9-missing-${Date.now().toString(36)}`;
     const missingHttpErrorStart = httpErrorResponses.length;
@@ -647,7 +918,11 @@ test('real approved OCR Search opens and renders its physical page 50', async ({
     expect(missingHttpErrors.length).toBeGreaterThan(0);
     expect(missingHttpErrors.every((response) => response.status === 404 && response.url.includes(missingDocumentId))).toBe(true);
     expectedMissing404Count = missingHttpErrors.length;
-    unexpectedHttpErrors = httpErrorResponses.filter((response) => response.status !== 404 || !response.url.includes(missingDocumentId));
+    unexpectedHttpErrors = httpErrorResponses.filter(
+      (response) =>
+        !isExpectedCuration404(response) &&
+        !(response.status === 404 && response.url.includes(missingDocumentId)),
+    );
     expect(unexpectedHttpErrors, 'only expected 404s for the missing synthetic document').toEqual([]);
     expectedNavigationAbortCount = failedRequests.filter((requestFailure) =>
       requestFailure.failure === 'net::ERR_ABORTED' && requestFailure.url.includes('/api/busqueda/sugerencias'),
@@ -680,6 +955,13 @@ test('real approved OCR Search opens and renders its physical page 50', async ({
       rangeResult,
       setupFailure,
       membershipProjection,
+      securityNegatives,
+      publicSearchNegative,
+      citationEvidence,
+      citationWorkflowEvidence,
+      dossierWorkflowEvidence,
+      comparisonWorkflowEvidence,
+      evolutionWorkflowEvidence,
       viewerMs,
       viewerReadyMarker: 'Documento PDF cargado, página 50',
       globalLoadingExited: true,
@@ -694,6 +976,7 @@ test('real approved OCR Search opens and renders its physical page 50', async ({
       missingDocument,
       httpErrorResponses,
       consoleErrorsBeforeMissingCount,
+      expectedNonInstitutionalCuration404Count,
       expectedMissing404Count,
       expectedNavigationAbortCount,
       unexpectedHttpErrors,

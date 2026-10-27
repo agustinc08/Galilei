@@ -295,6 +295,10 @@ const actions = {
     'node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --testTimeout=480000 --testPathPatterns=ocr-human-review.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SPRINT9',
   'page-aware-sprint9-real-services-tests':
     'node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --testTimeout=480000 --testPathPatterns=ocr-human-review.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SPRINT9',
+  'page-aware-sprint9-browser-fixtures-create':
+    'pnpm.cmd exec ts-node scripts/dev/suite9-real-browser-fixtures.ts create',
+  'page-aware-sprint9-browser-fixtures-cleanup':
+    'pnpm.cmd exec ts-node scripts/dev/suite9-real-browser-fixtures.ts cleanup',
   'int1-storage-audit': 'node scripts/dev/int1-storage-audit.cjs',
   'int1-orphan-private-upload-audit':
     'node scripts/dev/int1-cleanup-orphan-private-upload.cjs audit',
@@ -1012,16 +1016,22 @@ const childEnv = {
       : '',
   BJC_CORPUS_STORAGE_PATH: action.startsWith('page-aware-sprint9-')
     ? path.resolve(
-        __dirname,
-        '../../_recovery-work/galilei-page-aware-ocr-research-suite9/runtime/corpus',
+        canonicalRepositoryRoot,
+        '_recovery-work',
+        'galilei-page-aware-ocr-research-suite9',
+        'runtime',
+        'corpus',
       )
     : process.env.BJC_CORPUS_STORAGE_PATH,
   OCR_TEMP_DIR:
     action === 'page-aware-sprint9-postgres-tests' ||
     action === 'page-aware-sprint9-real-services-tests'
       ? path.resolve(
-          __dirname,
-          '../../_recovery-work/galilei-page-aware-ocr-research-suite9/runtime/ocr-temp',
+          canonicalRepositoryRoot,
+          '_recovery-work',
+          'galilei-page-aware-ocr-research-suite9',
+          'runtime',
+          'ocr-temp',
         )
       : process.env.OCR_TEMP_DIR,
   OCR_ENABLED:
