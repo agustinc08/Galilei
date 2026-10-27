@@ -1,5 +1,24 @@
 # Estado actual — Buscador Jurídico Civil
 
+## GALILEI Suite 9 — consolidación PC principal, OCR y visor (2026-10-27)
+
+La candidata local de cierre está en feature/page-aware-ocr-research-suite-9-closure, basada exactamente en c57efa6a88738166f959efb3d9ec80fa7d9a1f25. Conserva el contrato de Search y la ACL. El código no incluye Search observability ni modifica OpenSearch/Search; los cambios de búsqueda guardan el estado para volver desde el visor.
+
+El backend permite que los documentos elegibles de INSTITUTIONAL_UPLOAD pasen por curación y revisión OCR humana. El visor carga la extracción de la página física después de conocer el total real del PDF, anuncia el estado de renderizado/error y conserva query/filtros durante Back/Forward. No cambia el PDF, el texto fuente ni la publicación.
+
+Validación en servicios aislados: PostgreSQL QA 16.15 aplicó y validó 39 migraciones; integración OCR/outbox 4/4 PASS, incluidos aprobación con Search detenido y recuperación del mismo outbox; Playwright real 1/1 PASS para Search → OCR aprobado → PDF de página 50, Range 206 y firma %PDF-. Se verificaron PDFs sintéticos de 715, 6.861 y 105.314 bytes (1, 20 y 50 páginas), matriz de 13 entradas de página, 16 combinaciones de rutas/viewport y cuatro tamaños responsive. Search guardó la navegación de retorno.
+
+Regresión del cierre: backend 69 suites PASS / 1 omitida; 612 tests PASS / 10 opt-in omitidos. Cliente 22/22. Cliente y servidor typecheck, lint y build PASS; prisma validate PASS. El build del cliente conserva su advertencia no bloqueante de chunk PDF.js >500 kB.
+
+La prueba de roles mantiene enforcement backend: OCR permite REVISOR y deniega LECTOR/JURISPRUDENCIA; ACL de documentos/espacios se verifica en suites de integración. La E2E visual se autenticó con identidad QA sintética ADMIN; no equivale a UAT institucional por persona/organismo.
+
+Search 503, PC de oficina: OFFICE_SEARCH_P2=OPEN, RCA=UNRESOLVED, no reproducida con datos sintéticos aislados. La corrida reciente devolvió 20/20 HTTP 200 en Search con page size 10, 20/20 con page size 20 y 20/20 en Workspace. La aplicación tiene deadline fail-closed de 5 s, pero no se identificó qué dependencia causó el incidente de oficina. Las latencias medidas son de una muestra pequeña sintética y no son SLO.
+
+Cierre QA: cero documentos/páginas Corpus, Sentencia/Sumario y usuarios sintéticos; 958/958 eventos de outbox procesados, 0 pendientes/0 fallidos. Se detuvieron Nest, PostgreSQL QA y OpenSearch QA; PGDATA quedó preservado y se retiró el data path exacto OpenSearch QA marcado. QA listeners libres; PostgreSQL principal y Search principal no fueron accedidos ni modificados.
+
+Estado: candidata local reproducible, no promovida ni publicada. OFFICE_DEPLOYABLE=NO mientras la P2 de oficina siga abierta. Evidencia y clasificación de los 15 archivos del cierre: _recovery-work/galilei-suite9-office-blocker-closure/evidence/.
+
+
 ## GALILEI — SUPER MEGA ULTRA SPRINT 9 — búsqueda legal por página con OCR revisado (2026-10-27)
 
 La candidata aislada `feature/page-aware-ocr-research-suite-9` parte exactamente de Suite 8, SHA `48736d1f82152d2e021b0fb9a660e3648a13b3ed`. Une cada resultado Corpus con la página física activa y su procedencia (`PDF_TEXT` u `OCR_HUMAN_APPROVED`), genera fragmentos sólo desde esa página y abre el PDF en el número físico indicado. Conserva la semántica Copernic/V4, el orden del buscador y la ACL existente. El texto OCR sin aprobar queda excluido; las citas provenientes de OCR siguen siendo candidatas y requieren verificación humana. El PDF, la publicación y los metadatos jurídicos no se modifican.
@@ -828,3 +847,4 @@ Implementación candidata en `feature/institutional-ingestion-suite-7`, creada d
 La fuente sigue siendo PostgreSQL, los bytes siguen en el almacenamiento content-addressed del Corpus, y Search sigue siendo derivado. Los roles que pueden escribir son `ADMIN`, `OPERADOR` y `JURISPRUDENCIA`; `REVISOR` puede leer y `LECTOR` recibe 403. Validación aislada local: PostgreSQL QA 16 en `127.0.0.1:55434`, OpenSearch QA 2.19.6 en `127.0.0.1:19200`, 38 migraciones al día, paridad Search 10/10, suite integración 10/10, smoke autenticado 26/26 y limpieza con cero residuos. Suite completa: 597 PASS/10 SKIP; regression Playwright de investigación: 22/22; lint/typecheck/build/audit pasan. El chunk PDF.js conserva su aviso existente.
 
 El chequeo de solo lectura sobre el PostgreSQL DEV principal confirmó identidad y conectividad; la versión de schema presente allí informa cinco migraciones pendientes respecto de ese checkout y no se aplicaron. OpenSearch principal siguió GREEN con V4 activo y 69.313 documentos. No se hicieron escrituras en DB/Corpus/Search principales, ni cambios a `dev`/`main`, ni acceso o deploy a Sytec10. La promoción queda fuera de Sprint 7. La publicación de la rama feature y el estado de CI del SHA exacto son gates separados; ver la evidencia reproducible en `_recovery-work/galilei-institutional-ingestion-suite7/evidence/`.
+

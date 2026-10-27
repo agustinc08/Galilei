@@ -1,5 +1,22 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Suite 9 — cierre PC principal OCR/visor + Search 503 de oficina (2026-10-27)
+
+| Gate | Estado | Evidencia / siguiente paso |
+|---|---|---|
+| Candidato | LOCAL FEATURE CANDIDATE | Rama feature/page-aware-ocr-research-suite-9-closure, base c57efa6a88738166f959efb3d9ec80fa7d9a1f25; commits locales de cierre. Sin push, promoción ni cambios en DEV/main. |
+| OCR institucional | PASS | INSTITUTIONAL_UPLOAD está admitido por curación y revisión humana; integración real PostgreSQL/OpenSearch 4/4, cleanup sintético verificado. |
+| Visor PDF | PASS | Search → OCR aprobado → página física 50; HTTP Range 206 y PDF válido; historial Back/Forward; PDF pequeño/mediano/grande y matriz de páginas; rutas autenticadas en cuatro viewports. |
+| Regresión | PASS | Backend 612 tests PASS / 10 opt-in omitidos; cliente 22/22; typecheck/lint/build y Prisma validate PASS; 39 migraciones sólo en QA aislada. |
+| Roles/ACL | PASS_WITH_SCOPE | Enforcement backend cubierto por suites de OCR/workspace/ACL; E2E visual autenticada como ADMIN sintético. No equivale a UAT institucional por persona. |
+| Search 503 Office | P2 OPEN | 0/60 respuestas 503 en escenario sintético aislado; raíz Office no reproducida ni atribuida. Deadline fail-closed de 5 s es un mecanismo posible, no RCA. Requiere evidencia del host de oficina. |
+| Office | NOT DEPLOYABLE | No se accedió a SYTEC10 y no se habilita deploy mientras la P2 siga abierta. |
+
+El snapshot QA final quedó limpio: 0 documentos/páginas/sentencias/sumarios y usuarios sintéticos, outbox 958 procesados / 0 pendientes / 0 fallidos; listeners QA libres, PGDATA QA preservado. El data path de OpenSearch QA sintético fue retirado tras verificar marcador y contenido.
+
+Siguiente acción: capturar una traza de la solicitud que falla en SYTEC10, con perfiles por fuente y runtime/configuración efectivos; mantener el candidato Suite 9 separado hasta cerrar esa RCA.
+
+
 ## Candidata — GALILEI SUPER MEGA ULTRA SPRINT 9: investigación jurídica por página (2026-10-27)
 
 | Gate | Estado | Evidencia / siguiente paso |
@@ -699,4 +716,5 @@ La implementación conserva schema 39 y el contrato Search; no agrega migración
 **Decisión: PARTIAL.** La página física, procedencia OCR aprobada, snippet y deep link pasan pruebas de servicio real y navegador sintético; el navegador E2E usa API/PDF fixtures sintéticos y no una sesión de browser conectada a la DB real. No se midió Search repetido de 10/20 resultados ni N+1/EXPLAIN; tampoco quedó cerrado OCR aprobado→candidato de cita con identidad jurisprudencial canónica, exportación OCR→dossier y comparación/evolución directas. Los tests adversariales de payload malicioso cubren render seguro como texto en navegador sintético; la ruta autenticada real Search→Viewer, acceso anónimo y negativos públicos todavía requieren cierre HTTP. Son brechas de validación, no fallos observados; no se declara certificación completa, no se promueve y no se despliega.
 
 La matriz, evidencia por dimensión, limitations y plan de UAT están en `_recovery-work/galilei-page-aware-ocr-research-suite9/evidence/`. `PENDING_HUMAN_GOLD` y `PENDING_HUMAN_UAT` se mantienen visibles. Advertencia no bloqueante: chunk PDF.js >500 kB. Próxima dirección de producto recomendada tras cerrar estos gates: alertas de seguimiento para consultas guardadas, sin inferencia doctrinal.
+
 
