@@ -1248,6 +1248,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
             provide: WorkspaceDocumentService,
             useValue: v4HttpDocuments,
           },
+          { provide: CorpusDocumentAccessService, useValue: access },
           { provide: APP_GUARD, useClass: SyntheticViewerIdentityGuard },
         ],
       }).compile();

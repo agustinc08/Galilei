@@ -10,6 +10,8 @@ describe('Sprint 9 curation PostgreSQL integration', () => {
   let userId = 0;
   let sourceId = '';
   let ownsSource = false;
+  let institutionalUploadSourceId = '';
+  let ownsInstitutionalUploadSource = false;
   let testUserId = 0;
   let testRoleId = 0;
   let documentId = '';
@@ -50,6 +52,20 @@ describe('Sprint 9 curation PostgreSQL integration', () => {
       ownsSource = true;
     }
     sourceId = source.id;
+    let institutionalUploadSource = await prisma.corpusSourceSystem.findUnique({
+      where: { code: 'INSTITUTIONAL_UPLOAD' },
+    });
+    if (!institutionalUploadSource) {
+      institutionalUploadSource = await prisma.corpusSourceSystem.create({
+        data: {
+          code: 'INSTITUTIONAL_UPLOAD',
+          name: 'Synthetic institutional-upload fixture',
+          sourceType: 'FIXTURE',
+        },
+      });
+      ownsInstitutionalUploadSource = true;
+    }
+    institutionalUploadSourceId = institutionalUploadSource.id;
   });
 
   afterEach(async () => {
@@ -86,6 +102,10 @@ describe('Sprint 9 curation PostgreSQL integration', () => {
     if (testRoleId) await prisma.rol.deleteMany({ where: { id: testRoleId } });
     if (ownsSource)
       await prisma.corpusSourceSystem.deleteMany({ where: { id: sourceId } });
+    if (ownsInstitutionalUploadSource)
+      await prisma.corpusSourceSystem.deleteMany({
+        where: { id: institutionalUploadSourceId },
+      });
     await prisma.$disconnect();
   });
 
@@ -190,6 +210,51 @@ describe('Sprint 9 curation PostgreSQL integration', () => {
       expect(
         await prisma.corpusDocumentLink.count({ where: { documentId } }),
       ).toBe(2);
+    },
+  );
+
+  (enabled ? it : it.skip)(
+    'allows approved institutional-upload corpus documents in Digesto collections',
+    async () => {
+      const marker = randomUUID();
+      const document = await prisma.corpusDocument.create({
+        data: {
+          title: `Institutional upload ${marker}`,
+          status: 'INDEXED',
+          visibility: 'INTERNAL',
+          editorialStatus: 'NO_REVIEWED',
+        },
+      });
+      documentId = document.id;
+      await prisma.corpusIngestionRecord.create({
+        data: {
+          sourceSystemId: institutionalUploadSourceId,
+          documentId,
+          checksum: marker.replaceAll('-', ''),
+          idempotencyKey: `sprint9-institutional-upload-${marker}`,
+          originalFilename: 'synthetic-institutional-upload.pdf',
+        },
+      });
+      const collection = await curation.createCollection(
+        `Institutional upload ${marker}`,
+        'Synthetic OCR eligibility regression fixture.',
+        userId,
+      );
+      collectionId = collection.id;
+
+      const preview = await curation.previewBatchMembership(
+        collectionId,
+        [documentId],
+        true,
+      );
+      expect(preview.results).toEqual([{ documentId, status: 'would_add' }]);
+      await expect(
+        curation.addToCollection(documentId, collectionId, userId, true),
+      ).resolves.toMatchObject({ documentId, collectionId, linked: true });
+      await expect(curation.collection(collectionId)).resolves.toMatchObject({
+        total: 1,
+        documents: [expect.objectContaining({ id: documentId })],
+      });
     },
   );
 });

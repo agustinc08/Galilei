@@ -501,21 +501,18 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         viewer,
         'OCRTESTTOKENXYZ',
       );
-      expect(ocrMatches.matches[0]).toMatchObject({
-        page: 1,
-        textKind: 'OCR',
-      });
+      // OCR_COMPLETE is searchable inside the authorized private workspace,
+      // but it is not exposed as a page pinpoint until a human approves it.
+      expect(ocrMatches.matches).toHaveLength(0);
       const ocrMetadata = await service.metadata(
         workspaceA.id,
         scannedDocumentId,
         adminA,
-        1,
       );
-      expect(ocrMetadata.selectedPage).toMatchObject({
-        pageNumber: 1,
-        textKind: 'OCR',
-        processingStatus: 'OCR_COMPLETE',
-      });
+      expect(ocrMetadata.selectedPage).toBeUndefined();
+      await expect(
+        service.metadata(workspaceA.id, scannedDocumentId, adminA, 1),
+      ).rejects.toMatchObject({ status: 400 });
       const ocrFile = await prisma.corpusDocumentFile.findFirstOrThrow({
         where: { documentId: scannedDocumentId },
         select: { sha256: true },

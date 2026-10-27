@@ -59,9 +59,21 @@ if ($Action -eq 'status') {
 }
 
 if ($Action -eq 'stop') {
-  if (-not (Test-Path -LiteralPath $pidPath)) { Write-Output 'SPRINT9_OPENSEARCH_QA=ALREADY_STOPPED'; exit 0 }
   Assert-QaRuntimeOwnership
-  $id = [int](Get-Content -Raw -LiteralPath $pidPath)
+  $listeners = Get-NetTCPConnection -LocalPort $httpPort,$transportPort -State Listen -ErrorAction SilentlyContinue
+  if (-not (Test-Path -LiteralPath $pidPath)) {
+    if (-not $listeners) { Write-Output 'SPRINT9_OPENSEARCH_QA=ALREADY_STOPPED'; exit 0 }
+    $listener = Get-QaListener
+    if (-not $listener -or $listener.Name -ne 'java.exe' -or $listener.CommandLine -notlike "*$processMarker*") {
+      throw 'Refusing to stop an unowned listener without the Suite 9 QA PID file.'
+    }
+    if (@($listeners | Where-Object OwningProcess -ne $listener.ProcessId).Count -gt 0) {
+      throw 'Suite 9 QA ports include a listener not owned by the exact QA Java process.'
+    }
+    $id = [int]$listener.ProcessId
+  } else {
+    $id = [int](Get-Content -Raw -LiteralPath $pidPath)
+  }
   $process = Get-CimInstance Win32_Process -Filter "ProcessId = $id" -ErrorAction SilentlyContinue
   if ($process) {
     if ($process.Name -ne 'java.exe' -or $process.CommandLine -notlike "*$processMarker*") {
@@ -75,6 +87,8 @@ if ($Action -eq 'stop') {
     } while ($remaining -and (Get-Date) -lt $deadline)
     if ($remaining) { throw 'Suite 9 OpenSearch listener did not stop.' }
   }
+  $remaining = Get-NetTCPConnection -LocalPort $httpPort,$transportPort -State Listen -ErrorAction SilentlyContinue
+  if ($remaining) { throw 'Suite 9 OpenSearch ports remain occupied after stop.' }
   Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
   Write-Output 'SPRINT9_OPENSEARCH_QA=STOPPED'
   exit 0
