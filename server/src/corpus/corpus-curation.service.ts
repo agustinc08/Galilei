@@ -6,7 +6,11 @@ import {
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
-const PILOT_SOURCES = ['JURISPRUDENCIA_LOCAL_PDF', 'DIGESTO_LOCAL'];
+const PILOT_SOURCES = [
+  'JURISPRUDENCIA_LOCAL_PDF',
+  'DIGESTO_LOCAL',
+  'INSTITUTIONAL_UPLOAD',
+];
 const INSTITUTIONAL = {
   ingestions: {
     some: { sourceSystem: { is: { code: { in: PILOT_SOURCES } } } },
