@@ -1,5 +1,6 @@
 import {
   Injectable,
+  OnModuleInit,
   OnModuleDestroy,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -67,13 +68,19 @@ export type FederatedSearchPage = {
 };
 
 @Injectable()
-export class FederatedSearchService implements OnModuleDestroy {
+export class FederatedSearchService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly jurisprudencia: SearchSourceAdapter | null,
     private readonly corpus: SearchSourceAdapter | null,
-    private readonly timeoutMs = 5000,
+    private readonly timeoutMs = 10000,
     private readonly failClosed = false,
   ) {}
+
+  async onModuleInit() {
+    await Promise.all(
+      [this.jurisprudencia, this.corpus].map((adapter) => adapter?.warmup?.()),
+    );
+  }
 
   async search(
     query: SearchQueryAst,

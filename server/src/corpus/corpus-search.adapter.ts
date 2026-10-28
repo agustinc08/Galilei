@@ -412,10 +412,17 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       // it bounded below PostgreSQL's default connection budget while
       // allowing the 10-user preproduction gate to run without a queue.
       max: 8,
+      // Retain one warm connection so an idle Workspace search does not pay
+      // the environment's multi-second cold PostgreSQL connection cost.
+      min: 1,
       connectionTimeoutMillis: 5000,
       statement_timeout: searchStatementTimeoutMs(),
     });
     this.candidateStrategy = candidateStrategy;
+  }
+
+  async warmup() {
+    await this.pool.query('SELECT 1');
   }
 
   getLastSearchProfile() {

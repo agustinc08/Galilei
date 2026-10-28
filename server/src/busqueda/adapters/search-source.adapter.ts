@@ -108,6 +108,8 @@ export type SearchResultFacets = {
 };
 
 export interface SearchSourceAdapter {
+  /** Establish and retain the source's runtime dependencies before HTTP readiness. */
+  warmup?(): Promise<void>;
   search(
     query: SearchQueryAst,
     context: SearchContext,

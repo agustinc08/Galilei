@@ -444,11 +444,51 @@ export class OpenSearchDocumentRepository {
     return result.rows;
   }
 
+  async claimOutboxByDocumentKey(limit: number): Promise<SearchOutboxEvent[]> {
+    const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+    const result = await this.pool.query<SearchOutboxEvent>(
+      `WITH candidate_keys AS (
+         SELECT "documentKey", MIN("id") AS first_id
+           FROM "SearchIndexOutbox"
+          WHERE "processedAt" IS NULL AND "failedAt" IS NULL AND "nextAttemptAt" <= now()
+            AND ("leaseUntil" IS NULL OR "leaseUntil" < now())
+          GROUP BY "documentKey"
+          ORDER BY first_id
+          LIMIT $1
+       ), pending AS (
+         SELECT event."id"
+           FROM "SearchIndexOutbox" event
+           JOIN candidate_keys candidate USING ("documentKey")
+          WHERE event."processedAt" IS NULL AND event."failedAt" IS NULL
+            AND event."nextAttemptAt" <= now()
+            AND (event."leaseUntil" IS NULL OR event."leaseUntil" < now())
+          FOR UPDATE OF event SKIP LOCKED
+       )
+       UPDATE "SearchIndexOutbox" event
+          SET "attempts" = event."attempts" + 1,
+              "leaseUntil" = now() + interval '2 minutes'
+         FROM pending WHERE event."id" = pending."id"
+       RETURNING event."id"::text AS id, event."documentKey", event."operation", event."attempts"`,
+      [safeLimit],
+    );
+    return result.rows;
+  }
+
   async markOutboxProcessed(id: string) {
     await this.pool.query(
       `UPDATE "SearchIndexOutbox" SET "processedAt" = now(), "leaseUntil" = NULL, "lastError" = NULL
         WHERE "id" = $1::bigint`,
       [id],
+    );
+  }
+
+  async markOutboxProcessedMany(ids: string[]) {
+    if (!ids.length) return;
+    await this.pool.query(
+      `UPDATE "SearchIndexOutbox"
+          SET "processedAt" = now(), "leaseUntil" = NULL, "lastError" = NULL
+        WHERE "id" = ANY($1::bigint[]) AND "processedAt" IS NULL AND "failedAt" IS NULL`,
+      [ids],
     );
   }
 
@@ -464,7 +504,7 @@ export class OpenSearchDocumentRepository {
               "leaseUntil" = NULL,
               "nextAttemptAt" = now() + ($2::text || ' milliseconds')::interval,
               "failedAt" = CASE WHEN $3::boolean THEN now() ELSE NULL END
-        WHERE "id" = $1::bigint`,
+        WHERE "id" = $1::bigint AND "processedAt" IS NULL AND "failedAt" IS NULL`,
       [event.id, String(delayMs), permanentlyFailed],
     );
   }

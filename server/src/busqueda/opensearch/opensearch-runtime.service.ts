@@ -162,6 +162,14 @@ export class OpenSearchRuntimeService {
     source: 'CORPUS' | 'JURISPRUDENCIA',
     hydrate: SearchCandidateHydrator,
     closeHydrator?: () => Promise<void>,
+    warmupHydrator?: () => Promise<void>,
+    poolDiagnosticsHydrator?: () => {
+      total: number;
+      active: number;
+      idle: number;
+      waiting: number;
+      max: number;
+    } | null,
   ): SearchSourceAdapter {
     return new OpenSearchSearchSourceAdapter(
       this.client,
@@ -170,6 +178,8 @@ export class OpenSearchRuntimeService {
       hydrate,
       closeHydrator,
       this.config.searchSchemaVersion,
+      warmupHydrator,
+      poolDiagnosticsHydrator,
     );
   }
 

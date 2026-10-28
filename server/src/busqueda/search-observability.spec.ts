@@ -178,6 +178,32 @@ describe('Search observability', () => {
     expect(JSON.stringify(events)).not.toContain('search source timeout');
   });
 
+  it('classifies PostgreSQL statement cancellation as a timeout without logging SQL details', async () => {
+    const events: SearchObservationEvent[] = [];
+    const observability = new SearchObservability({
+      write: (event) => events.push(event),
+    });
+    const requestId = createSearchRequestId();
+    const failure = Object.assign(new Error('canceling statement due to statement timeout'), {
+      code: '57014',
+    });
+
+    await withSearchRequestContext(requestId, async () => {
+      await expect(
+        observability.measure('postgres.hydrate', () =>
+          Promise.reject(failure),
+        ),
+      ).rejects.toThrow('canceling statement due to statement timeout');
+    });
+
+    expect(events[0]).toMatchObject({
+      operation: 'postgres.hydrate',
+      errorCategory: 'timeout',
+      success: false,
+    });
+    expect(JSON.stringify(events)).not.toContain('canceling statement');
+  });
+
   it('keeps JSONL rotation bounded and retains only the configured history', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'bjc-search-log-'));
     const writer = new RotatingSearchObservationWriter(directory, 320, 2, 20);

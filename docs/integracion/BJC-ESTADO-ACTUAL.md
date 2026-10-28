@@ -1,5 +1,15 @@
 # Estado actual — Buscador Jurídico Civil
 
+## SYTEC10 — cuentas temporales beta (2026-10-28)
+
+El checkout de oficina `9130885aee0afae1d27060e57b68648819b6725d` recibió cuatro identidades beta temporales. El login usa email: `beta.admin@galilei.local` (ADMIN), `beta.jurisprudencia@galilei.local` (LECTOR), `beta.sala@galilei.local` (LECTOR) y `beta.juzgado@galilei.local` (LECTOR). El rol `LECTOR` mantiene las cuentas no administrativas en solo lectura; el rol global `JURISPRUDENCIA` permite curación editorial y por eso no se asignó.
+
+Las membresías quedan limitadas a los espacios existentes `Sala Beta Oficina` y `Juzgado Beta Oficina`: beta.admin tiene rol ADMIN en ambos; beta.sala tiene EDITOR sólo en Sala; beta.juzgado tiene EDITOR sólo en Juzgado; beta.jurisprudencia no tiene membresías privadas. No se crearon dependencias ni espacios nuevos.
+
+Validación del runtime de Office: login HTTP 201, `/auth/me`, Search general HTTP 200 (4/4 cuentas; 2.925 resultados en la consulta de smoke), lectura de carpetas y membresía ADMIN donde corresponde, smoke UI 1366×768, visibilidad de espacios por cuenta y bloqueos 403/404 para escrituras, administración global y workspaces ajenos. Se observó un HTTP 503 aislado en el primer intento de Search de beta.admin; el reintento y los cuatro logins posteriores buscaron correctamente. El smoke generó cuatro eventos `search_internal` habituales, uno por cuenta; la telemetría existente conserva la consulta de smoke en metadata.
+
+En PostgreSQL se añadieron cuatro usuarios, cuatro membresías de workspace y esos cuatro eventos de uso. Los cuatro passwords pasan bcrypt con 10 rounds y la API no devuelve credenciales. No se tocaron otros usuarios, código funcional, `.env`, firewall, índices, esquema ni servicios; no se aplicaron migraciones. No se ejecutó `Finalize-Galilei-Cleanup.ps1 -Execute`. No se hicieron commit ni push. Las contraseñas se entregaron en la conversación y no se guardaron en archivos.
+
 ## GALILEI Suite 9 — consolidación PC principal, OCR y visor (2026-10-27)
 
 La candidata de cierre usa la rama `feature/page-aware-ocr-research-suite-9-closure`: el baseline original es `c57efa6a88738166f959efb3d9ec80fa7d9a1f25` y el cierre previo preservado es `ca39a31cc629358f3bf1f48a96da748d6e7264c3`. La continuación final agrega observabilidad acotada de Search y cobertura de release; el SHA final y su CI deben leerse del informe de cierre, no de esos baselines.

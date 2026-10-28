@@ -47,7 +47,7 @@ export const BUSQUEDA_RUNTIME_PROVIDERS: Provider[] = [
   {
     provide: FederatedSearchService,
     inject: [OpenSearchRuntimeService, SEARCH_DATABASE_POOL_CONFIG],
-    useFactory: (
+    useFactory: async (
       runtime: OpenSearchRuntimeService | null,
       database: MaybeApprovedDatabase,
     ) => {
@@ -89,13 +89,17 @@ export const BUSQUEDA_RUNTIME_PROVIDERS: Provider[] = [
           };
         },
         () => jurisprudenciaHydrator.close(),
+        () => jurisprudenciaHydrator.warmup(),
+        () => jurisprudenciaHydrator.getPoolDiagnostics(),
       );
       const corpus = runtime.createSource(
         'CORPUS',
         (query, context, ids) => corpusHydrator.search(query, context, ids),
         () => corpusHydrator.close(),
+        () => corpusHydrator.warmup(),
+        () => corpusHydrator.getPoolDiagnostics(),
       );
-      return new FederatedSearchService(jurisprudencia, corpus, 5000, true);
+      return new FederatedSearchService(jurisprudencia, corpus, 10000, true);
     },
   },
 ];

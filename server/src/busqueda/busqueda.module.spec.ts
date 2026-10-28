@@ -144,6 +144,7 @@ describe('Search Nest provider wiring uses one canonical PostgreSQL identity', (
           port: Number(environment.databasePort),
           database: environment.databaseName,
           user: environment.databaseUser,
+          min: 1,
         });
         expect(pool.totalCount).toBe(0);
         if (environment.deploymentEnvironment !== 'development') {

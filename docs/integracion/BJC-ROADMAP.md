@@ -1,5 +1,17 @@
 # Roadmap operativo — Buscador Jurídico Civil
 
+## Office SYTEC10 — cuatro cuentas beta temporales (2026-10-28)
+
+| Gate | Estado | Evidencia / alcance |
+|---|---|---|
+| Cuentas y login | **READY** | `beta.admin` usa ADMIN; `beta.jurisprudencia`, `beta.sala` y `beta.juzgado` usan LECTOR. Los cuatro logins reales emitieron token y `/auth/me` confirmó la identidad; passwords bcrypt 10 rounds. |
+| Workspaces | **PASS / AISLADOS** | `Sala Beta Oficina`: beta.admin ADMIN y beta.sala EDITOR. `Juzgado Beta Oficina`: beta.admin ADMIN y beta.juzgado EDITOR. beta.jurisprudencia no tiene membresías privadas. No se crearon entidades nuevas. |
+| API / UI | **PASS** | Search 4/4 HTTP 200; UI 1366×768 muestra sólo los workspaces asignados. Escritura jurisprudencial, gestión global y workspaces cruzados se bloquearon por API; ruta editorial restringida también se bloqueó en UI. |
+| Observación Search | **P3 MONITOREAR** | Hubo un HTTP 503 aislado en el primer intento de beta.admin; reintento y pruebas posteriores 4/4 HTTP 200 (2.925 resultados). Sin RCA ni cambios de configuración/índice. La prueba dejó cuatro eventos `search_internal`, uno por usuario; la telemetría existente conserva la consulta en metadata. |
+| Cambios de entorno | **SIN CAMBIOS** | Sólo filas de las cuatro cuentas y cuatro membresías beta, más la telemetría normal del smoke. Sin código funcional, `.env`, firewall, migraciones, cambios de servicio, commit, push ni cleanup. Las credenciales no se guardaron en archivos. |
+
+Este gate habilita las cuatro identidades solicitadas en la instalación local de Office y no certifica por sí solo el go-live general, la Suite 9 ni la aceptación humana/UAT.
+
 ## Suite 9 — cierre PC principal OCR/visor + Search 503 de oficina (2026-10-27)
 
 | Gate | Estado | Evidencia / siguiente paso |

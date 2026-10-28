@@ -700,23 +700,27 @@ export class BusquedaService {
     return this.getCachedList(
       `temas-${publico ? 'publico' : 'interno'}`,
       async () => {
-        const rows = await this.prisma.sumario.findMany({
-          where: {
-            tema: { not: null },
-            ...(publico
-              ? {
-                  publicado: true,
-                  activo: true,
-                  sentencia: { publicado: true, activo: true },
-                }
-              : {}),
-          },
-          select: { tema: true },
-          distinct: ['tema'],
-          orderBy: { tema: 'asc' },
-          take: 100,
-        });
-        return rows.map((item) => item.tema).filter(Boolean) as string[];
+        const rows = publico
+          ? await this.prisma.$queryRaw<Array<{ value: string }>>`
+              SELECT DISTINCT s."tema" AS value
+                FROM "Sumario" s
+                JOIN "Sentencia" f ON f."id" = s."sentenciaId"
+               WHERE s."tema" IS NOT NULL
+                 AND s."publicado" = TRUE
+                 AND s."activo" = TRUE
+                 AND f."publicado" = TRUE
+                 AND f."activo" = TRUE
+               ORDER BY value ASC
+               LIMIT 100
+            `
+          : await this.prisma.$queryRaw<Array<{ value: string }>>`
+              SELECT DISTINCT s."tema" AS value
+                FROM "Sumario" s
+               WHERE s."tema" IS NOT NULL
+               ORDER BY value ASC
+               LIMIT 100
+            `;
+        return rows.map((item) => item.value).filter(Boolean);
       },
     );
   }
@@ -725,17 +729,22 @@ export class BusquedaService {
     return this.getCachedList(
       `salas-${publico ? 'publico' : 'interno'}`,
       async () => {
-        const rows = await this.prisma.sentencia.findMany({
-          where: {
-            sala: { not: null },
-            ...(publico ? { publicado: true, activo: true } : {}),
-          },
-          select: { sala: true },
-          distinct: ['sala'],
-          orderBy: { sala: 'asc' },
-          take: 100,
-        });
-        return rows.map((item) => item.sala).filter(Boolean) as string[];
+        const rows = publico
+          ? await this.prisma.$queryRaw<Array<{ value: string }>>`
+              SELECT DISTINCT "sala" AS value
+                FROM "Sentencia"
+               WHERE "sala" IS NOT NULL AND "publicado" = TRUE AND "activo" = TRUE
+               ORDER BY value ASC
+               LIMIT 100
+            `
+          : await this.prisma.$queryRaw<Array<{ value: string }>>`
+              SELECT DISTINCT "sala" AS value
+                FROM "Sentencia"
+               WHERE "sala" IS NOT NULL
+               ORDER BY value ASC
+               LIMIT 100
+            `;
+        return rows.map((item) => item.value).filter(Boolean);
       },
     );
   }
@@ -744,17 +753,22 @@ export class BusquedaService {
     return this.getCachedList(
       `tipos-fallo-${publico ? 'publico' : 'interno'}`,
       async () => {
-        const rows = await this.prisma.sentencia.findMany({
-          where: {
-            tipoFallo: { not: null },
-            ...(publico ? { publicado: true, activo: true } : {}),
-          },
-          select: { tipoFallo: true },
-          distinct: ['tipoFallo'],
-          orderBy: { tipoFallo: 'asc' },
-          take: 100,
-        });
-        return rows.map((item) => item.tipoFallo).filter(Boolean) as string[];
+        const rows = publico
+          ? await this.prisma.$queryRaw<Array<{ value: string }>>`
+              SELECT DISTINCT "tipoFallo" AS value
+                FROM "Sentencia"
+               WHERE "tipoFallo" IS NOT NULL AND "publicado" = TRUE AND "activo" = TRUE
+               ORDER BY value ASC
+               LIMIT 100
+            `
+          : await this.prisma.$queryRaw<Array<{ value: string }>>`
+              SELECT DISTINCT "tipoFallo" AS value
+                FROM "Sentencia"
+               WHERE "tipoFallo" IS NOT NULL
+               ORDER BY value ASC
+               LIMIT 100
+            `;
+        return rows.map((item) => item.value).filter(Boolean);
       },
     );
   }

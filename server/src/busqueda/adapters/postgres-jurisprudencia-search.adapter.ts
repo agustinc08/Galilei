@@ -562,21 +562,40 @@ export class PostgresJurisprudenciaSearchAdapter implements SearchSourceAdapter 
     candidateStrategy: 'predicate-v1' | 'set-algebra-v2' = 'predicate-v1',
   ) {
     const configuredStatementTimeout = Number(
-      process.env.BJC_SEARCH_STATEMENT_TIMEOUT_MS ?? 4000,
+      process.env.BJC_SEARCH_STATEMENT_TIMEOUT_MS ?? 7500,
     );
     const statementTimeout =
       Number.isInteger(configuredStatementTimeout) &&
       configuredStatementTimeout >= 500 &&
-      configuredStatementTimeout <= 4500
+      configuredStatementTimeout <= 7500
         ? configuredStatementTimeout
         : 4000;
     this.pool = new Pool({
       ...resolveSearchDatabasePoolConfig(databaseConfig),
       max: 4,
+      // Keep one established local PostgreSQL connection across idle periods.
+      // A cold connection currently costs several seconds in the office runtime.
+      min: 1,
       connectionTimeoutMillis: 5000,
       statement_timeout: statementTimeout,
     });
     this.candidateStrategy = candidateStrategy;
+  }
+
+  async warmup() {
+    await this.pool.query('SELECT 1');
+  }
+
+  getPoolDiagnostics() {
+    const total = this.pool.totalCount;
+    const idle = Math.min(this.pool.idleCount, total);
+    return {
+      total,
+      active: Math.max(0, total - idle),
+      idle,
+      waiting: this.pool.waitingCount,
+      max: this.pool.options.max ?? 4,
+    };
   }
 
   getLastSearchProfile() {

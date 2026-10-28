@@ -556,6 +556,11 @@ const actions = {
   'sprint148-ingest-preflight': 'node scripts/dev/sprint148-ingest.cjs',
   'sprint148-ingest': 'node scripts/dev/sprint148-ingest.cjs',
   'institutional-backup': 'pnpm.cmd exec ts-node scripts/dev/backup-dev-db.ts',
+  'office-beta-legacy-corpus':
+    'pnpm.cmd exec ts-node scripts/dev/office-beta-legacy-corpus.ts',
+  'office-beta-legacy-pdfs':
+    'pnpm.cmd exec ts-node scripts/dev/office-beta-legacy-pdfs.ts',
+  'office-beta-pdfs-backup': 'pnpm.cmd exec ts-node scripts/dev/backup-dev-db.ts',
   'institutional-associations':
     'pnpm.cmd exec ts-node scripts/dev/preview-institutional-associations.ts',
   'institutional-ingest':
@@ -899,17 +904,6 @@ const childEnv = {
       : action === 'sprint-j1-write-dry-run'
         ? 'dry-run'
         : '',
-  BJC_DEV_BACKUP_DIR:
-    action === 'sprint-j1-backup'
-      ? path.resolve(
-          __dirname,
-          '../../_recovery-work/jurisprudencia-j1/backups',
-        )
-      : process.env.BJC_DEV_BACKUP_DIR,
-  BJC_DEV_BACKUP_LABEL:
-    action === 'sprint-j1-backup'
-      ? 'sprint-j1-prewrite'
-      : process.env.BJC_DEV_BACKUP_LABEL,
   BJC_INT1_ORPHAN_DOCUMENT_ID: action.startsWith('int1-orphan-private-upload-')
     ? process.argv[3] || ''
     : '',
@@ -1049,6 +1043,26 @@ const childEnv = {
   BJC_INSTITUTIONAL_ARGS: action.startsWith('institutional-')
     ? JSON.stringify(process.argv.slice(3))
     : '',
+  BJC_OFFICE_BETA_LEGACY_ARGS:
+    action === 'office-beta-legacy-corpus'
+      ? JSON.stringify(process.argv.slice(3))
+      : '',
+  BJC_OFFICE_BETA_PDFS_ARGS:
+    action === 'office-beta-legacy-pdfs'
+      ? JSON.stringify(process.argv.slice(3))
+      : '',
+  BJC_DEV_BACKUP_DIR:
+    action === 'office-beta-pdfs-backup'
+      ? path.resolve(__dirname, '../../_recovery-work/office-beta-legacy-corpus/backups')
+      : action === 'sprint-j1-backup'
+        ? path.resolve(__dirname, '../../_recovery-work/jurisprudencia-j1/backups')
+        : process.env.BJC_DEV_BACKUP_DIR,
+  BJC_DEV_BACKUP_LABEL:
+    action === 'office-beta-pdfs-backup'
+      ? 'pre-legacy-pdf-import'
+      : action === 'sprint-j1-backup'
+        ? 'sprint-j1-prewrite'
+        : process.env.BJC_DEV_BACKUP_LABEL,
   BJC_COLLATION_V4_ACTION:
     action === 'opensearch-v4-shadow' ? process.argv[3] || '' : '',
   BJC_SEARCH_V4_OPERATOR_ARGS:

@@ -48,6 +48,27 @@ function adapter(
 }
 
 describe('FederatedSearchService', () => {
+  it('warms both configured Search source pools before serving requests', async () => {
+    const warmJurisprudencia = jest.fn().mockResolvedValue(undefined);
+    const warmCorpus = jest.fn().mockResolvedValue(undefined);
+    const service = new FederatedSearchService(
+      {
+        search: jest.fn(),
+        warmup: warmJurisprudencia,
+      },
+      {
+        search: jest.fn(),
+        warmup: warmCorpus,
+      },
+    );
+
+    await service.onModuleInit();
+
+    expect(warmJurisprudencia).toHaveBeenCalledTimes(1);
+    expect(warmCorpus).toHaveBeenCalledTimes(1);
+    await service.onModuleDestroy();
+  });
+
   it('fans out concurrently, merges stably, and removes an explicitly linked Corpus representation', async () => {
     let active = 0;
     let maxActive = 0;

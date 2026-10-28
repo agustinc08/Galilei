@@ -232,10 +232,26 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
     private readonly hydrate: SearchCandidateHydrator,
     private readonly closeHydrator?: () => Promise<void>,
     private readonly schemaVersion: SearchIndexSchemaVersion = SEARCH_INDEX_SCHEMA_VERSION,
+    private readonly warmupHydrator?: () => Promise<void>,
+    private readonly poolDiagnosticsHydrator?: () => {
+      total: number;
+      active: number;
+      idle: number;
+      waiting: number;
+      max: number;
+    } | null,
   ) {}
 
   getLastSearchProfile() {
     return this.lastProfile;
+  }
+
+  async warmup() {
+    await this.warmupHydrator?.();
+  }
+
+  getPoolDiagnostics() {
+    return this.poolDiagnosticsHydrator?.() ?? null;
   }
 
   async close() {
