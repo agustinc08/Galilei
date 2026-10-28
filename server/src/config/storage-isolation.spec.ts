@@ -24,7 +24,7 @@ describe('assertDisjointStorageReference', () => {
   it('accepts a new backup reservation outside all environment storage roots', () => {
     const output = path.join(root, 'backup', 'nightly');
     expect(assertDisjointStorageReference(output, protectedRoots())).toBe(
-      output,
+      path.join(fs.realpathSync.native(root), 'backup', 'nightly'),
     );
   });
 
