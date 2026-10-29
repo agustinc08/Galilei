@@ -557,6 +557,17 @@
   .filtersCard { gap: 10px; }
   .primarySearchRow { gap: 8px; }
 
+  .activeQueryOnly {
+    flex-wrap: nowrap;
+    gap: 6px;
+    min-height: 32px;
+  }
+  .activeQueryOnly .activeFiltersLabel { display: none; }
+  .activeQueryOnly .filterChip { flex: 1 1 auto; min-width: 0; max-width: none; }
+  .activeQueryOnly .filterChip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .activeQueryOnly .filterChip span strong { display: none; }
+  .activeQueryOnly > :global(button) { display: none; }
+
   .publicFilterGrid:not(.publicFilterGridOpen) { display: none; }
 
   .heroTitle {
@@ -589,24 +600,27 @@
     padding: 16px;
   }
   .listGrid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .toolbar { align-items: stretch; gap: 8px; }
+  .toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 4px; }
+  .toolbarLeft { min-width: 0; }
   .toolbarRight {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: end;
-    width: 100%;
+    display: flex;
+    flex-wrap: nowrap;
+    width: auto;
   }
+  .toolbarRight .copySearchLink { display: none; }
   .toolbarRight > :global(label),
   .toolbarRight > :global(button) { min-width: 0; width: 100%; }
+  .toolbarRight > :global(label) { width: 132px; }
+  .toolbarRight > :global(label) > span { display: none; }
   .toolbarRight :global(select) { width: 100%; min-width: 0; }
   .facetHeader { align-items: flex-start; }
   .facetHeader h2 { font-size: 15px; }
   .facetHeader > :global(button) { flex: 0 0 auto; min-width: 0; }
-  .facetCard { padding: 10px 12px; }
+  .facetCard { padding: 5px 8px; }
 }
 
 @media (max-width: 420px) {
   .filtersGrid { grid-template-columns: minmax(0, 1fr); }
-  .toolbar { align-items: stretch; }
-  .toolbarRight { width: 100%; }
+  .toolbar { align-items: end; }
+  .toolbarRight > :global(label) { width: 132px; }
 }

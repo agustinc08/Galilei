@@ -678,15 +678,36 @@ test('mobile search keeps the query first and folds optional filters and managem
     return json(route, { data: [], meta: { page: 1, pageCount: 1, total: 0, pageSize: 25 } });
   });
 
-  await page.goto('/consulta');
+  await page.route('**/api/public/busqueda**', async (route) => {
+    if (new URL(route.request().url()).pathname !== '/api/public/busqueda') return route.fallback();
+    return json(route, {
+      data: [{
+        id: 9001, sentenciaId: 9001, slugPublico: 'responsabilidad-civil-qa',
+        numeroSentencia: '12/2024', fecha: '2024-06-03T12:00:00.000Z', sala: 'C',
+        tipoFallo: 'Sentencia', expediente: 'CIV 10/2024', caratula: 'Caso de prueba: responsabilidad civil',
+        tema: 'Responsabilidad civil', textoSumario: 'Daño y responsabilidad civil en un caso de prueba.',
+        highlights: [], tienePdf: false, score: 1, matchInfo: {}, matchedFields: ['textoSumario'],
+      }],
+      meta: { page: 1, pageCount: 1, total: 1, pageSize: 25, facets: { salas: [], years: [] } },
+    });
+  });
+
+  await page.goto('/consulta?q=responsabilidad%20civil');
   await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Buscar', exact: true })).toBeVisible();
-  const titleBounds = await page.getByRole('heading', { name: 'Jurisprudencia', exact: true }).boundingBox();
+  const pageTitle = page.getByRole('heading', { name: 'Jurisprudencia', exact: true });
+  await expect(pageTitle).toBeVisible();
+  const titleBounds = await pageTitle.boundingBox();
   expect(titleBounds?.height, 'mobile Search heading should not break within the word').toBeLessThan(35);
   await expect(page.getByLabel('Tema')).toBeHidden();
   await expect(page.getByLabel('Fecha desde (dd/mm/aaaa)')).toBeHidden();
   await expect(page.getByRole('button', { name: 'Consejos de búsqueda' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Guardar búsqueda' })).toHaveCount(0);
+  const resultTitle = page.getByRole('heading', { name: 'Caso de prueba: responsabilidad civil' });
+  await expect(resultTitle).toBeVisible();
+  const resultBounds = await resultTitle.boundingBox();
+  expect(resultBounds?.y, 'first Search result should appear earlier in the mobile viewport').toBeLessThan(640);
+  await expect(page.getByRole('button', { name: 'Copiar enlace de búsqueda' })).toBeHidden();
 
   const filtersToggle = page.locator('button[aria-controls="public-search-filters"]');
   await expect(filtersToggle).toHaveAttribute('aria-expanded', 'false');
@@ -700,9 +721,10 @@ test('mobile search keeps the query first and folds optional filters and managem
   await expect(management.getByRole('link')).toHaveCount(0);
   await management.locator('summary').click();
   await expect(management.getByRole('link')).toHaveCount(3);
-  const moreActions = page.locator('details').filter({ has: page.getByText('Más acciones') });
+  const moreActions = page.locator('details[class*="mobileSearchActions"]');
   await expect(moreActions).toBeVisible();
   await expect(moreActions.getByRole('button')).toHaveCount(0);
   await moreActions.locator('summary').click();
-  await expect(moreActions.getByRole('button')).toHaveCount(3);
+  await expect(moreActions.getByRole('button')).toHaveCount(4);
+  await expect(moreActions.getByRole('button', { name: 'Copiar enlace' })).toBeVisible();
 });

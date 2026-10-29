@@ -437,6 +437,7 @@ function ConsultaPublicaScreenContent() {
         onBuscar={(values) => handleSearch(values)}
         onLimpiar={handleClear}
         onImprimir={handlePrint}
+        onCopiarEnlace={() => void handleCopySearchLink()}
         onGuardarBusqueda={() => setSaveDialogOpen(true)}
         mostrarExportar={false}
         mostrarGuardarBusqueda={canManagePersonalResearch}
@@ -444,7 +445,10 @@ function ConsultaPublicaScreenContent() {
       />
 
       {activeFilters.length ? (
-        <div className={styles.activeFilters} aria-label="Filtros activos">
+        <div
+          className={`${styles.activeFilters} ${activeFilters.length === 1 && activeFilters[0]?.key === 'q' ? styles.activeQueryOnly : ''}`}
+          aria-label="Filtros activos"
+        >
           <span className={styles.activeFiltersLabel}>Buscando con:</span>
           {activeFilters.map((filter) => (
             <span className={styles.filterChip} key={filter.key}>
@@ -474,6 +478,7 @@ function ConsultaPublicaScreenContent() {
           <Button aria-label="Copiar enlace de búsqueda" className={styles.copySearchLink} variant="secondary" onClick={() => void handleCopySearchLink()}>Copiar enlace</Button>
           <Select
             label="Orden"
+            aria-label="Ordenar resultados"
             value={`${filters.sortBy || (filters.q ? 'relevancia' : 'fecha')}:${filters.sortOrder || 'desc'}`}
             onChange={(event) => {
               const [sortBy, sortOrder] = event.target.value.split(':');

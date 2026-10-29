@@ -21,6 +21,7 @@ type Props = {
   onBuscar: (values: BusquedaJurisprudenciaValores) => void;
   onLimpiar?: () => void;
   onGuardarBusqueda?: () => void;
+  onCopiarEnlace?: () => void;
   onExportar?: (format: string) => void | Promise<void>;
   onImprimir?: () => void;
   mostrarFiltrosInternos?: boolean;
@@ -52,6 +53,7 @@ export function BusquedaJurisprudenciaForm({
   onBuscar,
   onLimpiar,
   onGuardarBusqueda,
+  onCopiarEnlace,
   onExportar,
   onImprimir,
   mostrarFiltrosInternos = modo === 'admin',
@@ -212,7 +214,10 @@ export function BusquedaJurisprudenciaForm({
         {publicMode ? (
           <details className={consultaStyles.mobileSearchActions}>
             <summary>Más acciones</summary>
-            <div>{secondaryActions}</div>
+            <div>
+              {secondaryActions}
+              {onCopiarEnlace ? <Button variant="secondary" onClick={onCopiarEnlace}>Copiar enlace</Button> : null}
+            </div>
           </details>
         ) : null}
         <div className={`${sentenciaStyles.inlineActions} ${publicMode ? consultaStyles.publicSearchActionsDesktop : ''}`}>
