@@ -379,10 +379,13 @@ test('OCR queue labels numeric legacy titles and reviewer assignment without ope
   await page.goto('/admin/jurisprudencia/ocr');
   const guide = page.locator('details').filter({ hasText: '¿Cuándo usar OCR?' });
   await expect(guide).toBeVisible();
-  await expect(guide).not.toHaveAttribute('open', '');
+  await expect.poll(() => guide.evaluate((element) => element.open)).toBe(false);
   const queueHeading = page.getByRole('heading', { name: 'Cola institucional' });
   await expect(queueHeading).toBeVisible();
   expect((await queueHeading.boundingBox())?.y).toBeLessThan(844);
+  await guide.locator('summary').click();
+  await expect.poll(() => guide.evaluate((element) => element.open)).toBe(true);
+  await expect(guide.getByText('El archivo original no se reemplaza.')).toBeVisible();
   await expect(page.getByText('Documento sin carátula · referencia #25022')).toBeVisible();
   await expect(page.getByText('Metadatos de carátula incompletos')).toBeVisible();
   await expect(page.getByText('En revisión · tomado por otro revisor')).toBeVisible();

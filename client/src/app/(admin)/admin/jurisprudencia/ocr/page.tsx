@@ -302,8 +302,10 @@ export default function OcrReviewPage() {
     <ProtectedContent allowedRoles={['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA']} redirectTo="/dashboard">
       <main className={styles.page}>
         <PageHeader title="Revisión humana de OCR" description="Compará cada página con su PDF, corregí el texto y aprobá cada decisión antes de incorporarla a Search interno." />
-        <details className={styles.ocrGuide} open={guideOpen} onToggle={(event) => setGuideOpen(event.currentTarget.open)}>
-          <summary><strong>¿Cuándo usar OCR?</strong><span>Guía del proceso · el PDF original se conserva</span></summary>
+        <details className={styles.ocrGuide} open={guideOpen}>
+          <summary onClick={(event) => { event.preventDefault(); setGuideOpen((open) => !open); }}>
+            <strong>¿Cuándo usar OCR?</strong><span>Guía del proceso · el PDF original se conserva</span>
+          </summary>
           <div className={styles.ocrGuideCopy}>
             <p>OCR convierte en texto buscable las páginas escaneadas de un PDF. Usalo cuando no puedas seleccionar o buscar texto dentro del documento.</p>
             <p><strong>El archivo original no se reemplaza.</strong> El texto reconocido queda pendiente de revisión humana antes de incorporarse a Search.</p>
