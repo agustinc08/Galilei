@@ -697,16 +697,16 @@ test('mobile search keeps the query first and folds optional filters and managem
   await expect(page.getByRole('button', { name: 'Buscar', exact: true })).toBeVisible();
   const pageTitle = page.getByRole('heading', { name: 'Jurisprudencia', exact: true });
   await expect(pageTitle).toBeVisible();
-  const titleBounds = await pageTitle.boundingBox();
-  expect(titleBounds?.height, 'mobile Search heading should not break within the word').toBeLessThan(35);
+  const titleHeight = await pageTitle.evaluate((element) => element.getBoundingClientRect().height);
+  expect(titleHeight, 'mobile Search heading should not break within the word').toBeLessThan(35);
   await expect(page.getByLabel('Tema')).toBeHidden();
   await expect(page.getByLabel('Fecha desde (dd/mm/aaaa)')).toBeHidden();
   await expect(page.getByRole('button', { name: 'Consejos de búsqueda' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Guardar búsqueda' })).toHaveCount(0);
   const resultTitle = page.getByRole('heading', { name: 'Caso de prueba: responsabilidad civil' });
   await expect(resultTitle).toBeVisible();
-  const resultBounds = await resultTitle.boundingBox();
-  expect(resultBounds?.y, 'first Search result should appear earlier in the mobile viewport').toBeLessThan(640);
+  const resultTop = await resultTitle.evaluate((element) => element.getBoundingClientRect().top);
+  expect(resultTop, 'first Search result should appear earlier in the mobile viewport').toBeLessThan(640);
   await expect(page.getByRole('button', { name: 'Copiar enlace de búsqueda' })).toBeHidden();
 
   const filtersToggle = page.locator('button[aria-controls="public-search-filters"]');
@@ -727,4 +727,11 @@ test('mobile search keeps the query first and folds optional filters and managem
   await moreActions.locator('summary').click();
   await expect(moreActions.getByRole('button')).toHaveCount(4);
   await expect(moreActions.getByRole('button', { name: 'Copiar enlace' })).toBeVisible();
+
+  await filtersToggle.click();
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await expect(page.getByLabel('Tema')).toBeHidden();
+  const tabletResultTop = await resultTitle.evaluate((element) => element.getBoundingClientRect().top);
+  expect(tabletResultTop, 'first Search result should remain early in the tablet viewport').toBeLessThan(800);
+  expect(await page.locator('body').evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
 });

@@ -475,6 +475,8 @@
 }
 
 @media (max-width: 900px) {
+  .publicFilterGrid:not(.publicFilterGridOpen) { display: none; }
+
   .primarySearchRow {
     grid-template-columns: 1fr;
   }
@@ -567,8 +569,6 @@
   .activeQueryOnly .filterChip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .activeQueryOnly .filterChip span strong { display: none; }
   .activeQueryOnly > :global(button) { display: none; }
-
-  .publicFilterGrid:not(.publicFilterGridOpen) { display: none; }
 
   .heroTitle {
     font-size: 25px;
