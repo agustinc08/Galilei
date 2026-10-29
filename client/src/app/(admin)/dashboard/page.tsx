@@ -178,10 +178,10 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className={styles.summaryGrid}>
-            <div className={styles.summaryItem}><span>Fallos sin resumen</span><strong>{calidad.sentenciasSinResumen}</strong></div>
-            <div className={styles.summaryItem}><span>Fallos sin PDF</span><strong>{calidad.sentenciasSinPdf}</strong></div>
-            <div className={styles.summaryItem}><span>Fallos sin sumarios</span><strong>{calidad.sentenciasSinSumarios}</strong></div>
-            <div className={styles.summaryItem}><span>Sumarios sin tema</span><strong>{calidad.sumariosSinTema}</strong></div>
+            <div className={styles.summaryItem}><span>Fallos sin resumen</span><strong>{calidad.sentenciasSinResumen.toLocaleString('es-AR')}</strong></div>
+            <div className={styles.summaryItem}><span>Fallos sin PDF</span><strong>{calidad.sentenciasSinPdf.toLocaleString('es-AR')}</strong></div>
+            <div className={styles.summaryItem}><span>Fallos sin sumarios</span><strong>{calidad.sentenciasSinSumarios.toLocaleString('es-AR')}</strong></div>
+            <div className={styles.summaryItem}><span>Sumarios sin tema</span><strong>{calidad.sumariosSinTema.toLocaleString('es-AR')}</strong></div>
           </div>
         </Card>
       ) : (
@@ -207,7 +207,7 @@ export default function DashboardPage() {
                   {item.sentencia?.sala ?? 'Sin sala'} | {formatDate(item.sentencia?.fecha)}
                 </span>
                 <div className={styles.badgeRow}>
-                  <span className={styles.badge}>{item.total} vistas</span>
+                  <span className={styles.badge}>{item.total.toLocaleString('es-AR')} vistas</span>
                   {item.sentencia?.destacada ? <span className={styles.badge}>Destacada</span> : null}
                 </div>
               </article>

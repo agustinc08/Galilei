@@ -60,8 +60,11 @@ test('dashboard ends a failed load, shows its tracking id, and retries without r
       return json(route, { data: { totalSentencias: 24661, totalSumarios: 29340, totalConPdf: 1162, totalPublicadas: 24614 } });
     }
     if (pathname === '/api/sentencias') return json(route, { data: [], meta: { page: 1, pageCount: 1, total: 0, pageSize: 4 } });
-    if (pathname === '/api/estadisticas/uso/sentencias-mas-vistas') return json(route, { data: [] });
-    if (pathname === '/api/estadisticas/calidad-datos') return json(route, { data: { sentenciasSinPdf: 0, sentenciasSinResena: 0, sentenciasSinResumen: 0, sentenciasSinSumarios: 0, sumariosSinTema: 0 } });
+    if (pathname === '/api/estadisticas/uso/sentencias-mas-vistas') return json(route, { data: [{
+      sentenciaId: 9001, total: 1234,
+      sentencia: { id: 9001, caratula: 'Fallos frecuentes QA', sala: 'H', fecha: '2024-06-03T12:00:00.000Z', publicado: true, destacada: false },
+    }] });
+    if (pathname === '/api/estadisticas/calidad-datos') return json(route, { data: { sentenciasSinPdf: 23499, sentenciasSinResena: 24661, sentenciasSinResumen: 19876, sentenciasSinSumarios: 1518, sumariosSinTema: 52 } });
     if (pathname === '/api/corpus/documents/admin/summary') return json(route, {
       physicalFiles: 0, documents: 0, pages: 0, linked: 0, unresolved: 0, pendingAssociations: 0,
       classifications: 0, classificationCounts: {}, statusCounts: {}, selected: 0, notSelected: 0,
@@ -77,7 +80,11 @@ test('dashboard ends a failed load, shows its tracking id, and retries without r
   await expect(page.getByRole('alert')).not.toContainText('internal server error');
   await page.getByRole('button', { name: 'Reintentar' }).click();
   await expect(page.getByText('Sentencias cargadas')).toBeVisible();
-  await expect(page.getByText('24.661', { exact: true })).toBeVisible();
+  await expect(page.getByText('24.661', { exact: true }).first()).toBeVisible();
+  const qualitySummary = page.locator('[class*="summaryGrid"]').filter({ hasText: 'Fallos sin resumen' });
+  await expect(qualitySummary.locator('[class*="summaryItem"]').filter({ hasText: 'Fallos sin resumen' })).toContainText('19.876');
+  await expect(qualitySummary.locator('[class*="summaryItem"]').filter({ hasText: 'Fallos sin sumarios' })).toContainText('1.518');
+  await expect(page.getByText('1.234 vistas', { exact: true })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   const mobileMetrics = await page.locator('[class*="dashboardMetrics"] > div').evaluateAll((items) => items.slice(0, 3).map((item) => {
     const rect = item.getBoundingClientRect();
