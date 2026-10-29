@@ -112,6 +112,7 @@ export type ConsultaPublicaResultado = {
   tienePdf: boolean;
   pdfDisponible?: boolean;
   archivoPdfId?: number | null;
+  cantidadSumarios?: number;
   pdfUrl?: string | null;
   score: number;
   criterioPrincipal?: string | null;

@@ -60,6 +60,16 @@
   scrollbar-gutter: stable;
 }
 
+.navSectionLabel,
+.footerSectionLabel {
+  margin: 0;
+  padding: 4px 12px 3px;
+  color: #a9c9e2;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
 .navLink {
   display: flex;
   align-items: center;
@@ -100,36 +110,61 @@
 
 .sidebarFooter {
   display: grid;
-  gap: 10px;
-  flex: 0 0 auto;
-  padding: 12px 4px 0;
+  gap: 12px;
+  flex: 0 1 auto;
+  max-height: 48vh;
+  max-height: 48dvh;
+  min-height: 0;
+  padding: 10px 4px 0;
+  overflow: auto;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
   background: #0f3d66;
 }
 
-.sidebarFooter span {
-  color: #b9d8f2;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.technicalAdmin {
+.managementNav,
+.accountGroup {
   display: grid;
-  gap: 7px;
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.12);
+  gap: 5px;
 }
 
-.technicalAdmin strong {
-  color: #ffffff;
-  font-size: 12px;
-}
-
-.technicalAdmin a {
+.footerSectionLabel { padding: 1px 8px 3px; }
+.footerLink {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 6px;
   color: #d9ecfb;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.footerLink:hover,
+.footerLink:focus-visible {
+  color: #fff;
+  background: rgba(255, 255, 255, .1);
+}
+
+.accountGroup {
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, .16);
+}
+
+.accountName {
+  padding: 0 8px 2px;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.accountGroup :global(button) {
+  justify-self: stretch;
+}
+
+@media (max-height: 700px) and (min-width: 981px) {
+  .sidebar { padding-top: 14px; padding-bottom: 10px; gap: 12px; }
+  .sidebarFooter { max-height: 44dvh; gap: 8px; }
+  .navLink { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
 }
 
 .main {

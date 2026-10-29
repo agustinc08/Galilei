@@ -90,6 +90,52 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await expect(page).toHaveURL(/sala=Sala(?:\+|%20)A/u);
       await captureAndCheck(page, testInfo, { id: 'search-filters', route: '/consulta' });
 
+      const multipleSummaries = page.getByRole('link', { name: 'Ver 4 sumarios', exact: true }).first();
+      await expect(multipleSummaries).toBeVisible();
+      await expect(page.getByText('PDF disponible', { exact: true }).first()).toBeVisible();
+      await multipleSummaries.click();
+      await expect(page).toHaveURL(/\/consulta\/sentencia\/ux-qa-001/u);
+      await expect(page.getByRole('heading', { name: 'Sumarios del fallo', exact: true })).toBeVisible();
+      await expect(page.locator('article[class*="summaryCard"]')).toHaveCount(4);
+      const firstSummary = page.locator('article[class*="summaryCard"]').first();
+      await expect(firstSummary).toContainText('El médico explicó el tratamiento aplicado.');
+      await expect(firstSummary).toContainText('Segundo párrafo de prueba.');
+      await expect(firstSummary).not.toContainText('<p');
+      await expect(firstSummary.locator('img, script')).toHaveCount(0);
+      expect(await page.evaluate(() => window.__qaSummaryXss)).toBeUndefined();
+      const relatedFallo = page.getByRole('complementary', { name: 'Fallo relacionado' });
+      await expect(relatedFallo.getByText('FALLO RELACIONADO', { exact: true })).toBeVisible();
+      await expect(relatedFallo.getByRole('link', { name: 'Abrir fallo completo', exact: true })).toBeVisible();
+      const openPdf = relatedFallo.getByRole('link', { name: 'Abrir PDF', exact: true });
+      await expect(openPdf).toHaveAttribute('href', /\/api\/public\/sentencias\/ux-qa-001\/pdf$/u);
+      await expect(openPdf).toHaveAttribute('target', '_blank');
+      const returnUrl = new URL(page.url()).searchParams.get('returnTo') ?? '';
+      expect(returnUrl).toContain('/consulta?q=responsabilidad');
+      expect(returnUrl).toContain('sala=Sala');
+      await captureAndCheck(page, testInfo, { id: 'sumario-detail-multiple', route: '/consulta/sentencia/ux-qa-001' });
+      await page.getByRole('link', { name: 'Volver a resultados', exact: true }).click();
+      await expect(page).toHaveURL(/\/consulta\?/u);
+      await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('responsabilidad civil');
+      await expect(page).toHaveURL(/sala=Sala(?:\+|%20)A/u);
+
+      const noPdfCard = page.locator('article').nth(1);
+      await expect(noPdfCard.getByText('Sin PDF', { exact: true })).toBeVisible();
+      await expect(noPdfCard.getByRole('link', { name: 'Abrir PDF', exact: true })).toHaveCount(0);
+      await noPdfCard.getByRole('button', { name: 'Por qué no hay PDF', exact: true }).click();
+      await expect(page.getByText('El fallo seleccionado no tiene PDF público disponible.', { exact: true })).toBeVisible();
+      await noPdfCard.getByRole('link', { name: 'Ver sumario', exact: true }).click();
+      await expect(page).toHaveURL(/\/consulta\/sentencia\/ux-qa-002/u);
+      const relatedFalloWithoutPdf = page.getByRole('complementary', { name: 'Fallo relacionado' });
+      await expect(relatedFalloWithoutPdf.getByText('No disponible', { exact: true })).toBeVisible();
+      await expect(relatedFalloWithoutPdf.getByText('Este fallo no tiene un PDF asociado.', { exact: true })).toBeVisible();
+      await expect(relatedFalloWithoutPdf.getByRole('link', { name: 'Abrir PDF', exact: true })).toHaveCount(0);
+      await expect(relatedFalloWithoutPdf.getByRole('link', { name: 'Abrir fallo completo', exact: true })).toHaveCount(0);
+      await captureAndCheck(page, testInfo, { id: 'sumario-detail-without-pdf', route: '/consulta/sentencia/ux-qa-002' });
+      await page.getByRole('link', { name: 'Volver a resultados', exact: true }).click();
+      await expect(page).toHaveURL(/\/consulta\?/u);
+      await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('responsabilidad civil');
+      await expect(page).toHaveURL(/sala=Sala(?:\+|%20)A/u);
+
       const helpButton = page.getByRole('button', { name: 'Consejos de búsqueda', exact: true });
       const dialogResult = await exerciseDialog(page, helpButton, 'Ayuda de búsqueda', async () => {
         await captureAndCheck(page, testInfo, { id: 'search-help', route: '/consulta' });
@@ -105,6 +151,7 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await page.getByRole('button', { name: 'Anterior', exact: true }).click();
       await expect(page.getByText(/página 1 de 2/u)).toBeVisible();
 
+      await page.getByText('Más acciones', { exact: true }).first().click();
       const selectResult = page.getByRole('button', { name: 'Seleccionar para imprimir', exact: true }).first();
       await selectResult.focus();
       await page.keyboard.press('Space');

@@ -38,11 +38,28 @@ const ficha = {
     citaCompleta: 'Cámara Civil, Sala I, caso sintético QA-001.',
     citaCopiable: 'CNCiv., Sala I, 01/10/2024, QA-001',
   },
-  sumarios: [{
-    id: 1, numeroSumario: 'QA-S-001', tema: 'Responsabilidad civil',
-    texto: 'Texto sintético para validar lectura y panel lateral dentro del Viewer.',
-    publicado: true, activo: true, sentenciaId: 901, createdAt: now, updatedAt: now,
-  }],
+  sumarios: [
+    {
+      id: 1, numeroSumario: 'QA-S-001', tema: 'Responsabilidad civil',
+      texto: '<p>El m&eacute;dico explicó el <strong>tratamiento</strong> aplicado.</p><p>Segundo párrafo de prueba.</p><img src="/inexistente" onerror="window.__qaSummaryXss = true"><script>window.__qaSummaryXss = true</script>',
+      publicado: true, activo: true, sentenciaId: 901, createdAt: now, updatedAt: now,
+    },
+    {
+      id: 2, numeroSumario: 'QA-S-002', tema: 'Daños',
+      texto: 'Segundo sumario sintético para comprobar la lectura de varios criterios.',
+      publicado: true, activo: true, sentenciaId: 901, createdAt: now, updatedAt: now,
+    },
+    {
+      id: 3, numeroSumario: 'QA-S-003', tema: 'Relación causal',
+      texto: 'Tercer sumario sintético de una extensión suficiente para revisar el interlineado.',
+      publicado: true, activo: true, sentenciaId: 901, createdAt: now, updatedAt: now,
+    },
+    {
+      id: 4, numeroSumario: 'QA-S-004', tema: 'Prueba',
+      texto: 'Cuarto sumario sintético; este contenido sólo prueba jerarquía y navegación visual.',
+      publicado: true, activo: true, sentenciaId: 901, createdAt: now, updatedAt: now,
+    },
+  ],
   citasFallo: [], referenciasNormativas: [], referenciasJurisprudenciales: [], referenciasDoctrinarias: [],
   archivosPdf: [{
     id: 71, nombreArchivo: 'ux-qa-001.pdf', nombreOriginal: 'Documento de muestra.pdf',
@@ -61,10 +78,33 @@ const publicSentencia = {
   archivosPdf: ficha.archivosPdf,
 };
 
+const publicSentenciaWithoutPdf = {
+  ...publicSentencia,
+  id: 902,
+  slugPublico: 'ux-qa-002',
+  numeroSentencia: 'QA-002',
+  expediente: '54321/2024',
+  caratula: 'Caso sintético QA sin PDF',
+  tienePdf: false,
+  sumarios: [{
+    id: 5,
+    numeroSumario: 'QA-S-005',
+    tema: 'Disponibilidad documental',
+    texto: 'Texto sintético que valida la ficha cuando el PDF no está disponible.',
+    publicado: true,
+    activo: true,
+    sentenciaId: 902,
+    createdAt: now,
+    updatedAt: now,
+  }],
+  archivosPdf: [],
+};
+
 function makeResult(id, page) {
   const suffix = `${page}${id}`;
+  const withoutPdf = id === 2 && page === 1;
   return {
-    id, sentenciaId: 901, slugPublico: 'ux-qa-001', numeroSumario: `QA-S-${suffix}`,
+    id, sentenciaId: withoutPdf ? 902 : 901, slugPublico: withoutPdf ? 'ux-qa-002' : 'ux-qa-001', numeroSumario: `QA-S-${suffix}`,
     numeroSentencia: `QA-${suffix}`, fecha: ficha.sentencia.fecha, sala: 'I',
     magistrados: 'Jueza de muestra', tipoFallo: 'Sentencia definitiva',
     expediente: `12345/${suffix}`, tribunalOrigen: 'Cámara Civil',
@@ -74,8 +114,9 @@ function makeResult(id, page) {
     actor: 'Pérez', demandado: 'Gutiérrez', tema: 'Responsabilidad civil',
     textoSumario: `Texto sintético de la página ${page}, resultado ${id}; no valida semántica de búsqueda.`,
     highlights: [{ campo: 'Sumario', texto: 'Contenido <mark>responsabilidad civil</mark> sintético.' }],
-    tienePdf: true, pdfDisponible: true, archivoPdfId: 71,
-    pdfUrl: '/public/sentencias/ux-qa-001/pdf', score: 1,
+    cantidadSumarios: id === 1 && page === 1 ? 4 : 1,
+    tienePdf: !withoutPdf, pdfDisponible: !withoutPdf, archivoPdfId: withoutPdf ? null : 71,
+    pdfUrl: withoutPdf ? null : '/public/sentencias/ux-qa-001/pdf', score: 1,
     criterioPrincipal: 'Fixture visual', matchedFields: ['sumario'],
   };
 }
@@ -120,6 +161,7 @@ function fixtureForRequest(request) {
     });
   }
   if (method === 'GET' && pathname === '/public/sentencias/ux-qa-001') return json(200, { data: publicSentencia });
+  if (method === 'GET' && pathname === '/public/sentencias/ux-qa-002') return json(200, { data: publicSentenciaWithoutPdf });
   if (method === 'GET' && pathname === '/public/sentencias/ux-qa-001/documento') return json(200, { data: ficha });
   if (method === 'GET' && pathname === '/public/sentencias/ux-qa-001/cita') {
     if (url.searchParams.has('passage')) return json(400, { message: 'Passages must stay local.' });

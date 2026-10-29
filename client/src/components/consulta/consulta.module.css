@@ -155,7 +155,7 @@
 
 .resultCard {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 168px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 188px);
   gap: 14px;
   min-width: 0;
   padding: 16px 18px;
@@ -186,6 +186,7 @@
   display: grid;
   align-content: start;
   gap: 7px;
+  min-width: 0;
 }
 
 .resultAside :global(a) { display: block; }
@@ -225,16 +226,28 @@
 
 .sumarioBox {
   display: grid;
-  gap: 8px;
-  padding: 14px;
+  gap: 9px;
+  padding: 14px 16px;
+  border: 1px solid #dce7ef;
   border-radius: 8px;
-  background: #f8fbff;
-  border-left: 3px solid #1f5d99;
+  background: #f8fbfd;
+  border-left: 3px solid #377a9c;
 }
 
-.theme {
-  font-size: 15px;
-  color: #0f172a;
+.sumarioHeading { display: grid; gap: 4px; }
+.sumarioHeading > span { color: #6b8090; font-size: 10px; font-weight: 800; letter-spacing: .11em; }
+.theme { font-size: 14px; line-height: 1.4; color: #24465d; }
+.summaryCount {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #d6e3eb;
+  border-radius: 999px;
+  color: #526a7b;
+  background: #f7fafc;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .sumarioText {
@@ -264,6 +277,42 @@
   font-size: 12px;
   font-weight: 600;
 }
+
+.badgeMuted {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #e2e7ec;
+  border-radius: 999px;
+  background: #f7f8fa;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.primaryResultActions { display: grid; gap: 7px; }
+.primaryResultActions :global(a) { display: block; }
+.primaryResultActions :global(button) { width: 100%; }
+.pdfAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 7px 11px;
+  border: 1px solid #bcccdc;
+  border-radius: 7px;
+  color: #243b53;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.pdfAction:hover { background: #f4f8fb; }
+.moreResultActions { border-top: 1px solid #e6edf3; padding-top: 7px; }
+.moreResultActions > summary { color: #536579; cursor: pointer; font-size: 12px; font-weight: 650; }
+.moreResultActions > div { display: grid; gap: 7px; padding-top: 8px; }
+.moreResultActions > div :global(button) { width: 100%; }
 
 .highlightGroup {
   display: grid;

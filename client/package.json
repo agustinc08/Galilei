@@ -9,7 +9,7 @@
     "build": "pnpm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4002 --strictPort",
     "typecheck": "tsc --noEmit",
-    "test": "node --test scripts/preprod-build-env.test.mjs ux-qa/self-test.cjs && node --experimental-strip-types --test tests/pdf-text-search.test.mjs tests/pdf-page.test.mjs tests/evolution-utils.test.mjs",
+    "test": "node --test scripts/preprod-build-env.test.mjs ux-qa/self-test.cjs && node --experimental-strip-types --test tests/personal-folder-upload.test.mjs tests/workspace-list-response.test.mjs tests/pdf-text-search.test.mjs tests/pdf-page.test.mjs tests/evolution-utils.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:research": "playwright test --config playwright.research.config.ts",
     "lint": "eslint src vite.config.ts playwright.config.ts playwright.preprod.config.ts playwright.research.config.ts scripts ux-qa tests preprod-tests",
@@ -20,6 +20,9 @@
     "qa:ux:responsive": "node ux-qa/run.cjs responsive",
     "qa:ux:viewer": "node ux-qa/run.cjs viewer",
     "qa:ux:auth": "node ux-qa/auth-preflight.cjs && node ux-qa/run.cjs auth",
+    "qa:ux:folder-upload": "node ux-qa/run.cjs folder-upload",
+    "qa:ux:workspace-list": "node ux-qa/run.cjs workspace-list",
+    "qa:ux:sidebar": "node ux-qa/run.cjs sidebar",
     "qa:ux:ocr-review": "node ux-qa/run.cjs ocr-review",
     "preprod:env:check": "node scripts/preprod-build-env.mjs",
     "preprod:env:test": "node --test scripts/preprod-build-env.test.mjs"

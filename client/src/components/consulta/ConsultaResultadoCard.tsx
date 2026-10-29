@@ -54,11 +54,13 @@ export function ConsultaResultadoCard({
   if (query) detailQuery.set('q', query);
   const publicIdentifier = item.slugPublico ?? String(item.sentenciaId ?? item.id);
   const hasPdf = item.pdfDisponible === true || Boolean(item.archivoPdfId);
+  const summaryCount = Math.max(1, Math.trunc(Number(item.cantidadSumarios ?? 1)));
   const inComparison = Boolean(item.slugPublico && comparison.items.some((candidate) => candidate.slug === item.slugPublico));
   const detailHref = publicIdentifier
-    ? `/consulta/sentencia/${publicIdentifier}?${detailQuery.toString()}`
+    ? `/consulta/sentencia/${publicIdentifier}?${detailQuery.toString()}#sumarios`
     : null;
   const documentHref = publicIdentifier ? `/fallos/${publicIdentifier}?${detailQuery.toString()}` : null;
+  const pdfHref = item.pdfUrl ?? documentHref;
 
   const copyCitation = async () => {
     if (!item.slugPublico || copyingCitation) return;
@@ -93,6 +95,8 @@ export function ConsultaResultadoCard({
           <span className={styles.badge}>{item.esFalloCorpus ? 'Fallo civil' : 'Sumario'}</span>
           {item.numeroSumario ? <span className={styles.badge}>Nº {item.numeroSumario}</span> : null}
           {hasPdf ? <span className={styles.badge}>PDF disponible</span> : null}
+          {!hasPdf ? <span className={styles.badgeMuted}>Sin PDF</span> : null}
+          {!item.esFalloCorpus && summaryCount > 1 ? <span className={styles.summaryCount}>{summaryCount} sumarios en este fallo</span> : null}
         </div>
 
         <h2 className={styles.resultTitle}>
@@ -105,7 +109,10 @@ export function ConsultaResultadoCard({
         {item.magistrados ? <p className={styles.resultJudges}><strong>Magistrados:</strong> {item.magistrados}</p> : null}
 
         <div className={styles.sumarioBox}>
-          <strong className={styles.theme}>{item.esFalloCorpus ? 'Extracto del fallo' : (item.tema || 'Sumario')}</strong>
+          <div className={styles.sumarioHeading}>
+            <span>SUMARIO</span>
+            <strong className={styles.theme}>{item.esFalloCorpus ? 'Extracto del fallo' : (item.tema || 'Sumario')}</strong>
+          </div>
           <p className={styles.sumarioText}>{item.esFalloCorpus ? item.extractoFallo : item.textoSumario}</p>
         </div>
 
@@ -122,43 +129,51 @@ export function ConsultaResultadoCard({
       </div>
 
       <aside className={styles.resultAside}>
-        {canFavorite && onToggleFavorite ? (
-          <FavoriteButton
-            active={favorite}
-            onToggle={() => onToggleFavorite(item.sentenciaId ?? item.id)}
-            disabled={favoritePending || !favoriteReady}
-          />
-        ) : null}
-        {canAddToCollection ? <AddToCollectionButton sentenciaId={item.sentenciaId ?? item.id} /> : null}
-        {item.slugPublico ? (
-          <Button variant={inComparison ? 'secondary' : 'ghost'} onClick={() => comparison.toggle({ slug: item.slugPublico!, title: item.caratula || item.numeroSentencia || item.expediente || `Sentencia ${item.id}` })}>
-            {inComparison ? 'Quitar de comparación' : 'Agregar a comparación'}
-          </Button>
-        ) : null}
-        {item.slugPublico ? <EvolutionAddButton slug={item.slugPublico} title={item.caratula || item.numeroSentencia || item.expediente || `Sentencia ${item.id}`} /> : null}
-        {item.slugPublico ? (
-          <Button variant="ghost" onClick={() => void copyCitation()} disabled={copyingCitation}>
-            {copyingCitation ? 'Copiando cita…' : 'Copiar cita'}
-          </Button>
-        ) : null}
-        <Button
-          variant={selected ? 'secondary' : 'ghost'}
-          className={styles.printSelect}
-          onClick={() => onToggle(item.id)}
-        >
-          {selected ? 'Quitar de impresión' : 'Seleccionar para imprimir'}
-        </Button>
-        {detailHref ? (
-          <Link href={detailHref}>
-            <Button variant="secondary">Ver sumario</Button>
-          </Link>
-        ) : null}
-        {documentHref && hasPdf ? (
-          <Link href={documentHref} onClick={() => void trackEvento({ tipoEvento: 'view_documento', metadata: { origen: 'consulta', slug: publicIdentifier } })}>
-            <Button>Ver fallo</Button>
-          </Link>
-        ) : null}
-        {documentHref && !hasPdf ? <Button variant="secondary" onClick={onMissingPdf}>PDF no disponible</Button> : null}
+        <div className={styles.primaryResultActions}>
+          {detailHref ? (
+            <Link href={detailHref}>
+              <Button variant="secondary">{item.esFalloCorpus ? 'Ver fallo' : summaryCount > 1 ? `Ver ${summaryCount} sumarios` : 'Ver sumario'}</Button>
+            </Link>
+          ) : null}
+          {documentHref && hasPdf ? (
+            <Link href={documentHref} onClick={() => void trackEvento({ tipoEvento: 'view_documento', metadata: { origen: 'consulta', slug: publicIdentifier } })}>
+              <Button>Ver fallo</Button>
+            </Link>
+          ) : null}
+          {pdfHref && hasPdf ? <a className={styles.pdfAction} href={pdfHref} target="_blank" rel="noreferrer">Abrir PDF</a> : null}
+        </div>
+        {!hasPdf ? <Button variant="secondary" onClick={onMissingPdf}>Por qué no hay PDF</Button> : null}
+        <details className={styles.moreResultActions}>
+          <summary>Más acciones</summary>
+          <div>
+            {canFavorite && onToggleFavorite ? (
+              <FavoriteButton
+                active={favorite}
+                onToggle={() => onToggleFavorite(item.sentenciaId ?? item.id)}
+                disabled={favoritePending || !favoriteReady}
+              />
+            ) : null}
+            {canAddToCollection ? <AddToCollectionButton sentenciaId={item.sentenciaId ?? item.id} /> : null}
+            {item.slugPublico ? (
+              <Button variant={inComparison ? 'secondary' : 'ghost'} onClick={() => comparison.toggle({ slug: item.slugPublico!, title: item.caratula || item.numeroSentencia || item.expediente || `Sentencia ${item.id}` })}>
+                {inComparison ? 'Quitar de comparación' : 'Agregar a comparación'}
+              </Button>
+            ) : null}
+            {item.slugPublico ? <EvolutionAddButton slug={item.slugPublico} title={item.caratula || item.numeroSentencia || item.expediente || `Sentencia ${item.id}`} /> : null}
+            {item.slugPublico ? (
+              <Button variant="ghost" onClick={() => void copyCitation()} disabled={copyingCitation}>
+                {copyingCitation ? 'Copiando cita…' : 'Copiar cita'}
+              </Button>
+            ) : null}
+            <Button
+              variant={selected ? 'secondary' : 'ghost'}
+              className={styles.printSelect}
+              onClick={() => onToggle(item.id)}
+            >
+              {selected ? 'Quitar de impresión' : 'Seleccionar para imprimir'}
+            </Button>
+          </div>
+        </details>
         {copyMessage ? <span role="status" className={styles.mutedText}>{copyMessage}</span> : null}
       </aside>
     </article>

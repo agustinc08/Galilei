@@ -7,9 +7,9 @@ const { publicRoutes, authenticatedRoutes, authScenarios } = require('./route-re
 const { classifyConsoleMessage, classifyRequestFailure } = require('./classifiers.cjs');
 const { fixtureForRequest, pdfBuffer } = require('./fixtures.cjs');
 
-test('the responsive matrix contains the nine requested unique viewports', () => {
+test('the responsive matrix contains the eleven requested unique viewports', () => {
   assert.deepEqual(viewports.map(({ width, height }) => `${width}x${height}`), [
-    '1366x768', '1440x900', '1536x864', '1600x900', '1920x1080', '1920x1200', '2560x1440', '390x844', '430x932',
+    '390x844', '430x932', '768x1024', '1024x768', '1366x768', '1440x900', '1536x864', '1600x900', '1920x1080', '1920x1200', '2560x1440',
   ]);
 });
 

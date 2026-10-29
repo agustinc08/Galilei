@@ -4,7 +4,7 @@ import { useParams } from '@/lib/router-compat';
 import { useSearchParams } from '@/lib/router-compat';
 import { Link } from "@/lib/router-compat";
 import { useEffect, useState } from 'react';
-import styles from '@/components/sentencias/sentencias.module.css';
+import styles from './sumario-detail.module.css';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -13,15 +13,18 @@ import { PrintButton } from '@/components/ui/PrintButton';
 import { ShareLinkButton } from '@/components/ui/ShareLinkButton';
 import { CopyReferenceButton } from '@/components/sentencias/CopyReferenceButton';
 import { api } from '@/lib/api';
+import { buildApiUrl } from '@/lib/env';
 import { formatDate } from '@/lib/utils';
 import { formatTipoFallo } from '@/lib/jurisprudencia-labels';
 import type { ApiResponse } from '@/types/common';
 import type { PublicSentencia } from '@/types/sentencia';
 import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
 import { EvolutionAddButton } from '@/components/evolution/EvolutionAddButton';
+import { htmlToPlainText } from '@/lib/html-to-plain-text';
 
 export default function ConsultaSentenciaPublicaPage() {
   const params = useParams<{ slug: string }>();
+  const routeSlug = typeof params.slug === 'string' ? params.slug : '';
   const searchParams = useSearchParams();
   const requestedReturn = searchParams.get('returnTo') ?? '';
   const comparison = useComparisonSelection();
@@ -34,8 +37,13 @@ export default function ConsultaSentenciaPublicaPage() {
     let active = true;
 
     const load = async () => {
+      if (!routeSlug) {
+        setError('No se encontró el identificador del fallo.');
+        setIsLoading(false);
+        return;
+      }
       try {
-        const response = await api.get<ApiResponse<PublicSentencia>>(`/public/sentencias/${params.slug}`, {
+        const response = await api.get<ApiResponse<PublicSentencia>>(`/public/sentencias/${routeSlug}`, {
           skipAuth: true,
         });
         if (active) {
@@ -57,7 +65,7 @@ export default function ConsultaSentenciaPublicaPage() {
     return () => {
       active = false;
     };
-  }, [params.slug]);
+  }, [routeSlug]);
 
   if (isLoading) {
     return <LoadingSpinner label="Cargando sentencia pública..." />;
@@ -69,164 +77,162 @@ export default function ConsultaSentenciaPublicaPage() {
 
   const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
 
+  const pdfAvailable = data.archivosPdf.length > 0;
+  const pdfHref = pdfAvailable
+    ? buildApiUrl(`/public/sentencias/${encodeURIComponent(routeSlug)}/pdf`)
+    : null;
+  const fullJudgmentHref = `/fallos/${routeSlug}?returnTo=${encodeURIComponent(backHref)}`;
+  const title = data.caratula || data.cita.citaBreve;
+
   return (
-    <main style={{ maxWidth: 1040, minWidth: 0, margin: '0 auto', padding: 24, display: 'grid', gap: 18 }}>
-      <section className={styles.section}>
-        <div className={styles.sectionHeader}>
+    <main className={styles.page}>
+      <header className={styles.hero}>
+        <div className={styles.heroTopline}>
           <div>
-            <p style={{ margin: 0, color: '#536b82', fontWeight: 700 }}>Jurisprudencia · Sumario</p>
-            <h1 style={{ margin: '6px 0', fontSize: 30, overflowWrap: 'anywhere' }}>{data.caratula || data.cita.citaBreve}</h1>
+            <p className={styles.eyebrow}>Jurisprudencia · Sumario</p>
+            <h1>{title}</h1>
+            <p className={styles.heroCitation}>{data.cita.citaBreve}</p>
           </div>
-          <Link href={backHref}>
+          <Link className={styles.backLink} href={backHref}>
             <Button variant="secondary">Volver a resultados</Button>
           </Link>
         </div>
-        <div className={styles.badgeRow}>
-          <span className={styles.badge}>{data.sala ? (data.sala.toLowerCase().startsWith('sala') ? data.sala : `Sala ${data.sala}`) : 'Sin Sala informada'}</span>
-          {data.fecha ? <span className={styles.badge}>{formatDate(data.fecha)}</span> : null}
-          {data.tipoFallo ? <span className={styles.badge}>{formatTipoFallo(data.tipoFallo)}</span> : null}
-          {data.archivosPdf.length > 0 ? <span className={styles.badge}>PDF disponible</span> : null}
+        <div className={styles.metaRow} aria-label="Datos principales del fallo">
+          <span className={styles.metaBadge}>{data.sala ? (data.sala.toLowerCase().startsWith('sala') ? data.sala : `Sala ${data.sala}`) : 'Sin Sala informada'}</span>
+          {data.fecha ? <span className={styles.metaBadge}>{formatDate(data.fecha)}</span> : null}
+          {data.expediente ? <span className={styles.metaBadge}>Expte. {data.expediente}</span> : null}
+          {data.tipoFallo ? <span className={styles.metaBadge}>{formatTipoFallo(data.tipoFallo)}</span> : null}
+          {pdfAvailable ? <span className={`${styles.metaBadge} ${styles.pdfBadge}`}>PDF disponible</span> : <span className={`${styles.metaBadge} ${styles.missingPdfBadge}`}>Sin PDF</span>}
         </div>
-        <div className={styles.inlineActions}>
+        <div className={styles.actions}>
           <CopyButton value={data.cita.citaCopiable} label="Copiar cita" />
           {data.slugPublico ? (
             <Button
               variant={comparison.items.some((item) => item.slug === data.slugPublico) ? 'secondary' : 'ghost'}
-              onClick={() => comparison.toggle({ slug: data.slugPublico!, title: data.caratula || data.numeroSentencia || data.expediente || `Sentencia ${data.id}` })}
+              onClick={() => comparison.toggle({ slug: data.slugPublico!, title: title || data.numeroSentencia || data.expediente || `Sentencia ${data.id}` })}
             >
               {comparison.items.some((item) => item.slug === data.slugPublico) ? 'Quitar de comparación' : 'Agregar a comparación'}
             </Button>
           ) : null}
-          {data.slugPublico ? <EvolutionAddButton slug={data.slugPublico} title={data.caratula || data.numeroSentencia || data.expediente || `Sentencia ${data.id}`} /> : null}
+          {data.slugPublico ? <EvolutionAddButton slug={data.slugPublico} title={title || data.numeroSentencia || data.expediente || `Sentencia ${data.id}`} /> : null}
           <ShareLinkButton url={currentUrl} label="Copiar enlace" sentenciaId={data.id} />
-          {data.archivosPdf.length > 0 ? <Link href={`/fallos/${params.slug}?returnTo=${encodeURIComponent(backHref)}`}><Button>Abrir fallo</Button></Link> : null}
-          <PrintButton
-            onPrint={() =>
-              window.open(`/consulta/sentencia/${params.slug}/ficha`, '_blank', 'noopener')
-            }
-          />
+          <PrintButton onPrint={() => window.open(`/consulta/sentencia/${params.slug}/ficha`, '_blank', 'noopener')} />
         </div>
-      </section>
+      </header>
 
-      <section className={styles.section}>
-        <strong>Resumen</strong>
-        <p>{data.resumen ?? 'Sin resumen publicado.'}</p>
-      </section>
+      <div className={styles.detailGrid}>
+        <div className={styles.contentColumn}>
+          <section className={styles.panel} id="sumarios" aria-labelledby="summary-heading">
+            <div className={styles.panelHeading}>
+              <h2 id="summary-heading">Sumarios del fallo</h2>
+              <span>{data.sumarios.length} {data.sumarios.length === 1 ? 'sumario' : 'sumarios'}</span>
+            </div>
+            {data.sumarios.length ? (
+              <div className={styles.summaryList}>
+                {data.sumarios.map((sumario, index) => (
+                  <article key={sumario.id} className={styles.summaryCard}>
+                    <h3 className={styles.summaryTopic}>{sumario.tema || sumario.numeroSumario || `Sumario ${index + 1}`}</h3>
+                    <p className={styles.summaryText}>{htmlToPlainText(sumario.texto)}</p>
+                  </article>
+                ))}
+              </div>
+            ) : <p className={styles.emptyNote}>No hay sumarios publicados para este fallo.</p>}
+          </section>
 
-      {data.resena ? (
-        <section className={styles.section}>
-          <strong>Reseña</strong>
-          <p>{data.resena}</p>
-        </section>
-      ) : null}
+          {data.resumen ? <section className={styles.panel}><div className={styles.panelHeading}><h2>Resumen</h2></div><p className={styles.plainText}>{data.resumen}</p></section> : null}
+          {data.resena ? <section className={styles.panel}><div className={styles.panelHeading}><h2>Reseña</h2></div><p className={styles.plainText}>{data.resena}</p></section> : null}
 
-      {data.citasFallo?.length ? (
-        <section className={styles.section}>
-          <strong>Este fallo cita a</strong>
-          <div className={styles.listGrid}>
-            {data.citasFallo.map((citaItem) => (
-              <article key={citaItem.id} className={styles.listItem}>
-                <strong>
-                  {citaItem.tipo} | {citaItem.referencia}
-                </strong>
-                {citaItem.contexto ? <p>{citaItem.contexto}</p> : null}
-                <div className={styles.inlineActions}>
-                  <CopyReferenceButton referencia={citaItem.referencia} />
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
+          <section className={styles.panel}>
+            <div className={styles.panelHeading}><h2>Datos del fallo</h2></div>
+            <dl className={styles.relatedMeta}>
+              {data.expediente ? <><dt>Expediente</dt><dd>{data.expediente}</dd></> : null}
+              {data.numeroSentencia ? <><dt>Número</dt><dd>{data.numeroSentencia}</dd></> : null}
+              {data.magistrados ? <><dt>Magistrados</dt><dd>{data.magistrados}</dd></> : null}
+              {data.tribunalOrigen ? <><dt>Tribunal de origen</dt><dd>{data.tribunalOrigen}</dd></> : null}
+              {data.sumarios.map((sumario) => sumario.tema).filter((tema): tema is string => Boolean(tema)).length ? <><dt>Temas</dt><dd>{data.sumarios.map((sumario) => sumario.tema).filter((tema): tema is string => Boolean(tema)).join(', ')}</dd></> : null}
+            </dl>
+          </section>
 
-      <section className={styles.section}>
-          <strong>Datos del fallo</strong>
-          {data.expediente ? <p>Expediente: {data.expediente}</p> : null}
-          {data.numeroSentencia ? <p>Nº de sentencia: {data.numeroSentencia}</p> : null}
-          {data.tipoFallo ? <p>Tipo: {formatTipoFallo(data.tipoFallo)}</p> : null}
-          {data.magistrados ? <p>Magistrados: {data.magistrados}</p> : null}
-          {data.tribunalOrigen ? <p>Tribunal de origen: {data.tribunalOrigen}</p> : null}
-          {data.sumarios.map((sumario) => sumario.tema).filter((tema): tema is string => Boolean(tema)).length ? (
-            <p>Temas: {data.sumarios.map((sumario) => sumario.tema).filter((tema): tema is string => Boolean(tema)).join(', ')}</p>
+          {data.citasFallo?.length ? (
+            <section className={styles.panel}>
+              <div className={styles.panelHeading}><h2>Este fallo cita a</h2></div>
+              <div className={styles.listGrid}>
+                {data.citasFallo.map((citaItem) => (
+                  <article key={citaItem.id} className={styles.listItem}>
+                    <strong>{citaItem.tipo} | {citaItem.referencia}</strong>
+                    {citaItem.contexto ? <p>{citaItem.contexto}</p> : null}
+                    <div className={styles.inlineActions}><CopyReferenceButton referencia={citaItem.referencia} /></div>
+                  </article>
+                ))}
+              </div>
+            </section>
           ) : null}
-      </section>
 
-      <section className={styles.section}>
-        <strong>Sumarios</strong>
-        {data.sumarios.length ? (
-          <div className={styles.listGrid}>
-            {data.sumarios.map((sumario) => (
-              <article key={sumario.id} className={styles.listItem}>
-                <strong>{sumario.tema ?? `Sumario ${sumario.id}`}</strong>
-                <p>{sumario.texto}</p>
-              </article>
-            ))}
-          </div>
-        ) : <p>No hay sumarios publicados para este fallo.</p>}
-      </section>
+          {data.referenciasNormativas?.length ? (
+            <section className={styles.panel}>
+              <div className={styles.panelHeading}><h2>Normas relacionadas</h2></div>
+              <div className={styles.listGrid}>
+                {data.referenciasNormativas.map((referencia) => (
+                  <article key={referencia.id} className={styles.listItem}>
+                    <strong>{referencia.tipoNorma}{referencia.numeroNorma ? ` ${referencia.numeroNorma}` : ''}{referencia.articulo ? ` art. ${referencia.articulo}` : ''}{referencia.inciso ? ` inc. ${referencia.inciso}` : ''}</strong>
+                    {referencia.textoReferencia ? <p>{referencia.textoReferencia}</p> : null}
+                    <div className={styles.inlineActions}>
+                      {referencia.url ? <a href={referencia.url} target="_blank" rel="noreferrer"><Button variant="secondary">Abrir norma</Button></a> : null}
+                      <CopyReferenceButton referencia={`${referencia.tipoNorma}${referencia.numeroNorma ? ` ${referencia.numeroNorma}` : ''}${referencia.articulo ? ` art. ${referencia.articulo}` : ''}${referencia.inciso ? ` inc. ${referencia.inciso}` : ''}`} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
-      {data.referenciasNormativas?.length ? (
-        <section className={styles.section}>
-          <strong>Normas relacionadas</strong>
-          <div className={styles.listGrid}>
-            {data.referenciasNormativas.map((referencia) => (
-              <article key={referencia.id} className={styles.listItem}>
-                <strong>
-                  {referencia.tipoNorma}
-                  {referencia.numeroNorma ? ` ${referencia.numeroNorma}` : ''}
-                  {referencia.articulo ? ` art. ${referencia.articulo}` : ''}
-                  {referencia.inciso ? ` inc. ${referencia.inciso}` : ''}
-                </strong>
-                {referencia.textoReferencia ? <p>{referencia.textoReferencia}</p> : null}
-                <div className={styles.inlineActions}>
-                  {referencia.url ? (
-                    <a href={referencia.url} target="_blank" rel="noreferrer">
-                      <Button variant="secondary">Abrir norma</Button>
-                    </a>
-                  ) : null}
-                  <CopyReferenceButton
-                    referencia={`${referencia.tipoNorma}${referencia.numeroNorma ? ` ${referencia.numeroNorma}` : ''}${referencia.articulo ? ` art. ${referencia.articulo}` : ''}${referencia.inciso ? ` inc. ${referencia.inciso}` : ''}`}
-                  />
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
+          {data.referenciasJurisprudenciales?.length ? (
+            <section className={styles.panel}>
+              <div className={styles.panelHeading}><h2>Jurisprudencia relacionada</h2></div>
+              <div className={styles.listGrid}>
+                {data.referenciasJurisprudenciales.map((referencia) => (
+                  <article key={referencia.id} className={styles.listItem}>
+                    <strong>{referencia.referencia}</strong>
+                    {referencia.textoOriginal ? <p>{referencia.textoOriginal}</p> : null}
+                    <div className={styles.inlineActions}><CopyReferenceButton referencia={referencia.referencia} /></div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
-      {data.referenciasJurisprudenciales?.length ? (
-        <section className={styles.section}>
-          <strong>Jurisprudencia relacionada</strong>
-          <div className={styles.listGrid}>
-            {data.referenciasJurisprudenciales.map((referencia) => (
-              <article key={referencia.id} className={styles.listItem}>
-                <strong>{referencia.referencia}</strong>
-                {referencia.textoOriginal ? <p>{referencia.textoOriginal}</p> : null}
-                <div className={styles.inlineActions}>
-                  <CopyReferenceButton referencia={referencia.referencia} />
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
+          {data.referenciasDoctrinarias?.length ? (
+            <section className={styles.panel}>
+              <div className={styles.panelHeading}><h2>Doctrina</h2></div>
+              <div className={styles.listGrid}>
+                {data.referenciasDoctrinarias.map((referencia) => (
+                  <article key={referencia.id} className={styles.listItem}>
+                    <strong>{[referencia.autor, referencia.titulo].filter(Boolean).join(' - ') || 'Referencia doctrinaria'}</strong>
+                    <p>{[referencia.fuente, referencia.anio].filter(Boolean).join(' | ')}</p>
+                    {referencia.textoReferencia ? <p>{referencia.textoReferencia}</p> : null}
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
 
-      {data.referenciasDoctrinarias?.length ? (
-        <section className={styles.section}>
-          <strong>Doctrina</strong>
-          <div className={styles.listGrid}>
-            {data.referenciasDoctrinarias.map((referencia) => (
-              <article key={referencia.id} className={styles.listItem}>
-                <strong>
-                  {[referencia.autor, referencia.titulo].filter(Boolean).join(' - ') || 'Referencia doctrinaria'}
-                </strong>
-                <p>{[referencia.fuente, referencia.anio].filter(Boolean).join(' | ')}</p>
-                {referencia.textoReferencia ? <p>{referencia.textoReferencia}</p> : null}
-              </article>
-            ))}
+        <aside className={`${styles.panel} ${styles.relatedPanel}`} aria-label="Fallo relacionado">
+          <p className={styles.relatedLabel}>FALLO RELACIONADO</p>
+          <h2>{title}</h2>
+          <dl className={styles.relatedMeta}>
+            <dt>Sala</dt><dd>{data.sala ? (data.sala.toLowerCase().startsWith('sala') ? data.sala : `Sala ${data.sala}`) : 'No informada'}</dd>
+            <dt>Fecha</dt><dd>{data.fecha ? formatDate(data.fecha) : 'No informada'}</dd>
+            <dt>Expediente</dt><dd>{data.expediente || 'No informado'}</dd>
+            <dt>PDF</dt><dd>{pdfAvailable ? 'Disponible' : 'No disponible'}</dd>
+          </dl>
+          <div className={styles.relatedActions}>
+            {pdfAvailable ? <Link href={fullJudgmentHref}><Button>Abrir fallo completo</Button></Link> : <p className={styles.emptyNote}>Este fallo no tiene un PDF asociado.</p>}
+            {pdfHref ? <a className={styles.pdfLink} href={pdfHref} target="_blank" rel="noreferrer">Abrir PDF</a> : null}
+            <Link href={backHref}><Button variant="secondary">Volver a la búsqueda</Button></Link>
           </div>
-        </section>
-      ) : null}
+        </aside>
+      </div>
     </main>
   );
 }

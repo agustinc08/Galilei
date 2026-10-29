@@ -50,7 +50,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <span>Jurisprudencia · Mi Sala / Juzgado · Mis documentos</span>
         </Link>
 
-        <nav className={styles.nav} aria-label="Secciones principales">
+        <nav className={styles.nav} aria-label="Navegación principal">
+          <p className={styles.navSectionLabel}>TRABAJO</p>
           {mainDestinations.map((item) => {
             const isActive = active === item.key;
             return (
@@ -67,26 +68,23 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className={styles.sidebarFooter}>
-          <span>{user ? `${user.nombre} ${user.apellido ?? ''}`.trim() : 'Sesión activa'}</span>
-          {user?.rol.nombre === 'ADMIN' ? (
-            <div className={styles.technicalAdmin}>
-              <strong>Administración técnica</strong>
-              <Link href="/dashboard">Panel técnico</Link>
-              <Link href="/admin/logs">Registros</Link>
-            </div>
+          {user?.rol.nombre === 'ADMIN' || ['OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user?.rol.nombre ?? '') ? (
+            <nav className={styles.managementNav} aria-label="Gestión">
+              <p className={styles.footerSectionLabel}>GESTIÓN</p>
+              {user?.rol.nombre === 'ADMIN' ? <>
+                <Link className={styles.footerLink} href="/dashboard">Panel técnico</Link>
+                <Link className={styles.footerLink} href="/admin/logs">Registros</Link>
+              </> : null}
+              <Link className={styles.footerLink} href="/jurisprudencia/ingreso">Ingreso de jurisprudencia</Link>
+              <Link className={styles.footerLink} href="/citas-pendientes">Revisión de citas</Link>
+              <Link className={styles.footerLink} href="/admin/jurisprudencia/ocr">Revisión de OCR</Link>
+            </nav>
           ) : null}
-          {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user?.rol.nombre ?? '') ? (
-            <Link href="/jurisprudencia/ingreso">Ingreso de jurisprudencia</Link>
-          ) : null}
-          {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user?.rol.nombre ?? '') ? (
-            <Link href="/citas-pendientes">Revisión editorial de citas</Link>
-          ) : null}
-          {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user?.rol.nombre ?? '') ? (
-            <Link href="/admin/jurisprudencia/ocr">Revisión humana de OCR</Link>
-          ) : null}
-          <Button variant="secondary" onClick={logout}>
-            Cerrar sesión
-          </Button>
+          <div className={styles.accountGroup}>
+            <p className={styles.footerSectionLabel}>CUENTA</p>
+            <strong className={styles.accountName}>{user ? `${user.nombre} ${user.apellido ?? ''}`.trim() : 'Sesión activa'}</strong>
+            <Button variant="secondary" onClick={logout}>Cerrar sesión</Button>
+          </div>
         </div>
       </aside>
 

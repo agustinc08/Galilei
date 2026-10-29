@@ -7,9 +7,9 @@ const { createMockServer } = require('./mock-server.cjs');
 
 const frontDir = path.resolve(__dirname, '..');
 const mode = process.argv[2] || 'public';
-const grepByMode = { public: '@public', responsive: '@responsive', viewer: '@viewer', auth: '@auth', 'ocr-review': '@ocr-review' };
+const grepByMode = { public: '@public', responsive: '@responsive', viewer: '@viewer', auth: '@auth', 'folder-upload': '@folder-upload', 'workspace-list': '@workspace-list', sidebar: '@sidebar', 'ocr-review': '@ocr-review' };
 if (!grepByMode[mode]) {
-  process.stderr.write('Usage: node ux-qa/run.cjs public|responsive|viewer|auth|ocr-review\n');
+  process.stderr.write('Usage: node ux-qa/run.cjs public|responsive|viewer|auth|folder-upload|workspace-list|sidebar|ocr-review\n');
   process.exit(2);
 }
 
@@ -87,7 +87,7 @@ async function main() {
 
     const playwrightCli = require.resolve('@playwright/test/cli');
     const configPath = path.join(__dirname, 'playwright.config.ts');
-    runnerProcess = spawn(process.execPath, [playwrightCli, 'test', '--config', configPath, '--grep', grepByMode[mode]], {
+    runnerProcess = spawn(process.execPath, [playwrightCli, 'test', '--config', configPath, '--grep', process.env.UX_QA_GREP || grepByMode[mode]], {
       cwd: frontDir,
       env: { ...process.env, UX_QA_BASE_URL: baseURL },
       stdio: 'inherit',
