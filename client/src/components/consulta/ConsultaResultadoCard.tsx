@@ -12,6 +12,8 @@ import { formatDate } from '@/lib/utils';
 import { formatTipoFallo } from '@/lib/jurisprudencia-labels';
 import { FavoriteButton } from '@/components/ui/FavoriteButton';
 import { api } from '@/lib/api';
+import { buildApiUrl } from '@/lib/env';
+import { htmlToPlainText } from '@/lib/html-to-plain-text';
 import { copyToClipboard } from '@/lib/utils';
 import type { PublicSentencia } from '@/types/sentencia';
 import { AddToCollectionButton } from '@/components/research/AddToCollectionButton';
@@ -60,7 +62,9 @@ export function ConsultaResultadoCard({
     ? `/consulta/sentencia/${publicIdentifier}?${detailQuery.toString()}#sumarios`
     : null;
   const documentHref = publicIdentifier ? `/fallos/${publicIdentifier}?${detailQuery.toString()}` : null;
-  const pdfHref = item.pdfUrl ?? documentHref;
+  const pdfHref = hasPdf
+    ? buildApiUrl(`/public/sentencias/${encodeURIComponent(publicIdentifier)}/pdf`)
+    : null;
 
   const copyCitation = async () => {
     if (!item.slugPublico || copyingCitation) return;
@@ -113,7 +117,7 @@ export function ConsultaResultadoCard({
             <span>SUMARIO</span>
             <strong className={styles.theme}>{item.esFalloCorpus ? 'Extracto del fallo' : (item.tema || 'Sumario')}</strong>
           </div>
-          <p className={styles.sumarioText}>{item.esFalloCorpus ? item.extractoFallo : item.textoSumario}</p>
+          <p className={styles.sumarioText}>{htmlToPlainText(item.esFalloCorpus ? item.extractoFallo : item.textoSumario)}</p>
         </div>
 
         {item.highlights.length > 0 ? (

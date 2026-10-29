@@ -27,6 +27,7 @@ import { StatusMessage } from '@/components/ui/StatusMessage';
 import { Textarea } from '@/components/ui/Textarea';
 import { useCatalogos } from '@/hooks/use-catalogos';
 import { api } from '@/lib/api';
+import { htmlToPlainText } from '@/lib/html-to-plain-text';
 import { API_ORIGIN } from '@/lib/env';
 import { trackEvento } from '@/lib/tracking';
 import { cn, formatDate, toDateInput } from '@/lib/utils';
@@ -768,7 +769,7 @@ export default function SentenciaDetailPage() {
                 {sentencia.sumarios.map((sumario) => (
                   <article key={sumario.id} className={styles.listItem}>
                     <strong>{sumario.numeroSumario ?? `Sumario ${sumario.id}`} · {sumario.tema ?? 'Sin tema'}</strong>
-                    <p>{sumario.texto}</p>
+                    <p>{htmlToPlainText(sumario.texto)}</p>
                   </article>
                 ))}
               </div>

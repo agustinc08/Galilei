@@ -6,6 +6,7 @@ import { useSearchParams } from '@/lib/router-compat';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { api } from '@/lib/api';
+import { confidenceLabel, evidenceLabel, reviewStatusLabel } from '@/lib/review-presentation';
 import styles from './revision.module.css';
 
 type ReviewKind = 'classification' | 'candidate' | 'ocr' | 'sourceMissing' | 'failed' | 'metadata';
@@ -70,9 +71,9 @@ export default function RevisionPage() {
         <span><strong>{item.value}</strong><small>{item.category} · {item.origin} · confianza {item.confidence == null ? '—' : `${Math.round(item.confidence * 100)}%`}</small><Link href={`/corpus/${encodeURIComponent(item.doc.id)}`}>{item.doc.title}</Link><button type="button" disabled={busy} onClick={() => void editClassification(item)}>Editar y aprobar</button></span>
       </div>)}</div> : <p>No hay temas sugeridos pendientes en esta página.</p>}
     </Card> : kind === 'candidate' ? <Card>
-      <p>{queue?.total.toLocaleString('es-AR') ?? '—'} documentos con sugerencias de asociación. HIGH_CONFIDENCE requiere revisión humana igual que CANDIDATE.</p>
+      <p>{queue?.total.toLocaleString('es-AR') ?? '—'} documentos con sugerencias de asociación. Todas requieren revisión humana; la coincidencia automática no aprueba ni publica un vínculo.</p>
       {associations.length ? <div className={styles.list}>{associations.map((item) => <article key={item.id} className={styles.row}>
-        <span><strong>{item.confidence}</strong><small>Destino sugerido: sentencia #{item.targetId || 'sin ID'} · {item.doc.caseNumber ?? 'sin expediente'}</small><small className={styles.evidence}>{JSON.stringify(item.evidence)}</small><Link href={`/corpus/${encodeURIComponent(item.doc.id)}`}>{item.doc.title}</Link></span>
+        <span><strong>{confidenceLabel(item.confidence)}</strong><small>{reviewStatusLabel(item.reviewStatus)}</small><small>Destino sugerido: sentencia #{item.targetId || 'sin ID'} · {item.doc.caseNumber ?? 'sin expediente'}</small><small className={styles.evidence}>Evidencia: {evidenceLabel(item.evidence)}</small><Link href={`/corpus/${encodeURIComponent(item.doc.id)}`}>{item.doc.title}</Link></span>
         <div className={styles.actions}><button disabled={busy || !/^\d+$/.test(item.targetId)} title={!/^\d+$/.test(item.targetId) ? 'No hay un ID de sentencia verificable para aprobar' : undefined} onClick={() => void reviewAssociation(item.id, 'APPROVED')}>Aprobar vínculo</button><button disabled={busy} onClick={() => void reviewAssociation(item.id, 'REJECTED')}>Rechazar</button></div>
       </article>)}</div> : <p>No hay asociaciones pendientes en esta página.</p>}
     </Card> : <Card>

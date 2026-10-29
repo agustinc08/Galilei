@@ -14,6 +14,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusMessage } from '@/components/ui/StatusMessage';
 import { copyToClipboard, formatDate } from '@/lib/utils';
 import { formatTipoFallo } from '@/lib/jurisprudencia-labels';
+import { htmlToPlainText } from '@/lib/html-to-plain-text';
 import type { ApiResponse } from '@/types/common';
 import styles from './comparar.module.css';
 
@@ -242,7 +243,7 @@ export default function JudgmentComparisonPage() {
     { label: 'Actor', values: judgments.map((item) => display(item.actor)), raw: judgments.map((item) => item.actor ?? '') },
     { label: 'Demandado', values: judgments.map((item) => display(item.demandado)), raw: judgments.map((item) => item.demandado ?? '') },
     { label: 'Magistrados', values: judgments.map((item) => display(item.magistrados || item.juez)), raw: judgments.map((item) => item.magistrados || item.juez || '') },
-    { label: 'Sumarios', values: judgments.map((item) => item.sumarios.length ? <details key={item.slug}><summary>{item.sumarios.length} publicado(s)</summary><ol className={styles.summaryList}>{item.sumarios.map((summary) => <li key={summary.id}><strong>{summary.numeroSumario ? `N.º ${summary.numeroSumario} · ` : ''}{summary.tema || 'Sumario'}</strong><p>{summary.texto}</p></li>)}</ol></details> : 'Sin sumarios publicados'), raw: judgments.map((item) => item.sumarios.map((summary) => `${summary.tema ?? ''}${summary.texto}`).join('|')) },
+    { label: 'Sumarios', values: judgments.map((item) => item.sumarios.length ? <details key={item.slug}><summary>{item.sumarios.length} publicado(s)</summary><ol className={styles.summaryList}>{item.sumarios.map((summary) => <li key={summary.id}><strong>{summary.numeroSumario ? `N.º ${summary.numeroSumario} · ` : ''}{summary.tema || 'Sumario'}</strong><p>{htmlToPlainText(summary.texto)}</p></li>)}</ol></details> : 'Sin sumarios publicados'), raw: judgments.map((item) => item.sumarios.map((summary) => `${summary.tema ?? ''}${summary.texto}`).join('|')) },
     { label: 'PDF', values: judgments.map((item) => item.hasPdf ? <Link key={item.slug} href={`/consulta/sentencia/${encodeURIComponent(item.slug)}/documento`}>Disponible · abrir documento</Link> : 'No disponible'), raw: judgments.map((item) => String(item.hasPdf)) },
     { label: 'Reseña editorial', values: judgments.map((item) => item.resenaEditorial || 'Sin reseña editorial publicada'), raw: judgments.map((item) => item.resenaEditorial ?? '') },
     { label: 'Resumen automático', values: judgments.map((item) => item.resumenAi ? <Fragment key={item.slug}><strong>Resumen publicado · {item.resumenAiFuente || 'fuente no indicada'}</strong><p>{item.resumenAi}</p></Fragment> : 'Sin resumen automático publicado'), raw: judgments.map((item) => item.resumenAi ?? '') },

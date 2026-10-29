@@ -6,8 +6,12 @@ const BLOCK_ELEMENTS = new Set([
 
 const OMIT_ELEMENTS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"]);
 
+export function normalizeLegacyBreaks(value: string): string {
+  return value.replace(/<br\s*\/?>|&lt;br\s*(?:\/)?&gt;/giu, "\n");
+}
+
 function collectText(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
+  if (node.nodeType === Node.TEXT_NODE) return normalizeLegacyBreaks(node.textContent ?? "");
   if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return "";
 
   const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : null;

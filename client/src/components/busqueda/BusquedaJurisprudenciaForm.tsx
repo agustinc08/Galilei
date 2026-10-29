@@ -129,11 +129,11 @@ export function BusquedaJurisprudenciaForm({
           {salas.length ? (
             <Select label="Sala" value={values.sala ?? ''} onChange={(event) => setField('sala', event.target.value)} options={[{ label: 'Todas las salas', value: '' }, ...salas.map((item) => ({ label: item, value: item }))]} />
           ) : <Input label="Sala" value={values.sala ? (values.sala.toLowerCase().startsWith('sala') ? values.sala : `Sala ${values.sala}`) : ''} placeholder="Ej.: Sala H" onChange={(event) => setField('sala', event.target.value)} />}
-          <Input label="Fecha desde" type="date" value={values.fechaDesde ?? ''} onChange={(event) => setField('fechaDesde', event.target.value)} />
-          <Input label="Fecha hasta" type="date" value={values.fechaHasta ?? ''} onChange={(event) => setField('fechaHasta', event.target.value)} />
           {tiposFallo.length ? (
             <Select label="Tipo de fallo" value={values.tipoFallo ?? ''} onChange={(event) => setField('tipoFallo', event.target.value)} options={[{ label: 'Todos los tipos', value: '' }, ...tiposFallo.map((item) => ({ label: item, value: item }))]} />
           ) : <Input label="Tipo de fallo" value={values.tipoFallo ?? ''} placeholder="Ej.: Sentencia" onChange={(event) => setField('tipoFallo', event.target.value)} />}
+          <Input label="Fecha desde (dd/mm/aaaa)" lang="es-AR" type="date" value={values.fechaDesde ?? ''} onChange={(event) => setField('fechaDesde', event.target.value)} />
+          <Input label="Fecha hasta (dd/mm/aaaa)" lang="es-AR" type="date" value={values.fechaHasta ?? ''} onChange={(event) => setField('fechaHasta', event.target.value)} />
           <Input label="Expediente" value={values.expediente ?? ''} onChange={(event) => setField('expediente', event.target.value)} />
         </div>
 
@@ -153,8 +153,6 @@ export function BusquedaJurisprudenciaForm({
             <Input label="Objeto" value={values.objeto ?? ''} onChange={(event) => setField('objeto', event.target.value)} />
             <Input label="N° sentencia" value={values.numeroSentencia ?? ''} onChange={(event) => setField('numeroSentencia', event.target.value)} />
             <Input label="N° sumario" value={values.numeroSumario ?? ''} onChange={(event) => setField('numeroSumario', event.target.value)} />
-            <Input label="Fecha desde" type="date" value={values.fechaDesde ?? ''} onChange={(event) => setField('fechaDesde', event.target.value)} />
-            <Input label="Fecha hasta" type="date" value={values.fechaHasta ?? ''} onChange={(event) => setField('fechaHasta', event.target.value)} />
             <Input label="Año" value={values.anio ?? ''} onChange={(event) => setField('anio', event.target.value)} />
             <Select label="PDF" value={values.pdf || (values.soloConPdf === 'true' ? 'conPdf' : 'todos')} onChange={(event) => setField('pdf', event.target.value)} options={pdfOptions} />
             <Select label="Orden" value={values.sortBy ?? 'relevancia'} onChange={(event) => setField('sortBy', event.target.value)} options={[{ label: 'Relevancia', value: 'relevancia' }, { label: 'Fecha', value: 'fecha' }, { label: 'Sala', value: 'sala' }, { label: 'Número sentencia', value: 'numeroSentencia' }]} />

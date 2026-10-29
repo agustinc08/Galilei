@@ -22,6 +22,13 @@
   box-shadow: none;
 }
 
+.button:focus-visible {
+  outline: 3px solid #82b6d5;
+  outline-offset: 2px;
+}
+
+.button:active:not(:disabled) { transform: translateY(1px); }
+
 .primary {
   color: #ffffff;
   background: var(--brand);
@@ -120,6 +127,14 @@
   color: #667085;
   background: #f2f4f7;
   cursor: not-allowed;
+}
+
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  outline: 3px solid rgba(55, 126, 168, .24);
+  outline-offset: 1px;
+  border-color: #377ea8;
 }
 
 .input[aria-invalid='true'],

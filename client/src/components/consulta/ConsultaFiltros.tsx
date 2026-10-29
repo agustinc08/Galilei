@@ -71,8 +71,8 @@ export function ConsultaFiltros({
             onChange={(event) => setField('sala', event.target.value)}
             options={[{ label: 'Todas', value: '' }, ...salas.map((item) => ({ label: item, value: item }))]}
           />
-          <Input label="Desde fecha" type="date" value={values.fechaDesde ?? ''} onChange={(event) => setField('fechaDesde', event.target.value)} />
-          <Input label="Hasta fecha" type="date" value={values.fechaHasta ?? ''} onChange={(event) => setField('fechaHasta', event.target.value)} />
+          <Input label="Desde fecha (dd/mm/aaaa)" lang="es-AR" type="date" value={values.fechaDesde ?? ''} onChange={(event) => setField('fechaDesde', event.target.value)} />
+          <Input label="Hasta fecha (dd/mm/aaaa)" lang="es-AR" type="date" value={values.fechaHasta ?? ''} onChange={(event) => setField('fechaHasta', event.target.value)} />
           <Select
             label="Tipo de fallo"
             value={values.tipoFallo ?? ''}

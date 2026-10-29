@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { generateLocalId } from '@/lib/local-id';
+import { htmlToPlainText } from '@/lib/html-to-plain-text';
 import type { WizardSumarioItem } from './wizard-types';
 
 type Props = {
@@ -83,7 +84,7 @@ export function SumariosStep({ items, onChange }: Props) {
           {items.map((item) => (
             <article key={item.localId} className={styles.listItem}>
               <strong>{item.numeroSumario || 'Sin número'} · {item.tema || 'Sin tema'}</strong>
-              <p>{item.texto}</p>
+              <p>{htmlToPlainText(item.texto)}</p>
               <div className={baseStyles.badgeRow}>
                 <span className={baseStyles.badge}>{item.publicado ? 'Publicado' : 'Interno'}</span>
                 <span className={baseStyles.badge}>{item.activo ? 'Activo' : 'Inactivo'}</span>

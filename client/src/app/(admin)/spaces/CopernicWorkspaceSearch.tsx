@@ -797,6 +797,7 @@ export function CopernicWorkspaceSearch() {
   const setSelection = useCallback(
     (documentId: string | null, matchOrdinal?: number) => {
       initialMatchOrdinalRef.current = matchOrdinal ?? 1;
+      setPreviewCollapsed(documentId === null);
       navigate(
         {
           selected: documentId,
@@ -1127,7 +1128,7 @@ export function CopernicWorkspaceSearch() {
         </div>
       ) : (
         <div
-          className={`${styles.panels} ${leftCollapsed ? styles.leftCollapsed : ""} ${previewCollapsed ? styles.previewCollapsed : ""}`}
+          className={`${styles.panels} ${leftCollapsed ? styles.leftCollapsed : ""} ${previewCollapsed ? styles.previewCollapsed : ""} ${selectedHit && !previewCollapsed ? styles.previewOpen : ""}`}
         >
           <aside className={styles.leftPanel} aria-label={`Carpetas de ${workspace?.name ?? "la dependencia"}`}>
             <div className={styles.panelHeading}>
@@ -1528,6 +1529,9 @@ export function CopernicWorkspaceSearch() {
           </main>
 
           <aside className={styles.previewPanel} aria-label="Vista previa del documento">
+            <button type="button" className={styles.previewBackButton} onClick={() => setSelection(null)}>
+              Volver a resultados
+            </button>
             <div className={styles.panelHeading}>
               <h2>{previewCollapsed ? "" : "Vista previa"}</h2>
               <button

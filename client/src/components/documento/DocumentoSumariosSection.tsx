@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import styles from './documento.module.css';
 import { DocumentoHighlight } from './DocumentoHighlight';
 import type { Sumario } from '@/types/sumario';
+import { htmlToPlainText } from '@/lib/html-to-plain-text';
 
 type Props = {
   sumarios: Sumario[];
@@ -23,8 +24,9 @@ export function DocumentoSumariosSection({
 
   return (
     <div className={styles.list}>
-      {sumarios.map((sumario) => (
-        <article key={sumario.id} className={styles.item}>
+      {sumarios.map((sumario) => {
+        const plainText = htmlToPlainText(sumario.texto);
+        return <article key={sumario.id} className={styles.item}>
           <div className={styles.badgeRow}>
             <span className={styles.badge}>
               {sumario.numeroSumario ?? `Sumario ${sumario.id}`}
@@ -36,18 +38,18 @@ export function DocumentoSumariosSection({
             ) : null}
           </div>
           <DocumentoHighlight
-            text={sumario.texto}
+            text={plainText}
             query={highlightQuery}
             className={styles.context}
           />
           <div className={styles.actions}>
-            <CopyButton value={sumario.texto} label="Copiar" />
+            <CopyButton value={plainText} label="Copiar" />
             <Button variant="secondary" disabled={!onGoToPage}>
               Ver contexto
             </Button>
           </div>
-        </article>
-      ))}
+        </article>;
+      })}
     </div>
   );
 }

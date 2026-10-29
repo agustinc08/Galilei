@@ -508,7 +508,7 @@ function ConsultaPublicaScreenContent() {
         </div>
       </div>
 
-      {result?.meta.facets ? (
+      {result && result.data.length > 0 && result.meta.facets ? (
         <Card>
           <section aria-labelledby="search-facets-heading" className={styles.latestDetails}>
             <h2 id="search-facets-heading">Filtrar estos resultados</h2>

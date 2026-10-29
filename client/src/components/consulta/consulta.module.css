@@ -428,6 +428,27 @@
   overscroll-behavior: contain;
 }
 
+.listGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.listItem {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.listItem > strong { color: #173b5c; }
+.mutedText { color: #526579; line-height: 1.5; }
+.searchHelpList .listItem > span { display: block; margin-top: 4px; }
+
 @media print {
   .noPrint {
     display: none !important;
@@ -499,6 +520,7 @@
     max-height: calc(100dvh - 24px);
     padding: 16px;
   }
+  .listGrid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
 }
 
 @media (max-width: 420px) {

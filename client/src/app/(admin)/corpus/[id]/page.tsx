@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { downloadBlob } from '@/lib/utils';
 import { clampPdfPage, parsePdfPageParam } from '@/lib/pdf-page';
 import { formatPdfPassageCitation } from '@/lib/pdf-text-search';
+import { htmlToPlainText } from '@/lib/html-to-plain-text';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import styles from './viewer.module.css';
@@ -358,7 +359,7 @@ export default function CorpusDocumentPage() {
             {curation.linkedSentencias.map((sentence) => <div key={sentence.id} className={styles.curationItem}>
               <strong><Link href={`/sentencias/${sentence.id}`}>{sentence.caratula ?? `Sentencia #${sentence.id}`}</Link></strong>
               <span>{[sentence.expediente, sentence.sala, sentence.fecha ? new Date(sentence.fecha).toLocaleDateString('es-AR') : null].filter(Boolean).join(' · ')}</span>
-              {sentence.sumarios.map((sumario) => <p key={sumario.id}><strong>{sumario.tema ?? sumario.numeroSumario ?? 'Sumario jurídico'}</strong><br />{sumario.texto}</p>)}
+              {sentence.sumarios.map((sumario) => <p key={sumario.id}><strong>{sumario.tema ?? sumario.numeroSumario ?? 'Sumario jurídico'}</strong><br />{htmlToPlainText(sumario.texto)}</p>)}
             </div>)}
             <h3>Temas sugeridos</h3>
             {curation.classifications.map((item) => <div key={item.id} className={styles.curationItem}><strong>{item.value}</strong><span>{item.category} · {item.origin} · {item.confidence == null ? 'sin confianza' : `${Math.round(item.confidence * 100)}%`} · {item.reviewStatus}</span>

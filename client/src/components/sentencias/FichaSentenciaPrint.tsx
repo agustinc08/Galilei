@@ -3,6 +3,7 @@
 import styles from './sentencias.module.css';
 import type { FichaSentencia } from '@/types/sentencia';
 import { formatDate } from '@/lib/utils';
+import { htmlToPlainText } from '@/lib/html-to-plain-text';
 
 type Props = {
   ficha: FichaSentencia;
@@ -49,7 +50,7 @@ export function FichaSentenciaPrint({ ficha, publicView = false }: Props) {
       {ficha.resumen.texto ? (
         <section className={styles.section}>
           <strong>Resumen</strong>
-          <p>{ficha.resumen.texto}</p>
+          <p>{htmlToPlainText(ficha.resumen.texto)}</p>
         </section>
       ) : null}
 
@@ -66,7 +67,7 @@ export function FichaSentenciaPrint({ ficha, publicView = false }: Props) {
           {ficha.sumarios.map((sumario) => (
             <article key={sumario.id} className={styles.listItem}>
               <strong>{sumario.numeroSumario ?? `#${sumario.id}`} | {sumario.tema ?? 'Sin tema'}</strong>
-              <p>{sumario.texto}</p>
+              <p>{htmlToPlainText(sumario.texto)}</p>
             </article>
           ))}
         </div>

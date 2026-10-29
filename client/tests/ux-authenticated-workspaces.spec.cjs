@@ -41,6 +41,19 @@ test('sidebar agrupa navegación por rol y reserva gestión según permisos @sid
     { width: 1920, height: 1080 },
   ]) {
     await page.setViewportSize(viewport);
+    if (viewport.width <= 980) {
+      const menuButton = page.getByRole('button', { name: 'Abrir navegación' });
+      await expect(menuButton).toBeVisible();
+      await expect(mainNavigation).toBeHidden();
+      await menuButton.click();
+      await expect(page.getByRole('button', { name: 'Cerrar navegación' })).toHaveAttribute('aria-expanded', 'true');
+      await expect(mainNavigation).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(mainNavigation).toBeHidden();
+      await expect(page.getByRole('button', { name: 'Abrir navegación' })).toBeFocused();
+    } else {
+      await expect(mainNavigation).toBeVisible();
+    }
     const layout = await collectLayout(page);
     expect(layout.horizontalOverflow.passes, `reader sidebar overflow at ${viewport.width}x${viewport.height}`).toBe(true);
     await captureScenario(page, testInfo, { id: `sidebar-reader-${viewport.width}x${viewport.height}`, route: '/galilei' });

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { HighlightText } from './HighlightText';
 import type { ConsultaPublicaResultado } from '@/types/busqueda';
 import { formatDate } from '@/lib/utils';
+import { htmlToPlainText } from '@/lib/html-to-plain-text';
 
 type Props = {
   items: ConsultaPublicaResultado[];
@@ -43,7 +44,7 @@ export function ConsultaPrintView({ items }: Props) {
           <span>Magistrados: {item.magistrados ?? '-'}</span>
           <span>Caratula: {item.caratula ?? '-'}</span>
           <span>Expediente: {item.expediente ?? '-'}</span>
-          <p>{item.textoSumario}</p>
+          <p>{htmlToPlainText(item.textoSumario)}</p>
           {item.highlights[0] ? <HighlightText html={item.highlights[0].texto} /> : null}
         </article>
       ))}

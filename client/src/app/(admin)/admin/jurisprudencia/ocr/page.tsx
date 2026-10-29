@@ -367,7 +367,7 @@ export default function OcrReviewPage() {
                     <strong>{item.title}</strong>
                     <span>{[item.court, item.chamber, item.caseNumber].filter(Boolean).join(' · ') || 'Sin carátula completa'}</span>
                     <span>{item.pageCount} páginas · {item.approvedPages}/{item.pageCount} resueltas</span>
-                    <span>{queueStatus(item.status)}{item.assignedToId ? ' · asignado #' + item.assignedToId : ''}</span>
+                    <span>{queueStatus(item.status)}{item.assignedToId ? ' · asignado' : ''}</span>
                   </button>
                 )) : <p className={styles.muted}>No hay documentos con esos filtros.</p>}
               </div>
@@ -392,7 +392,8 @@ export default function OcrReviewPage() {
                   {review.hasApprovedVersion && <strong>Versión aprobada previa activa</strong>}
                 </div>
                 {review.assignedToId === actorId ? <p className={styles.muted}>Tomado por vos · sin cambios de metadata o publicación.</p>
-                  : review.assignedToId ? <p className={styles.warning}>Asignado a la persona #{review.assignedToId}. La revisión está bloqueada para esta cuenta.</p>
+                  : review.assignedToId && lockedForOther ? <p className={styles.warning}>Asignado a otro revisor. Esta cuenta no puede modificar el trabajo.</p>
+                  : review.assignedToId ? <p className={styles.muted}>Asignado a otro revisor. Administración puede intervenir.</p>
                   : <button type="button" className={styles.secondaryButton} disabled={busy !== ''} onClick={() => void runAction('assign', () => api.post<Review>('/ocr-human-review/' + review.id + '/assign'))}>Tomar documento</button>}
                 {!review.activeRun && <button type="button" className={styles.primaryButton} disabled={busy !== '' || lockedForOther} onClick={() => void generateOcr()}>{busy === 'ocr' ? 'Procesando OCR local…' : 'Generar OCR local'}</button>}
                 {busy === 'ocr' && <div className={styles.ocrProgress} role="status" aria-live="polite">
@@ -409,6 +410,12 @@ export default function OcrReviewPage() {
                   <span>{terminalCount}/{review.file.pageCount} páginas resueltas</span>
                   <button type="button" className={styles.secondaryButton} disabled={busy !== '' || lockedForOther} onClick={() => void generateOcr(true)}>Nueva ejecución OCR</button>
                 </div>}
+                {review.activeRun?.status === 'FAILED' ? <div className={styles.warning} role="alert">
+                  <strong>No se pudieron preparar las páginas para revisión.</strong>
+                  <p>{ocrRunRecoveryMessage(review.activeRun.provenance)}</p>
+                  <p>El PDF original permanece sin cambios. Cuando Administración confirme que el motor está disponible, podés iniciar una nueva ejecución OCR.</p>
+                  {role === 'ADMIN' && ocrRunFailureCode(review.activeRun.provenance) ? <details><summary>Detalle técnico</summary><code>{ocrRunFailureCode(review.activeRun.provenance)}</code></details> : null}
+                </div> : null}
               </Card>
 
               {review.activeRun && <div className={styles.reviewGrid}>
@@ -503,6 +510,19 @@ function runtimeStatusLabel(status: string) {
 }
 function pageStatusLabel(status: string) {
   return ({ NEEDS_REVIEW: 'Pendiente de revisión', REOPENED: 'Reabierta', REJECTED: 'Requiere nueva revisión', APPROVED: 'Aprobada', NO_TEXT: 'Sin texto confirmado' } as Record<string, string>)[status] ?? status;
+}
+function ocrRunFailureCode(provenance: Record<string, unknown>) {
+  const code = provenance.failureCode;
+  return typeof code === 'string' && /^[A-Z0-9_]{3,80}$/u.test(code) ? code : null;
+}
+function ocrRunRecoveryMessage(provenance: Record<string, unknown>) {
+  const code = ocrRunFailureCode(provenance);
+  if (code === 'OCR_ENGINE_UNAVAILABLE') return 'El motor OCR local no está disponible en Office. Pedí a Administración que revise el proceso y sus herramientas de reconocimiento.';
+  if (code === 'OCR_LANGUAGE_UNAVAILABLE') return 'Falta el idioma español en el motor OCR local. Administración debe revisar su instalación antes de volver a procesar.';
+  if (code === 'OCR_DISABLED') return 'El OCR está desactivado para el proceso actual de Office. Administración debe revisar la configuración del servicio.';
+  if (code === 'OCR_RENDER_FAILED') return 'Office no pudo convertir el PDF en páginas de revisión. Administración debe revisar el renderizador PDF.';
+  if (code === 'OCR_TIMEOUT') return 'El procesamiento excedió el tiempo permitido. Revisá que el PDF se pueda abrir y pedí a Administración que compruebe los límites del servicio.';
+  return 'La ejecución terminó sin páginas revisables. Administración debe revisar el estado del motor OCR antes de iniciar otro intento.';
 }
 function messageFor(cause: unknown, fallback: string) {
   const detail = technicalMessageFor(cause);

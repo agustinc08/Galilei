@@ -1,7 +1,7 @@
 'use client';
 
 import { Link } from "@/lib/router-compat";
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import styles from '@/components/sentencias/sentencias.module.css';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusMessage } from '@/components/ui/StatusMessage';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import type { ApiResponse, PaginatedResponse } from '@/types/common';
 import type { CalidadDatos, ResumenGeneral, SentenciaEvento } from '@/types/estadisticas';
@@ -60,11 +60,14 @@ export default function DashboardPage() {
   const [calidad, setCalidad] = useState<CalidadDatos | null>(null);
   const [corpus, setCorpus] = useState<CorpusSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
 
-  useEffect(() => {
-    let active = true;
-
-    const load = async () => {
+  const load = useCallback(async (active: () => boolean) => {
+      setLoading(true);
+      setError(null);
+      setRequestId(null);
       try {
         const [
           resumenResponse,
@@ -82,7 +85,7 @@ export default function DashboardPage() {
           api.get<CorpusSummary>('/corpus/documents/admin/summary'),
         ]);
 
-        if (!active) return;
+        if (!active()) return;
 
         setMetrics(resumenResponse.data);
         setUltimas(ultimasResponse.data);
@@ -90,20 +93,27 @@ export default function DashboardPage() {
         setCalidad(calidadResponse.data);
         setCorpus(corpusResponse);
       } catch (loadError) {
-        if (active) {
-          setError(
-            loadError instanceof Error ? loadError.message : 'No se pudieron cargar las métricas.',
-          );
-        }
+        if (!active()) return;
+        const details = loadError instanceof ApiError && detailsObject(loadError.details)
+          ? detailsObject(loadError.details)
+          : null;
+        setRequestId(readRequestId(details));
+        setError(loadError instanceof ApiError && loadError.status === 0
+          ? 'No pudimos conectar con el servicio. Revisá la conexión e intentá otra vez.'
+          : 'No pudimos cargar el panel institucional. Intentá otra vez; si continúa, compartí el identificador de seguimiento con soporte.');
+        setLoading(false);
       }
-    };
-
-    void load();
-
-    return () => {
-      active = false;
-    };
+      if (active()) setLoading(false);
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const timer = window.setTimeout(() => { void load(() => mounted); }, 0);
+    return () => {
+      mounted = false;
+      window.clearTimeout(timer);
+    };
+  }, [attempt, load]);
 
   return (
     <div className={styles.section}>
@@ -112,12 +122,16 @@ export default function DashboardPage() {
         description="Resumen general del sistema de carga, consulta y administración jurisprudencial."
       />
 
-      {error ? (
-        <StatusMessage variant="error" title="No se pudo cargar el dashboard" message={error} />
-      ) : null}
-
-      {!metrics ? (
+      {loading ? (
         <LoadingSpinner label="Cargando métricas..." />
+      ) : error ? (
+        <div>
+          <StatusMessage variant="error" title="No se pudo cargar el dashboard" message={error} />
+          {requestId ? <p className={styles.mutedText}>Identificador de seguimiento: <code>{requestId}</code></p> : null}
+          <Button onClick={() => setAttempt((value) => value + 1)}>Reintentar</Button>
+        </div>
+      ) : !metrics ? (
+        <EmptyState title="Sin métricas disponibles" description="No hay datos para mostrar en este momento." />
       ) : (
         <div className={styles.summaryGrid}>
           <div className={`${styles.metricCard} ${styles.metricPrimary}`}><span>Sentencias cargadas</span><strong>{metrics.totalSentencias}</strong></div>
@@ -229,4 +243,16 @@ export default function DashboardPage() {
       ) : null}
     </div>
   );
+}
+
+function detailsObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function readRequestId(details: Record<string, unknown> | null): string | null {
+  if (!details) return null;
+  const id = details.requestId ?? details.correlationId ?? details.traceId;
+  return typeof id === 'string' && /^[a-zA-Z0-9._-]{6,100}$/u.test(id) ? id : null;
 }

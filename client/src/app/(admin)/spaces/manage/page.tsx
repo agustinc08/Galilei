@@ -1552,15 +1552,15 @@ export default function PrivateSpacesPage() {
             <div className={styles.workspaceHeader}>
               <div>
                 <p className={styles.eyebrow}>
-                  {folderId ? "Contenido de carpeta" : "Actividad documental"}
+                  {folderId ? "Contenido de carpeta" : "Documentos en la raíz"}
                 </p>
                 <h2>
                   {folderId
                     ? folderPath(folderId, folders)
-                    : "Documentos recientes"}
+                    : "Documentos sin carpeta"}
                 </h2>
               </div>
-              <span className={styles.muted}>Ordenados por fecha de carga</span>
+              <span className={styles.muted}>{folderId ? "Ordenados por fecha de carga" : "La vista de raíz no incluye documentos guardados en carpetas."}</span>
             </div>
             {documents.length ? (
               <div className={styles.documentList}>
@@ -1663,7 +1663,7 @@ export default function PrivateSpacesPage() {
               <p className={styles.emptyState}>
                 {folderId
                   ? canEdit ? "Esta carpeta está vacía. Podés subir archivos o mover documentos acá." : "Esta carpeta está vacía."
-                  : canEdit ? "Esta dependencia todavía no tiene documentos. Podés subir un documento compatible o crear una carpeta." : "Esta dependencia todavía no tiene documentos."}
+                  : canEdit ? "No hay documentos sin carpeta. Revisá las carpetas de la izquierda o subí un archivo a la raíz." : "No hay documentos sin carpeta. Revisá las carpetas de la izquierda."}
               </p>
             )}
           </Card>
