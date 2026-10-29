@@ -255,6 +255,8 @@ export class WorkspaceDocumentController {
   @UseInterceptors(
     FilesInterceptor('files', 20, {
       limits: WORKSPACE_DOCUMENT_UPLOAD_LIMITS,
+      // Browsers encode multipart filenames as UTF-8; Multer otherwise defaults to Latin-1.
+      defParamCharset: 'utf8',
     }),
   )
   upload(

@@ -30,8 +30,6 @@ const PERSONAL_DOCUMENT_UPLOAD_LIMITS = {
   fileSize: 20 * 1024 * 1024,
   files: 20,
   fieldArrayIndexLimit: 20,
-  // Browsers encode multipart filenames as UTF-8; Multer otherwise defaults to Latin-1.
-  defParamCharset: 'utf8',
 };
 
 @ApiTags('personal-documents')
@@ -91,6 +89,8 @@ export class PersonalDocumentController {
   @UseInterceptors(
     FilesInterceptor('files', 20, {
       limits: PERSONAL_DOCUMENT_UPLOAD_LIMITS,
+      // Browsers encode multipart filenames as UTF-8; Multer otherwise defaults to Latin-1.
+      defParamCharset: 'utf8',
     }),
   )
   @ApiOperation({
