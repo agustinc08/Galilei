@@ -74,6 +74,12 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await expect(page.getByText('4 resultados', { exact: true })).toBeVisible();
       await expect(page.getByRole('main')).toBeVisible();
       expect(await accessibleButtonNames(page)).toEqual([]);
+      if (viewport.width <= 430) {
+        const firstResult = page.locator('article[class*="resultCard"]').first();
+        await expect(firstResult).toBeVisible();
+        const firstResultTop = await firstResult.evaluate((element) => element.getBoundingClientRect().top);
+        expect(firstResultTop, 'mobile search should show the first result earlier in the first viewport').toBeLessThan(600);
+      }
       await captureAndCheck(page, testInfo, { id: 'search', route: '/consulta' });
 
       await searchInput.fill('responsabilidad civil');
@@ -136,6 +142,7 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('responsabilidad civil');
       await expect(page).toHaveURL(/sala=Sala(?:\+|%20)A/u);
 
+      if (viewport.width <= 600) await page.locator('[class*="mobileSearchActions"] summary').click();
       const helpButton = page.getByRole('button', { name: 'Consejos de búsqueda', exact: true });
       const dialogResult = await exerciseDialog(page, helpButton, 'Ayuda de búsqueda', async () => {
         await captureAndCheck(page, testInfo, { id: 'search-help', route: '/consulta' });
@@ -151,7 +158,7 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await page.getByRole('button', { name: 'Anterior', exact: true }).click();
       await expect(page.getByText(/página 1 de 2/u)).toBeVisible();
 
-      await page.getByText('Más acciones', { exact: true }).first().click();
+      await page.locator('article[class*="resultCard"] details summary').first().click();
       const selectResult = page.getByRole('button', { name: 'Seleccionar para imprimir', exact: true }).first();
       await selectResult.focus();
       await page.keyboard.press('Space');

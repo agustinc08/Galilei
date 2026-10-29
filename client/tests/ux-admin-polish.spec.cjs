@@ -57,7 +57,7 @@ test('dashboard ends a failed load, shows its tracking id, and retries without r
     if (pathname === '/api/estadisticas/resumen-general') {
       summaryRequests += 1;
       if (summaryRequests === 1) return json(route, { statusCode: 503, message: 'internal server error', requestId: 'qa-track-20261029' }, 503);
-      return json(route, { data: { totalSentencias: 1, totalSumarios: 2, totalConPdf: 1, totalPublicadas: 1 } });
+      return json(route, { data: { totalSentencias: 24661, totalSumarios: 29340, totalConPdf: 1162, totalPublicadas: 24614 } });
     }
     if (pathname === '/api/sentencias') return json(route, { data: [], meta: { page: 1, pageCount: 1, total: 0, pageSize: 4 } });
     if (pathname === '/api/estadisticas/uso/sentencias-mas-vistas') return json(route, { data: [] });
@@ -77,6 +77,7 @@ test('dashboard ends a failed load, shows its tracking id, and retries without r
   await expect(page.getByRole('alert')).not.toContainText('internal server error');
   await page.getByRole('button', { name: 'Reintentar' }).click();
   await expect(page.getByText('Sentencias cargadas')).toBeVisible();
+  await expect(page.getByText('24.661', { exact: true })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   const mobileMetrics = await page.locator('[class*="dashboardMetrics"] > div').evaluateAll((items) => items.slice(0, 3).map((item) => {
     const rect = item.getBoundingClientRect();
@@ -85,7 +86,40 @@ test('dashboard ends a failed load, shows its tracking id, and retries without r
   expect(mobileMetrics[1].x).toBeGreaterThan(mobileMetrics[0].x);
   expect(Math.abs(mobileMetrics[1].y - mobileMetrics[0].y)).toBeLessThan(2);
   expect(mobileMetrics[2].y).toBeGreaterThan(mobileMetrics[0].y);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const desktopMetrics = await page.locator('[class*="dashboardMetrics"] > div').evaluateAll((items) => items.map((item) => {
+    const rect = item.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  }));
+  expect(desktopMetrics).toHaveLength(6);
+  expect(Math.abs(desktopMetrics[1].y - desktopMetrics[0].y)).toBeLessThan(2);
+  expect(Math.abs(desktopMetrics[2].y - desktopMetrics[0].y)).toBeLessThan(2);
+  expect(desktopMetrics[3].y).toBeGreaterThan(desktopMetrics[0].y);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   expect(summaryRequests).toBe(2);
+});
+
+test('workspace activity explains why inherited documents may not appear in the log @product-polish @workspace', async ({ page }) => {
+  await installAdminSession(page);
+  const workspace = { id: 'workspace-qa', code: 'SALA-QA', name: 'Sala Beta Oficina', type: 'SALA', role: 'ADMIN' };
+  const managedWorkspace = { ...workspace, active: true, administrators: [] };
+  await page.route('**/api/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/api/auth/me') return json(route, {
+      id: 8901, nombre: 'Cuenta', apellido: 'QA', email: 'admin-product-polish@example.invalid',
+      activo: true, rol: { id: 1, nombre: 'ADMIN' },
+    });
+    if (pathname === '/api/workspaces/mine') return json(route, [workspace]);
+    if (pathname === '/api/workspaces/admin/list') return json(route, [managedWorkspace]);
+    if (/^\/api\/workspaces\/workspace-qa\/(folders|documents|members|activity|sources)$/u.test(pathname)) return json(route, []);
+    return json(route, {});
+  });
+
+  await page.goto('/spaces/manage?workspaceId=workspace-qa');
+  await expect(page.getByRole('heading', { name: 'Actividad del espacio' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Todavía no hay cargas o cambios recientes');
+  await expect(page.getByText(/documentos heredados siguen disponibles en sus carpetas/u)).toBeVisible();
 });
 
 test('audit detail failure leaves the list usable and retries only the detail @product-polish @state', async ({ page }) => {
@@ -476,7 +510,96 @@ test('workspace shows OCR-required originals in the native PDF viewer @product-p
   await expect(preview.getByText('PDF original · navegación del visor')).toBeVisible();
   await expect(preview.getByRole('button', { name: 'Página siguiente' })).toBeHidden();
   await expect(preview.locator('canvas')).toHaveCount(0);
-  await expect(preview.getByText('El PDF original está disponible. El texto requiere OCR y revisión antes de poder buscarlo; podés navegarlo en el visor.')).toBeVisible();
+  await expect(preview.getByText('Todavía no se puede buscar dentro de este PDF porque requiere reconocimiento de texto (OCR). El original sigue disponible para leerlo.')).toBeVisible();
+  expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+  expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
+  expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);
+});
+
+test('workspace search explains OCR coverage and distinguishes body, filename, and metadata matches @product-polish @workspace @search', async ({ page }) => {
+  const reader = {
+    id: 8904, nombre: 'Cuenta', apellido: 'Workspace QA', email: 'search-workspace-product-polish@example.invalid',
+    activo: true, rol: { id: 6, nombre: 'LECTOR' },
+  };
+  const workspaceId = 'synthetic-search-coverage-sala';
+  await page.addInitScript((user) => {
+    localStorage.setItem('jurisprudencia_token', 'synthetic-search-coverage-token');
+    localStorage.setItem('jurisprudencia_user', JSON.stringify(user));
+  }, reader);
+  await page.route('**/api/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    const requestUrl = new URL(route.request().url());
+    if (pathname === '/api/auth/me') return json(route, reader);
+    if (pathname === '/api/workspaces/mine') return json(route, [{
+      id: workspaceId, name: 'Sala QA', code: 'SALA-QA', type: 'SALA', role: 'VIEWER',
+    }]);
+    if (pathname === `/api/workspaces/${workspaceId}/folders` || pathname === `/api/workspaces/${workspaceId}/search/sources`) return json(route, []);
+    if (pathname === `/api/workspaces/${workspaceId}/search`) {
+      const q = requestUrl.searchParams.get('q');
+      const results = q === 'civil'
+        ? [
+            {
+              id: 'CORPUS:DOCUMENT:native', sourceId: 'native-pdf', title: 'fallo-nativo.pdf',
+              snippet: '... responsabilidad civil por daño moral ...', document: { mimeType: 'application/pdf' },
+              metadata: { filename: 'fallo-nativo.pdf', pageNumber: 2, matchSource: 'PDF_TEXT', status: 'INDEXED', folderName: 'Todos los documentos' },
+            },
+            {
+              id: 'CORPUS:DOCUMENT:ocr', sourceId: 'approved-ocr-pdf', title: 'fallo-ocr-revisado.pdf',
+              snippet: '... daños y perjuicios de naturaleza civil ...', document: { mimeType: 'application/pdf' },
+              metadata: { filename: 'fallo-ocr-revisado.pdf', pageNumber: 5, matchSource: 'OCR_APPROVED', status: 'INDEXED', folderName: 'Todos los documentos' },
+            },
+          ]
+        : [];
+      return json(route, {
+        total: results.length, totalExact: true, hasMore: false, page: 1, pageSize: 20, results,
+        documentCoverage: { textAvailableDocuments: 17, ocrRequiredDocuments: 3, otherUnavailableDocuments: 2 },
+      });
+    }
+    if (pathname === `/api/workspaces/${workspaceId}/search/names`) {
+      const q = requestUrl.searchParams.get('q');
+      if (q === 'filename-match') return json(route, {
+        total: 1, totalExact: true, page: 1, pageSize: 20,
+        results: [{ documentId: 'filename-hit', title: 'Fallo de ejemplo', filename: 'filename-match.pdf', mimeType: 'application/pdf', status: 'INDEXED', uploadedAt: '2026-10-29T12:00:00.000Z', folder: null, matchedIn: ['FILENAME'] }],
+      });
+      if (q === 'metadata-match') return json(route, {
+        total: 1, totalExact: true, page: 1, pageSize: 20,
+        results: [{ documentId: 'metadata-hit', title: 'metadata-match', filename: 'fallo-por-expediente.pdf', mimeType: 'application/pdf', status: 'INDEXED', uploadedAt: '2026-10-29T12:00:00.000Z', folder: null, matchedIn: ['TITLE'] }],
+      });
+      return json(route, { total: 0, totalExact: true, page: 1, pageSize: 20, results: [] });
+    }
+    return json(route, {});
+  });
+
+  const coverage = page.getByRole('region', { name: 'Disponibilidad de texto en el espacio' });
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 768, height: 1024 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`/spaces?workspaceId=${workspaceId}&q=sinresultado`);
+    await expect(page.getByRole('heading', { name: 'Sin coincidencias en el texto disponible' })).toBeVisible();
+    await expect(page.getByText('3 PDF todavía requieren OCR.')).toBeVisible();
+    await expect(page.getByText('Ese contenido no participa en esta búsqueda; los originales siguen disponibles para abrirlos.')).toBeVisible();
+    await expect(coverage).toContainText('17');
+    await expect(coverage).toContainText('3');
+    await expect(coverage).toContainText('El texto indexado puede ser nativo o provenir de OCR aprobado.');
+    await expect(page.getByRole('main', { name: 'Búsqueda y resultados' })).not.toContainText('0 coincidencias por contenido');
+    expect(await page.locator('body').evaluate((element) => element.scrollWidth <= window.innerWidth), `workspace search should not overflow at ${viewport.width}px`).toBe(true);
+  }
+
+  await page.goto(`/spaces?workspaceId=${workspaceId}&q=civil`);
+  const nativeResult = page.getByRole('listitem').filter({ hasText: 'fallo-nativo.pdf' });
+  const approvedResult = page.getByRole('listitem').filter({ hasText: 'fallo-ocr-revisado.pdf' });
+  await expect(nativeResult).toContainText('Texto nativo · pág. 2');
+  await expect(approvedResult).toContainText('OCR aprobado · pág. 5');
+  await expect(nativeResult).toContainText('responsabilidad civil por daño moral');
+  await expect(approvedResult).toContainText('daños y perjuicios de naturaleza civil');
+
+  await page.goto(`/spaces?workspaceId=${workspaceId}&q=filename-match`);
+  await expect(page.getByRole('listitem').filter({ hasText: 'filename-match.pdf' })).toContainText('Nombre de archivo');
+  await page.goto(`/spaces?workspaceId=${workspaceId}&q=metadata-match`);
+  await expect(page.getByRole('listitem').filter({ hasText: 'fallo-por-expediente.pdf' })).toContainText('Metadatos');
   expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);

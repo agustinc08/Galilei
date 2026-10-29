@@ -1908,27 +1908,36 @@ export default function PrivateSpacesPage() {
             </Card>
           )}
 
-          {selectedWorkspace?.role === "ADMIN" && activity.length > 0 && (
+          {selectedWorkspace?.role === "ADMIN" && (
             <Card>
               <div>
                 <p className={styles.eyebrow}>Registro reciente</p>
                 <h2>Actividad del espacio</h2>
+                <p className={styles.muted}>
+                  Este registro muestra cargas y cambios recientes. Los documentos heredados siguen disponibles en sus carpetas aunque no tengan una actividad registrada.
+                </p>
               </div>
-              <ul className={styles.activityList}>
-                {activity.map((item) => (
-                  <li key={item.id}>
-                    <strong>
-                      {item.nombre} {item.apellido ?? ""}
-                    </strong>{" "}
-                    ·{" "}
-                    {item.descripcion ??
-                      item.accion.replaceAll("_", " ").toLowerCase()}
-                    <time dateTime={item.createdAt}>
-                      {formatDate(item.createdAt)}
-                    </time>
-                  </li>
-                ))}
-              </ul>
+              {activity.length ? (
+                <ul className={styles.activityList}>
+                  {activity.map((item) => (
+                    <li key={item.id}>
+                      <strong>
+                        {item.nombre} {item.apellido ?? ""}
+                      </strong>{" "}
+                      ·{" "}
+                      {item.descripcion ??
+                        item.accion.replaceAll("_", " ").toLowerCase()}
+                      <time dateTime={item.createdAt}>
+                        {formatDate(item.createdAt)}
+                      </time>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className={styles.muted} role="status">
+                  Todavía no hay cargas o cambios recientes en este espacio. Consultá los documentos desde sus carpetas.
+                </p>
+              )}
             </Card>
           )}
         </>

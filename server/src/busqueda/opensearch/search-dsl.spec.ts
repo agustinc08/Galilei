@@ -192,8 +192,16 @@ describe('OpenSearch Galilei DSL', () => {
     );
     expect(JSON.stringify(workspace)).toContain('aclPrincipalIds');
     expect(JSON.stringify(workspace)).toContain('ws-1');
+    expect(JSON.stringify(workspace)).toContain('"documentScope":"GENERAL"');
+    expect(JSON.stringify(workspace)).toContain(
+      '"visibility":["PUBLIC","INTERNAL"]',
+    );
+    expect(JSON.stringify(workspace)).toContain(
+      '"documentScope":"PRIVATE_WORKSPACE"',
+    );
     expect(JSON.stringify(personal)).toContain('ownerUserId');
     expect(JSON.stringify(personal)).toContain('PRIVATE_WORKSPACE');
+    expect(JSON.stringify(personal)).not.toContain('"documentScope":"GENERAL"');
   });
 
   it('keeps private logical scope filters while delegating ACL and folder checks to live PostgreSQL', () => {
@@ -224,11 +232,16 @@ describe('OpenSearch Galilei DSL', () => {
     );
 
     expect(JSON.stringify(workspace)).toContain('ws-1');
+    expect(JSON.stringify(workspace)).toContain('"documentScope":"GENERAL"');
+    expect(JSON.stringify(workspace)).toContain(
+      '"visibility":["PUBLIC","INTERNAL"]',
+    );
     expect(JSON.stringify(workspace)).toContain('PRIVATE_WORKSPACE');
     expect(JSON.stringify(workspace)).not.toContain('aclPrincipalIds');
     expect(JSON.stringify(workspace)).not.toContain('folderId');
     expect(JSON.stringify(personal)).toContain('ownerUserId');
     expect(JSON.stringify(personal)).toContain('PRIVATE_WORKSPACE');
+    expect(JSON.stringify(personal)).not.toContain('"documentScope":"GENERAL"');
     expect(JSON.stringify(personal)).not.toContain('folderId');
   });
 

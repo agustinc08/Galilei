@@ -498,19 +498,44 @@
 
 @media (max-width: 600px) {
   .page {
-    gap: 16px;
+    gap: 10px;
+  }
+
+  .hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 4px 8px;
+    padding: 10px 12px;
+  }
+
+  .heroTitle {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    min-width: 0;
+    font-size: 23px;
+  }
+
+  .heroSubtitle {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    line-height: 1.3;
   }
 
   .publicHeader {
-    align-items: flex-start;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    min-width: 0;
   }
 
   .desktopManagementActions { display: none; }
   .mobileManagementActions {
     display: block;
     color: #1f4f7a;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
+    text-align: right;
   }
   .mobileManagementActions summary { cursor: pointer; }
   .mobileManagementActions[open] > div { display: grid; gap: 8px; padding-top: 8px; }
@@ -527,6 +552,9 @@
   .mobileSearchActions[open] > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding-top: 8px; }
   .mobileSearchActions[open] > div > :last-child:nth-child(odd) { grid-column: 1 / -1; }
   .mobileSearchActions button { width: 100%; }
+
+  .filtersCard { gap: 10px; }
+  .primarySearchRow { gap: 8px; }
 
   .publicFilterGrid:not(.publicFilterGridOpen) { display: none; }
 
@@ -560,7 +588,7 @@
     padding: 16px;
   }
   .listGrid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .toolbar { align-items: stretch; }
+  .toolbar { align-items: stretch; gap: 8px; }
   .toolbarRight {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

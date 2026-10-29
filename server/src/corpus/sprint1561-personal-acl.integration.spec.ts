@@ -708,16 +708,15 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       );
       expect(validPdfFixture.subarray(0, 5).toString('ascii')).toBe('%PDF-');
       const personalPdfFilename = `sprint1561-private-${suffix}.pdf`;
+      const pdfBodyText = 'Synthetic private PDF viewer fixture.';
       const pdfExtractorSpy = jest
         .spyOn(BasicDocumentTextExtractor.prototype, 'extract')
-        .mockResolvedValueOnce({
+        .mockResolvedValue({
           extractor: 'qa-viewer-fixture',
           extractorVersion: '1',
           status: 'TEXT_EXTRACTED',
-          text: 'Synthetic private PDF viewer fixture.',
-          pages: [
-            { pageNumber: 1, text: 'Synthetic private PDF viewer fixture.' },
-          ],
+          text: pdfBodyText,
+          pages: [{ pageNumber: 1, text: pdfBodyText }],
           formatDetected: 'PDF',
           mimeDetected: 'application/pdf',
           extensionOriginal: '.pdf',
@@ -725,26 +724,49 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
           warnings: [],
           ocrRequiredPages: [],
         } satisfies ExtractionResult);
+      const pdfUpload = {
+        originalname: personalPdfFilename,
+        mimetype: 'application/pdf',
+        buffer: validPdfFixture,
+        size: validPdfFixture.byteLength,
+      };
       const personalPdfUpload = await documents.uploadPersonal(
         grantee,
-        [
-          {
-            originalname: personalPdfFilename,
-            mimetype: 'application/pdf',
-            buffer: validPdfFixture,
-            size: validPdfFixture.byteLength,
-          },
-        ],
+        [pdfUpload],
         personalFolder.id,
       );
+      const workspacePdfUpload = await documents.upload(workspace.id, admin, [
+        { ...pdfUpload, originalname: `sprint1561-workspace-${suffix}.pdf` },
+      ]);
       pdfExtractorSpy.mockRestore();
       const personalPdfDocumentId = personalPdfUpload.results[0]?.documentId;
+      const workspacePdfDocumentId = workspacePdfUpload.results[0]?.documentId;
       expect(personalPdfUpload.results[0]).toMatchObject({
         status: 'INDEXED',
         duplicate: false,
       });
       expect(personalPdfDocumentId).toBeTruthy();
-      documentIds.push(personalPdfDocumentId);
+      expect(workspacePdfUpload.results[0]).toMatchObject({
+        status: 'INDEXED',
+        duplicate: false,
+      });
+      expect(workspacePdfDocumentId).toBeTruthy();
+      documentIds.push(personalPdfDocumentId, workspacePdfDocumentId);
+      const [personalPdfSearch, workspacePdfSearch] = await Promise.all([
+        documents.searchPersonal(grantee, pdfBodyText),
+        documents.searchWorkspace(workspace.id, grantee, pdfBodyText),
+      ]);
+      expect(
+        personalPdfSearch?.results.some(
+          (item) => item.sourceId === personalPdfDocumentId,
+        ),
+      ).toBe(true);
+      const workspacePdfMatch = workspacePdfSearch?.results.find(
+        (item) => item.sourceId === workspacePdfDocumentId,
+      );
+      expect(workspacePdfMatch?.snippet?.includes(pdfBodyText)).toBe(true);
+      expect(workspacePdfMatch?.metadata.pageNumber).toBe(1);
+      expect(workspacePdfMatch?.metadata.matchSource).toBe('PDF_TEXT');
       const repeatedPersonalUpload = await documents.uploadPersonal(
         grantee,
         [upload],

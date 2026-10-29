@@ -11,6 +11,8 @@ describe('workspace document name search DSL', () => {
     const serialized = JSON.stringify(query);
     expect(serialized).toContain('"workspaceId":"workspace-1"');
     expect(serialized).toContain('"aclPrincipalIds":"19"');
+    expect(serialized).toContain('"documentScope":"GENERAL"');
+    expect(serialized).toContain('"visibility":["PUBLIC","INTERNAL"]');
     expect(serialized).toContain('"documentScope":"PRIVATE_WORKSPACE"');
     expect(serialized).toContain('"field":"ownerUserId"');
     expect(serialized).toContain('"value":"*Acta 50%_\\\\?*"');

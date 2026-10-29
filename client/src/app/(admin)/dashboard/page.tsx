@@ -134,12 +134,12 @@ export default function DashboardPage() {
         <EmptyState title="Sin métricas disponibles" description="No hay datos para mostrar en este momento." />
       ) : (
         <div className={`${styles.summaryGrid} ${styles.dashboardMetrics}`}>
-          <div className={`${styles.metricCard} ${styles.metricPrimary}`}><span>Sentencias cargadas</span><strong>{metrics.totalSentencias}</strong></div>
-          <div className={`${styles.metricCard} ${styles.metricInfo}`}><span>Sumarios cargados</span><strong>{metrics.totalSumarios}</strong></div>
-          <div className={`${styles.metricCard} ${styles.metricSuccess}`}><span>PDFs disponibles</span><strong>{metrics.totalConPdf}</strong></div>
-          <div className={`${styles.metricCard} ${styles.metricSuccess}`}><span>Fallos publicados</span><strong>{metrics.totalPublicadas}</strong></div>
-          <div className={`${styles.metricCard} ${styles.metricDanger}`}><span>Fallos sin PDF</span><strong>{calidad?.sentenciasSinPdf ?? '-'}</strong></div>
-          <div className={`${styles.metricCard} ${styles.metricWarning}`}><span>Fallos sin reseña</span><strong>{calidad?.sentenciasSinResena ?? '-'}</strong></div>
+          <div className={`${styles.metricCard} ${styles.metricPrimary}`}><span>Sentencias cargadas</span><strong>{metrics.totalSentencias.toLocaleString('es-AR')}</strong></div>
+          <div className={`${styles.metricCard} ${styles.metricInfo}`}><span>Sumarios cargados</span><strong>{metrics.totalSumarios.toLocaleString('es-AR')}</strong></div>
+          <div className={`${styles.metricCard} ${styles.metricSuccess}`}><span>PDFs disponibles</span><strong>{metrics.totalConPdf.toLocaleString('es-AR')}</strong></div>
+          <div className={`${styles.metricCard} ${styles.metricSuccess}`}><span>Fallos publicados</span><strong>{metrics.totalPublicadas.toLocaleString('es-AR')}</strong></div>
+          <div className={`${styles.metricCard} ${styles.metricDanger}`}><span>Fallos sin PDF</span><strong>{calidad?.sentenciasSinPdf.toLocaleString('es-AR') ?? '-'}</strong></div>
+          <div className={`${styles.metricCard} ${styles.metricWarning}`}><span>Fallos sin reseña</span><strong>{calidad?.sentenciasSinResena.toLocaleString('es-AR') ?? '-'}</strong></div>
         </div>
       )}
 

@@ -71,6 +71,11 @@ type SearchPage = {
   page: number;
   pageSize: number;
   results: CorpusSearchResult[];
+  documentCoverage?: {
+    textAvailableDocuments: number;
+    ocrRequiredDocuments: number;
+    otherUnavailableDocuments: number;
+  };
 };
 type NameSearchPage = {
   total: number;
@@ -85,6 +90,7 @@ type NameSearchPage = {
     status: string;
     uploadedAt: string;
     folder: { id: string; name: string } | null;
+    matchedIn?: Array<"FILENAME" | "TITLE">;
   }>;
 };
 type WorkspaceDocumentListPage = {
@@ -107,7 +113,7 @@ type SearchHit = {
   filename: string;
   fileType: "PDF" | "TXT" | "RTF" | "DOC" | "DOCX" | "ODT" | "OTRO";
   title: string;
-  page: number;
+  page: number | null;
   folderId: string | null;
   folderName: string;
   uploadedAt: string | null;
@@ -116,6 +122,8 @@ type SearchHit = {
   sourceStatus: string | null;
   documentStatus: string | null;
   snippet: string | null;
+  matchSource: "PDF_TEXT" | "OCR_APPROVED" | null;
+  nameMatchedIn: Array<"FILENAME" | "TITLE">;
   kind: "CONTENIDO" | "NOMBRE" | "LIST";
 };
 type DocumentInfo = {
@@ -264,7 +272,8 @@ function fileTypeFromMime(mimeType: string | null): SearchHit["fileType"] {
   return "OTRO";
 }
 function documentStatusLabel(status: string | null) {
-  if (status === "OCR_PROCESSING" || status === "OCR_REQUIRED") return "Procesando documento…";
+  if (status === "OCR_PROCESSING") return "Procesando OCR…";
+  if (status === "OCR_REQUIRED") return "Requiere OCR para buscar";
   if (status === "OCR_FAILED" || status === "ERROR" || status === "INVALID_PDF")
     return "No pudimos procesar este archivo";
   if (status === "INDEXED") return "Listo para buscar";
@@ -306,12 +315,15 @@ function buildHitList(
   for (const result of content?.results ?? []) {
     const metadata = result.metadata;
     const documentId = result.sourceId;
+    const pageNumber = metadata.pageNumber;
     hits.set(documentId, {
       documentId,
       filename: String(metadata.filename || result.title || "Documento"),
       fileType: fileTypeFromMime(result.document?.mimeType ?? null),
       title: result.title || String(metadata.filename || "Documento"),
-      page: Math.max(1, Number(metadata.pageNumber || 1)),
+      page: typeof pageNumber === "number" && Number.isInteger(pageNumber) && pageNumber > 0
+        ? pageNumber
+        : null,
       folderId: typeof metadata.folderId === "string" ? metadata.folderId : null,
       folderName: String(metadata.folderName || "Todos los documentos"),
       uploadedAt: typeof metadata.uploadedAt === "string" ? metadata.uploadedAt : null,
@@ -320,6 +332,10 @@ function buildHitList(
       sourceStatus: typeof metadata.sourceStatus === "string" ? metadata.sourceStatus : null,
       documentStatus: typeof metadata.status === "string" ? metadata.status : null,
       snippet: result.snippet,
+      matchSource: metadata.matchSource === "PDF_TEXT" || metadata.matchSource === "OCR_APPROVED"
+        ? metadata.matchSource
+        : null,
+      nameMatchedIn: [],
       kind: "CONTENIDO",
     });
   }
@@ -330,7 +346,7 @@ function buildHitList(
       filename: result.filename,
       fileType: fileTypeFromMime(result.mimeType),
       title: result.title,
-      page: 1,
+      page: null,
       folderId: result.folder?.id ?? null,
       folderName: result.folder?.name ?? "Todos los documentos",
       uploadedAt: result.uploadedAt,
@@ -339,7 +355,9 @@ function buildHitList(
       sourceStatus: null,
       documentStatus: result.status,
       snippet: null,
-      kind: "LIST",
+      matchSource: null,
+      nameMatchedIn: result.matchedIn ?? [],
+      kind: "NOMBRE",
     });
   }
   return [...hits.values()];
@@ -353,7 +371,7 @@ function buildWorkspaceDocumentHits(page: WorkspaceDocumentListPage | null): Sea
       filename,
       fileType: fileTypeFromMime(row.document.file?.mimeType ?? null),
       title: row.document.title || filename,
-      page: 1,
+      page: null,
       folderId: row.folder?.id ?? null,
       folderName: row.folder?.name ?? "Todos los documentos",
       uploadedAt: row.createdAt,
@@ -362,9 +380,28 @@ function buildWorkspaceDocumentHits(page: WorkspaceDocumentListPage | null): Sea
       sourceStatus: null,
       documentStatus: row.document.status,
       snippet: null,
-      kind: "NOMBRE",
+      matchSource: null,
+      nameMatchedIn: [],
+      kind: "LIST",
     };
   });
+}
+
+function resultMatchLabel(hit: SearchHit) {
+  if (hit.kind === "LIST") return "Disponible";
+  if (hit.kind === "NOMBRE") {
+    if (hit.nameMatchedIn.includes("FILENAME") && hit.nameMatchedIn.includes("TITLE"))
+      return "Nombre y metadatos";
+    if (hit.nameMatchedIn.includes("TITLE")) return "Metadatos";
+    if (hit.nameMatchedIn.includes("FILENAME")) return "Nombre de archivo";
+    return "Nombre o metadatos";
+  }
+  if (hit.matchSource === "OCR_APPROVED")
+    return hit.page ? `OCR aprobado · pág. ${hit.page}` : "OCR aprobado · sin página";
+  if (hit.matchSource === "PDF_TEXT")
+    return hit.page ? `Texto nativo · pág. ${hit.page}` : "Texto nativo · sin página";
+  if (hit.fileType === "PDF") return "Contenido PDF · página no identificada";
+  return "Contenido del documento";
 }
 
 function displaySourceName(name: string | null) {
@@ -1047,6 +1084,9 @@ export function CopernicWorkspaceSearch() {
       ? `Más de ${searchPage.total}`
       : String(searchPage.total)
     : "0";
+  const ocrRequiredCount = searchPage?.documentCoverage?.ocrRequiredDocuments ?? 0;
+  const otherUnavailableCount = searchPage?.documentCoverage?.otherUnavailableDocuments ?? 0;
+  const hasUnavailableSearchDocuments = ocrRequiredCount > 0 || otherUnavailableCount > 0;
 
   return (
     <section className={`${styles.shell} ${showWorkspaceChooser ? styles.chooserShell : ""}`} aria-label={`Documentos de ${workspace?.name ?? "la dependencia"}`}>
@@ -1415,7 +1455,7 @@ export function CopernicWorkspaceSearch() {
                   <strong>
                     {searching ? "Buscando…" : `${hits.length} ${hits.length === 1 ? "documento" : "documentos"} en esta página`}
                   </strong>
-                  {searchPage && <span>· {contentTotal} {searchPage.total === 1 ? "coincidencia" : "coincidencias"} por contenido</span>}
+                  {searchPage && <span>· {searchPage.total === 0 && hasUnavailableSearchDocuments ? "Sin coincidencias en el texto indexado" : `${contentTotal} ${searchPage.total === 1 ? "coincidencia" : "coincidencias"} en contenido indexado`}</span>}
                   {namePage?.total ? <span>· {namePage.total} {namePage.total === 1 ? "coincidencia" : "coincidencias"} por nombre</span> : null}
                   {searchPage?.partial && <span className={styles.partialBadge}>Resultados parciales</span>}
                   {!searchPage && !searching && !searchError && <span>en {activeScope}</span>}
@@ -1428,10 +1468,37 @@ export function CopernicWorkspaceSearch() {
                   <span>PDF y documentos con texto disponible</span>
                 </div>
               )}
+              {committedQuery && searchPage?.documentCoverage && (
+                <section className={styles.coverageNote} aria-label="Disponibilidad de texto en el espacio">
+                  <p>
+                    <strong>{searchPage.documentCoverage.textAvailableDocuments}</strong> con texto indexado
+                    <span> · </span>
+                    <strong>{searchPage.documentCoverage.ocrRequiredDocuments}</strong> requieren OCR
+                    <span> · </span>
+                    <strong>{searchPage.documentCoverage.otherUnavailableDocuments}</strong> con otro estado
+                  </p>
+                  <small>Incluye el contenido accesible de todo el espacio; no cambia con los filtros actuales de carpeta, fuente o fecha. El texto indexado puede ser nativo o provenir de OCR aprobado.</small>
+                </section>
+              )}
               {!searching && !searchError && ((showWorkspaceListing && workspaceListPage?.total === 0) || (committedQuery && searchPage && hits.length === 0)) && (
                 <div className={styles.emptyResults}>
-                  <h2>{activeType || hasDateFilter || activeFolderId || activeSourceId ? "No encontramos documentos con estos filtros." : "Todavía no hay documentos."}</h2>
-                  <p>Probá otras palabras, cambiá de carpeta o limpiá los filtros de {activeScope}.</p>
+                  {committedQuery && searchPage ? (
+                    <>
+                      <h2>{hasUnavailableSearchDocuments ? "Sin coincidencias en el texto disponible" : "Sin coincidencias"}</h2>
+                      <p>{hasUnavailableSearchDocuments
+                        ? [
+                            ...(ocrRequiredCount > 0 ? [`${ocrRequiredCount} PDF todavía requieren OCR.`] : []),
+                            ...(otherUnavailableCount > 0 ? [`${otherUnavailableCount} documentos tienen otro estado.`] : []),
+                            "Ese contenido no participa en esta búsqueda; los originales siguen disponibles para abrirlos.",
+                          ].join(" ")
+                        : `Probá otras palabras o limpiá los filtros de ${activeScope}.`}</p>
+                    </>
+                  ) : (
+                    <>
+                      <h2>{activeType || hasDateFilter || activeFolderId || activeSourceId ? "No encontramos documentos con estos filtros." : "Todavía no hay documentos."}</h2>
+                      <p>Probá otras palabras, cambiá de carpeta o limpiá los filtros de {activeScope}.</p>
+                    </>
+                  )}
                 </div>
               )}
               {searching && hits.length === 0 && (
@@ -1464,12 +1531,12 @@ export function CopernicWorkspaceSearch() {
                           <span className={styles.resultTopline}>
                             <span className={styles.fileGlyph} aria-hidden="true">{hit.fileType}</span>
                             <strong title={hit.filename}>{hit.filename}</strong>
-                            <span className={styles.resultPage}>{hit.kind === "LIST" ? "Disponible" : hit.fileType === "PDF" ? "pág. " + hit.page : "texto extraído"}</span>
+                            <span className={styles.resultPage}>{resultMatchLabel(hit)}</span>
                           </span>
                           {hit.snippet ? (
                             <span className={styles.resultSnippet}>{highlightSnippet(hit.snippet, committedQuery)}</span>
                           ) : (
-                            <span className={styles.nameOnlySnippet}>{hit.kind === "LIST" ? "Documento disponible en esta dependencia." : "Coincidencia en el nombre del archivo."}</span>
+                            <span className={styles.nameOnlySnippet}>{hit.kind === "LIST" ? "Documento disponible en esta dependencia." : hit.kind === "NOMBRE" ? resultMatchLabel(hit) : "Coincidencia en el contenido del documento."}</span>
                           )}
                           <span className={styles.resultMeta}>
                             <span>{hit.folderName || folderName(hit.folderId, folders)}</span>
@@ -1485,7 +1552,7 @@ export function CopernicWorkspaceSearch() {
                             <button type="button" onClick={() => void copyValue(hit.filename, "Nombre copiado.")}>Copiar nombre</button>
                             <button
                               type="button"
-              onClick={() => void copyValue(`${workspace?.name ?? "Documentos compartidos"} / ${hit.folderName} / ${hit.filename} · página ${hit.page}`, "Referencia copiada.")}
+                              onClick={() => void copyValue(`${workspace?.name ?? "Documentos compartidos"} / ${hit.folderName} / ${hit.filename}${hit.page ? ` · página ${hit.page}` : ""}`, "Referencia copiada.")}
                             >
                               Copiar referencia
                             </button>
@@ -1584,7 +1651,7 @@ export function CopernicWorkspaceSearch() {
                         <p className={styles.missingSourceNote}>Procesando documento… La búsqueda se actualizará cuando termine.</p>
                       )}
                       {preview.document.status === "OCR_REQUIRED" && (
-                        <p className={styles.missingSourceNote}>El PDF original está disponible. El texto requiere OCR y revisión antes de poder buscarlo; podés navegarlo en el visor.</p>
+                        <p className={styles.missingSourceNote}>Todavía no se puede buscar dentro de este PDF porque requiere reconocimiento de texto (OCR). El original sigue disponible para leerlo.</p>
                       )}
                       {preview.document.status === "OCR_FAILED" && (
                         <p className={styles.missingSourceNote}>No pudimos extraer el texto de este archivo.</p>

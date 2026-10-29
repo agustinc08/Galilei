@@ -284,8 +284,8 @@ function appendDocumentScopeFilter(
     filters.push({ term: { documentScope: 'GENERAL' } });
     return;
   }
-  filters.push({ term: { documentScope: 'PRIVATE_WORKSPACE' } });
   if (scope.kind === 'PERSONAL') {
+    filters.push({ term: { documentScope: 'PRIVATE_WORKSPACE' } });
     filters.push({ term: { ownerUserId: String(scope.userId) } });
     filters.push({
       bool: { must_not: [{ exists: { field: 'workspaceId' } }] },
@@ -302,6 +302,22 @@ function appendDocumentScopeFilter(
     }
     return;
   }
+  filters.push({
+    bool: {
+      should: [
+        { term: { documentScope: 'PRIVATE_WORKSPACE' } },
+        {
+          bool: {
+            filter: [
+              { term: { documentScope: 'GENERAL' } },
+              { terms: { visibility: ['PUBLIC', 'INTERNAL'] } },
+            ],
+          },
+        },
+      ],
+      minimum_should_match: 1,
+    },
+  });
   filters.push({ term: { workspaceId: scope.workspaceId } });
   if (!options.livePrivateAcl)
     filters.push({ term: { aclPrincipalIds: String(scope.userId) } });

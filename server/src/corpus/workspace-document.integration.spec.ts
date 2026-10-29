@@ -641,6 +641,10 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         documentId: idA,
         filename: 'sprint15-fixture.pdf',
       });
+      expect(nameResults.results[0]?.matchedIn?.includes('FILENAME')).toBe(
+        true,
+      );
+      expect(nameResults.results[0]?.matchedIn?.includes('TITLE')).toBe(true);
       const pdfDateFiltered = await service.searchWorkspace(
         workspaceA.id,
         viewer,
@@ -655,6 +659,11 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       expect(pdfDateFiltered?.results.map((row) => row.sourceId)).toEqual([
         idA,
       ]);
+      const coverage = pdfDateFiltered?.documentCoverage;
+      expect(typeof coverage?.textAvailableDocuments).toBe('number');
+      expect(typeof coverage?.ocrRequiredDocuments).toBe('number');
+      expect(typeof coverage?.otherUnavailableDocuments).toBe('number');
+      expect(coverage?.textAvailableDocuments ?? 0).toBeGreaterThan(0);
       const textTypeFiltered = await service.searchWorkspace(
         workspaceA.id,
         viewer,

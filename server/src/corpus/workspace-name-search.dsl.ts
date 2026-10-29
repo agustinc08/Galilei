@@ -20,7 +20,22 @@ export function buildWorkspaceNameSearchDsl(input: {
   const escaped = input.term.replace(/[\\*?]/gu, '\\$&');
   const filters: QueryContainer[] = [
     { term: { sourceSystem: 'CORPUS' } },
-    { term: { documentScope: 'PRIVATE_WORKSPACE' } },
+    {
+      bool: {
+        should: [
+          { term: { documentScope: 'PRIVATE_WORKSPACE' } },
+          {
+            bool: {
+              filter: [
+                { term: { documentScope: 'GENERAL' } },
+                { terms: { visibility: ['PUBLIC', 'INTERNAL'] } },
+              ],
+            },
+          },
+        ],
+        minimum_should_match: 1,
+      },
+    },
     { term: { workspaceId: input.workspaceId } },
     { term: { aclPrincipalIds: String(input.userId) } },
     { bool: { must_not: [{ exists: { field: 'ownerUserId' } }] } },

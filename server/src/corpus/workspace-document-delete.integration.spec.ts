@@ -599,6 +599,41 @@ describe('Workspace official deletion lifecycle', () => {
         [document.id],
       );
       expect(visible.results.map((row) => row.sourceId)).toContain(document.id);
+      const nameMatches = await service.searchNames(
+        workspace.id,
+        viewerUser,
+        marker,
+      );
+      expect(nameMatches.results.map((row) => row.documentId)).toContain(
+        document.id,
+      );
+      const namedMatch = nameMatches.results.find(
+        (row) => row.documentId === document.id,
+      );
+      expect(namedMatch?.matchedIn.length).toBeGreaterThan(0);
+      const workspaceSearchService = new WorkspaceDocumentService(
+        prisma,
+        {
+          federatedSearch: async (
+            query: string,
+            _operator: 'AND',
+            context: Parameters<CorpusSearchSourceAdapter['search']>[1],
+          ) => source.search(parseSearchQuery(query), context),
+        } as never,
+        new CorpusDocumentAccessService(prisma),
+        storage,
+      );
+      const workspaceSearch = await workspaceSearchService.searchWorkspace(
+        workspace.id,
+        viewerUser,
+        marker,
+      );
+      expect(workspaceSearch?.results.map((row) => row.sourceId)).toContain(
+        document.id,
+      );
+      expect(
+        workspaceSearch?.documentCoverage.textAvailableDocuments,
+      ).toBeGreaterThan(0);
       const publicVisible = await source.search(
         parseSearchQuery(marker),
         {

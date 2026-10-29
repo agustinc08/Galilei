@@ -18,12 +18,6 @@ import {
 import path from 'node:path';
 import { BusquedaService } from '../busqueda/busqueda.service';
 import type { SearchResultPage } from '../busqueda/adapters/search-source.adapter';
-import { searchObservability } from '../busqueda/search-observability';
-import { OpenSearchRuntimeService } from '../busqueda/opensearch/opensearch-runtime.service';
-import {
-  SEARCH_INDEX_SCHEMA_VERSION,
-  SEARCH_INDEX_SCHEMA_VERSION_V4,
-} from '../busqueda/opensearch/opensearch-mapping';
 import {
   mimeTypesForCorpusTypes,
   validateCorpusTypes,
@@ -42,7 +36,6 @@ import { LocalDocumentStorageAdapter } from './document-storage.adapter';
 import type { DocumentStorageAdapter } from './document-storage.adapter';
 import { CorpusDocumentAccessService } from './corpus-document-access.service';
 import { normalizeRelativePath } from './document-source-scanner';
-import { buildWorkspaceNameSearchDsl } from './workspace-name-search.dsl';
 import { LocalPdfOcrProcessor } from './document-local-processors';
 import { enqueueLocalOcrJob } from './ocr-job-queue';
 import { personalFolderUploadIssue } from './personal-folder-upload-policy';
@@ -71,6 +64,12 @@ type WorkspaceDocumentListPage = {
   results: WorkspaceDocumentListItem[];
 };
 
+type WorkspaceDocumentSearchCoverage = {
+  textAvailableDocuments: number;
+  ocrRequiredDocuments: number;
+  otherUnavailableDocuments: number;
+};
+
 @Injectable()
 export class WorkspaceDocumentService {
   private readonly storage: DocumentStorageAdapter;
@@ -85,9 +84,6 @@ export class WorkspaceDocumentService {
     @Optional()
     @Inject(LocalPdfOcrProcessor)
     ocrProcessor?: LocalPdfOcrProcessor,
-    @Optional()
-    @Inject(OpenSearchRuntimeService)
-    private readonly searchRuntime?: OpenSearchRuntimeService | null,
   ) {
     this.storage = storage ?? new LocalDocumentStorageAdapter();
     this.ocrProcessor = ocrProcessor ?? new LocalPdfOcrProcessor();
@@ -2348,20 +2344,19 @@ export class WorkspaceDocumentService {
     sourceFolder?: string,
     filters?: { type?: unknown; dateFrom?: unknown; dateTo?: unknown },
   ): Promise<
-    import('../busqueda/adapters/search-source.adapter').SearchResultPage | null
+    | (SearchResultPage & {
+        documentCoverage: WorkspaceDocumentSearchCoverage;
+      })
+    | null
   > {
     await this.requireMembership(workspaceId, user);
     if (!q?.trim()) throw new BadRequestException('Ingresá una búsqueda.');
-    if (
-      folderId &&
-      !(
-        await readableFolderIds(this.prisma, {
-          kind: 'WORKSPACE',
-          workspaceId,
-          userId: user.id,
-        })
-      ).includes(folderId)
-    )
+    const readableIds = await readableFolderIds(this.prisma, {
+      kind: 'WORKSPACE',
+      workspaceId,
+      userId: user.id,
+    });
+    if (folderId && !readableIds.includes(folderId))
       throw new NotFoundException('Carpeta no encontrada.');
     if (sourceFolder && (!sourceId || sourceId === '__manual_upload__'))
       throw new BadRequestException(
@@ -2413,7 +2408,11 @@ export class WorkspaceDocumentService {
           : {}),
       },
     });
-    if (!result?.results?.length) return result;
+    if (!result) return null;
+    const documentCoverage = await this.workspaceDocumentSearchCoverage(
+      workspaceId,
+      readableIds,
+    );
     const links = await this.prisma.workspaceDocument.findMany({
       where: {
         workspaceId,
@@ -2449,6 +2448,7 @@ export class WorkspaceDocumentService {
     }
     return {
       ...result,
+      documentCoverage,
       results: result.results.map((item) => {
         const link = metadataById.get(item.sourceId);
         return {
@@ -2491,6 +2491,65 @@ export class WorkspaceDocumentService {
           },
         };
       }),
+    };
+  }
+
+  private async workspaceDocumentSearchCoverage(
+    workspaceId: string,
+    readableIds: string[],
+  ): Promise<WorkspaceDocumentSearchCoverage> {
+    const folderScope = readableIds.length
+      ? Prisma.sql`(workspaceDocument."folderId" IS NULL OR workspaceDocument."folderId" IN (${Prisma.join(readableIds)}))`
+      : Prisma.sql`workspaceDocument."folderId" IS NULL`;
+    const groups = await this.prisma.$queryRaw<
+      Array<{ status: string; count: bigint }>
+    >(Prisma.sql`
+      SELECT document."status" AS "status",
+             count(DISTINCT document."id")::bigint AS "count"
+        FROM "WorkspaceDocument" workspaceDocument
+        JOIN "CorpusDocument" document
+          ON document."id" = workspaceDocument."documentId"
+       WHERE workspaceDocument."workspaceId" = ${workspaceId}
+         AND workspaceDocument."ownerUserId" IS NULL
+         AND ${folderScope}
+         AND (
+           document."documentScope" = 'PRIVATE_WORKSPACE'
+           OR (
+             document."documentScope" = 'GENERAL'
+             AND document."visibility" IN ('PUBLIC', 'INTERNAL')
+             AND EXISTS (
+               SELECT 1
+                 FROM "CorpusDocumentLink" sentenceLink
+                 JOIN "Sentencia" sentence
+                   ON sentence."id" = CASE
+                     WHEN sentenceLink."targetId" ~ '^[0-9]+$'
+                       THEN sentenceLink."targetId"::integer
+                     ELSE NULL
+                   END
+                WHERE sentenceLink."documentId" = document."id"
+                  AND sentenceLink."targetDomain" = 'JURISPRUDENCIA'
+                  AND sentenceLink."targetType" = 'SENTENCIA'
+                  AND sentenceLink."relationship" = 'ASSOCIATED_WITH'
+                  AND sentence.activo = TRUE
+                  AND sentence.publicado = TRUE
+                  AND sentence."estadoCarga" = 'PUBLICADA'
+             )
+           )
+         )
+       GROUP BY document."status"
+    `);
+    const countFor = (statuses: string[]) =>
+      groups
+        .filter((group) => statuses.includes(group.status))
+        .reduce((sum, group) => sum + Number(group.count), 0);
+    const textAvailableDocuments = countFor(['INDEXED']);
+    const ocrRequiredDocuments = countFor(['OCR_REQUIRED']);
+    const total = groups.reduce((sum, group) => sum + Number(group.count), 0);
+    return {
+      textAvailableDocuments,
+      ocrRequiredDocuments,
+      otherUnavailableDocuments:
+        total - textAvailableDocuments - ocrRequiredDocuments,
     };
   }
 
@@ -2663,7 +2722,30 @@ export class WorkspaceDocumentService {
       readableIds.length
         ? Prisma.sql`(workspaceDocument."folderId" IS NULL OR workspaceDocument."folderId" IN (${Prisma.join(readableIds)}))`
         : Prisma.sql`workspaceDocument."folderId" IS NULL`,
-      Prisma.sql`document."documentScope" = 'PRIVATE_WORKSPACE'`,
+      Prisma.sql`(
+        document."documentScope" = 'PRIVATE_WORKSPACE'
+        OR (
+          document."documentScope" = 'GENERAL'
+          AND document."visibility" IN ('PUBLIC', 'INTERNAL')
+          AND EXISTS (
+            SELECT 1
+              FROM "CorpusDocumentLink" sentenceLink
+              JOIN "Sentencia" sentence
+                ON sentence."id" = CASE
+                  WHEN sentenceLink."targetId" ~ '^[0-9]+$'
+                    THEN sentenceLink."targetId"::integer
+                  ELSE NULL
+                END
+             WHERE sentenceLink."documentId" = document."id"
+               AND sentenceLink."targetDomain" = 'JURISPRUDENCIA'
+               AND sentenceLink."targetType" = 'SENTENCIA'
+               AND sentenceLink."relationship" = 'ASSOCIATED_WITH'
+               AND sentence.activo = TRUE
+               AND sentence.publicado = TRUE
+               AND sentence."estadoCarga" = 'PUBLICADA'
+          )
+        )
+      )`,
     ];
     if (folderId !== undefined) {
       predicates.push(
@@ -2731,45 +2813,6 @@ export class WorkspaceDocumentService {
     `;
     const safePage = Math.max(1, Math.trunc(page));
     const safePageSize = Math.min(100, Math.max(1, Math.trunc(pageSize)));
-    if (process.env.SEARCH_ENGINE === 'opensearch') {
-      if (!this.searchRuntime)
-        throw new ServiceUnavailableException(
-          'La búsqueda no está disponible temporalmente.',
-        );
-      const activeSchemaVersion =
-        await this.searchRuntime.activeSchemaVersion();
-      if (
-        activeSchemaVersion !== SEARCH_INDEX_SCHEMA_VERSION &&
-        activeSchemaVersion !== SEARCH_INDEX_SCHEMA_VERSION_V4
-      )
-        throw new ServiceUnavailableException(
-          'La búsqueda no está disponible temporalmente.',
-        );
-      try {
-        return await searchObservability.measure(
-          'workspace.acl',
-          () =>
-            this.searchWorkspaceNamesOpenSearch({
-              workspaceId,
-              userId: user.id,
-              term,
-              folderId,
-              sourceId,
-              sourceFolder: normalizedSourceFolder,
-              types,
-              dateRange,
-              page: safePage,
-              pageSize: safePageSize,
-              from,
-            }),
-          { source: 'CORPUS', pageSize: safePageSize },
-        );
-      } catch {
-        throw new ServiceUnavailableException(
-          'La búsqueda no está disponible temporalmente.',
-        );
-      }
-    }
     const postgresFrom = Prisma.sql`${from} AND ${namePredicate}`;
     const [countRows, links] = await this.prisma.$transaction([
       this.prisma.$queryRaw<Array<{ total: bigint }>>(
@@ -2785,6 +2828,8 @@ export class WorkspaceDocumentService {
           uploadedAt: Date;
           folderId: string | null;
           folderName: string | null;
+          matchedTitle: boolean;
+          matchedFilename: boolean;
         }>
       >(Prisma.sql`
         SELECT workspaceDocument."documentId" AS "documentId",
@@ -2794,7 +2839,9 @@ export class WorkspaceDocumentService {
                latestFile."mimeType" AS "mimeType",
                workspaceDocument."createdAt" AS "uploadedAt",
                folder."id" AS "folderId",
-               folder."name" AS "folderName"
+               folder."name" AS "folderName",
+               COALESCE(document."title" ILIKE ${namePattern} ESCAPE E'\\\\', false) AS "matchedTitle",
+               COALESCE(latestFile."originalFilename" ILIKE ${namePattern} ESCAPE E'\\\\', false) AS "matchedFilename"
           ${postgresFrom}
          ORDER BY workspaceDocument."createdAt" DESC, workspaceDocument."documentId" ASC
          LIMIT ${safePageSize} OFFSET ${(safePage - 1) * safePageSize}
@@ -2817,111 +2864,10 @@ export class WorkspaceDocumentService {
           link.folderId && link.folderName
             ? { id: link.folderId, name: link.folderName }
             : null,
-      })),
-    };
-  }
-
-  private async searchWorkspaceNamesOpenSearch(input: {
-    workspaceId: string;
-    userId: number;
-    term: string;
-    folderId?: string | null;
-    sourceId?: string;
-    sourceFolder?: string;
-    types?: ReturnType<typeof validateCorpusTypes>;
-    dateRange: ReturnType<typeof validateSearchDateRange>;
-    page: number;
-    pageSize: number;
-    from: Prisma.Sql;
-  }) {
-    const query = buildWorkspaceNameSearchDsl(input);
-    const response = await searchObservability.measure(
-      'opensearch.search',
-      () =>
-        this.searchRuntime!.client.search({
-          index: this.searchRuntime!.config.alias,
-          body: {
-            from: (input.page - 1) * input.pageSize,
-            size: input.pageSize,
-            track_total_hits: true,
-            _source: false,
-            query,
-            sort: [
-              { workspaceLinkedAt: { order: 'desc', missing: '_last' } },
-              { _id: { order: 'asc' } },
-            ],
-          },
-        }),
-      { source: 'CORPUS', pageSize: input.pageSize },
-    );
-    const body =
-      (
-        response as unknown as {
-          body?: {
-            hits?: {
-              total?: { value?: number };
-              hits?: Array<{ _id: string }>;
-            };
-          };
-        }
-      ).body ??
-      (response as unknown as {
-        hits?: { total?: { value?: number }; hits?: Array<{ _id: string }> };
-      });
-    const total = body.hits?.total?.value;
-    if (!Number.isSafeInteger(total))
-      throw new Error('WORKSPACE_NAME_SEARCH_TOTAL_INVALID');
-    const hits = body.hits?.hits ?? [];
-    const ids = hits.map((hit) => hit._id);
-    const links = ids.length
-      ? await searchObservability.measure(
-          'postgres.hydrate',
-          () =>
-            this.prisma.$queryRaw<
-              Array<{
-                documentId: string;
-                title: string;
-                status: string;
-                filename: string | null;
-                mimeType: string | null;
-                uploadedAt: Date;
-                folderId: string | null;
-                folderName: string | null;
-              }>
-            >(Prisma.sql`
-          SELECT workspaceDocument."documentId" AS "documentId",
-                 document."title" AS "title",
-                 document."status" AS "status",
-                 latestFile."originalFilename" AS "filename",
-                 latestFile."mimeType" AS "mimeType",
-                 workspaceDocument."createdAt" AS "uploadedAt",
-                 folder."id" AS "folderId",
-                 folder."name" AS "folderName"
-            ${input.from}
-           AND document."id" IN (${Prisma.join(ids)})
-           ORDER BY array_position(ARRAY[${Prisma.join(ids)}]::text[], document."id")
-        `),
-          { source: 'CORPUS', pageSize: ids.length },
-        )
-      : [];
-    if (links.length !== ids.length)
-      throw new Error('WORKSPACE_NAME_SEARCH_HYDRATION_STALE');
-    return {
-      total: total as number,
-      totalExact: true,
-      page: input.page,
-      pageSize: input.pageSize,
-      results: links.map((link) => ({
-        documentId: link.documentId,
-        title: link.title,
-        filename: link.filename ?? link.title,
-        mimeType: link.mimeType,
-        status: link.status,
-        uploadedAt: link.uploadedAt,
-        folder:
-          link.folderId && link.folderName
-            ? { id: link.folderId, name: link.folderName }
-            : null,
+        matchedIn: [
+          ...(link.matchedFilename ? ['FILENAME'] : []),
+          ...(link.matchedTitle ? ['TITLE'] : []),
+        ],
       })),
     };
   }
