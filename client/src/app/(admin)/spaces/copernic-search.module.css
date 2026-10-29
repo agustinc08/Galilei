@@ -77,14 +77,24 @@
 .noWorkspace { margin: 1rem; padding: 1.3rem; border: 1px solid var(--copernic-line); border-radius: 9px; background: #fff; }
 .noWorkspace h2 { margin-top: 0; }
 .noWorkspace p { color: var(--copernic-muted); }
-.workspaceChooser { display: grid; justify-items: start; gap: .7rem; max-width: 38rem; margin: 1rem; padding: clamp(1.25rem, 3vw, 2rem); border: 1px solid var(--copernic-line); border-radius: 10px; background: #fff; }
+.workspaceChooser { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center; align-items: end; justify-items: start; gap: .75rem 1rem; align-self: center; justify-self: center; width: min(calc(100% - 2rem), 54rem); max-width: 54rem; margin: 1rem auto; padding: clamp(1.25rem, 2.5vw, 2rem); border: 1px solid var(--copernic-line); border-radius: 10px; background: #fff; box-shadow: 0 8px 24px #1c35520d; }
+.chooserShell { min-height: 0; height: auto; }
+.workspaceChooser > .eyebrow,
+.workspaceChooser h2,
+.workspaceChooser > p:not(.eyebrow) { grid-column: 1 / -1; }
 .workspaceChooser > .eyebrow { margin: 0; }
 .workspaceChooser h2 { margin: 0; color: #203e55; font-size: 1.25rem; }
 .workspaceChooser > p:not(.eyebrow) { margin: 0; color: var(--copernic-muted); line-height: 1.45; }
-.chooserField { display: grid; gap: .35rem; width: min(100%, 26rem); color: #425a6f; font-size: .8rem; font-weight: 700; }
+.chooserField { display: grid; gap: .35rem; width: min(100%, 34rem); color: #425a6f; font-size: .8rem; font-weight: 700; }
 .chooserField select { min-width: 0; min-height: 2.6rem; padding: .5rem .65rem; border: 1px solid #aebfce; border-radius: 7px; color: var(--copernic-ink); background: #fff; font: inherit; }
-.workspaceChooser .primaryLink { min-width: 7rem; cursor: pointer; }
+.workspaceChooser .primaryLink { min-width: 8.5rem; min-height: 2.6rem; cursor: pointer; }
 .workspaceChooser .primaryLink:disabled { opacity: .55; cursor: not-allowed; }
+
+@media (max-width: 640px) {
+  .workspaceChooser { grid-template-columns: minmax(0, 1fr); width: calc(100% - 1.5rem); }
+  .chooserField,
+  .workspaceChooser .primaryLink { grid-column: 1; width: 100%; }
+}
 
 .panels {
   display: grid;
@@ -257,6 +267,8 @@
 @container (max-width: 660px) {
   .shell { height: auto; min-height: calc(100vh - 150px); overflow: visible; }
   .shellHeader { align-items: flex-start; flex-direction: column; }
+  .productTitle { width: 100%; }
+  .productTitle h1 { max-width: 100%; overflow: visible; text-overflow: clip; white-space: normal; }
   .headerActions { justify-content: flex-start; width: 100%; }
   .panels,.leftCollapsed,.previewCollapsed,.leftCollapsed.previewCollapsed { grid-template-columns: minmax(0, 1fr); overflow: visible; }
   .leftPanel { max-height: 15rem; border-right: 0; border-bottom: 1px solid var(--copernic-line); }

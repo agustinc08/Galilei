@@ -12,6 +12,7 @@ import dynamic from "@/lib/router-compat"
 import { Link } from "@/lib/router-compat";
 import { useRouter, useSearchParams } from "@/lib/router-compat";
 import { api, ApiError } from "@/lib/api";
+import { normalizeWorkspaceListResponse } from "@/lib/workspace-list-response";
 import { useAuth } from "@/hooks/use-auth";
 import { downloadBlob } from "@/lib/utils";
 import type { PdfMatch } from "@/app/(admin)/corpus/[id]/CorpusPdfViewer";
@@ -86,6 +87,21 @@ type NameSearchPage = {
     folder: { id: string; name: string } | null;
   }>;
 };
+type WorkspaceDocumentListPage = {
+  page: number;
+  pageSize: number;
+  total: number;
+  results: Array<{
+    createdAt: string;
+    folder: { id: string; name: string } | null;
+    document: {
+      id: string;
+      title: string;
+      status: string;
+      file: { filename: string; mimeType: string } | null;
+    };
+  }>;
+};
 type SearchHit = {
   documentId: string;
   filename: string;
@@ -100,7 +116,7 @@ type SearchHit = {
   sourceStatus: string | null;
   documentStatus: string | null;
   snippet: string | null;
-  kind: "CONTENIDO" | "NOMBRE";
+  kind: "CONTENIDO" | "NOMBRE" | "LIST";
 };
 type DocumentInfo = {
   id: string;
@@ -323,10 +339,32 @@ function buildHitList(
       sourceStatus: null,
       documentStatus: result.status,
       snippet: null,
-      kind: "NOMBRE",
+      kind: "LIST",
     });
   }
   return [...hits.values()];
+}
+
+function buildWorkspaceDocumentHits(page: WorkspaceDocumentListPage | null): SearchHit[] {
+  return (page?.results ?? []).map((row) => {
+    const filename = row.document.file?.filename ?? row.document.title ?? "Documento";
+    return {
+      documentId: row.document.id,
+      filename,
+      fileType: fileTypeFromMime(row.document.file?.mimeType ?? null),
+      title: row.document.title || filename,
+      page: 1,
+      folderId: row.folder?.id ?? null,
+      folderName: row.folder?.name ?? "Todos los documentos",
+      uploadedAt: row.createdAt,
+      sourceName: "Carga manual",
+      sourceFolder: null,
+      sourceStatus: null,
+      documentStatus: row.document.status,
+      snippet: null,
+      kind: "NOMBRE",
+    };
+  });
 }
 
 function displaySourceName(name: string | null) {
@@ -377,6 +415,7 @@ export function CopernicWorkspaceSearch() {
   const [draftQuery, setDraftQuery] = useState(committedQuery);
   const [searchPage, setSearchPage] = useState<SearchPage | null>(null);
   const [namePage, setNamePage] = useState<NameSearchPage | null>(null);
+  const [workspaceListPage, setWorkspaceListPage] = useState<WorkspaceDocumentListPage | null>(null);
   const [searching, setSearching] = useState(false);
   const [workspaceDataLoading, setWorkspaceDataLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -399,11 +438,14 @@ export function CopernicWorkspaceSearch() {
   const workspace = workspaces.find((item) => item.id === workspaceId);
   const activeSource = sources.find((item) => item.id === activeSourceId);
   const activeFolder = folders.find((item) => item.id === activeFolderId);
-  const hits = useMemo(() => buildHitList(searchPage, namePage), [searchPage, namePage]);
+  const isAuthorizedWorkspace = workspaces.some((item) => item.id === workspaceId);
+  const searchHits = useMemo(() => buildHitList(searchPage, namePage), [searchPage, namePage]);
+  const workspaceListHits = useMemo(() => buildWorkspaceDocumentHits(workspaceListPage), [workspaceListPage]);
+  const showWorkspaceListing = Boolean(workspaceId && isAuthorizedWorkspace && !committedQuery.trim() && !activeSourceFolder && (!activeSourceId || activeSourceId === MANUAL_SOURCE_ID));
+  const hits = showWorkspaceListing ? workspaceListHits : searchHits;
   const selectedHit = hits.find((hit) => hit.documentId === selectedId) ?? null;
   const selectedDocumentId = selectedHit?.documentId ?? "";
   const selectedPage = selectedHit?.page ?? 1;
-  const isAuthorizedWorkspace = workspaces.some((item) => item.id === workspaceId);
   const showWorkspaceChooser = !workspaceLoading && workspaces.length > 1 && !isAuthorizedWorkspace;
   const folderTreeRows = useMemo(() => {
     const byId = new Map(folders.map((folder) => [folder.id, folder]));
@@ -557,17 +599,19 @@ export function CopernicWorkspaceSearch() {
 
   useEffect(() => {
     searchController.current?.abort();
-    if (!workspaceId || !isAuthorizedWorkspace || !committedQuery.trim()) {
+    if (!workspaceId || !isAuthorizedWorkspace) {
       // Remove prior results immediately when the URL loses its search scope.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearchPage(null);
       setNamePage(null);
+      setWorkspaceListPage(null);
       setSearching(false);
       return;
     }
     if (dateFilterError) {
       setSearchPage(null);
       setNamePage(null);
+      setWorkspaceListPage(null);
       setSearching(false);
       setSearchError(dateFilterError);
       return;
@@ -577,6 +621,49 @@ export function CopernicWorkspaceSearch() {
     setSearching(true);
     setSearchError("");
     setMessage("");
+    if (!committedQuery.trim()) {
+      setSearchPage(null);
+      setNamePage(null);
+      if (!showWorkspaceListing) {
+        setWorkspaceListPage(null);
+        setSearching(false);
+        return () => controller.abort();
+      }
+      setWorkspaceListPage(null);
+      const listScopeQuery = {
+        folderId: activeFolderId || undefined,
+        page: pageNumber,
+        pageSize: 20,
+        type: activeType || undefined,
+        dateFrom: activeDateFrom || undefined,
+        dateTo: activeDateTo || undefined,
+      };
+      void api.get<WorkspaceDocumentListPage | WorkspaceDocumentListPage["results"]>(`/workspaces/${workspaceId}/documents`, {
+        query: listScopeQuery,
+        signal: controller.signal,
+      })
+        .then((response) => {
+          if (controller.signal.aborted) return;
+          const listing = normalizeWorkspaceListResponse(response, 20);
+          setWorkspaceListPage(listing);
+          setResultsAnnouncement(`${listing.total} documentos disponibles en la dependencia.`);
+          if (Array.isArray(response) && pageNumber > 1) navigate({ page: null }, true);
+          if (selectedIdRef.current && !listing.results.some((row) => row.document.id === selectedIdRef.current)) {
+            navigate({ selected: null, match: null }, true);
+          }
+        })
+        .catch((cause: unknown) => {
+          if (!controller.signal.aborted) {
+            setWorkspaceListPage(null);
+            setSearchError(safeError(cause));
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSearching(false);
+        });
+      return () => controller.abort();
+    }
+    setWorkspaceListPage(null);
     const folderScope = activeFolderId || undefined;
     const scopeQuery = {
       folderId: folderScope,
@@ -642,6 +729,7 @@ export function CopernicWorkspaceSearch() {
     activeDateFrom,
     activeDateTo,
     dateFilterError,
+    showWorkspaceListing,
     navigate,
   ]);
 
@@ -960,7 +1048,7 @@ export function CopernicWorkspaceSearch() {
     : "0";
 
   return (
-    <section className={styles.shell} aria-label={`Documentos de ${workspace?.name ?? "la dependencia"}`}>
+    <section className={`${styles.shell} ${showWorkspaceChooser ? styles.chooserShell : ""}`} aria-label={`Documentos de ${workspace?.name ?? "la dependencia"}`}>
       <header className={styles.shellHeader}>
         <div className={styles.productTitle}>
           <span className={styles.productMark} aria-hidden="true">G</span>
@@ -1313,7 +1401,15 @@ export function CopernicWorkspaceSearch() {
               )}
               {message && <p className={styles.notice} role="status">{message}</p>}
               {searchError && <p className={styles.error} role="alert">{searchError}</p>}
-              {committedQuery ? (
+              {showWorkspaceListing ? (
+                <div className={styles.resultSummary}>
+                  <strong>
+                    {searching ? "Cargando documentos…" : `${hits.length} ${hits.length === 1 ? "documento" : "documentos"} en esta página`}
+                  </strong>
+                  {workspaceListPage && <span>· {workspaceListPage.total} accesibles en {activeScope}</span>}
+                  {workspaceListPage && workspaceListPage.total > 0 && <span>· Página {workspaceListPage.page}</span>}
+                </div>
+              ) : committedQuery ? (
                 <div className={styles.resultSummary}>
                   <strong>
                     {searching ? "Buscando…" : `${hits.length} ${hits.length === 1 ? "documento" : "documentos"} en esta página`}
@@ -1331,14 +1427,14 @@ export function CopernicWorkspaceSearch() {
                   <span>PDF y documentos con texto disponible</span>
                 </div>
               )}
-              {committedQuery && !searching && !searchError && searchPage && hits.length === 0 && (
+              {!searching && !searchError && ((showWorkspaceListing && workspaceListPage?.total === 0) || (committedQuery && searchPage && hits.length === 0)) && (
                 <div className={styles.emptyResults}>
                   <h2>{activeType || hasDateFilter || activeFolderId || activeSourceId ? "No encontramos documentos con estos filtros." : "Todavía no hay documentos."}</h2>
                   <p>Probá otras palabras, cambiá de carpeta o limpiá los filtros de {activeScope}.</p>
                 </div>
               )}
               {searching && hits.length === 0 && (
-                <div className={styles.searchLoading} role="status"><span className={styles.spinner} />Buscando en {workspace?.name ?? "la dependencia"}…</div>
+                <div className={styles.searchLoading} role="status"><span className={styles.spinner} />{showWorkspaceListing ? "Cargando documentos" : "Buscando"} en {workspace?.name ?? "la dependencia"}…</div>
               )}
               {hits.length > 0 && (
                 <div
@@ -1367,12 +1463,12 @@ export function CopernicWorkspaceSearch() {
                           <span className={styles.resultTopline}>
                             <span className={styles.fileGlyph} aria-hidden="true">{hit.fileType}</span>
                             <strong title={hit.filename}>{hit.filename}</strong>
-                            <span className={styles.resultPage}>{hit.fileType === "PDF" ? "pág. " + hit.page : "texto extraído"}</span>
+                            <span className={styles.resultPage}>{hit.kind === "LIST" ? "Disponible" : hit.fileType === "PDF" ? "pág. " + hit.page : "texto extraído"}</span>
                           </span>
                           {hit.snippet ? (
                             <span className={styles.resultSnippet}>{highlightSnippet(hit.snippet, committedQuery)}</span>
                           ) : (
-                            <span className={styles.nameOnlySnippet}>Coincidencia en el nombre del archivo.</span>
+                            <span className={styles.nameOnlySnippet}>{hit.kind === "LIST" ? "Documento disponible en esta dependencia." : "Coincidencia en el nombre del archivo."}</span>
                           )}
                           <span className={styles.resultMeta}>
                             <span>{hit.folderName || folderName(hit.folderId, folders)}</span>
@@ -1408,20 +1504,20 @@ export function CopernicWorkspaceSearch() {
                   })}
                 </div>
               )}
-              {searchPage && (searchPage.page > 1 || searchPage.hasMore || Boolean(namePage && namePage.total > namePage.page * namePage.pageSize)) && (
+              {((showWorkspaceListing && workspaceListPage && (workspaceListPage.page > 1 || workspaceListPage.total > workspaceListPage.page * workspaceListPage.pageSize)) || (!showWorkspaceListing && searchPage && (searchPage.page > 1 || searchPage.hasMore || Boolean(namePage && namePage.total > namePage.page * namePage.pageSize)))) && (
                 <div className={styles.pagination}>
                   <button
                     type="button"
-                    disabled={searching || searchPage.page <= 1}
-                    onClick={() => navigate({ page: searchPage.page - 1, selected: null, match: null })}
+                    disabled={searching || (showWorkspaceListing ? (workspaceListPage?.page ?? 1) <= 1 : (searchPage?.page ?? 1) <= 1)}
+                    onClick={() => navigate({ page: (showWorkspaceListing ? workspaceListPage?.page : searchPage?.page ?? 1)! - 1, selected: null, match: null })}
                   >
                     Anterior
                   </button>
-                  <span>Página {searchPage.page}</span>
+                  <span>Página {showWorkspaceListing ? workspaceListPage?.page : searchPage?.page}</span>
                   <button
                     type="button"
-                    disabled={searching || !(searchPage.hasMore || Boolean(namePage && namePage.total > namePage.page * namePage.pageSize))}
-                    onClick={() => navigate({ page: searchPage.page + 1, selected: null, match: null })}
+                    disabled={searching || !(showWorkspaceListing ? Boolean(workspaceListPage && workspaceListPage.total > workspaceListPage.page * workspaceListPage.pageSize) : Boolean(searchPage && (searchPage.hasMore || (namePage && namePage.total > namePage.page * namePage.pageSize))))}
+                    onClick={() => navigate({ page: (showWorkspaceListing ? workspaceListPage?.page : searchPage?.page ?? 1)! + 1, selected: null, match: null })}
                   >
                     Siguiente
                   </button>
