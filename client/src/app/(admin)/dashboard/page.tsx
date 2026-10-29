@@ -133,7 +133,7 @@ export default function DashboardPage() {
       ) : !metrics ? (
         <EmptyState title="Sin métricas disponibles" description="No hay datos para mostrar en este momento." />
       ) : (
-        <div className={styles.summaryGrid}>
+        <div className={`${styles.summaryGrid} ${styles.dashboardMetrics}`}>
           <div className={`${styles.metricCard} ${styles.metricPrimary}`}><span>Sentencias cargadas</span><strong>{metrics.totalSentencias}</strong></div>
           <div className={`${styles.metricCard} ${styles.metricInfo}`}><span>Sumarios cargados</span><strong>{metrics.totalSumarios}</strong></div>
           <div className={`${styles.metricCard} ${styles.metricSuccess}`}><span>PDFs disponibles</span><strong>{metrics.totalConPdf}</strong></div>

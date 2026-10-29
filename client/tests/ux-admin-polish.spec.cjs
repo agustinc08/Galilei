@@ -46,6 +46,7 @@ function makePdfFixture() {
 
 test('dashboard ends a failed load, shows its tracking id, and retries without reload @product-polish @state', async ({ page }) => {
   await installAdminSession(page);
+  await page.setViewportSize({ width: 390, height: 844 });
   let summaryRequests = 0;
   await page.route('**/api/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
@@ -77,6 +78,13 @@ test('dashboard ends a failed load, shows its tracking id, and retries without r
   await page.getByRole('button', { name: 'Reintentar' }).click();
   await expect(page.getByText('Sentencias cargadas')).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
+  const mobileMetrics = await page.locator('[class*="dashboardMetrics"] > div').evaluateAll((items) => items.slice(0, 3).map((item) => {
+    const rect = item.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  }));
+  expect(mobileMetrics[1].x).toBeGreaterThan(mobileMetrics[0].x);
+  expect(Math.abs(mobileMetrics[1].y - mobileMetrics[0].y)).toBeLessThan(2);
+  expect(mobileMetrics[2].y).toBeGreaterThan(mobileMetrics[0].y);
   expect(summaryRequests).toBe(2);
 });
 
