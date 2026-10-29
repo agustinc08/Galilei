@@ -39,6 +39,7 @@ test('audit actions show operational labels instead of internal enum keys', () =
 test('audit entities show human labels for newer records', () => {
   assert.equal(formatAuditEntity('SENTENCIA'), 'Fallo');
   assert.equal(formatAuditEntity('WorkspaceDocument'), 'Documento compartido');
+  assert.equal(formatAuditEntity('WorkspaceDocument', 'PERSONAL_UPLOAD'), 'Documento personal');
   assert.equal(formatAuditEntity('OcrJob'), 'Trabajo de OCR');
   assert.equal(formatAuditEntity('UnknownWorkspaceEntity'), 'Unknown workspace entity');
   assert.equal(formatAuditEntity(''), 'Entidad sin descripción');

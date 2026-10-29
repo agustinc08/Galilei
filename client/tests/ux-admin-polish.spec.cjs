@@ -171,6 +171,7 @@ test('audit presents new entity and action names in Spanish and can filter them 
     usuario: { id: 8901, nombre: 'Cuenta', apellido: 'QA', email: 'admin-product-polish@example.invalid', rol: { nombre: 'ADMIN' } },
     datosAntes: null, datosDespues: null,
   };
+  const personalLog = { ...log, id: 30, entidadId: 'personal-document-30', accion: 'PERSONAL_UPLOAD', descripcion: 'Documento personal incorporado.' };
   await page.route('**/api/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/api/auth/me') return json(route, {
@@ -180,9 +181,10 @@ test('audit presents new entity and action names in Spanish and can filter them 
     if (pathname === '/api/logs') {
       const url = new URL(route.request().url());
       requests.push({ entidad: url.searchParams.get('entidad'), accion: url.searchParams.get('accion') });
-      return json(route, { data: [log], meta: { page: 1, pageCount: 1, total: 1, pageSize: 20 } });
+      return json(route, { data: [log, personalLog], meta: { page: 1, pageCount: 1, total: 2, pageSize: 20 } });
     }
     if (pathname === '/api/logs/29') return json(route, { data: log });
+    if (pathname === '/api/logs/30') return json(route, { data: personalLog });
     return json(route, {});
   });
 
@@ -191,6 +193,8 @@ test('audit presents new entity and action names in Spanish and can filter them 
   await expect(logRow.getByText('Documento compartido', { exact: true })).toBeVisible();
   await expect(logRow.getByText('Subir documento al espacio', { exact: true })).toBeVisible();
   await expect(page.getByText('WorkspaceDocument', { exact: true })).toHaveCount(0);
+  const personalRow = page.getByRole('button', { name: 'Ver detalle del registro 30' });
+  await expect(personalRow.getByText('Documento personal', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Ver detalle del registro 29' }).click();
   const drawer = page.getByRole('dialog', { name: 'Detalle de auditoría' });
   await expect(drawer.getByText('Entidad: Documento compartido #document-29')).toBeVisible();
@@ -227,6 +231,7 @@ test('editorial review presents evidence in human language and keeps raw keys hi
   await expect(page.getByText('Coincidencia alta')).toBeVisible();
   await expect(page.getByText('Pendiente de revisión humana')).toBeVisible();
   await expect(page.getByText('Coinciden el identificador o número de sentencia y el nombre del archivo.')).toBeVisible();
+  await expect(page.getByText('Destino sugerido · referencia interna del fallo #19624 · expediente 123/2024')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Abrir documento de origen' })).toHaveText('Ver documento de origen');
   await expect(page.getByText('36508', { exact: true })).toHaveCount(0);
   await expect(page.getByText(/HIGH_CONFIDENCE|EXACT_LEGACY|strategies|\{"strategies"/u)).toHaveCount(0);
@@ -307,6 +312,39 @@ test('workspace preview uses a tablet overlay and a sequential mobile view @prod
   await expect(preview).toBeHidden();
   await expect(results).toBeVisible();
   await expect(page.getByRole('button', { name: 'Vista previa de fallo-qa.txt' })).toBeVisible();
+  expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+  expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
+  expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);
+});
+
+test('OCR queue labels numeric legacy titles and reviewer assignment without opening a job @product-polish @ocr', async ({ page }) => {
+  await installAdminSession(page);
+  const methods = [];
+  await page.route('**/api/**', async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    methods.push({ method: request.method(), pathname });
+    if (pathname === '/api/auth/me') return json(route, {
+      id: 8901, nombre: 'Cuenta', apellido: 'QA', email: 'admin-product-polish@example.invalid',
+      activo: true, rol: { id: 1, nombre: 'ADMIN' },
+    });
+    if (pathname === '/api/ocr-human-review/runtime/diagnostics') return json(route, {
+      process: { pid: 1, nodeVersion: 'v22', executable: 'node', workingDirectory: 'office', environment: 'production' },
+      ocr: { enabled: false, available: false, enginePath: null, engineVersion: null, configuredLanguages: [], installedLanguages: [], spanishAvailable: false, tessdataDirectory: null, pathContainsEngineDirectory: false, rendererPath: null, rendererVersion: null, pathContainsRendererDirectory: false, temporaryDirectory: 'temp', timeoutMs: 1000, maximumPages: 3 },
+    });
+    if (pathname === '/api/ocr-human-review/queue') return json(route, {
+      page: 1, pageSize: 25, total: 1, pageCount: 1, counts: { total: 1, unreviewed: 0, mine: 0, ready: 0 },
+      results: [{ documentId: 'ocr-doc-25022', title: '25022', court: null, chamber: null, caseNumber: null, fileId: 'file-1', filename: 'scan.pdf', fileSha256: 'abc', pageCount: 7, reviewId: 'review-1', status: 'IN_REVIEW', assignedToId: 8902, hasApprovedVersion: false, approvedPages: 0 }],
+    });
+    return json(route, {});
+  });
+
+  await page.goto('/admin/jurisprudencia/ocr');
+  await expect(page.getByText('Documento sin carátula · referencia #25022')).toBeVisible();
+  await expect(page.getByText('Metadatos de carátula incompletos')).toBeVisible();
+  await expect(page.getByText('En revisión · tomado por otro revisor')).toBeVisible();
+  await expect(page.getByText('0 sin revisar · 0 listos para aprobar')).toBeVisible();
+  expect(methods.some(({ method, pathname }) => method !== 'GET' && pathname.includes('/ocr-human-review/'))).toBe(false);
   expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);

@@ -168,7 +168,7 @@ export default function AdminLogsPage() {
                       <span><small>Fecha</small><strong>{formatDateTime(item.createdAt)}</strong></span>
                       <span><small>Usuario</small><strong>{item.usuario.nombre} {item.usuario.apellido ?? ''}</strong></span>
                       <span><small>Acción</small><strong>{formatAuditAction(item.accion)}</strong></span>
-                      <span className={styles.logDescription}><small>Registro</small><strong>{item.descripcion ?? `${formatAuditEntity(item.entidad)}${item.entidadId ? ` #${item.entidadId}` : ''}`}</strong><small>{formatAuditEntity(item.entidad)}</small></span>
+                      <span className={styles.logDescription}><small>Registro</small><strong>{item.descripcion ?? `${formatAuditEntity(item.entidad, item.accion)}${item.entidadId ? ` #${item.entidadId}` : ''}`}</strong><small>{formatAuditEntity(item.entidad, item.accion)}</small></span>
                     </button>
                     <Button variant="secondary" onClick={() => void loadDetail(item.id)}>Ver detalle</Button>
                   </article>
@@ -190,10 +190,10 @@ export default function AdminLogsPage() {
           {detailLoading ? <LoadingSpinner label="Cargando detalle…" />
             : detailError ? <div className={styles.errorBlock}><StatusMessage variant="error" title="Detalle no disponible" message={detailError} /><Button onClick={() => void loadDetail(selectedId)}>Reintentar</Button></div>
               : selected ? <div className={styles.detailContent}>
-                <strong>{selected.descripcion ?? `${formatAuditAction(selected.accion)} · ${formatAuditEntity(selected.entidad)}`}</strong>
+                <strong>{selected.descripcion ?? `${formatAuditAction(selected.accion)} · ${formatAuditEntity(selected.entidad, selected.accion)}`}</strong>
                 <span>{formatDateTime(selected.createdAt)}</span>
                 <span>Usuario: {selected.usuario.nombre} {selected.usuario.apellido ?? ''} ({selected.usuario.email})</span>
-                <span>Entidad: {formatAuditEntity(selected.entidad)} {selected.entidadId ? `#${selected.entidadId}` : ''}</span>
+                <span>Entidad: {formatAuditEntity(selected.entidad, selected.accion)} {selected.entidadId ? `#${selected.entidadId}` : ''}</span>
                 <span>Acción: {formatAuditAction(selected.accion)}</span>
                 <details><summary>Datos anteriores</summary><pre>{JSON.stringify(selected.datosAntes ?? null, null, 2)}</pre></details>
                 <details><summary>Datos posteriores</summary><pre>{JSON.stringify(selected.datosDespues ?? null, null, 2)}</pre></details>

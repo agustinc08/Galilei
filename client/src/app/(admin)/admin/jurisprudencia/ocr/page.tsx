@@ -350,7 +350,7 @@ export default function OcrReviewPage() {
           <aside className={styles.queueColumn} aria-label="Cola de revisión OCR">
             <Card>
               <div className={styles.queueHeader}>
-                <div><h2>Cola institucional</h2><p>{queue?.counts.total ?? 0} pendientes · {queue?.counts.unreviewed ?? 0} sin abrir · {queue?.counts.ready ?? 0} listos</p></div>
+                <div><h2>Cola institucional</h2><p>{queue?.counts.total ?? 0} pendientes · {queue?.counts.unreviewed ?? 0} sin revisar · {queue?.counts.ready ?? 0} listos para aprobar</p></div>
                 <button type="button" className={styles.secondaryButton} onClick={() => void loadQueue()} disabled={busy !== ''}>Actualizar</button>
               </div>
               <label className={styles.filterLabel} htmlFor="ocr-queue-filter">Filtrar cola</label>
@@ -364,10 +364,10 @@ export default function OcrReviewPage() {
                   <button type="button" key={item.documentId}
                     className={styles.queueItem + ' ' + (review?.document.id === item.documentId ? styles.queueItemActive : '')}
                     onClick={() => void openDocument(item)} disabled={busy !== ''}>
-                    <strong>{item.title}</strong>
-                    <span>{[item.court, item.chamber, item.caseNumber].filter(Boolean).join(' · ') || 'Sin carátula completa'}</span>
+                    <strong>{queueDocumentTitle(item.title)}</strong>
+                    <span>{[item.court, item.chamber, item.caseNumber].filter(Boolean).join(' · ') || 'Metadatos de carátula incompletos'}</span>
                     <span>{item.pageCount} páginas · {item.approvedPages}/{item.pageCount} resueltas</span>
-                    <span>{queueStatus(item.status)}{item.assignedToId ? ' · asignado' : ''}</span>
+                    <span>{queueStatus(item.status)}{item.assignedToId ? (item.assignedToId === actorId ? ' · tomado por vos' : ' · tomado por otro revisor') : ''}</span>
                   </button>
                 )) : <p className={styles.muted}>No hay documentos con esos filtros.</p>}
               </div>
@@ -504,6 +504,9 @@ export default function OcrReviewPage() {
 
 function queueStatus(status: string) {
   return ({ PENDING: 'Pendiente', IN_REVIEW: 'En revisión', READY_FOR_APPROVAL: 'Listo para aprobación', APPROVED: 'Aprobado', FAILED: 'Falló' } as Record<string, string>)[status] ?? status;
+}
+function queueDocumentTitle(title: string) {
+  return /^\d+$/u.test(title.trim()) ? `Documento sin carátula · referencia #${title}` : title;
 }
 function runtimeStatusLabel(status: string) {
   return ({ NATIVE_TEXT_FOUND: 'texto nativo detectado', OCR_READY_FOR_HUMAN_REVIEW: 'listo para revisión humana', OCR_REVIEW_REQUIRED: 'requiere revisión humana', OCR_NO_TEXT: 'sin texto utilizable', CONTROLLED_ERROR: 'error controlado' } as Record<string, string>)[status] ?? status;

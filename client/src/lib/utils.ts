@@ -152,7 +152,8 @@ const AUDIT_ENTITY_LABELS: Record<string, string> = {
   DocumentLink: 'Vínculo documental',
 };
 
-export function formatAuditEntity(value: string): string {
+export function formatAuditEntity(value: string, action?: string): string {
+  if (value === 'WorkspaceDocument' && action?.startsWith('PERSONAL_')) return 'Documento personal';
   const knownLabel = AUDIT_ENTITY_LABELS[value];
   if (knownLabel) return knownLabel;
 
