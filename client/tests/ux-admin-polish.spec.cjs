@@ -170,6 +170,34 @@ test('audit filters use day-first dates and send ISO values @product-polish @aud
   expect(requests).toHaveLength(2);
 });
 
+test('mobile audit keeps filters available without pushing the log list below the first screen @product-polish @audit-mobile', async ({ page }) => {
+  await installAdminSession(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/api/auth/me') return json(route, {
+      id: 8901, nombre: 'Cuenta', apellido: 'QA', email: 'admin-product-polish@example.invalid',
+      activo: true, rol: { id: 1, nombre: 'ADMIN' },
+    });
+    if (pathname === '/api/logs') return json(route, { data: [], meta: { page: 1, pageCount: 1, total: 0, pageSize: 20 } });
+    return json(route, {});
+  });
+
+  await page.goto('/admin/logs');
+  const toggle = page.locator('button[aria-controls="audit-filters"]');
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByLabel('Fecha desde (dd/mm/aaaa)')).toBeHidden();
+  const emptyState = page.getByText('Sin registros', { exact: true });
+  await expect(emptyState).toBeVisible();
+  expect((await emptyState.boundingBox())?.y).toBeLessThan(844);
+
+  await toggle.click();
+  await expect(page.getByLabel('Fecha desde (dd/mm/aaaa)')).toBeVisible();
+  await expect(page.getByLabel('Acción')).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+});
+
 test('audit presents new entity and action names in Spanish and can filter them @product-polish @audit-labels', async ({ page }) => {
   await installAdminSession(page);
   const requests = [];
@@ -327,6 +355,7 @@ test('workspace preview uses a tablet overlay and a sequential mobile view @prod
 
 test('OCR queue labels numeric legacy titles and reviewer assignment without opening a job @product-polish @ocr', async ({ page }) => {
   await installAdminSession(page);
+  await page.setViewportSize({ width: 390, height: 844 });
   const methods = [];
   await page.route('**/api/**', async (route) => {
     const request = route.request();
@@ -348,6 +377,12 @@ test('OCR queue labels numeric legacy titles and reviewer assignment without ope
   });
 
   await page.goto('/admin/jurisprudencia/ocr');
+  const guide = page.locator('details').filter({ hasText: '¿Cuándo usar OCR?' });
+  await expect(guide).toBeVisible();
+  await expect(guide).not.toHaveAttribute('open', '');
+  const queueHeading = page.getByRole('heading', { name: 'Cola institucional' });
+  await expect(queueHeading).toBeVisible();
+  expect((await queueHeading.boundingBox())?.y).toBeLessThan(844);
   await expect(page.getByText('Documento sin carátula · referencia #25022')).toBeVisible();
   await expect(page.getByText('Metadatos de carátula incompletos')).toBeVisible();
   await expect(page.getByText('En revisión · tomado por otro revisor')).toBeVisible();
@@ -497,6 +532,7 @@ test('search dates display dd/mm/yyyy and submit ISO query values @product-polis
   await expect(page).toHaveURL(/fechaHasta=2024-03-01/u);
 
   await from.fill('31022024');
+  await expect(from).toHaveValue('31/02/2024');
   await page.getByRole('button', { name: 'Buscar', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Ingresá fechas válidas en formato dd/mm/aaaa.');
   await expect(page).toHaveURL(/fechaDesde=2024-02-29/u);

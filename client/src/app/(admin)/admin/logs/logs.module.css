@@ -1,5 +1,7 @@
 .page { display: grid; align-content: start; gap: 1rem; min-width: 0; }
+.mobileFiltersToggle { display: none; }
 .filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: end; gap: .8rem; }
+.filters[hidden] { display: none; }
 .filterError { margin: 8px 0 0; color: #b42318; font-size: 13px; font-weight: 600; }
 .filterActions { display: flex; flex-wrap: wrap; gap: .5rem; grid-column: 1 / -1; }
 .errorBlock { display: flex; align-items: center; flex-wrap: wrap; gap: .7rem; }
@@ -40,5 +42,7 @@
 }
 
 @media (max-width: 420px) {
+  .mobileFiltersToggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 2.6rem; padding: .5rem .65rem; border: 1px solid #d4dee7; border-radius: .5rem; color: #23465f; background: #f7fafc; text-align: left; font: inherit; font-weight: 650; cursor: pointer; }
+  .mobileFiltersToggle span:last-child { color: #486c86; font-size: .8rem; text-decoration: underline; }
   .filters { grid-template-columns: minmax(0, 1fr); }
 }

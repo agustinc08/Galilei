@@ -56,6 +56,8 @@ export default function AdminLogsPage() {
   const [dateError, setDateError] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [compactFilters, setCompactFilters] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const listRequest = useRef(0);
   const detailRequest = useRef(0);
 
@@ -127,12 +129,24 @@ export default function AdminLogsPage() {
     return () => window.clearTimeout(timer);
   }, [loadList]);
 
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 420px)');
+    const update = () => setCompactFilters(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
   return (
     <div className={styles.page}>
       <PageHeader title="Auditoría" description="Registro de acciones internas sobre contenido y publicación." />
 
       <Card>
-        <div className={styles.filters}>
+        <button type="button" className={styles.mobileFiltersToggle} aria-controls="audit-filters" aria-expanded={!compactFilters || filtersExpanded}
+          onClick={() => setFiltersExpanded((expanded) => !expanded)}>
+          <span>Filtros de auditoría</span><span>{filtersExpanded ? 'Ocultar filtros' : 'Mostrar filtros'}</span>
+        </button>
+        <div id="audit-filters" className={styles.filters} hidden={compactFilters && !filtersExpanded}>
           <Input label="Usuario ID" type="number" min={1} value={filters.usuarioId ?? ''}
             onChange={(event) => setFilters((current) => ({ ...current, usuarioId: event.target.value, page: 1 }))} />
           <Select label="Entidad" value={filters.entidad ?? ''} options={entidadOptions}

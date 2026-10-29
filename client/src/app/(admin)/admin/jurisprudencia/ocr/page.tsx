@@ -92,6 +92,7 @@ export default function OcrReviewPage() {
   const [runtimeFile, setRuntimeFile] = useState<File | null>(null);
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [runtimeCheck, setRuntimeCheck] = useState<RuntimeCheck | null>(null);
+  const [guideOpen, setGuideOpen] = useState(true);
 
   const loadQueue = useCallback(async (requestedPage = queuePage, requestedFilter = filter) => {
     try {
@@ -119,6 +120,14 @@ export default function OcrReviewPage() {
       });
     return () => { active = false; };
   }, [role]);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)');
+    const update = () => setGuideOpen(!media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   const page = useMemo(
     () => review?.activeRun?.pages.find((item) => item.pageNumber === pageNumber) ?? null,
@@ -293,16 +302,16 @@ export default function OcrReviewPage() {
     <ProtectedContent allowedRoles={['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA']} redirectTo="/dashboard">
       <main className={styles.page}>
         <PageHeader title="Revisión humana de OCR" description="Compará cada página con su PDF, corregí el texto y aprobá cada decisión antes de incorporarla a Search interno." />
-        <section className={styles.ocrGuide} aria-labelledby="ocr-guide-heading">
-          <div>
-            <h2 id="ocr-guide-heading">¿Cuándo usar OCR?</h2>
+        <details className={styles.ocrGuide} open={guideOpen} onToggle={(event) => setGuideOpen(event.currentTarget.open)}>
+          <summary><strong>¿Cuándo usar OCR?</strong><span>Guía del proceso · el PDF original se conserva</span></summary>
+          <div className={styles.ocrGuideCopy}>
             <p>OCR convierte en texto buscable las páginas escaneadas de un PDF. Usalo cuando no puedas seleccionar o buscar texto dentro del documento.</p>
             <p><strong>El archivo original no se reemplaza.</strong> El texto reconocido queda pendiente de revisión humana antes de incorporarse a Search.</p>
           </div>
           <ol aria-label="Pasos del proceso OCR">
             <li>Detectar</li><li>Procesar</li><li>Revisar</li><li>Aprobar</li><li>Indexar</li>
           </ol>
-        </section>
+        </details>
         <section className={styles.notice}>
           <strong>Original preservado.</strong> El OCR y las correcciones quedan pendientes hasta la aprobación explícita de todas las páginas. Este flujo no publica fallos ni modifica metadatos legales.
         </section>
