@@ -274,16 +274,6 @@ describe('Sprint 7 institutional PDF intake PostgreSQL integration', () => {
           });
         }
 
-        const outboxKeys = [
-          ...ownedDocumentIds.map((id) => `CORPUS:${id}`),
-          ...createdSentenceIds.map((id) => `JURISPRUDENCIA:SENTENCIA:${id}`),
-        ];
-        if (outboxKeys.length) {
-          await prisma.searchIndexOutbox.deleteMany({
-            where: { documentKey: { in: outboxKeys } },
-          });
-        }
-
         for (const { storageKey } of storageFiles) {
           const target = resolve(storageRoot, ...storageKey.split('/'));
           const root = resolve(storageRoot);

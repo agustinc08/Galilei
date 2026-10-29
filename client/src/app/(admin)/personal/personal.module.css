@@ -22,7 +22,28 @@
 .inlineForm input, .searchForm input { flex: 1; min-width: 0; }
 .uploadPromise { display: grid; gap: 6px; margin: 12px 0; padding: 10px 12px; border-radius: 7px; background: #f4f8fb; color: #334e68; font-size: 13px; }
 .uploadForm { display: grid; gap: 10px; }
-.uploadForm input[type=file] { max-width: 100%; font-size: 13px; }
+.filePickerInput { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); border: 0; }
+.filePicker { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: fit-content; max-width: 100%; cursor: pointer; }
+.filePickerInput:focus-visible + .filePicker .filePickerButton { outline: 3px solid #79b8e3; outline-offset: 2px; }
+.filePickerInput:disabled + .filePicker { cursor: not-allowed; opacity: .62; }
+.filePickerButton { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; padding: 7px 12px; border: 1px solid #bcccdc; border-radius: 7px; color: #243b53; background: #fff; font-size: 13px; font-weight: 650; }
+.filePicker:hover .filePickerButton { background: #f4f8fb; }
+.filePickerSummary { color: #627d98; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.folderHelp { margin: 8px 0; color: #486581; font-size: 13px; line-height: 1.5; }
+.folderUpload { display: grid; gap: 9px; min-width: 0; }
+.folderUpload > label { font-size: 13px; font-weight: 600; }
+.folderUpload { gap: 9px; }
+.fieldHelp { margin: 0; color: #627d98; font-size: 12px; line-height: 1.45; }
+.selectionSummary { margin: 0; color: #164c37; font-size: 13px; font-weight: 650; }
+.folderProgress { display: grid; gap: 7px; padding: 10px; border: 1px solid #d8e4ec; border-radius: 7px; background: #f8fbfd; }
+.folderProgress > p { margin: 0; color: #334e68; font-size: 13px; line-height: 1.45; }
+.folderProgress progress { width: 100%; height: 9px; accent-color: #1667a8; }
+.fileDetails { min-width: 0; color: #334e68; font-size: 12px; }
+.fileDetails summary { cursor: pointer; font-weight: 650; }
+.fileDetails ul { display: grid; gap: 5px; max-height: 14rem; margin: 8px 0 0; padding: 0 0 0 18px; overflow: auto; }
+.fileDetails li { padding-right: 3px; overflow-wrap: anywhere; }
+.fileDetails li span,.fileDetails li small { display: block; }
+.fileDetails li small { color: #627d98; line-height: 1.4; }
 .primary, .secondary { min-height: 36px; padding: 7px 12px; border-radius: 7px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .primary { border: 1px solid #1667a8; color: #fff; background: #1667a8; }
 .primary:disabled, .secondary:disabled { cursor: not-allowed; opacity: .55; }

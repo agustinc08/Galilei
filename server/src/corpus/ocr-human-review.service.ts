@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { Prisma } from '../generated/prisma/client';
 import { ROLES, type RoleName } from '../auth/constants';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,10 +16,17 @@ import {
   LocalDocumentProcessingError,
   LocalPdfOcrProcessor,
 } from './document-local-processors';
+import {
+  BasicDocumentTextExtractor,
+  InvalidPdfError,
+} from './document-text-extractor';
 import { OCR_REVIEW_PAGE_TEXT_LIMIT } from './ocr-human-review.dto';
 
 const PAGE_TEXT_LIMIT = OCR_REVIEW_PAGE_TEXT_LIMIT;
 const PAGE_COUNT_LIMIT = 2_000;
+const RUNTIME_CHECK_PAGE_LIMIT = 3;
+const RUNTIME_CHECK_BYTE_LIMIT = 20 * 1024 * 1024;
+const RUNTIME_CHECK_PREVIEW_LIMIT = 180;
 const SOURCE_CODES = [
   'JURISPRUDENCIA_LOCAL_PDF',
   'DIGESTO_LOCAL',
@@ -43,11 +51,147 @@ type ReviewWithContext = Prisma.OcrHumanReviewGetPayload<{
 
 @Injectable()
 export class OcrHumanReviewService {
+  private readonly runtimeTextExtractor = new BasicDocumentTextExtractor();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly processor: LocalPdfOcrProcessor,
     private readonly documents: CorpusDocumentAccessService,
   ) {}
+
+  runtimeDiagnostics() {
+    const { config, capabilities } = this.processor;
+    const engineDirectory = capabilities.enginePath
+      ? path.dirname(capabilities.enginePath)
+      : null;
+    const rendererDirectory = capabilities.rendererPath
+      ? path.dirname(capabilities.rendererPath)
+      : null;
+    return {
+      process: {
+        pid: process.pid,
+        nodeVersion: process.version,
+        executable: process.execPath,
+        workingDirectory: process.cwd(),
+        environment: process.env.NODE_ENV ?? null,
+      },
+      ocr: {
+        enabled: config.enabled,
+        available: capabilities.ocrAvailable,
+        enginePath: capabilities.enginePath,
+        engineVersion: capabilities.engineVersion,
+        configuredLanguages: config.languages,
+        installedLanguages: capabilities.languages,
+        spanishAvailable: capabilities.languages.includes('spa'),
+        tessdataDirectory: config.tessdataDir,
+        pathContainsEngineDirectory: pathContains(engineDirectory),
+        rendererPath: capabilities.rendererPath,
+        rendererVersion: capabilities.rendererVersion,
+        pathContainsRendererDirectory: pathContains(rendererDirectory),
+        temporaryDirectory: config.tempDir,
+        timeoutMs: config.timeoutMs,
+        maximumPages: config.maxPages,
+      },
+    };
+  }
+
+  async verifyRuntimePdf(content: Buffer) {
+    const sha256 = createHash('sha256').update(content).digest('hex');
+    const preserved = () =>
+      createHash('sha256').update(content).digest('hex') === sha256;
+    if (
+      content.byteLength === 0 ||
+      !content.subarray(0, 5).equals(Buffer.from('%PDF-'))
+    )
+      return runtimeCheckResult({
+        status: 'CONTROLLED_ERROR',
+        errorCode: 'FILE_INVALID',
+        message: 'El archivo no es un PDF válido.',
+        sha256,
+        originalPreserved: preserved(),
+      });
+    if (content.byteLength > RUNTIME_CHECK_BYTE_LIMIT)
+      return runtimeCheckResult({
+        status: 'CONTROLLED_ERROR',
+        errorCode: 'FILE_TOO_LARGE',
+        message: 'El PDF supera el límite de 20 MiB para esta comprobación.',
+        sha256,
+        originalPreserved: preserved(),
+      });
+
+    try {
+      const pageCount = await this.processor.inspectPdfPageCount(content);
+      if (pageCount > RUNTIME_CHECK_PAGE_LIMIT)
+        return runtimeCheckResult({
+          status: 'CONTROLLED_ERROR',
+          errorCode: 'PAGE_LIMIT',
+          message: 'La comprobación admite hasta tres páginas.',
+          sha256,
+          pageCount,
+          originalPreserved: preserved(),
+        });
+
+      const extraction = await this.runtimeTextExtractor.extract(
+        'runtime-check.pdf',
+        'application/pdf',
+        content,
+      );
+      if (extraction.ocrRequiredPages.length === 0) {
+        return runtimeCheckResult({
+          status: 'NATIVE_TEXT_FOUND',
+          message: 'El PDF ya contiene texto seleccionable; no se ejecutó OCR.',
+          sha256,
+          pageCount,
+          nativeTextCharacters: extraction.text.length,
+          ocrAttempted: false,
+          originalPreserved: preserved(),
+        });
+      }
+
+      const run = await this.processor.processPdf(
+        content,
+        sha256,
+        extraction.ocrRequiredPages,
+        {
+          languages: ['spa'],
+          timeoutMs: Math.min(this.processor.config.timeoutMs, 60_000),
+        },
+      );
+      const pages = run.pages.map((page) => ({
+        pageNumber: page.pageNumber,
+        characters: page.text.length,
+        confidence: page.confidence,
+        textPreview: page.text.slice(0, RUNTIME_CHECK_PREVIEW_LIMIT),
+      }));
+      return runtimeCheckResult({
+        status: pages.some((page) => page.characters > 0)
+          ? 'OCR_READY_FOR_HUMAN_REVIEW'
+          : 'OCR_NO_TEXT',
+        message: pages.some((page) => page.characters > 0)
+          ? 'OCR completado en este proceso. El resultado requiere revisión humana.'
+          : 'El motor terminó, pero no obtuvo texto utilizable; requiere revisión humana.',
+        sha256,
+        pageCount,
+        nativeTextCharacters: extraction.text.length,
+        ocrAttempted: true,
+        pages,
+        originalPreserved: preserved(),
+      });
+    } catch (error) {
+      const errorCode = runtimeCheckErrorCode(error);
+      const reviewable = errorCode === 'OCR_LOW_QUALITY';
+      return runtimeCheckResult({
+        status: reviewable ? 'OCR_REVIEW_REQUIRED' : 'CONTROLLED_ERROR',
+        errorCode,
+        message: reviewable
+          ? 'El escaneo fue procesado, pero la calidad requiere revisión humana.'
+          : runtimeCheckMessage(errorCode),
+        sha256,
+        ocrAttempted: true,
+        originalPreserved: preserved(),
+      });
+    }
+  }
 
   async queue(filter: string, page: number, pageSize: number, actorId: number) {
     const safePage = Math.max(1, Math.trunc(page) || 1);
@@ -1384,4 +1528,46 @@ function readSourceExtractionId(provenance: Prisma.JsonValue) {
     return null;
   const value = provenance.sourceExtractionId;
   return typeof value === 'string' ? value : null;
+}
+
+function pathContains(directory: string | null) {
+  if (!directory) return false;
+  const expected = path.resolve(directory).toLowerCase();
+  return (process.env.PATH ?? '')
+    .split(path.delimiter)
+    .filter(Boolean)
+    .some((entry) => path.resolve(entry).toLowerCase() === expected);
+}
+
+function runtimeCheckErrorCode(error: unknown) {
+  if (error instanceof LocalDocumentProcessingError) return error.code;
+  if (error instanceof InvalidPdfError) return 'FILE_INVALID';
+  return 'OCR_RUNTIME_FAILED';
+}
+
+function runtimeCheckMessage(errorCode: string) {
+  switch (errorCode) {
+    case 'OCR_DISABLED':
+      return 'OCR está desactivado en este proceso de Office.';
+    case 'OCR_ENGINE_UNAVAILABLE':
+      return 'El motor OCR no está disponible para el proceso de Office.';
+    case 'OCR_LANGUAGE_UNAVAILABLE':
+      return 'El idioma español no está disponible para el proceso de Office.';
+    case 'OCR_RENDER_FAILED':
+      return 'No se pudo preparar la página del PDF para el reconocimiento.';
+    case 'OCR_TIMEOUT':
+      return 'La comprobación superó el tiempo permitido.';
+    case 'OCR_LOW_QUALITY':
+      return 'El escaneo requiere revisión humana.';
+    case 'FILE_INVALID':
+      return 'El PDF está dañado o no se puede leer.';
+    case 'PDF_INFO_UNAVAILABLE':
+      return 'No se pudo verificar la estructura del PDF en este proceso.';
+    default:
+      return 'No se pudo completar la comprobación OCR en este proceso.';
+  }
+}
+
+function runtimeCheckResult<T extends Record<string, unknown>>(result: T) {
+  return { ...result, checkedAt: new Date().toISOString() };
 }

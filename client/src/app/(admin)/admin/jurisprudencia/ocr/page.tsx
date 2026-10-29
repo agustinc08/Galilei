@@ -40,6 +40,27 @@ type Review = {
     processorVersion: string; pageCount: number; status: string;
     provenance: Record<string, unknown>; pages: ReviewPage[] };
 };
+type RuntimeDiagnostics = {
+  process: {
+    pid: number; nodeVersion: string; executable: string;
+    workingDirectory: string; environment: string | null;
+  };
+  ocr: {
+    enabled: boolean; available: boolean; enginePath: string | null;
+    engineVersion: string | null; configuredLanguages: string[];
+    installedLanguages: string[]; spanishAvailable: boolean;
+    tessdataDirectory: string | null; pathContainsEngineDirectory: boolean;
+    rendererPath: string | null; rendererVersion: string | null;
+    pathContainsRendererDirectory: boolean; temporaryDirectory: string;
+    timeoutMs: number; maximumPages: number;
+  };
+};
+type RuntimeCheck = {
+  status: string; message: string; errorCode?: string; sha256?: string;
+  pageCount?: number; nativeTextCharacters?: number; ocrAttempted?: boolean;
+  originalPreserved?: boolean; checkedAt?: string;
+  pages?: Array<{ pageNumber: number; characters: number; confidence: number | null; textPreview: string }>;
+};
 
 const FILTERS = [
   ['all', 'Todos los pendientes'], ['unassigned', 'Sin asignar'],
@@ -64,7 +85,13 @@ export default function OcrReviewPage() {
   const [reason, setReason] = useState('ILLEGIBLE');
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [technicalError, setTechnicalError] = useState('');
   const [notice, setNotice] = useState('');
+  const [runtimeDiagnostics, setRuntimeDiagnostics] = useState<RuntimeDiagnostics | null>(null);
+  const [runtimeDiagnosticsError, setRuntimeDiagnosticsError] = useState('');
+  const [runtimeFile, setRuntimeFile] = useState<File | null>(null);
+  const [runtimeBusy, setRuntimeBusy] = useState(false);
+  const [runtimeCheck, setRuntimeCheck] = useState<RuntimeCheck | null>(null);
 
   const loadQueue = useCallback(async (requestedPage = queuePage, requestedFilter = filter) => {
     try {
@@ -81,6 +108,17 @@ export default function OcrReviewPage() {
     const timer = window.setTimeout(() => { void loadQueue(); }, 0);
     return () => window.clearTimeout(timer);
   }, [loadQueue]);
+
+  useEffect(() => {
+    if (role !== 'ADMIN') return;
+    let active = true;
+    void api.get<RuntimeDiagnostics>('/ocr-human-review/runtime/diagnostics')
+      .then((result) => { if (active) setRuntimeDiagnostics(result); })
+      .catch((cause: unknown) => {
+        if (active) setRuntimeDiagnosticsError(messageFor(cause, 'No se pudo leer el estado del proceso OCR.'));
+      });
+    return () => { active = false; };
+  }, [role]);
 
   const page = useMemo(
     () => review?.activeRun?.pages.find((item) => item.pageNumber === pageNumber) ?? null,
@@ -121,6 +159,17 @@ export default function OcrReviewPage() {
     };
   }, [review?.file.href]);
 
+  useEffect(() => {
+    if (busy !== 'ocr' || !review?.id) return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      void api.get<Review>('/ocr-human-review/' + review.id)
+        .then((updated) => { if (active) setReview(updated); })
+        .catch(() => { /* The generating request reports its authoritative error. */ });
+    }, 1200);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [busy, review?.id]);
+
   const openDocument = async (item: QueueItem) => {
     setBusy('open'); setError(''); setNotice(''); setReview(null); setLoadedPdf(null); setDrafts({});
     try {
@@ -141,7 +190,7 @@ export default function OcrReviewPage() {
     return current;
   };
   const runAction = async (name: string, action: () => Promise<Review | void>) => {
-    setBusy(name); setError(''); setNotice('');
+    setBusy(name); setError(''); setTechnicalError(''); setNotice('');
     try {
       const updated = await action();
       if (updated) setReview(updated);
@@ -149,6 +198,7 @@ export default function OcrReviewPage() {
       await loadQueue(queuePage, filter);
     } catch (cause) {
       setError(messageFor(cause, 'No se pudo completar la acción.'));
+      setTechnicalError(technicalMessageFor(cause));
     } finally { setBusy(''); }
   };
   const generateOcr = async (force = false) => {
@@ -160,6 +210,29 @@ export default function OcrReviewPage() {
       setNotice(force ? 'Nueva ejecución OCR lista; la anterior se conserva en el historial.' : 'OCR local listo para revisión humana.');
       return result;
     });
+  };
+  const verifyRuntime = async () => {
+    if (!runtimeFile) return;
+    if (runtimeFile.size > 20 * 1024 * 1024) {
+      setRuntimeDiagnosticsError('El PDF supera el límite de 20 MiB.');
+      return;
+    }
+    const form = new FormData();
+    form.append('file', runtimeFile);
+    setRuntimeBusy(true);
+    setRuntimeCheck(null);
+    setRuntimeDiagnosticsError('');
+    try {
+      const result = await api.post<RuntimeCheck>('/ocr-human-review/runtime/verify', form);
+      setRuntimeCheck(result);
+      setRuntimeFile(null);
+      const input = document.getElementById('ocr-runtime-file');
+      if (input instanceof HTMLInputElement) input.value = '';
+    } catch (cause) {
+      setRuntimeDiagnosticsError(messageFor(cause, 'No se pudo verificar el motor OCR en este proceso.'));
+    } finally {
+      setRuntimeBusy(false);
+    }
   };
   const saveCorrection = async () => {
     if (!review || !page) return;
@@ -220,10 +293,57 @@ export default function OcrReviewPage() {
     <ProtectedContent allowedRoles={['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA']} redirectTo="/dashboard">
       <main className={styles.page}>
         <PageHeader title="Revisión humana de OCR" description="Compará cada página con su PDF, corregí el texto y aprobá cada decisión antes de incorporarla a Search interno." />
+        <section className={styles.ocrGuide} aria-labelledby="ocr-guide-heading">
+          <div>
+            <h2 id="ocr-guide-heading">¿Cuándo usar OCR?</h2>
+            <p>OCR convierte en texto buscable las páginas escaneadas de un PDF. Usalo cuando no puedas seleccionar o buscar texto dentro del documento.</p>
+            <p><strong>El archivo original no se reemplaza.</strong> El texto reconocido queda pendiente de revisión humana antes de incorporarse a Search.</p>
+          </div>
+          <ol aria-label="Pasos del proceso OCR">
+            <li>Detectar</li><li>Procesar</li><li>Revisar</li><li>Aprobar</li><li>Indexar</li>
+          </ol>
+        </section>
         <section className={styles.notice}>
           <strong>Original preservado.</strong> El OCR y las correcciones quedan pendientes hasta la aprobación explícita de todas las páginas. Este flujo no publica fallos ni modifica metadatos legales.
         </section>
+        {role === 'ADMIN' && <details className={styles.runtimeDiagnostic}>
+          <summary>Diagnóstico del runtime OCR (solo Administración)</summary>
+          <p>Comprueba el proceso que está ejecutando Office. El archivo se procesa en memoria, no se guarda ni crea un documento. Usá un PDF técnico de hasta 3 páginas y 20 MiB.</p>
+          {runtimeDiagnostics ? <>
+            <p className={runtimeDiagnostics.ocr.available && runtimeDiagnostics.ocr.enabled ? styles.runtimeReady : styles.warning} role="status">
+              {runtimeDiagnostics.ocr.available && runtimeDiagnostics.ocr.enabled
+                ? `Motor disponible · ${runtimeDiagnostics.ocr.engineVersion} · español ${runtimeDiagnostics.ocr.spanishAvailable ? 'disponible' : 'no disponible'}`
+                : 'El motor OCR no está listo en el proceso actual.'}
+            </p>
+            <details className={styles.provenance}><summary>Proceso, rutas y entorno heredado</summary><dl>
+              <dt>Proceso</dt><dd>PID {runtimeDiagnostics.process.pid} · Node {runtimeDiagnostics.process.nodeVersion}</dd>
+              <dt>Ejecutable</dt><dd>{runtimeDiagnostics.process.executable}</dd>
+              <dt>Directorio de trabajo</dt><dd>{runtimeDiagnostics.process.workingDirectory}</dd>
+              <dt>Entorno</dt><dd>{runtimeDiagnostics.process.environment ?? 'No informado'}</dd>
+              <dt>Tesseract</dt><dd>{runtimeDiagnostics.ocr.enginePath ?? 'No encontrado'} · PATH contiene carpeta: {runtimeDiagnostics.ocr.pathContainsEngineDirectory ? 'sí' : 'no'}</dd>
+              <dt>tessdata</dt><dd>{runtimeDiagnostics.ocr.tessdataDirectory ?? 'No encontrado'} · idiomas: {runtimeDiagnostics.ocr.installedLanguages.join(', ') || 'ninguno'}</dd>
+              <dt>Renderizador</dt><dd>{runtimeDiagnostics.ocr.rendererPath ?? 'No encontrado'} · PATH contiene carpeta: {runtimeDiagnostics.ocr.pathContainsRendererDirectory ? 'sí' : 'no'}</dd>
+              <dt>Temporales y límites</dt><dd>{runtimeDiagnostics.ocr.temporaryDirectory} · {runtimeDiagnostics.ocr.timeoutMs} ms · máximo configurado {runtimeDiagnostics.ocr.maximumPages} páginas</dd>
+            </dl></details>
+          </> : <p className={styles.muted}>{runtimeDiagnosticsError || 'Consultando el proceso…'}</p>}
+          <div className={styles.runtimeCheckRow}>
+            <label htmlFor="ocr-runtime-file">PDF técnico temporal</label>
+            <input id="ocr-runtime-file" type="file" accept="application/pdf,.pdf" onChange={(event) => { setRuntimeFile(event.target.files?.[0] ?? null); setRuntimeCheck(null); setRuntimeDiagnosticsError(''); }} />
+            <button type="button" className={styles.secondaryButton} disabled={!runtimeFile || runtimeBusy} onClick={() => void verifyRuntime()}>
+              {runtimeBusy ? 'Verificando…' : 'Comprobar en este proceso'}
+            </button>
+          </div>
+          {runtimeDiagnosticsError && <p className={styles.error} role="alert">{runtimeDiagnosticsError}</p>}
+          {runtimeCheck && <div className={styles.runtimeResult} role="status" aria-live="polite">
+            <strong>{runtimeCheck.message}</strong>
+            <span>Resultado: {runtimeStatusLabel(runtimeCheck.status)} · OCR ejecutado: {runtimeCheck.ocrAttempted ? 'sí' : 'no'} · original preservado: {runtimeCheck.originalPreserved ? 'sí' : 'no'}</span>
+            {runtimeCheck.pages?.map((item) => <p key={item.pageNumber}>Página {item.pageNumber} · {item.characters} caracteres · confianza {item.confidence === null ? 'no informada' : `${item.confidence.toFixed(1)} %`}</p>)}
+            {runtimeCheck.pages?.some((item) => item.textPreview) && <details><summary>Texto reconocido del PDF de prueba</summary><pre>{runtimeCheck.pages.map((item) => item.textPreview).join('\n')}</pre></details>}
+            {runtimeCheck.errorCode && <details><summary>Detalle técnico</summary><code>{runtimeCheck.errorCode}</code></details>}
+          </div>}
+        </details>}
         {error && <p className={styles.error} role="alert">{error}</p>}
+        {technicalError && role === 'ADMIN' && <details className={styles.technicalError}><summary>Detalle técnico</summary><pre>{technicalError}</pre></details>}
         {notice && <p className={styles.notice} role="status" aria-live="polite">{notice}</p>}
 
         <div className={styles.workspace}>
@@ -275,6 +395,15 @@ export default function OcrReviewPage() {
                   : review.assignedToId ? <p className={styles.warning}>Asignado a la persona #{review.assignedToId}. La revisión está bloqueada para esta cuenta.</p>
                   : <button type="button" className={styles.secondaryButton} disabled={busy !== ''} onClick={() => void runAction('assign', () => api.post<Review>('/ocr-human-review/' + review.id + '/assign'))}>Tomar documento</button>}
                 {!review.activeRun && <button type="button" className={styles.primaryButton} disabled={busy !== '' || lockedForOther} onClick={() => void generateOcr()}>{busy === 'ocr' ? 'Procesando OCR local…' : 'Generar OCR local'}</button>}
+                {busy === 'ocr' && <div className={styles.ocrProgress} role="status" aria-live="polite">
+                  <strong>{review.activeRun?.status === 'RUNNING'
+                    ? `Procesando página ${Math.min(review.activeRun.pages.length + 1, review.file.pageCount)} de ${review.file.pageCount}`
+                    : 'Preparando la ejecución OCR local…'}</strong>
+                  {review.activeRun?.status === 'RUNNING' && <>
+                    <progress max={review.file.pageCount} value={review.activeRun.pages.length} aria-label="Progreso de páginas OCR" />
+                    <span>{review.activeRun.pages.length} de {review.file.pageCount} páginas terminadas</span>
+                  </>}
+                </div>}
                 {review.activeRun && <div className={styles.runSummary}>
                   <span>OCR local #{review.activeRun.runNumber} · {review.activeRun.processorVersion}</span>
                   <span>{terminalCount}/{review.file.pageCount} páginas resueltas</span>
@@ -369,11 +498,28 @@ export default function OcrReviewPage() {
 function queueStatus(status: string) {
   return ({ PENDING: 'Pendiente', IN_REVIEW: 'En revisión', READY_FOR_APPROVAL: 'Listo para aprobación', APPROVED: 'Aprobado', FAILED: 'Falló' } as Record<string, string>)[status] ?? status;
 }
+function runtimeStatusLabel(status: string) {
+  return ({ NATIVE_TEXT_FOUND: 'texto nativo detectado', OCR_READY_FOR_HUMAN_REVIEW: 'listo para revisión humana', OCR_REVIEW_REQUIRED: 'requiere revisión humana', OCR_NO_TEXT: 'sin texto utilizable', CONTROLLED_ERROR: 'error controlado' } as Record<string, string>)[status] ?? status;
+}
 function pageStatusLabel(status: string) {
   return ({ NEEDS_REVIEW: 'Pendiente de revisión', REOPENED: 'Reabierta', REJECTED: 'Requiere nueva revisión', APPROVED: 'Aprobada', NO_TEXT: 'Sin texto confirmado' } as Record<string, string>)[status] ?? status;
 }
 function messageFor(cause: unknown, fallback: string) {
+  const detail = technicalMessageFor(cause);
+  if (/OCR_ENGINE_UNAVAILABLE|OCR_LANGUAGE_UNAVAILABLE/u.test(detail))
+    return 'El motor OCR local no está disponible en este equipo. El PDF original se conserva; podés volver a intentar cuando el servicio esté operativo.';
+  if (/OCR_DISABLED/u.test(detail))
+    return 'El OCR local está desactivado en este equipo. El PDF original se conserva.';
+  if (/OCR_RENDER_FAILED|PDF_INFO_UNAVAILABLE/u.test(detail))
+    return 'No se pudo preparar una página del PDF para el OCR. El archivo original se conserva; revisá que el PDF se pueda abrir e intentá nuevamente.';
+  if (/OCR_LOW_QUALITY/u.test(detail))
+    return 'El texto reconocido no alcanzó una calidad suficiente. El PDF original se conserva para revisión manual.';
   if (cause instanceof ApiError && cause.status === 409)
     return cause.message || 'La revisión cambió en otra sesión. Recargá para continuar.';
+  if (cause instanceof ApiError && cause.message)
+    return cause.message.replace(/\s*\([^)]*(?:OCR|PDF)_[A-Z_]+[^)]*\)\.?\s*/gu, '');
   return cause instanceof Error && cause.message ? cause.message : fallback;
+}
+function technicalMessageFor(cause: unknown) {
+  return cause instanceof Error ? cause.message : '';
 }

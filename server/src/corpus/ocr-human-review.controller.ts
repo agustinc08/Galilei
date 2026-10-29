@@ -7,8 +7,16 @@ import {
   Post,
   Query,
   Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -27,6 +35,31 @@ import { OcrHumanReviewService } from './ocr-human-review.service';
 @Controller('ocr-human-review')
 export class OcrHumanReviewController {
   constructor(private readonly reviews: OcrHumanReviewService) {}
+
+  @Get('runtime/diagnostics')
+  @Roles(ROLES.ADMIN)
+  @ApiOperation({
+    summary: 'Diagnóstico del motor OCR cargado por el proceso actual',
+  })
+  runtimeDiagnostics() {
+    return this.reviews.runtimeDiagnostics();
+  }
+
+  @Post('runtime/verify')
+  @Roles(ROLES.ADMIN)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 20 * 1024 * 1024, files: 1 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary:
+      'Prueba en memoria el OCR del proceso actual sin guardar el PDF ni crear registros',
+  })
+  verifyRuntime(@UploadedFile() file: Express.Multer.File | undefined) {
+    return this.reviews.verifyRuntimePdf(file?.buffer ?? Buffer.alloc(0));
+  }
 
   @Get('queue')
   @ApiOperation({

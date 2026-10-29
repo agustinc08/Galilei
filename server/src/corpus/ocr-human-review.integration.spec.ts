@@ -513,11 +513,6 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
         await prisma.corpusDocument.deleteMany({
           where: { id: { in: cleanupDocumentIds } },
         });
-        await prisma.searchIndexOutbox.deleteMany({
-          where: {
-            documentKey: { in: cleanupDocumentIds.map((id) => `CORPUS:${id}`) },
-          },
-        });
       }
       if (
         !preserveQaArtifacts &&

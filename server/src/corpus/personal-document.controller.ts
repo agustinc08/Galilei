@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   Param,
@@ -29,6 +30,8 @@ const PERSONAL_DOCUMENT_UPLOAD_LIMITS = {
   fileSize: 20 * 1024 * 1024,
   files: 20,
   fieldArrayIndexLimit: 20,
+  // Browsers encode multipart filenames as UTF-8; Multer otherwise defaults to Latin-1.
+  defParamCharset: 'utf8',
 };
 
 @ApiTags('personal-documents')
@@ -108,6 +111,30 @@ export class PersonalDocumentController {
     return this.documents.uploadPersonal(user, files, folderId);
   }
 
+  @Post('documents/folder-upload')
+  @UseInterceptors(
+    FilesInterceptor('files', 20, {
+      limits: PERSONAL_DOCUMENT_UPLOAD_LIMITS,
+    }),
+  )
+  @ApiOperation({
+    summary:
+      'Carga en lote archivos PDF y Word de una carpeta personal seleccionada en el navegador',
+  })
+  uploadFolder(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFiles()
+    files: Array<{
+      originalname: string;
+      mimetype: string;
+      buffer: Buffer;
+      size: number;
+    }>,
+    @Query('folderId') folderId?: string,
+  ) {
+    return this.documents.uploadPersonalFolder(user, files, folderId);
+  }
+
   @Get('search')
   search(
     @CurrentUser() user: AuthenticatedUser,
@@ -141,6 +168,18 @@ export class PersonalDocumentController {
     },
   ) {
     return this.documents.sharePersonalDocument(id, user, body);
+  }
+
+  @Delete('documents/:id')
+  @ApiOperation({
+    summary: 'Elimina un documento personal de la cuenta autenticada',
+  })
+  deleteDocument(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body?: { reason?: string },
+  ) {
+    return this.documents.deletePersonalDocument(id, user, body?.reason ?? '');
   }
 
   @Get('documents/:id')

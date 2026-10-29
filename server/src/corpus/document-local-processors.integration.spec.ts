@@ -9,7 +9,10 @@ import {
   LocalPdfOcrProcessor,
   resolveLocalProcessorConfig,
 } from './document-local-processors';
-import { BasicDocumentTextExtractor } from './document-text-extractor';
+import {
+  BasicDocumentTextExtractor,
+  InvalidPdfError,
+} from './document-text-extractor';
 
 const fixtureDir = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -52,6 +55,15 @@ describe('local PDF OCR integration', () => {
     const content = await readFile(
       path.join(fixtureDir, 'sprint154a1-hybrid.pdf'),
     );
+    const extraction = await new BasicDocumentTextExtractor().extract(
+      'hybrid.pdf',
+      'application/pdf',
+      content,
+    );
+    expect(extraction.status).toBe('OCR_REQUIRED');
+    expect(extraction.ocrRequiredPages).toEqual([2, 4]);
+    expect(extraction.pages[0].text).toBe('NATIVE PAGE ONE TEXT SOURCE');
+    expect(extraction.pages[2].text).toBe('NATIVE PAGE THREE TEXT SOURCE');
     const parser = new PDFParse({ data: content });
     try {
       const result = await parser.getText();
@@ -64,6 +76,20 @@ describe('local PDF OCR integration', () => {
     } finally {
       await parser.destroy();
     }
+  });
+
+  it('returns a controlled invalid-PDF error without changing the original bytes', async () => {
+    const corrupt = Buffer.from('%PDF-not-a-complete-pdf');
+    const originalSha = sha256(corrupt);
+    await expect(
+      new BasicDocumentTextExtractor().extract(
+        'corrupt.pdf',
+        'application/pdf',
+        corrupt,
+      ),
+    ).rejects.toBeInstanceOf(InvalidPdfError);
+    expect(sha256(corrupt)).toBe(originalSha);
+    await expectTempClean();
   });
 
   runIfAvailable(

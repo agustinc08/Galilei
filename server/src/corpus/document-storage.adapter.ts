@@ -17,6 +17,7 @@ export type StoredDocument = {
 };
 
 export interface DocumentStorageAdapter {
+  readonly root?: string;
   put(filename: string, content: Buffer): Promise<StoredDocument>;
   get(storageKey: string): Promise<Buffer>;
   isAvailable?(): Promise<boolean>;
