@@ -25,7 +25,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
   // The first authenticated workspace search provisions the token projection
   // in the isolated QA database, while this suite also runs local OCR. Keep a
   // generous bound so slow Windows workers are measured instead of timed out.
-  jest.setTimeout(180_000);
+  jest.setTimeout(300_000);
   let prisma: PrismaService;
   let source: CorpusSearchSourceAdapter;
   let service: WorkspaceDocumentService;
@@ -120,45 +120,94 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
 
   afterAll(async () => {
     if (!enabled) return;
-    if (source) await source.close();
-    if (workspaceIds.length)
-      await prisma.documentWorkspace.deleteMany({
-        where: { id: { in: workspaceIds } },
-      });
-    if (documentIds.length)
-      await prisma.corpusDocument.deleteMany({
-        where: { id: { in: documentIds } },
-      });
-    const syntheticDocumentKeys = [
-      ...new Set(documentIds.map((id) => `CORPUS:${id}`)),
-    ];
-    for (
-      let offset = 0;
-      offset < syntheticDocumentKeys.length;
-      offset += 2000
-    ) {
-      await prisma.searchIndexOutbox.deleteMany({
-        where: {
-          documentKey: {
-            in: syntheticDocumentKeys.slice(offset, offset + 2000),
-          },
-        },
-      });
+    let databaseCleanupComplete = false;
+    try {
+      if (workspaceIds.length)
+        await prisma.documentWorkspace.deleteMany({
+          where: { id: { in: workspaceIds } },
+        });
+      if (documentIds.length)
+        await prisma.corpusDocument.deleteMany({
+          where: { id: { in: documentIds } },
+        });
+      // Preserve deletion events so the official Search worker can remove the
+      // fixtures from OpenSearch. Teardown must never erase outbox rows.
+      if (dependencyIds.length)
+        await prisma.documentDependency.deleteMany({
+          where: { id: { in: dependencyIds } },
+        });
+      if (userIds.length)
+        await prisma.usuario.deleteMany({ where: { id: { in: userIds } } });
+      databaseCleanupComplete = true;
+    } finally {
+      await prisma.$disconnect();
+      if (previousStoragePath === undefined)
+        delete process.env.BJC_CORPUS_STORAGE_PATH;
+      else process.env.BJC_CORPUS_STORAGE_PATH = previousStoragePath;
+      const safeRoot = path.resolve(
+        process.cwd(),
+        '../_dev-corpus-storage-test',
+      );
+      if (
+        databaseCleanupComplete &&
+        testStorage.startsWith(`${safeRoot}${path.sep}`)
+      ) {
+        await rm(testStorage, { recursive: true, force: true });
+      }
+      if (source) await source.close();
     }
-    if (dependencyIds.length)
-      await prisma.documentDependency.deleteMany({
-        where: { id: { in: dependencyIds } },
-      });
-    if (userIds.length)
-      await prisma.usuario.deleteMany({ where: { id: { in: userIds } } });
-    await prisma.$disconnect();
-    if (previousStoragePath === undefined)
-      delete process.env.BJC_CORPUS_STORAGE_PATH;
-    else process.env.BJC_CORPUS_STORAGE_PATH = previousStoragePath;
-    const safeRoot = path.resolve(process.cwd(), '../_dev-corpus-storage-test');
-    if (testStorage.startsWith(`${safeRoot}${path.sep}`))
-      await rm(testStorage, { recursive: true, force: true });
   });
+
+  (enabled ? it : it.skip)(
+    'permits a global administrator to manage workspace membership without granting document access',
+    async () => {
+      const workspace = await service.createWorkspace(adminA, {
+        code: `SPRINT15ADMIN${suffix}`,
+        name: 'Synthetic workspace admin management',
+        type: 'DEPENDENCIA',
+      });
+      workspaceIds.push(workspace.id);
+      const assigned = await service.manageMember(workspace.id, adminB, {
+        userId: viewer.id,
+        role: 'EDITOR',
+      });
+
+      expect(assigned).toEqual({
+        userId: viewer.id,
+        role: 'EDITOR',
+        active: true,
+      });
+      expect(await service.members(workspace.id, adminB)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            userId: viewer.id,
+            role: 'EDITOR',
+            active: true,
+          }),
+        ]),
+      );
+      expect(
+        await service.membershipCandidates(
+          workspace.id,
+          adminB,
+          'Synthetic Workspace B',
+        ),
+      ).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: adminB.id })]),
+      );
+      expect(await service.mine(adminB)).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: workspace.id })]),
+      );
+      await expect(
+        service.documentsInWorkspace(workspace.id, adminB),
+      ).rejects.toMatchObject({ status: 404 });
+      expect(await service.activity(workspace.id, adminB)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ accion: 'MEMBER_UPSERT' }),
+        ]),
+      );
+    },
+  );
 
   (enabled ? it : it.skip)(
     'isolates search, counts, direct viewer/download and generic Corpus; deduplicates blob across workspaces',
@@ -843,14 +892,23 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       ).toBe(false);
       const timeSearch = async (run: () => Promise<unknown>) => {
         const samples: number[] = [];
+        const failureCodes = new Set<string>();
         let failures = 0;
         const sample = async () => {
           const started = performance.now();
           try {
             await run();
             samples.push(Number((performance.now() - started).toFixed(2)));
-          } catch {
+          } catch (error: unknown) {
             failures += 1;
+            const code = (error as { code?: unknown } | null)?.code;
+            failureCodes.add(
+              typeof code === 'string' && /^[A-Z0-9_]+$/u.test(code)
+                ? code
+                : error instanceof Error
+                  ? error.name
+                  : 'UNKNOWN',
+            );
           }
         };
         await sample();
@@ -866,6 +924,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
             ? ordered[Math.ceil(ordered.length * 0.95) - 1]
             : null,
           failures,
+          failureCodes: [...failureCodes],
           successfulSamples: ordered.length,
         };
       };
@@ -983,9 +1042,9 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           expect.objectContaining({ accion: 'MEMBER_UPSERT' }),
         ]),
       );
-      await expect(
-        service.activity(workspaceA.id, adminB),
-      ).rejects.toMatchObject({ status: 404 });
+      await expect(service.activity(workspaceA.id, adminB)).resolves.toEqual(
+        expect.arrayContaining([expect.objectContaining({ accion: 'CREATE' })]),
+      );
       await expect(
         service.setWorkspaceActive(workspaceA.id, adminA, false),
       ).resolves.toMatchObject({ active: false });

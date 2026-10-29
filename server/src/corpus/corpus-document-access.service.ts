@@ -631,7 +631,9 @@ export class CorpusDocumentAccessService {
           : visibility === 'PUBLIC'
             ? ['PUBLIC']
             : visibility === 'RESTRICTED' && (workspaceId || userId)
-              ? ['RESTRICTED']
+              ? workspaceId
+                ? ['PUBLIC', 'INTERNAL', 'RESTRICTED']
+                : ['RESTRICTED']
               : [];
     if (!allowed.length)
       throw new NotFoundException('Documento no encontrado.');
@@ -655,10 +657,28 @@ export class CorpusDocumentAccessService {
       )
         throw new NotFoundException('Documento no encontrado.');
     }
+    const scopeFilter: Prisma.CorpusDocumentWhereInput = workspaceId
+      ? {
+          OR: [
+            { documentScope: 'PRIVATE_WORKSPACE' },
+            {
+              documentScope: 'GENERAL',
+              visibility: { in: ['PUBLIC', 'INTERNAL'] },
+              links: {
+                some: {
+                  targetDomain: 'JURISPRUDENCIA',
+                  targetType: 'SENTENCIA',
+                  relationship: 'ASSOCIATED_WITH',
+                },
+              },
+            },
+          ],
+        }
+      : { documentScope: userId ? 'PRIVATE_WORKSPACE' : 'GENERAL' };
     const document = await this.prisma.corpusDocument.findFirst({
       where: {
         id: documentId,
-        documentScope: workspaceId || userId ? 'PRIVATE_WORKSPACE' : 'GENERAL',
+        ...scopeFilter,
         ...(workspaceId
           ? { workspaceDocuments: { some: { workspaceId } } }
           : userId
@@ -693,6 +713,33 @@ export class CorpusDocumentAccessService {
       },
     });
     if (!document) throw new NotFoundException('Documento no encontrado.');
+    if (workspaceId && document.documentScope === 'GENERAL') {
+      const links = await this.prisma.corpusDocumentLink.findMany({
+        where: {
+          documentId,
+          targetDomain: 'JURISPRUDENCIA',
+          targetType: 'SENTENCIA',
+          relationship: 'ASSOCIATED_WITH',
+        },
+        select: { targetId: true },
+      });
+      const sentenceIds = links
+        .map(({ targetId }) => Number(targetId))
+        .filter((id) => Number.isSafeInteger(id) && id > 0);
+      const publishedSentence = sentenceIds.length
+        ? await this.prisma.sentencia.findFirst({
+            where: {
+              id: { in: sentenceIds },
+              publicado: true,
+              activo: true,
+              estadoCarga: 'PUBLICADA',
+            },
+            select: { id: true },
+          })
+        : null;
+      if (!publishedSentence)
+        throw new NotFoundException('Documento no encontrado.');
+    }
     return document;
   }
 }

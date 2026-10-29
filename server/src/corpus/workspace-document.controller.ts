@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -151,16 +153,44 @@ export class WorkspaceDocumentController {
     return this.workspaces.renameFolder(workspaceId, folderId, user, body);
   }
 
+  @Delete(':workspaceId/folders/:folderId')
+  deleteFolder(
+    @Param('workspaceId') workspaceId: string,
+    @Param('folderId') folderId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body?: { reason?: string },
+  ) {
+    return this.workspaces.deleteFolder(
+      workspaceId,
+      folderId,
+      user,
+      body?.reason ?? '',
+    );
+  }
+
   @Get(':workspaceId/documents')
   documents(
     @Param('workspaceId') workspaceId: string,
     @Query('folderId') folderId: string | undefined,
+    @Query('page') page: string | undefined,
+    @Query('pageSize') pageSize: string | undefined,
+    @Query('type') type: string | undefined,
+    @Query('dateFrom') dateFrom: string | undefined,
+    @Query('dateTo') dateTo: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    const requestedPage = page === undefined ? undefined : positiveInt(page, 1);
+    const requestedPageSize =
+      pageSize === undefined
+        ? undefined
+        : Math.min(100, positiveInt(pageSize, 20));
     return this.workspaces.documentsInWorkspace(
       workspaceId,
       user,
       folderId === 'ROOT' ? null : folderId,
+      requestedPage,
+      requestedPageSize,
+      { type, dateFrom, dateTo },
     );
   }
 
@@ -178,6 +208,36 @@ export class WorkspaceDocumentController {
       user,
       body.folderId,
       body.confirmVisibilityChange,
+    );
+  }
+
+  @Delete(':workspaceId/documents/:id')
+  deleteDocument(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body?: { reason?: string },
+  ) {
+    return this.workspaces.deleteDocument(
+      workspaceId,
+      id,
+      user,
+      body?.reason ?? '',
+    );
+  }
+
+  @Post(':workspaceId/jurisprudencia/:sentenceId')
+  attachPublishedJudgment(
+    @Param('workspaceId') workspaceId: string,
+    @Param('sentenceId', ParseIntPipe) sentenceId: number,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body?: { folderId?: string | null; reason?: string },
+  ) {
+    return this.workspaces.attachPublishedJudgment(
+      workspaceId,
+      sentenceId,
+      user,
+      { folderId: body?.folderId, reason: body?.reason ?? '' },
     );
   }
 

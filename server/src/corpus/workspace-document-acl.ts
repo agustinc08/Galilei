@@ -10,7 +10,7 @@ export type WorkspaceDocumentAclScope =
 
 /** Return only folders whose entire inherited path is readable by this user. */
 export async function readableFolderIds(
-  prisma: PrismaService,
+  prisma: Pick<PrismaService, '$queryRaw'>,
   scope: WorkspaceDocumentAclScope,
 ): Promise<string[]> {
   const targetPredicate =
@@ -63,7 +63,7 @@ export async function readableFolderIds(
 
 /** Live DB check shared by Viewer, matches and download. No ACL cache is used. */
 export async function canReadWorkspaceDocument(
-  prisma: PrismaService,
+  prisma: Pick<PrismaService, '$queryRaw'>,
   documentId: string,
   scope: WorkspaceDocumentAclScope,
 ): Promise<boolean> {

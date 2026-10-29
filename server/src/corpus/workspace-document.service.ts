@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Inject,
@@ -7,6 +8,7 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import {
   Prisma,
   WorkspaceRole,
@@ -43,7 +45,10 @@ import { normalizeRelativePath } from './document-source-scanner';
 import { buildWorkspaceNameSearchDsl } from './workspace-name-search.dsl';
 import { LocalPdfOcrProcessor } from './document-local-processors';
 import { enqueueLocalOcrJob } from './ocr-job-queue';
+import { personalFolderUploadIssue } from './personal-folder-upload-policy';
+import { obtenerPdfsReales } from '../archivos/pdf-real.util';
 import {
+  canReadWorkspaceDocument,
   readableFolderIds,
   workspaceVisibilityLabel,
 } from './workspace-document-acl';
@@ -52,6 +57,19 @@ const MAX_FILES = 20;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const extractor = new BasicDocumentTextExtractor();
 export const WORKSPACE_STORAGE_ADAPTER = 'WORKSPACE_STORAGE_ADAPTER';
+
+type WorkspaceDocumentListItem = {
+  documentId: string;
+  canMakePersonal: boolean;
+  [key: string]: unknown;
+};
+
+type WorkspaceDocumentListPage = {
+  page: number;
+  pageSize: number;
+  total: number;
+  results: WorkspaceDocumentListItem[];
+};
 
 @Injectable()
 export class WorkspaceDocumentService {
@@ -471,6 +489,639 @@ export class WorkspaceDocumentService {
     return folder;
   }
 
+  async deleteFolder(
+    workspaceId: string,
+    folderId: string,
+    user: AuthenticatedUser,
+    reason: string,
+  ) {
+    const normalizedReason = validateDeletionReason(reason);
+    return this.prisma.$transaction(
+      async (tx) => {
+        const membership = await tx.workspaceMembership.findFirst({
+          where: {
+            workspaceId,
+            userId: user.id,
+            active: true,
+            workspace: { active: true },
+          },
+          select: { role: true },
+        });
+        if (!membership) throw new NotFoundException('Espacio no encontrado.');
+        this.requireRole(membership.role, [
+          WorkspaceRole.ADMIN,
+          WorkspaceRole.EDITOR,
+        ]);
+        const folder = await tx.workspaceFolder.findFirst({
+          where: { id: folderId, workspaceId, ownerUserId: null },
+          select: {
+            id: true,
+            name: true,
+            parentId: true,
+            createdById: true,
+            _count: { select: { documents: true, children: true } },
+          },
+        });
+        if (!folder) throw new NotFoundException('Carpeta no encontrada.');
+        if (membership.role !== WorkspaceRole.ADMIN) {
+          const readableIds = await readableFolderIds(tx, {
+            kind: 'WORKSPACE',
+            workspaceId,
+            userId: user.id,
+          });
+          if (!readableIds.includes(folderId))
+            throw new NotFoundException('Carpeta no encontrada.');
+        }
+        if (folder._count.documents || folder._count.children)
+          throw new ConflictException(
+            'La carpeta debe estar vacía y sin subcarpetas para eliminarla.',
+          );
+        await tx.workspaceFolder.delete({ where: { id: folder.id } });
+        await tx.accionLog.create({
+          data: {
+            usuarioId: user.id,
+            entidad: 'WorkspaceFolder',
+            entidadId: null,
+            accion: 'WORKSPACE_FOLDER_DELETE',
+            descripcion: 'Eliminación de carpeta vacía de Workspace.',
+            datosAntes: {
+              workspaceId,
+              folderId: folder.id,
+              parentId: folder.parentId,
+              name: folder.name,
+            },
+            datosDespues: {
+              workspaceId,
+              folderId: folder.id,
+              normalizedReason,
+            },
+          },
+        });
+        return { deleted: true, folderId: folder.id };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async deleteDocument(
+    workspaceId: string,
+    documentId: string,
+    user: AuthenticatedUser,
+    reason: string,
+  ) {
+    const normalizedReason = validateDeletionReason(reason);
+    return this.prisma.$transaction(
+      async (tx) => {
+        const membership = await tx.workspaceMembership.findFirst({
+          where: {
+            workspaceId,
+            userId: user.id,
+            active: true,
+            workspace: { active: true },
+          },
+          select: { role: true },
+        });
+        if (!membership) throw new NotFoundException('Espacio no encontrado.');
+        this.requireRole(membership.role, [
+          WorkspaceRole.ADMIN,
+          WorkspaceRole.EDITOR,
+        ]);
+        const link = await tx.workspaceDocument.findFirst({
+          where: { workspaceId, documentId, ownerUserId: null },
+          select: {
+            id: true,
+            folderId: true,
+            document: {
+              select: {
+                id: true,
+                documentScope: true,
+                files: {
+                  select: {
+                    storageProvider: true,
+                    storageKey: true,
+                  },
+                },
+                _count: {
+                  select: {
+                    workspaceDocuments: true,
+                    links: true,
+                    locations: true,
+                    associations: true,
+                    classifications: true,
+                    digestoCollections: true,
+                    digestoTopics: true,
+                    digestoTags: true,
+                    sourceFiles: true,
+                    importRunItems: true,
+                    institutionalIngestions: true,
+                    ocrReviews: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        if (!link) throw new NotFoundException('Documento no encontrado.');
+        if (
+          membership.role !== WorkspaceRole.ADMIN &&
+          !(await canReadWorkspaceDocument(tx, documentId, {
+            kind: 'WORKSPACE',
+            workspaceId,
+            userId: user.id,
+          }))
+        )
+          throw new NotFoundException('Documento no encontrado.');
+
+        const counts = link.document._count;
+        const hasNoExternalCorpusRelations =
+          link.document.documentScope === 'PRIVATE_WORKSPACE' &&
+          counts.workspaceDocuments === 1 &&
+          counts.links === 0 &&
+          counts.locations === 0 &&
+          counts.associations === 0 &&
+          counts.classifications === 0 &&
+          counts.digestoCollections === 0 &&
+          counts.digestoTopics === 0 &&
+          counts.digestoTags === 0 &&
+          counts.sourceFiles === 0 &&
+          counts.importRunItems === 0 &&
+          counts.institutionalIngestions === 0 &&
+          counts.ocrReviews === 0;
+        const extractionApprovalCount = hasNoExternalCorpusRelations
+          ? await tx.ocrHumanReviewApproval.count({
+              where: { extraction: { documentId } },
+            })
+          : 0;
+        const canDeleteCorpusDocument =
+          hasNoExternalCorpusRelations && extractionApprovalCount === 0;
+        const blobReferenceStats = await Promise.all(
+          link.document.files.map(async (file) => {
+            const where = {
+              storageProvider: file.storageProvider,
+              storageKey: file.storageKey,
+            };
+            const [before, otherDocuments] = await Promise.all([
+              tx.corpusDocumentFile.count({ where }),
+              tx.corpusDocumentFile.count({
+                where: { ...where, documentId: { not: documentId } },
+              }),
+            ]);
+            return {
+              before,
+              after: canDeleteCorpusDocument ? otherDocuments : before,
+              shared: otherDocuments > 0,
+              orphanCandidate: canDeleteCorpusDocument && otherDocuments === 0,
+            };
+          }),
+        );
+        const sharedBlobCount = blobReferenceStats.filter(
+          (item) => item.shared,
+        ).length;
+        const orphanCandidateCount = blobReferenceStats.filter(
+          (item) => item.orphanCandidate,
+        ).length;
+        const blobReferenceCountBefore = blobReferenceStats.reduce(
+          (total, item) => total + item.before,
+          0,
+        );
+        const blobReferenceCountAfter = blobReferenceStats.reduce(
+          (total, item) => total + item.after,
+          0,
+        );
+
+        if (canDeleteCorpusDocument) {
+          // CorpusDocument's cascades are intentionally limited to its private
+          // upload pipeline. External/provenance relations above disqualify it.
+          await tx.corpusDocument.delete({ where: { id: documentId } });
+        } else {
+          await tx.workspaceDocument.delete({ where: { id: link.id } });
+        }
+        await tx.accionLog.create({
+          data: {
+            usuarioId: user.id,
+            entidad: 'WorkspaceDocument',
+            entidadId: null,
+            accion: 'WORKSPACE_DOCUMENT_DELETE',
+            descripcion: 'Eliminación de documento del espacio de trabajo.',
+            datosAntes: {
+              workspaceId,
+              workspaceDocumentId: link.id,
+              documentId,
+              folderId: link.folderId,
+            },
+            datosDespues: {
+              workspaceId,
+              workspaceDocumentId: link.id,
+              documentId,
+              normalizedReason,
+              corpusDocumentDeleted: canDeleteCorpusDocument,
+              physicalBlobsDeleted: false,
+              sharedBlobCount,
+              orphanCandidateCount,
+              blobReferenceCountBefore,
+              blobReferenceCountAfter,
+              extractionApprovalCount,
+            },
+          },
+        });
+        return {
+          deleted: true,
+          workspaceDocumentId: link.id,
+          documentId,
+          corpusDocumentDeleted: canDeleteCorpusDocument,
+          physicalBlobsDeleted: 0,
+          sharedBlobsPreserved: sharedBlobCount,
+          orphanBlobCandidatesPreserved: orphanCandidateCount,
+          blobReferenceCountBefore,
+          blobReferenceCountAfter,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async deletePersonalDocument(
+    documentId: string,
+    user: AuthenticatedUser,
+    reason: string,
+  ) {
+    const normalizedReason = validateDeletionReason(reason);
+    return this.prisma.$transaction(
+      async (tx) => {
+        const link = await tx.workspaceDocument.findFirst({
+          where: { workspaceId: null, ownerUserId: user.id, documentId },
+          select: {
+            id: true,
+            folderId: true,
+            document: {
+              select: {
+                id: true,
+                documentScope: true,
+                files: {
+                  select: {
+                    storageProvider: true,
+                    storageKey: true,
+                  },
+                },
+                _count: {
+                  select: {
+                    workspaceDocuments: true,
+                    links: true,
+                    locations: true,
+                    associations: true,
+                    classifications: true,
+                    digestoCollections: true,
+                    digestoTopics: true,
+                    digestoTags: true,
+                    sourceFiles: true,
+                    importRunItems: true,
+                    institutionalIngestions: true,
+                    ocrReviews: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        if (!link) throw new NotFoundException('Documento no encontrado.');
+
+        const counts = link.document._count;
+        const hasNoExternalCorpusRelations =
+          link.document.documentScope === 'PRIVATE_WORKSPACE' &&
+          counts.workspaceDocuments === 1 &&
+          counts.links === 0 &&
+          counts.locations === 0 &&
+          counts.associations === 0 &&
+          counts.classifications === 0 &&
+          counts.digestoCollections === 0 &&
+          counts.digestoTopics === 0 &&
+          counts.digestoTags === 0 &&
+          counts.sourceFiles === 0 &&
+          counts.importRunItems === 0 &&
+          counts.institutionalIngestions === 0 &&
+          counts.ocrReviews === 0;
+        const extractionApprovalCount = hasNoExternalCorpusRelations
+          ? await tx.ocrHumanReviewApproval.count({
+              where: { extraction: { documentId } },
+            })
+          : 0;
+        const canDeleteCorpusDocument =
+          hasNoExternalCorpusRelations && extractionApprovalCount === 0;
+        const blobReferenceStats = await Promise.all(
+          link.document.files.map(async (file) => {
+            const where = {
+              storageProvider: file.storageProvider,
+              storageKey: file.storageKey,
+            };
+            const [before, otherDocuments] = await Promise.all([
+              tx.corpusDocumentFile.count({ where }),
+              tx.corpusDocumentFile.count({
+                where: { ...where, documentId: { not: documentId } },
+              }),
+            ]);
+            return {
+              before,
+              after: canDeleteCorpusDocument ? otherDocuments : before,
+              shared: otherDocuments > 0,
+              orphanCandidate: canDeleteCorpusDocument && otherDocuments === 0,
+            };
+          }),
+        );
+        const sharedBlobCount = blobReferenceStats.filter(
+          (item) => item.shared,
+        ).length;
+        const orphanCandidateCount = blobReferenceStats.filter(
+          (item) => item.orphanCandidate,
+        ).length;
+        const blobReferenceCountBefore = blobReferenceStats.reduce(
+          (total, item) => total + item.before,
+          0,
+        );
+        const blobReferenceCountAfter = blobReferenceStats.reduce(
+          (total, item) => total + item.after,
+          0,
+        );
+
+        if (canDeleteCorpusDocument) {
+          await tx.corpusDocument.delete({ where: { id: documentId } });
+        } else {
+          await tx.workspaceDocument.delete({ where: { id: link.id } });
+        }
+        await tx.accionLog.create({
+          data: {
+            usuarioId: user.id,
+            entidad: 'PersonalDocument',
+            entidadId: null,
+            accion: 'PERSONAL_DOCUMENT_DELETE',
+            descripcion: 'Eliminación de documento personal.',
+            datosAntes: {
+              workspaceDocumentId: link.id,
+              documentId,
+              folderId: link.folderId,
+              ownerUserId: user.id,
+            },
+            datosDespues: {
+              workspaceDocumentId: link.id,
+              documentId,
+              normalizedReason,
+              corpusDocumentDeleted: canDeleteCorpusDocument,
+              physicalBlobsDeleted: false,
+              sharedBlobCount,
+              orphanCandidateCount,
+              blobReferenceCountBefore,
+              blobReferenceCountAfter,
+              extractionApprovalCount,
+            },
+          },
+        });
+        return {
+          deleted: true,
+          workspaceDocumentId: link.id,
+          documentId,
+          corpusDocumentDeleted: canDeleteCorpusDocument,
+          physicalBlobsDeleted: 0,
+          sharedBlobsPreserved: sharedBlobCount,
+          orphanBlobCandidatesPreserved: orphanCandidateCount,
+          blobReferenceCountBefore,
+          blobReferenceCountAfter,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async attachPublishedJudgment(
+    workspaceId: string,
+    sentenceId: number,
+    user: AuthenticatedUser,
+    input: { folderId?: string | null; reason: string },
+  ) {
+    const normalizedReason = validateDeletionReason(input.reason);
+    const membership = await this.requireMembership(workspaceId, user);
+    this.requireRole(membership.role, [
+      WorkspaceRole.ADMIN,
+      WorkspaceRole.EDITOR,
+    ]);
+    const folderId = input.folderId || null;
+    if (folderId) {
+      const readableIds = await readableFolderIds(this.prisma, {
+        kind: 'WORKSPACE',
+        workspaceId,
+        userId: user.id,
+      });
+      if (!readableIds.includes(folderId))
+        throw new NotFoundException('Carpeta no encontrada.');
+    }
+
+    const sentence = await this.prisma.sentencia.findFirst({
+      where: {
+        id: sentenceId,
+        publicado: true,
+        activo: true,
+        estadoCarga: 'PUBLICADA',
+      },
+      select: {
+        id: true,
+        numeroSentencia: true,
+        archivosPdf: {
+          select: { id: true, rutaArchivo: true },
+        },
+      },
+    });
+    if (!sentence)
+      throw new NotFoundException('Fallo publicado no encontrado.');
+    const realPdfPaths = new Set(
+      obtenerPdfsReales(sentence.archivosPdf).map((pdf) =>
+        path.resolve(pdf.rutaArchivo),
+      ),
+    );
+    if (!realPdfPaths.size)
+      throw new NotFoundException('El fallo publicado no tiene PDF real.');
+    const storageRoot = this.storage.root;
+    if (!storageRoot)
+      throw new ServiceUnavailableException(
+        'No está disponible el almacenamiento local verificado.',
+      );
+
+    const links = await this.prisma.corpusDocumentLink.findMany({
+      where: {
+        targetDomain: 'JURISPRUDENCIA',
+        targetType: 'SENTENCIA',
+        targetId: String(sentenceId),
+        relationship: 'ASSOCIATED_WITH',
+        document: {
+          documentScope: 'GENERAL',
+          // An exact PDF linked to a published judgment may remain INTERNAL
+          // when its Corpus record was ingested after the judgment publish
+          // event. Keep its stored visibility; Workspace access remains
+          // membership and ACL scoped.
+          visibility: { in: ['PUBLIC', 'INTERNAL'] },
+          status: { in: ['INDEXED', 'OCR_REQUIRED'] },
+        },
+      },
+      select: {
+        document: {
+          select: {
+            id: true,
+            files: {
+              orderBy: { version: 'desc' },
+              take: 1,
+              select: {
+                id: true,
+                storageProvider: true,
+                storageKey: true,
+                originalFilename: true,
+                mimeType: true,
+                sizeBytes: true,
+                sha256: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    const sources = links.flatMap(({ document }) => {
+      const file = document.files[0];
+      if (
+        !file ||
+        file.storageProvider !== 'LOCAL_DEV' ||
+        file.mimeType.split(';', 1)[0]?.trim().toLowerCase() !==
+          'application/pdf' ||
+        !realPdfPaths.has(path.resolve(storageRoot, file.storageKey))
+      )
+        return [];
+      return [{ documentId: document.id, file }];
+    });
+    if (sources.length !== 1)
+      throw new NotFoundException(
+        'No hay una asociación PDF ↔ fallo publicada inequívoca.',
+      );
+    const source = sources[0];
+    const content = await this.storage.get(source.file.storageKey);
+    const checksum = createHash('sha256').update(content).digest('hex');
+    if (
+      BigInt(content.byteLength) !== source.file.sizeBytes ||
+      checksum !== source.file.sha256
+    )
+      throw new ServiceUnavailableException(
+        'El PDF vinculado no pasó la verificación de integridad.',
+      );
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const currentMembership = await tx.workspaceMembership.findFirst({
+          where: {
+            workspaceId,
+            userId: user.id,
+            active: true,
+            workspace: { active: true },
+          },
+          select: { role: true },
+        });
+        if (!currentMembership)
+          throw new NotFoundException('Espacio no encontrado.');
+        this.requireRole(currentMembership.role, [
+          WorkspaceRole.ADMIN,
+          WorkspaceRole.EDITOR,
+        ]);
+        if (folderId) {
+          const readableIds = await readableFolderIds(tx, {
+            kind: 'WORKSPACE',
+            workspaceId,
+            userId: user.id,
+          });
+          if (!readableIds.includes(folderId))
+            throw new NotFoundException('Carpeta no encontrada.');
+        }
+        const currentSentence = await tx.sentencia.findFirst({
+          where: {
+            id: sentenceId,
+            publicado: true,
+            activo: true,
+            estadoCarga: 'PUBLICADA',
+          },
+          select: { id: true },
+        });
+        const currentSource = await tx.corpusDocumentLink.findFirst({
+          where: {
+            documentId: source.documentId,
+            targetDomain: 'JURISPRUDENCIA',
+            targetType: 'SENTENCIA',
+            targetId: String(sentenceId),
+            relationship: 'ASSOCIATED_WITH',
+            document: {
+              documentScope: 'GENERAL',
+              visibility: { in: ['PUBLIC', 'INTERNAL'] },
+              status: { in: ['INDEXED', 'OCR_REQUIRED'] },
+            },
+          },
+          select: {
+            document: {
+              select: {
+                files: {
+                  where: { id: source.file.id },
+                  select: { id: true },
+                },
+              },
+            },
+          },
+        });
+        if (!currentSentence || !currentSource?.document.files.length)
+          throw new NotFoundException('El fallo dejó de estar publicado.');
+        if (
+          await tx.workspaceDocument.findFirst({
+            where: {
+              workspaceId,
+              ownerUserId: null,
+              documentId: source.documentId,
+            },
+            select: { id: true },
+          })
+        )
+          throw new ConflictException('El fallo ya está vinculado al espacio.');
+        const created = await tx.workspaceDocument.create({
+          data: {
+            workspaceId,
+            ownerUserId: null,
+            documentId: source.documentId,
+            folderId,
+            uploadedById: user.id,
+          },
+          select: { id: true },
+        });
+        await tx.accionLog.create({
+          data: {
+            usuarioId: user.id,
+            entidad: 'WorkspaceDocument',
+            entidadId: null,
+            accion: 'WORKSPACE_JURISPRUDENCIA_ATTACH',
+            descripcion: 'Vinculación de fallo publicado a Workspace.',
+            datosDespues: {
+              workspaceId,
+              workspaceDocumentId: created.id,
+              documentId: source.documentId,
+              sentenceId,
+              sentenceNumber: sentence.numeroSentencia,
+              folderId,
+              normalizedReason,
+              blobReused: true,
+              sha256: source.file.sha256,
+            },
+          },
+        });
+        return {
+          workspaceDocumentId: created.id,
+          documentId: source.documentId,
+          sentenceId,
+          folderId,
+          blobReused: true,
+          sha256: source.file.sha256,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
   async moveDocument(
     workspaceId: string,
     documentId: string,
@@ -575,8 +1226,7 @@ export class WorkspaceDocumentService {
   }
 
   async members(workspaceId: string, user: AuthenticatedUser) {
-    const membership = await this.requireMembership(workspaceId, user);
-    this.requireRole(membership.role, [WorkspaceRole.ADMIN]);
+    await this.requireWorkspaceManagementAdmin(workspaceId, user);
     return this.prisma.workspaceMembership.findMany({
       where: { workspaceId },
       orderBy: [
@@ -627,8 +1277,7 @@ export class WorkspaceDocumentService {
     user: AuthenticatedUser,
     q: string,
   ) {
-    const membership = await this.requireMembership(workspaceId, user);
-    this.requireRole(membership.role, [WorkspaceRole.ADMIN]);
+    await this.requireWorkspaceManagementAdmin(workspaceId, user);
     const term = q.trim();
     if (term.length < 3) return [];
     return this.prisma.usuario.findMany({
@@ -908,11 +1557,15 @@ export class WorkspaceDocumentService {
   }
 
   async activity(workspaceId: string, user: AuthenticatedUser) {
-    const membership = await this.requireMembership(workspaceId, user);
-    this.requireRole(membership.role, [
-      WorkspaceRole.ADMIN,
-      WorkspaceRole.EDITOR,
-    ]);
+    if (user.rol.nombre === 'ADMIN') {
+      await this.requireWorkspaceManagementAdmin(workspaceId, user);
+    } else {
+      const membership = await this.requireMembership(workspaceId, user);
+      this.requireRole(membership.role, [
+        WorkspaceRole.ADMIN,
+        WorkspaceRole.EDITOR,
+      ]);
+    }
     return this.prisma.$queryRaw<
       Array<{
         id: number;
@@ -1165,6 +1818,7 @@ export class WorkspaceDocumentService {
       size: number;
     }>,
     folderId?: string,
+    folderUploadPolicy = false,
   ) {
     if (!files?.length || files.length > MAX_FILES)
       throw new BadRequestException(
@@ -1186,7 +1840,16 @@ export class WorkspaceDocumentService {
     }> = [];
     for (const file of files) {
       try {
-        results.push(await this.ingestOne(null, user.id, file, folderId));
+        results.push(
+          await this.ingestOne(
+            null,
+            user.id,
+            file,
+            folderId,
+            undefined,
+            folderUploadPolicy,
+          ),
+        );
       } catch (error) {
         results.push({
           documentId: '',
@@ -1200,6 +1863,19 @@ export class WorkspaceDocumentService {
       }
     }
     return { destination: 'Mis documentos', access: 'Sólo vos', results };
+  }
+
+  uploadPersonalFolder(
+    user: AuthenticatedUser,
+    files: Array<{
+      originalname: string;
+      mimetype: string;
+      buffer: Buffer;
+      size: number;
+    }>,
+    folderId?: string,
+  ) {
+    return this.uploadPersonal(user, files, folderId, true);
   }
 
   async searchPersonal(
@@ -1425,11 +2101,27 @@ export class WorkspaceDocumentService {
     return { documentId, visibility: WorkspaceVisibilityScope.PERSONAL };
   }
 
+  documentsInWorkspace(
+    workspaceId: string,
+    user: AuthenticatedUser,
+    folderId?: string | null,
+  ): Promise<WorkspaceDocumentListItem[]>;
+  documentsInWorkspace(
+    workspaceId: string,
+    user: AuthenticatedUser,
+    folderId: string | null | undefined,
+    page: number | undefined,
+    pageSize: number | undefined,
+    filters?: { type?: string; dateFrom?: string; dateTo?: string },
+  ): Promise<WorkspaceDocumentListItem[] | WorkspaceDocumentListPage>;
   async documentsInWorkspace(
     workspaceId: string,
     user: AuthenticatedUser,
     folderId?: string | null,
-  ) {
+    page?: number,
+    pageSize?: number,
+    filters?: { type?: string; dateFrom?: string; dateTo?: string },
+  ): Promise<WorkspaceDocumentListItem[] | WorkspaceDocumentListPage> {
     const membership = await this.requireMembership(workspaceId, user);
     const readableIds = await readableFolderIds(this.prisma, {
       kind: 'WORKSPACE',
@@ -1438,45 +2130,88 @@ export class WorkspaceDocumentService {
     });
     if (folderId && !readableIds.includes(folderId))
       throw new NotFoundException('Carpeta no encontrada.');
-    const links = await this.prisma.workspaceDocument.findMany({
-      where: {
-        workspaceId,
-        ownerUserId: null,
-        ...(folderId !== undefined
-          ? { folderId }
-          : { OR: [{ folderId: null }, { folderId: { in: readableIds } }] }),
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: {
-        uploadedBy: { select: { nombre: true, apellido: true } },
-        document: {
-          select: {
-            id: true,
-            title: true,
-            status: true,
-            documentType: true,
-            createdAt: true,
-            sourceFiles: { take: 1, select: { id: true } },
-            files: {
-              orderBy: { version: 'desc' },
-              take: 1,
-              select: {
-                originalFilename: true,
-                mimeType: true,
-                sizeBytes: true,
-                sha256: true,
+    const dateRange = validateSearchDateRange(
+      filters?.dateFrom,
+      filters?.dateTo,
+    );
+    const types = validateCorpusTypes(filters?.type);
+    const where = {
+      workspaceId,
+      ownerUserId: null,
+      ...(dateRange.dateFrom || dateRange.dateTo
+        ? {
+            createdAt: {
+              ...(dateRange.dateFrom
+                ? { gte: new Date(`${dateRange.dateFrom}T00:00:00.000Z`) }
+                : {}),
+              ...(dateRange.dateTo
+                ? { lte: new Date(`${dateRange.dateTo}T23:59:59.999Z`) }
+                : {}),
+            },
+          }
+        : {}),
+      ...(types
+        ? {
+            document: {
+              files: {
+                some: { mimeType: { in: mimeTypesForCorpusTypes(types) } },
               },
             },
-            latestExtraction: {
-              select: { status: true, pages: { select: { pageNumber: true } } },
+          }
+        : {}),
+      ...(folderId !== undefined
+        ? { folderId }
+        : { OR: [{ folderId: null }, { folderId: { in: readableIds } }] }),
+    };
+    const paginated = page !== undefined || pageSize !== undefined;
+    const normalizedPage = paginated ? Math.max(1, page ?? 1) : 1;
+    const normalizedPageSize = paginated
+      ? Math.min(100, Math.max(1, pageSize ?? 20))
+      : 100;
+    const [links, total] = await Promise.all([
+      this.prisma.workspaceDocument.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: normalizedPageSize,
+        ...(paginated
+          ? { skip: (normalizedPage - 1) * normalizedPageSize }
+          : {}),
+        include: {
+          uploadedBy: { select: { nombre: true, apellido: true } },
+          document: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              documentType: true,
+              createdAt: true,
+              sourceFiles: { take: 1, select: { id: true } },
+              files: {
+                orderBy: { version: 'desc' },
+                take: 1,
+                select: {
+                  originalFilename: true,
+                  mimeType: true,
+                  sizeBytes: true,
+                  sha256: true,
+                },
+              },
+              latestExtraction: {
+                select: {
+                  status: true,
+                  pages: { select: { pageNumber: true } },
+                },
+              },
             },
           },
+          folder: { select: { id: true, name: true, visibilityScope: true } },
         },
-        folder: { select: { id: true, name: true, visibilityScope: true } },
-      },
-    });
-    return Promise.all(
+      }),
+      paginated
+        ? this.prisma.workspaceDocument.count({ where })
+        : Promise.resolve(0),
+    ]);
+    const results = await Promise.all(
       links.map(async ({ document, folder, ...link }) => ({
         ...link,
         document: {
@@ -1517,6 +2252,14 @@ export class WorkspaceDocumentService {
           : 'Compartido',
       })),
     );
+    return paginated
+      ? {
+          page: normalizedPage,
+          pageSize: normalizedPageSize,
+          total,
+          results,
+        }
+      : results;
   }
 
   async upload(
@@ -2217,8 +2960,7 @@ export class WorkspaceDocumentService {
     user: AuthenticatedUser,
     input: { userId: number; role: WorkspaceRole; active?: boolean },
   ) {
-    const membership = await this.requireMembership(workspaceId, user);
-    this.requireRole(membership.role, [WorkspaceRole.ADMIN]);
+    await this.requireWorkspaceManagementAdmin(workspaceId, user);
     if (
       !Number.isInteger(input.userId) ||
       input.userId <= 0 ||
@@ -2285,6 +3027,7 @@ export class WorkspaceDocumentService {
     },
     folderId?: string,
     replaceDocumentId?: string,
+    personalFolderUpload = false,
   ) {
     const name = path
       .basename(file.originalname)
@@ -2313,6 +3056,14 @@ export class WorkspaceDocumentService {
         );
       }
       throw error;
+    }
+    if (personalFolderUpload) {
+      const issue = personalFolderUploadIssue({
+        filename: name,
+        submittedMimeType: file.mimetype,
+        detectedFormat: extraction.formatDetected,
+      });
+      if (issue) throw new BadRequestException(issue);
     }
     const stored = await this.storage.put(name, file.buffer);
     if (
@@ -2573,6 +3324,22 @@ export class WorkspaceDocumentService {
     if (!row) throw new NotFoundException('Espacio no encontrado.');
     return row;
   }
+  private async requireWorkspaceManagementAdmin(
+    workspaceId: string,
+    user: AuthenticatedUser,
+  ) {
+    if (user.rol.nombre === 'ADMIN') {
+      const workspace = await this.prisma.documentWorkspace.findFirst({
+        where: { id: workspaceId, active: true },
+        select: { id: true },
+      });
+      if (!workspace) throw new NotFoundException('Espacio no encontrado.');
+      return { role: WorkspaceRole.ADMIN };
+    }
+    const membership = await this.requireMembership(workspaceId, user);
+    this.requireRole(membership.role, [WorkspaceRole.ADMIN]);
+    return membership;
+  }
   private requireRole(current: WorkspaceRole, allowed: WorkspaceRole[]) {
     if (!allowed.includes(current))
       throw new ForbiddenException('Tu rol no permite esta operación.');
@@ -2592,4 +3359,13 @@ export class WorkspaceDocumentService {
       },
     });
   }
+}
+
+function validateDeletionReason(reason: string) {
+  const normalized = typeof reason === 'string' ? reason.trim() : '';
+  if (normalized.length < 5 || normalized.length > 500)
+    throw new BadRequestException(
+      'Indicá un motivo de eliminación de entre 5 y 500 caracteres.',
+    );
+  return normalized;
 }
