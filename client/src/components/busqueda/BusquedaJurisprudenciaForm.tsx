@@ -71,6 +71,7 @@ export function BusquedaJurisprudenciaForm({
   });
   const [dateError, setDateError] = useState('');
   const advancedFilterKeys: Array<keyof BusquedaJurisprudenciaValores> = [
+    'tema', 'sala', 'tipoFallo', 'fechaDesde', 'fechaHasta', 'expediente',
     'fraseExacta', 'excluir', 'tribunalOrigen', 'magistrados', 'caratula', 'actor',
     'demandado', 'objeto', 'numeroSentencia', 'numeroSumario', 'anio', 'pdf',
   ];

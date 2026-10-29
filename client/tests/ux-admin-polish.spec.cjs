@@ -734,4 +734,16 @@ test('mobile search keeps the query first and folds optional filters and managem
   const tabletResultTop = await resultTitle.evaluate((element) => element.getBoundingClientRect().top);
   expect(tabletResultTop, 'first Search result should remain early in the tablet viewport').toBeLessThan(800);
   expect(await page.locator('body').evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.getByLabel('Tema')).toBeHidden();
+  const desktopResultTop = await resultTitle.evaluate((element) => element.getBoundingClientRect().top);
+  expect(desktopResultTop, 'first Search result should be visible sooner on desktop').toBeLessThan(800);
+  await filtersToggle.click();
+  await expect(filtersToggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByLabel('Tema')).toBeVisible();
+
+  await page.goto('/consulta?q=responsabilidad%20civil&fechaDesde=2024-02-01');
+  await expect(page.getByLabel('Fecha desde (dd/mm/aaaa)')).toBeVisible();
+  await expect(page.getByLabel('Fecha desde (dd/mm/aaaa)')).toHaveValue('01/02/2024');
 });

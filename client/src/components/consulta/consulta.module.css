@@ -70,6 +70,8 @@
   gap: 12px;
 }
 
+.publicFilterGrid:not(.publicFilterGridOpen) { display: none; }
+
 .filtersCard :global(label) { min-width: 0; }
 .filtersCard :global(button:focus-visible),
 .filterChip button:focus-visible,
@@ -475,8 +477,6 @@
 }
 
 @media (max-width: 900px) {
-  .publicFilterGrid:not(.publicFilterGridOpen) { display: none; }
-
   .primarySearchRow {
     grid-template-columns: 1fr;
   }
