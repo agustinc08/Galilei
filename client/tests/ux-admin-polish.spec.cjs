@@ -76,6 +76,7 @@ test('dashboard ends a failed load, shows its tracking id, and retries without r
   await page.goto('/dashboard');
   await expect(page.getByRole('alert').getByText('No se pudo cargar el dashboard')).toBeVisible();
   await expect(page.getByText('Cargando métricas...')).toHaveCount(0);
+  await expect(page.getByText('Sin estadísticas disponibles')).toHaveCount(0);
   await expect(page.getByText('Identificador de seguimiento:')).toContainText('qa-track-20261029');
   await expect(page.getByRole('alert')).not.toContainText('internal server error');
   await page.getByRole('button', { name: 'Reintentar' }).click();

@@ -184,12 +184,12 @@ export default function DashboardPage() {
             <div className={styles.summaryItem}><span>Sumarios sin tema</span><strong>{calidad.sumariosSinTema.toLocaleString('es-AR')}</strong></div>
           </div>
         </Card>
-      ) : (
+      ) : !loading && !error ? (
         <EmptyState
           title="Sin estadísticas disponibles"
           description="Cuando existan datos disponibles, este panel mostrará los indicadores del sistema."
         />
-      )}
+      ) : null}
 
       {masVistas.length > 0 ? (
         <Card>
