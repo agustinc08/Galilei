@@ -277,6 +277,35 @@
   .leftCollapsed .previewPanel { grid-column: auto; }
 }
 
+@container (min-width: 661px) and (max-width: 940px) {
+  .previewOpen .leftPanel,
+  .previewOpen .centerPanel { display: none; }
+  .previewOpen .previewPanel {
+    position: relative;
+    inset: auto;
+    grid-row: 1;
+    grid-column: 1 / -1;
+    width: auto;
+    border: 0;
+    box-shadow: none;
+  }
+  .previewOpen .previewBackButton {
+    display: inline-flex;
+    align-self: flex-start;
+    min-height: 2.5rem;
+    margin: .6rem .7rem 0;
+    padding: .4rem .7rem;
+    border: 1px solid #c5d0da;
+    border-radius: 6px;
+    color: #245373;
+    background: #fff;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .previewOpen .previewBackButton:focus-visible { outline: 3px solid #82b6d5; outline-offset: 1px; }
+}
+
 @container (max-width: 660px) {
   .shell { height: auto; min-height: calc(100vh - 150px); overflow: visible; }
   .shellHeader { align-items: flex-start; flex-direction: column; }

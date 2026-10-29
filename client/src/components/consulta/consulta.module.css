@@ -502,18 +502,19 @@
   }
 
   .hero {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
-    gap: 4px 8px;
+    gap: 4px;
     padding: 10px 12px;
   }
 
   .heroTitle {
-    grid-column: 1;
+    grid-column: 1 / -1;
     grid-row: 1;
-    align-self: center;
     min-width: 0;
     font-size: 23px;
+    overflow-wrap: normal;
+    white-space: nowrap;
   }
 
   .heroSubtitle {
@@ -523,10 +524,10 @@
   }
 
   .publicHeader {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: center;
+    grid-column: 1 / -1;
+    grid-row: 3;
     min-width: 0;
+    justify-self: start;
   }
 
   .desktopManagementActions { display: none; }
@@ -535,7 +536,7 @@
     color: #1f4f7a;
     font-size: 12px;
     font-weight: 700;
-    text-align: right;
+    text-align: left;
   }
   .mobileManagementActions summary { cursor: pointer; }
   .mobileManagementActions[open] > div { display: grid; gap: 8px; padding-top: 8px; }

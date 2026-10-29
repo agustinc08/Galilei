@@ -308,7 +308,7 @@ test('editorial review presents evidence in human language and keeps raw keys hi
   await expect(page.getByText(/Todas requieren revisión humana/u)).toBeVisible();
 });
 
-test('workspace preview uses a tablet overlay and a sequential mobile view @product-polish @workspace', async ({ page }) => {
+test('workspace preview uses a full-width tablet detail view and a sequential mobile view @product-polish @workspace', async ({ page }) => {
   const reader = {
     id: 8902, nombre: 'Cuenta', apellido: 'Sala QA', email: 'reader-product-polish@example.invalid',
     activo: true, rol: { id: 6, nombre: 'LECTOR' },
@@ -357,14 +357,16 @@ test('workspace preview uses a tablet overlay and a sequential mobile view @prod
   expect(tabletResultsBounds.x).toBeGreaterThan(tabletLeftBounds.x);
   await page.getByRole('button', { name: 'Vista previa de fallo-qa.txt' }).click();
   await expect(preview.getByText('Contenido textual sintético para la vista previa.')).toBeVisible();
-  await expect(leftPanel).toBeVisible();
-  await expect(results).toBeVisible();
-  const [resultsBounds, previewBounds] = await Promise.all([results.boundingBox(), preview.boundingBox()]);
-  expect(resultsBounds).not.toBeNull();
+  await expect(leftPanel).toBeHidden();
+  await expect(results).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Volver a resultados' })).toBeVisible();
+  const previewBounds = await preview.boundingBox();
   expect(previewBounds).not.toBeNull();
-  expect(await preview.evaluate((element) => getComputedStyle(element).position)).toBe('absolute');
-  expect(previewBounds.x + previewBounds.width).toBeGreaterThan(resultsBounds.x + resultsBounds.width / 2);
-  expect(previewBounds.width).toBeGreaterThan(160);
+  expect(await preview.evaluate((element) => getComputedStyle(element).position)).toBe('relative');
+  expect(previewBounds.width).toBeGreaterThan(600);
+  await page.getByRole('button', { name: 'Volver a resultados' }).click();
+  await expect(results).toBeVisible();
+  await expect(preview).toBeHidden();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/spaces?workspaceId=${workspaceId}`);
@@ -679,6 +681,8 @@ test('mobile search keeps the query first and folds optional filters and managem
   await page.goto('/consulta');
   await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Buscar', exact: true })).toBeVisible();
+  const titleBounds = await page.getByRole('heading', { name: 'Jurisprudencia', exact: true }).boundingBox();
+  expect(titleBounds?.height, 'mobile Search heading should not break within the word').toBeLessThan(35);
   await expect(page.getByLabel('Tema')).toBeHidden();
   await expect(page.getByLabel('Fecha desde (dd/mm/aaaa)')).toBeHidden();
   await expect(page.getByRole('button', { name: 'Consejos de búsqueda' })).toHaveCount(0);
