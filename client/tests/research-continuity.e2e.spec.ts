@@ -567,16 +567,16 @@ test('public search state is canonical and a copied deep link preserves query, f
 
   await page.getByRole('link', { name: 'Ver sumario', exact: true }).click();
   await expect(page).toHaveURL(/\/consulta\/sentencia\/fallo-demo-ninez/u);
-  await expect(page.getByRole('heading', { name: 'María Núñez c/ Peña' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'María Núñez c/ Peña', level: 1 })).toBeVisible();
   await page.goBack();
   await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('responsabilidad civil');
   await expect(page.getByLabel('Filtros activos')).toContainText('Sala: Sala C');
   await page.goForward();
-  await expect(page.getByRole('heading', { name: 'María Núñez c/ Peña' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'María Núñez c/ Peña', level: 1 })).toBeVisible();
   await page.goBack();
   await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('responsabilidad civil');
   await page.getByRole('link', { name: 'Ver sumario', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'María Núñez c/ Peña' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'María Núñez c/ Peña', level: 1 })).toBeVisible();
   await page.getByRole('link', { name: 'Volver a resultados' }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe('/consulta');
   const returnedSearch = new URL(page.url()).searchParams;
@@ -593,6 +593,10 @@ test('public search state is canonical and a copied deep link preserves query, f
 test('authorized researcher can favorite results, copy an authoritative citation and save/reopen the query', async ({ page }) => {
   const { calls } = await installApiMocks(page, true);
   await page.goto('/consulta?q=da%C3%B1o&tema=Responsabilidad%20civil&sortBy=relevancia&sortOrder=desc&page=2&pageSize=25');
+  const openResultActions = async () => {
+    await page.locator('article').first().getByText('Más acciones', { exact: true }).click();
+  };
+  await openResultActions();
   await expect(page.getByRole('button', { name: 'Guardar favorito' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Guardar favorito' }).click();
@@ -606,8 +610,9 @@ test('authorized researcher can favorite results, copy an authoritative citation
   await page.getByRole('button', { name: 'Guardar favorito' }).click();
   await expect(page.getByRole('button', { name: 'Quitar favorito' })).toBeVisible();
   await page.getByRole('link', { name: 'Ver sumario', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'María Núñez c/ Peña' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'María Núñez c/ Peña', level: 1 })).toBeVisible();
   await page.getByRole('link', { name: 'Volver a resultados' }).click();
+  await openResultActions();
   await expect(page.getByRole('button', { name: 'Quitar favorito' })).toBeVisible();
   expect(calls.filter((call) => call.path === '/favoritos/77' && call.method === 'POST')).toHaveLength(2);
 
@@ -647,10 +652,16 @@ test('authorized researcher can favorite results, copy an authoritative citation
 
 test('public facets preserve the query while separating decision date from recent incorporation', async ({ page }) => {
   const { calls } = await installApiMocks(page);
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/consulta?q=responsabilidad%20civil&page=4');
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg');
   expect((await page.request.get('/favicon.svg')).status()).toBe(200);
   await expect(page.getByRole('heading', { name: 'Filtrar estos resultados' })).toBeVisible();
+  const firstResult = page.getByRole('link', { name: 'María Núñez c/ Peña', exact: true }).first();
+  await expect(firstResult).toBeInViewport();
+  const facetsToggle = page.getByRole('button', { name: /Mostrar filtros/u });
+  await expect(facetsToggle).toHaveAttribute('aria-expanded', 'false');
+  await facetsToggle.click();
   await expect(page.getByRole('button', { name: 'Sala H (8)' })).toBeVisible();
   await page.getByRole('button', { name: 'Sala H (8)' }).click();
   await expect.poll(() => new URL(page.url()).searchParams.getAll('salas')).toEqual(['H', 'Sala H']);
@@ -659,6 +670,7 @@ test('public facets preserve the query while separating decision date from recen
   await expect(page.getByLabel('Filtros activos')).toContainText('Sala: Sala H');
   const salaSearchCall = calls.filter((call) => call.path === '/public/busqueda').at(-1);
   expect(new URLSearchParams(salaSearchCall?.search).getAll('salas')).toEqual(['H', 'Sala H']);
+  await page.getByRole('button', { name: /Mostrar filtros/u }).click();
   await page.getByRole('button', { name: '2024 (7)' }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get('anio')).toBe('2024');
   expect(new URL(page.url()).searchParams.get('q')).toBe('responsabilidad civil');
@@ -784,6 +796,28 @@ test('in-document search counts local PDF matches and navigates to the matching 
     page.getByRole('button', { name: 'Descargar', exact: true }).click(),
   ]);
   expect(download.suggestedFilename()).toBe('fallo-demo.pdf');
+});
+
+test('public PDF page and zoom changes remount the embedded browser viewer', async ({ page }) => {
+  await installApiMocks(page);
+  await page.goto(`/consulta/sentencia/${DEMO_RESULT.slugPublico}/documento`);
+
+  const pageControl = page.getByRole('spinbutton', { name: 'Página' });
+  await expect(pageControl).toBeEnabled();
+  await expect(pageControl).toHaveValue('1');
+
+  const initialFrame = await page.locator('iframe').elementHandle();
+  expect(initialFrame).not.toBeNull();
+  await pageControl.fill('2');
+  await expect(page.locator('iframe')).toHaveAttribute('src', /#page=2/u);
+  await expect.poll(() => initialFrame!.evaluate((frame) => frame.isConnected)).toBe(false);
+
+  const pageTwoFrame = await page.locator('iframe').elementHandle();
+  expect(pageTwoFrame).not.toBeNull();
+  const zoom = page.getByLabel('Zoom');
+  await zoom.selectOption('100');
+  await expect(page.locator('iframe')).toHaveAttribute('src', /zoom=100/u);
+  await expect.poll(() => pageTwoFrame!.evaluate((frame) => frame.isConnected)).toBe(false);
 });
 
 test('in-document search reports a scanned PDF with no searchable text', async ({ page }) => {
@@ -912,6 +946,7 @@ test('Corpus PDF deep links normalize before React-PDF requests an invalid page'
 test('public Search results can be added to the compact evolution tray', async ({ page }) => {
   await installApiMocks(page);
   await page.goto('/consulta?q=responsabilidad%20civil');
+  await page.locator('article').first().getByText('Más acciones', { exact: true }).click();
   const addButton = page.getByRole('button', { name: 'Añadir a evolución' }).first();
   await expect(addButton).toBeVisible();
   await addButton.click();
@@ -1031,6 +1066,7 @@ test('private collections keep references and notes scoped while collection acti
   expect(await page.evaluate(() => (window as Window & { __researchXss?: boolean }).__researchXss)).toBeUndefined();
 
   await page.goto('/consulta?q=responsabilidad');
+  await page.locator('article').first().getByText('Más acciones', { exact: true }).click();
   await page.getByRole('button', { name: 'Agregar a colección' }).click();
   const dialog = page.getByRole('dialog', { name: 'Agregar a una colección' });
   await expect(dialog).toContainText('privadas de tu cuenta');

@@ -1,5 +1,6 @@
 .page { display: grid; align-content: start; gap: 1rem; min-width: 0; }
 .filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: end; gap: .8rem; }
+.filterError { margin: 8px 0 0; color: #b42318; font-size: 13px; font-weight: 600; }
 .filterActions { display: flex; flex-wrap: wrap; gap: .5rem; grid-column: 1 / -1; }
 .errorBlock { display: flex; align-items: center; flex-wrap: wrap; gap: .7rem; }
 .listHeader { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .5rem; margin-bottom: .7rem; color: #526579; }

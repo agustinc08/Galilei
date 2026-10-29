@@ -10,6 +10,7 @@ import { ExportMenu } from '@/components/ui/ExportMenu';
 import { Input } from '@/components/ui/Input';
 import { SearchAutocomplete } from '@/components/ui/SearchAutocomplete';
 import { Select } from '@/components/ui/Select';
+import { formatDateInput, maskDateInput, parseDateInput } from '@/lib/utils';
 import type { BusquedaAvanzadaFilters, ConsultaPublicaFilters } from '@/types/busqueda';
 
 export type BusquedaJurisprudenciaValores = BusquedaAvanzadaFilters & ConsultaPublicaFilters;
@@ -62,6 +63,11 @@ export function BusquedaJurisprudenciaForm({
   tribunalesOrigen = [],
 }: Props) {
   const [values, setValues] = useState<BusquedaJurisprudenciaValores>(valoresIniciales);
+  const [dateDrafts, setDateDrafts] = useState({
+    fechaDesde: formatDateInput(valoresIniciales.fechaDesde),
+    fechaHasta: formatDateInput(valoresIniciales.fechaHasta),
+  });
+  const [dateError, setDateError] = useState('');
   const advancedFilterKeys: Array<keyof BusquedaJurisprudenciaValores> = [
     'fraseExacta', 'excluir', 'tribunalOrigen', 'magistrados', 'caratula', 'actor',
     'demandado', 'objeto', 'numeroSentencia', 'numeroSumario', 'anio', 'pdf',
@@ -74,16 +80,47 @@ export function BusquedaJurisprudenciaForm({
   const [showHelp, setShowHelp] = useState(false);
   const publicMode = modo === 'publico';
 
+  const secondaryActions = (
+    <>
+      {publicMode ? <Button variant="secondary" onClick={() => setShowHelp(true)}>Consejos de búsqueda</Button> : null}
+      {!publicMode && onImprimir ? <Button variant="secondary" onClick={onImprimir}>Imprimir</Button> : null}
+      {mostrarGuardarBusqueda && onGuardarBusqueda ? <Button variant="secondary" onClick={onGuardarBusqueda}>Guardar búsqueda</Button> : null}
+      {mostrarExportar && onExportar ? <ExportMenu onExport={onExportar} /> : null}
+      {onLimpiar ? <Button variant="secondary" onClick={() => { setDateError(''); onLimpiar(); }}>Limpiar filtros</Button> : null}
+    </>
+  );
+
   const setField = (field: keyof BusquedaJurisprudenciaValores, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
+  };
+
+  const setDateDraft = (field: 'fechaDesde' | 'fechaHasta', value: string) => {
+    const draft = maskDateInput(value);
+    const parsed = draft ? parseDateInput(draft) : '';
+    setDateDrafts((current) => ({ ...current, [field]: draft }));
+    setField(field, parsed ?? '');
+    setDateError('');
   };
 
   const suggestionBase = publicMode ? '/public/busqueda' : '/busqueda';
   const autocompleteSkipAuth = publicMode;
 
   const submit = () => {
+    const fechaDesde = dateDrafts.fechaDesde ? parseDateInput(dateDrafts.fechaDesde) : '';
+    const fechaHasta = dateDrafts.fechaHasta ? parseDateInput(dateDrafts.fechaHasta) : '';
+    if ((dateDrafts.fechaDesde && !fechaDesde) || (dateDrafts.fechaHasta && !fechaHasta)) {
+      setDateError('Ingresá fechas válidas en formato dd/mm/aaaa.');
+      return;
+    }
+    if (fechaDesde && fechaHasta && fechaDesde > fechaHasta) {
+      setDateError('La fecha desde debe ser anterior o igual a la fecha hasta.');
+      return;
+    }
+    setDateError('');
     onBuscar({
       ...values,
+      fechaDesde: fechaDesde || '',
+      fechaHasta: fechaHasta || '',
       pdf: values.pdf || 'todos',
       soloConPdf: '',
       operador: values.operador || 'AND',
@@ -108,13 +145,14 @@ export function BusquedaJurisprudenciaForm({
             onSelect={(nextValue) => onBuscar({ ...values, q: nextValue, page: 1 })}
             endpoint={`${suggestionBase}/sugerencias`}
             skipAuth={autocompleteSkipAuth}
-            placeholder="Tema, palabras del fallo, carátula o expediente"
+            placeholder="Tema, palabras, carátula o expediente"
           />
           <div className={sentenciaStyles.inlineActions}>
             {publicMode ? (
               <Button
                 variant="secondary"
                 aria-expanded={showAdvanced}
+                aria-controls="public-search-filters"
                 onClick={() => setShowAdvanced((current) => !current)}
               >
                 {showAdvanced ? 'Menos filtros' : 'Más filtros'}
@@ -124,7 +162,10 @@ export function BusquedaJurisprudenciaForm({
           </div>
         </div>
 
-        <div className={consultaStyles.filtersGrid}>
+        <div
+          id="public-search-filters"
+          className={`${consultaStyles.filtersGrid} ${publicMode ? consultaStyles.publicFilterGrid : ''} ${publicMode && showAdvanced ? consultaStyles.publicFilterGridOpen : ''}`}
+        >
           <Select label="Tema" value={values.tema ?? ''} onChange={(event) => setField('tema', event.target.value)} options={[{ label: 'Todos los temas', value: '' }, ...temas.map((item) => ({ label: item, value: item }))]} />
           {salas.length ? (
             <Select label="Sala" value={values.sala ?? ''} onChange={(event) => setField('sala', event.target.value)} options={[{ label: 'Todas las salas', value: '' }, ...salas.map((item) => ({ label: item, value: item }))]} />
@@ -132,10 +173,11 @@ export function BusquedaJurisprudenciaForm({
           {tiposFallo.length ? (
             <Select label="Tipo de fallo" value={values.tipoFallo ?? ''} onChange={(event) => setField('tipoFallo', event.target.value)} options={[{ label: 'Todos los tipos', value: '' }, ...tiposFallo.map((item) => ({ label: item, value: item }))]} />
           ) : <Input label="Tipo de fallo" value={values.tipoFallo ?? ''} placeholder="Ej.: Sentencia" onChange={(event) => setField('tipoFallo', event.target.value)} />}
-          <Input label="Fecha desde (dd/mm/aaaa)" lang="es-AR" type="date" value={values.fechaDesde ?? ''} onChange={(event) => setField('fechaDesde', event.target.value)} />
-          <Input label="Fecha hasta (dd/mm/aaaa)" lang="es-AR" type="date" value={values.fechaHasta ?? ''} onChange={(event) => setField('fechaHasta', event.target.value)} />
+          <Input label="Fecha desde (dd/mm/aaaa)" type="text" inputMode="numeric" autoComplete="off" maxLength={10} placeholder="dd/mm/aaaa" value={dateDrafts.fechaDesde} onChange={(event) => setDateDraft('fechaDesde', event.target.value)} />
+          <Input label="Fecha hasta (dd/mm/aaaa)" type="text" inputMode="numeric" autoComplete="off" maxLength={10} placeholder="dd/mm/aaaa" value={dateDrafts.fechaHasta} onChange={(event) => setDateDraft('fechaHasta', event.target.value)} />
           <Input label="Expediente" value={values.expediente ?? ''} onChange={(event) => setField('expediente', event.target.value)} />
         </div>
+        {dateError ? <p className={consultaStyles.filterValidation} role="alert">{dateError}</p> : null}
 
         {showAdvanced ? (
           <div className={consultaStyles.filtersGrid}>
@@ -167,12 +209,14 @@ export function BusquedaJurisprudenciaForm({
           </div>
         ) : null}
 
-        <div className={sentenciaStyles.inlineActions}>
-          {publicMode ? <Button variant="secondary" onClick={() => setShowHelp(true)}>Consejos de búsqueda</Button> : null}
-          {!publicMode && onImprimir ? <Button variant="secondary" onClick={onImprimir}>Imprimir</Button> : null}
-          {mostrarGuardarBusqueda && onGuardarBusqueda ? <Button variant="secondary" onClick={onGuardarBusqueda}>Guardar búsqueda</Button> : null}
-          {mostrarExportar && onExportar ? <ExportMenu onExport={onExportar} /> : null}
-          {onLimpiar ? <Button variant="secondary" onClick={onLimpiar}>Limpiar filtros</Button> : null}
+        {publicMode ? (
+          <details className={consultaStyles.mobileSearchActions}>
+            <summary>Más acciones</summary>
+            <div>{secondaryActions}</div>
+          </details>
+        ) : null}
+        <div className={`${sentenciaStyles.inlineActions} ${publicMode ? consultaStyles.publicSearchActionsDesktop : ''}`}>
+          {secondaryActions}
         </div>
       </form>
       <SearchHelpModal open={showHelp} onClose={() => setShowHelp(false)} />

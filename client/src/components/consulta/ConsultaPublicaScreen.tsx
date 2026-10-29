@@ -89,6 +89,7 @@ function ConsultaPublicaScreenContent() {
   } = useCatalogos(true);
   const [result, setResult] =
     useState<PaginatedResponse<ConsultaPublicaResultado> | null>(null);
+  const [showResultFacets, setShowResultFacets] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfMessage, setPdfMessage] = useState<string | null>(null);
@@ -400,13 +401,27 @@ function ConsultaPublicaScreenContent() {
         </p>
         {user && ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user.rol.nombre) ? (
           <div className={styles.publicHeader}>
-            {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user.rol.nombre) ? (
-              <>
-                <Link href="/sentencias"><Button variant="secondary">Gestión y borradores</Button></Link>
-                <Link href="/sentencias/nueva"><Button>+ Nuevo fallo</Button></Link>
-              </>
-            ) : null}
-            <Link href="/revision"><Button variant="secondary">Requieren revisión</Button></Link>
+            <div className={styles.desktopManagementActions}>
+              {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user.rol.nombre) ? (
+                <>
+                  <Link href="/sentencias"><Button variant="secondary">Gestión y borradores</Button></Link>
+                  <Link href="/sentencias/nueva"><Button>+ Nuevo fallo</Button></Link>
+                </>
+              ) : null}
+              <Link href="/revision"><Button variant="secondary">Requieren revisión</Button></Link>
+            </div>
+            <details className={styles.mobileManagementActions}>
+              <summary>Acciones de gestión</summary>
+              <div>
+                {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user.rol.nombre) ? (
+                  <>
+                    <Link href="/sentencias"><Button variant="secondary">Gestión y borradores</Button></Link>
+                    <Link href="/sentencias/nueva"><Button>+ Nuevo fallo</Button></Link>
+                  </>
+                ) : null}
+                <Link href="/revision"><Button variant="secondary">Requieren revisión</Button></Link>
+              </div>
+            </details>
           </div>
         ) : null}
       </section>
@@ -427,39 +442,6 @@ function ConsultaPublicaScreenContent() {
         mostrarGuardarBusqueda={canManagePersonalResearch}
         mostrarFiltrosInternos={false}
       />
-
-      {recentlyPublished.length ? (
-        <Card>
-          <details className={styles.latestDetails}>
-            <summary>Fallos incorporados recientemente <span>({recentlyPublished.length})</span></summary>
-            <ul className={styles.latestList}>
-            {recentlyPublished.slice(0, 4).map((item) => (
-              <li key={item.id}>
-                {item.slugPublico ? <Link href={`/fallos/${item.slugPublico}`}>{item.caratula || item.expediente || 'Fallo publicado'}</Link> : <strong>{item.caratula || item.expediente || 'Fallo publicado'}</strong>}
-                <span> · {item.sala || 'Sin Sala informada'} · {item.fecha ? new Date(item.fecha).toLocaleDateString('es-AR') : 'Fecha no informada'}</span>
-              </li>
-            ))}
-            </ul>
-          </details>
-        </Card>
-      ) : null}
-
-      {latestByDecisionDate.length ? (
-        <Card>
-          <details className={styles.latestDetails}>
-            <summary>Fallos más recientes por fecha de decisión <span>({latestByDecisionDate.length})</span></summary>
-            <p>Ordenados por la fecha del fallo, no por la fecha en que se incorporó al sistema.</p>
-            <ul className={styles.latestList}>
-              {latestByDecisionDate.slice(0, 4).map((item) => (
-                <li key={item.id}>
-                  {item.slugPublico ? <Link href={`/fallos/${item.slugPublico}`}>{item.caratula || item.expediente || 'Fallo publicado'}</Link> : <strong>{item.caratula || item.expediente || 'Fallo publicado'}</strong>}
-                  <span> · {item.sala || 'Sin Sala informada'} · {item.fecha ? new Date(item.fecha).toLocaleDateString('es-AR') : 'Fecha no informada'}</span>
-                </li>
-              ))}
-            </ul>
-          </details>
-        </Card>
-      ) : null}
 
       {activeFilters.length ? (
         <div className={styles.activeFilters} aria-label="Filtros activos">
@@ -489,7 +471,7 @@ function ConsultaPublicaScreenContent() {
           </strong>
         </div>
         <div className={styles.toolbarRight}>
-          <Button variant="secondary" onClick={() => void handleCopySearchLink()}>Copiar enlace de búsqueda</Button>
+          <Button aria-label="Copiar enlace de búsqueda" className={styles.copySearchLink} variant="secondary" onClick={() => void handleCopySearchLink()}>Copiar enlace</Button>
           <Select
             label="Orden"
             value={`${filters.sortBy || (filters.q ? 'relevancia' : 'fecha')}:${filters.sortOrder || 'desc'}`}
@@ -509,54 +491,47 @@ function ConsultaPublicaScreenContent() {
       </div>
 
       {result && result.data.length > 0 && result.meta.facets ? (
-        <Card>
-          <section aria-labelledby="search-facets-heading" className={styles.latestDetails}>
-            <h2 id="search-facets-heading">Filtrar estos resultados</h2>
-            <p>Los conteos corresponden a la consulta y a los filtros activos.</p>
-            {result.meta.facets.salas.length ? (
+        <Card className={styles.facetCard}>
+          <section aria-labelledby="search-facets-heading" className={styles.facetSection}>
+            <div className={styles.facetHeader}>
               <div>
-                <h3>Salas</h3>
-                <div className={styles.facetList}>
-                  {result.meta.facets.salas.map((facet) => (
-                    <Button key={facet.value} variant={selectedSalaFacet(facet.filterValues) ? 'primary' : 'secondary'} onClick={() => updateRoute((current) => ({ ...current, sala: '', salas: selectedSalaFacet(facet.filterValues) ? [] : facet.filterValues, page: 1 }))}>
-                      {facet.value} ({facet.count.toLocaleString('es-AR')})
-                    </Button>
-                  ))}
-                </div>
+                <h2 id="search-facets-heading">Filtrar estos resultados</h2>
+                {showResultFacets ? <p>Los conteos corresponden a la consulta y a los filtros activos.</p> : null}
               </div>
-            ) : null}
-            {result.meta.facets.years.length ? (
-              <div>
-                <h3>Años de decisión</h3>
-                <div className={styles.facetList}>
-                  {result.meta.facets.years.map((facet) => (
-                    <Button key={facet.value} variant={filters.anio === String(facet.value) ? 'primary' : 'secondary'} onClick={() => updateRoute((current) => ({ ...current, anio: current.anio === String(facet.value) ? '' : String(facet.value), page: 1 }))}>
-                      {facet.value} ({facet.count.toLocaleString('es-AR')})
-                    </Button>
-                  ))}
+              <Button type="button" variant="secondary" aria-expanded={showResultFacets} aria-controls="search-result-facets" onClick={() => setShowResultFacets((current) => !current)}>
+                {showResultFacets ? 'Ocultar filtros' : 'Mostrar filtros'} · {result.meta.facets.salas.length + result.meta.facets.years.length}
+              </Button>
+            </div>
+            <div id="search-result-facets" className={styles.facetBody} hidden={!showResultFacets}>
+              {result.meta.facets.salas.length ? (
+                <div>
+                  <h3>Salas</h3>
+                  <div className={styles.facetList}>
+                    {result.meta.facets.salas.map((facet) => (
+                      <Button key={facet.value} variant={selectedSalaFacet(facet.filterValues) ? 'primary' : 'secondary'} onClick={() => { setShowResultFacets(true); updateRoute((current) => ({ ...current, sala: '', salas: selectedSalaFacet(facet.filterValues) ? [] : facet.filterValues, page: 1 })); }}>
+                        {facet.value} ({facet.count.toLocaleString('es-AR')})
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+              {result.meta.facets.years.length ? (
+                <div>
+                  <h3>Años de decisión</h3>
+                  <div className={styles.facetList}>
+                    {result.meta.facets.years.map((facet) => (
+                      <Button key={facet.value} variant={filters.anio === String(facet.value) ? 'primary' : 'secondary'} onClick={() => { setShowResultFacets(true); updateRoute((current) => ({ ...current, anio: current.anio === String(facet.value) ? '' : String(facet.value), page: 1 })); }}>
+                        {facet.value} ({facet.count.toLocaleString('es-AR')})
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </section>
         </Card>
       ) : null}
 
-      <p className={styles.scopeNote}>La búsqueda incluye fallos y sumarios publicados.</p>
-
-      {currentQueryExplanation ? (
-        <details className={styles.latestDetails}>
-          <summary>Cómo se interpreta esta búsqueda</summary>
-          <p>{currentQueryExplanation.summary}</p>
-          <p>{currentQueryExplanation.notes}</p>
-        </details>
-      ) : null}
-      {!filters.q?.trim() ? (
-        <details className={styles.latestDetails}>
-          <summary>Cómo se interpreta esta búsqueda</summary>
-          <p>No hay texto libre; la consulta se limita a los filtros seleccionados.</p>
-          <p>Se ignoran mayúsculas y se toleran tildes. La ñ se mantiene distinta de la n.</p>
-        </details>
-      ) : null}
       {copySearchMessage ? <div role="status">{copySearchMessage}</div> : null}
       {saveMessage ? <StatusMessage variant={saveMessage.variant} title={saveMessage.variant === 'success' ? 'Búsqueda guardada' : 'No se pudo guardar'} message={saveMessage.text} /> : null}
       {favoriteMessage ? <StatusMessage variant="error" title="Favoritos" message={favoriteMessage} /> : null}
@@ -617,6 +592,56 @@ function ConsultaPublicaScreenContent() {
           </Card>
         </>
       )}
+
+      {recentlyPublished.length || latestByDecisionDate.length ? (
+        <Card>
+          <div className={styles.recentList}>
+            {recentlyPublished.length ? (
+              <details className={styles.latestDetails}>
+                <summary>Fallos incorporados recientemente <span>({recentlyPublished.length})</span></summary>
+                <ul className={styles.latestList}>
+                  {recentlyPublished.slice(0, 4).map((item) => (
+                    <li key={item.id}>
+                      {item.slugPublico ? <Link href={`/fallos/${item.slugPublico}`}>{item.caratula || item.expediente || 'Fallo publicado'}</Link> : <strong>{item.caratula || item.expediente || 'Fallo publicado'}</strong>}
+                      <span> · {item.sala || 'Sin Sala informada'} · {item.fecha ? new Date(item.fecha).toLocaleDateString('es-AR') : 'Fecha no informada'}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+            {latestByDecisionDate.length ? (
+              <details className={styles.latestDetails}>
+                <summary>Fallos más recientes por fecha de decisión <span>({latestByDecisionDate.length})</span></summary>
+                <p>Ordenados por la fecha del fallo, no por la fecha en que se incorporó al sistema.</p>
+                <ul className={styles.latestList}>
+                  {latestByDecisionDate.slice(0, 4).map((item) => (
+                    <li key={item.id}>
+                      {item.slugPublico ? <Link href={`/fallos/${item.slugPublico}`}>{item.caratula || item.expediente || 'Fallo publicado'}</Link> : <strong>{item.caratula || item.expediente || 'Fallo publicado'}</strong>}
+                      <span> · {item.sala || 'Sin Sala informada'} · {item.fecha ? new Date(item.fecha).toLocaleDateString('es-AR') : 'Fecha no informada'}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
+
+      <p className={styles.scopeNote}>La búsqueda incluye fallos y sumarios publicados.</p>
+      {currentQueryExplanation ? (
+        <details className={styles.latestDetails}>
+          <summary>Cómo se interpreta esta búsqueda</summary>
+          <p>{currentQueryExplanation.summary}</p>
+          <p>{currentQueryExplanation.notes}</p>
+        </details>
+      ) : null}
+      {!filters.q?.trim() ? (
+        <details className={styles.latestDetails}>
+          <summary>Cómo se interpreta esta búsqueda</summary>
+          <p>No hay texto libre; la consulta se limita a los filtros seleccionados.</p>
+          <p>Se ignoran mayúsculas y se toleran tildes. La ñ se mantiene distinta de la n.</p>
+        </details>
+      ) : null}
 
       <SelectedResultsBar
         selectedCount={selectedIds.length}

@@ -9,10 +9,10 @@ import { Button } from '../ui/Button';
 import styles from './layout.module.css';
 
 const mainDestinations = [
-  { href: '/consulta', label: '⚖ Jurisprudencia', key: 'jurisprudencia' },
-  { href: '/spaces', label: '🏛 Mi Sala / Juzgado', key: 'spaces' },
-  { href: '/personal', label: '🔒 Mis documentos', key: 'personal' },
-  { href: '/colecciones', label: '📚 Mis colecciones', key: 'collections' },
+  { href: '/consulta', label: 'Jurisprudencia', key: 'jurisprudencia', icon: 'research' },
+  { href: '/spaces', label: 'Mi Sala / Juzgado', key: 'spaces', icon: 'workspace' },
+  { href: '/personal', label: 'Mis documentos', key: 'personal', icon: 'personal' },
+  { href: '/colecciones', label: 'Mis colecciones', key: 'collections', icon: 'collections' },
 ] as const;
 
 function activeDestination(pathname: string) {
@@ -34,7 +34,18 @@ function activeDestination(pathname: string) {
 }
 
 function breadcrumbLabel(key: string | null) {
-  return mainDestinations.find((item) => item.key === key)?.label.replace(/^\S+\s/u, '') ?? null;
+  return mainDestinations.find((item) => item.key === key)?.label ?? null;
+}
+
+function NavigationIcon({ name }: { name: (typeof mainDestinations)[number]['icon'] }) {
+  const paths = {
+    research: <><path d="M7 3.75h7l4 4v12.5H7z" /><path d="M14 3.75v4h4M10 12h5M10 15.5h5" /></>,
+    workspace: <><path d="M3.75 20.25h16.5M5.5 20.25V6.5l6.5-3 6.5 3v13.75" /><path d="M9 8.5h.01M15 8.5h.01M9 12h.01M15 12h.01M10 20v-4h4v4" /></>,
+    personal: <><path d="M3.75 7.25h6l1.75 2h8.75v10.5H3.75z" /><path d="M3.75 7.25V5.5h7l1.5 1.75" /></>,
+    collections: <><path d="M5 5.25h13.5M5 9.75h13.5M5 14.25h8.5M5 18.75h8.5" /><path d="M3.75 3.75h16.5v17H3.75z" /></>,
+  };
+
+  return <svg className={styles.navIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -55,12 +66,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!menuOpen) return;
     const menuButton = menuButtonRef.current;
-    sidebarRef.current?.querySelector<HTMLElement>('a, button')?.focus();
+    const focusFirstLink = window.setTimeout(() => {
+      sidebarRef.current?.querySelector<HTMLElement>('#galilei-primary-navigation a')?.focus();
+    }, 200);
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setMenuOpen(false);
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => {
+      window.clearTimeout(focusFirstLink);
       window.removeEventListener('keydown', closeOnEscape);
       menuButton?.focus();
     };
@@ -87,6 +101,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(styles.navLink, isActive && styles.navLinkActive)}
               >
+                <NavigationIcon name={item.icon} />
                 {item.label}
               </Link>
             );

@@ -74,6 +74,70 @@ export function toDateInput(value?: string | null) {
   return date.toISOString().slice(0, 10);
 }
 
+export function formatDateInput(value?: string | null) {
+  const match = value?.trim().match(/^(\d{4})-(\d{2})-(\d{2})/u);
+  if (!match) return '';
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+export function maskDateInput(value: string) {
+  const digits = value.replace(/\D/gu, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+export function parseDateInput(value: string) {
+  const match = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/u);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(0);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCFullYear(year, month - 1, day);
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  CREATE: 'Crear',
+  UPDATE: 'Actualizar',
+  DELETE: 'Eliminar',
+  PUBLICAR: 'Publicar',
+  DESPUBLICAR: 'Retirar de publicación',
+  ANONIMIZAR: 'Anonimizar',
+  DESANONIMIZAR: 'Quitar anonimización',
+  CONFIRMAR: 'Confirmar',
+  UPLOAD: 'Subir archivo',
+  DETECTAR: 'Detectar referencias',
+  PERSONAL_DOCUMENT_DELETE: 'Eliminar documento personal',
+  PERSONAL_UPLOAD: 'Subir documento personal',
+  PERSONAL_FOLDER_UPLOAD: 'Subir carpeta a Mis documentos',
+  WORKSPACE_DOCUMENT_UPLOAD: 'Subir documento al espacio',
+  WORKSPACE_DOCUMENT_DELETE: 'Eliminar documento del espacio',
+  WORKSPACE_DOCUMENT_MOVE: 'Mover documento entre espacios',
+  DOCUMENT_LINK_APPROVE: 'Aprobar vínculo documental',
+  DOCUMENT_LINK_REJECT: 'Rechazar vínculo documental',
+};
+
+export function formatAuditAction(value: string): string {
+  const knownLabel = AUDIT_ACTION_LABELS[value];
+  if (knownLabel) return knownLabel;
+
+  const words = value.replace(/[_-]+/gu, ' ').toLocaleLowerCase('es-AR').trim();
+  return words ? words[0].toLocaleUpperCase('es-AR') + words.slice(1) : 'Acción sin descripción';
+}
+
 export async function copyToClipboard(value: string): Promise<boolean> {
   if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
     try {

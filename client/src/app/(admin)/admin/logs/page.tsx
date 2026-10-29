@@ -11,7 +11,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Select } from '@/components/ui/Select';
 import { StatusMessage } from '@/components/ui/StatusMessage';
 import { api } from '@/lib/api';
-import { formatDateTime } from '@/lib/utils';
+import { formatAuditAction, formatDateInput, formatDateTime, maskDateInput, parseDateInput } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types/common';
 import type { AccionLog, LogsFilters } from '@/types/logs';
 import styles from './logs.module.css';
@@ -41,6 +41,11 @@ export default function AdminLogsPage() {
   const [selected, setSelected] = useState<AccionLog | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
+  const [dateDrafts, setDateDrafts] = useState({
+    fechaDesde: formatDateInput(defaultFilters.fechaDesde),
+    fechaHasta: formatDateInput(defaultFilters.fechaHasta),
+  });
+  const [dateError, setDateError] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const listRequest = useRef(0);
@@ -84,6 +89,31 @@ export default function AdminLogsPage() {
     setDetailLoading(false);
   };
 
+  const changeDate = (field: 'fechaDesde' | 'fechaHasta', value: string) => {
+    const draft = maskDateInput(value);
+    const parsed = draft ? parseDateInput(draft) : '';
+    setDateDrafts((current) => ({ ...current, [field]: draft }));
+    setFilters((current) => ({ ...current, [field]: parsed ?? '', page: 1 }));
+    setDateError('');
+  };
+
+  const applyFilters = () => {
+    const fechaDesde = dateDrafts.fechaDesde ? parseDateInput(dateDrafts.fechaDesde) : '';
+    const fechaHasta = dateDrafts.fechaHasta ? parseDateInput(dateDrafts.fechaHasta) : '';
+    if ((dateDrafts.fechaDesde && !fechaDesde) || (dateDrafts.fechaHasta && !fechaHasta)) {
+      setDateError('Ingresá fechas válidas en formato dd/mm/aaaa.');
+      return;
+    }
+    if (fechaDesde && fechaHasta && fechaDesde > fechaHasta) {
+      setDateError('La fecha desde debe ser anterior o igual a la fecha hasta.');
+      return;
+    }
+    setDateError('');
+    const nextFilters = { ...filters, fechaDesde: fechaDesde || '', fechaHasta: fechaHasta || '', page: 1 };
+    setFilters(nextFilters);
+    void loadList(nextFilters);
+  };
+
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadList(defaultFilters); }, 0);
     return () => window.clearTimeout(timer);
@@ -101,15 +131,16 @@ export default function AdminLogsPage() {
             onChange={(event) => setFilters((current) => ({ ...current, entidad: event.target.value, page: 1 }))} />
           <Select label="Acción" value={filters.accion ?? ''} options={accionOptions}
             onChange={(event) => setFilters((current) => ({ ...current, accion: event.target.value, page: 1 }))} />
-          <Input label="Fecha desde (dd/mm/aaaa)" lang="es-AR" type="date" value={filters.fechaDesde ?? ''}
-            onChange={(event) => setFilters((current) => ({ ...current, fechaDesde: event.target.value, page: 1 }))} />
-          <Input label="Fecha hasta (dd/mm/aaaa)" lang="es-AR" type="date" value={filters.fechaHasta ?? ''}
-            onChange={(event) => setFilters((current) => ({ ...current, fechaHasta: event.target.value, page: 1 }))} />
+          <Input label="Fecha desde (dd/mm/aaaa)" type="text" inputMode="numeric" autoComplete="off" maxLength={10} placeholder="dd/mm/aaaa" value={dateDrafts.fechaDesde}
+            onChange={(event) => changeDate('fechaDesde', event.target.value)} />
+          <Input label="Fecha hasta (dd/mm/aaaa)" type="text" inputMode="numeric" autoComplete="off" maxLength={10} placeholder="dd/mm/aaaa" value={dateDrafts.fechaHasta}
+            onChange={(event) => changeDate('fechaHasta', event.target.value)} />
           <div className={styles.filterActions}>
-            <Button onClick={() => void loadList(filters)}>Filtrar</Button>
-            <Button variant="secondary" onClick={() => { setFilters(defaultFilters); closeDetail(); void loadList(defaultFilters); }}>Limpiar</Button>
+            <Button onClick={applyFilters}>Filtrar</Button>
+            <Button variant="secondary" onClick={() => { setDateDrafts({ fechaDesde: '', fechaHasta: '' }); setDateError(''); setFilters(defaultFilters); closeDetail(); void loadList(defaultFilters); }}>Limpiar</Button>
           </div>
         </div>
+        {dateError ? <p className={styles.filterError} role="alert">{dateError}</p> : null}
       </Card>
 
       {listError ? <div className={styles.errorBlock}>
@@ -128,7 +159,7 @@ export default function AdminLogsPage() {
                     <button type="button" className={styles.logSummary} onClick={() => void loadDetail(item.id)} aria-label={`Ver detalle del registro ${item.id}`} aria-current={selectedId === item.id ? 'true' : undefined}>
                       <span><small>Fecha</small><strong>{formatDateTime(item.createdAt)}</strong></span>
                       <span><small>Usuario</small><strong>{item.usuario.nombre} {item.usuario.apellido ?? ''}</strong></span>
-                      <span><small>Acción</small><strong>{item.accion}</strong></span>
+                      <span><small>Acción</small><strong>{formatAuditAction(item.accion)}</strong></span>
                       <span className={styles.logDescription}><small>Registro</small><strong>{item.descripcion ?? `${item.entidad}${item.entidadId ? ` #${item.entidadId}` : ''}`}</strong><small>{item.entidad}</small></span>
                     </button>
                     <Button variant="secondary" onClick={() => void loadDetail(item.id)}>Ver detalle</Button>
@@ -155,7 +186,7 @@ export default function AdminLogsPage() {
                 <span>{formatDateTime(selected.createdAt)}</span>
                 <span>Usuario: {selected.usuario.nombre} {selected.usuario.apellido ?? ''} ({selected.usuario.email})</span>
                 <span>Entidad: {selected.entidad} {selected.entidadId ? `#${selected.entidadId}` : ''}</span>
-                <span>Acción: {selected.accion}</span>
+                <span>Acción: {formatAuditAction(selected.accion)}</span>
                 <details><summary>Datos anteriores</summary><pre>{JSON.stringify(selected.datosAntes ?? null, null, 2)}</pre></details>
                 <details><summary>Datos posteriores</summary><pre>{JSON.stringify(selected.datosDespues ?? null, null, 2)}</pre></details>
               </div> : null}

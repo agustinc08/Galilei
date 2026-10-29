@@ -73,6 +73,7 @@
 .navLink {
   display: flex;
   align-items: center;
+  gap: 10px;
   min-width: 0;
   min-height: 42px;
   padding: 8px 12px;
@@ -84,6 +85,12 @@
   line-height: 1.35;
   overflow-wrap: anywhere;
   transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+
+.navIcon {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
 }
 
 .navLink:hover {
@@ -304,7 +311,11 @@
     transition: transform 180ms ease, visibility 180ms;
     box-shadow: 12px 0 34px rgba(8, 30, 52, .25);
   }
-  .sidebarOpen { transform: translateX(0); visibility: visible; }
+  .sidebarOpen {
+    transform: translateX(0);
+    visibility: visible;
+    transition: transform 180ms ease, visibility 0s;
+  }
   .drawerBackdrop {
     position: fixed;
     z-index: 19;

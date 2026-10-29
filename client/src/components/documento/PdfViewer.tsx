@@ -616,7 +616,9 @@ export function PdfViewer({
         </section>
       )}
       <div className={styles.viewerFrameWrap}>
+        {/* Native PDF viewers can ignore fragment-only updates on a reused frame. */}
         <iframe
+          key={buildPdfSrc(blobUrl)}
           className={styles.viewerFrame}
           src={buildPdfSrc(blobUrl)}
           title={title}

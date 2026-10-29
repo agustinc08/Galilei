@@ -105,6 +105,41 @@ test('audit detail failure leaves the list usable and retries only the detail @p
   await expect(page.getByText('Actualizó metadatos')).toBeVisible();
 });
 
+test('audit filters use day-first dates and send ISO values @product-polish @audit-dates', async ({ page }) => {
+  await installAdminSession(page);
+  const requests = [];
+  await page.route('**/api/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/api/auth/me') return json(route, {
+      id: 8901, nombre: 'Cuenta', apellido: 'QA', email: 'admin-product-polish@example.invalid',
+      activo: true, rol: { id: 1, nombre: 'ADMIN' },
+    });
+    if (pathname === '/api/logs') {
+      const url = new URL(route.request().url());
+      requests.push({ fechaDesde: url.searchParams.get('fechaDesde'), fechaHasta: url.searchParams.get('fechaHasta') });
+      return json(route, { data: [], meta: { page: 1, pageCount: 1, total: 0, pageSize: 20 } });
+    }
+    return json(route, {});
+  });
+
+  await page.goto('/admin/logs');
+  await expect(page.getByText('Sin registros')).toBeVisible();
+  const from = page.getByLabel('Fecha desde (dd/mm/aaaa)');
+  const to = page.getByLabel('Fecha hasta (dd/mm/aaaa)');
+  await expect(from).toHaveAttribute('placeholder', 'dd/mm/aaaa');
+  await from.fill('29022024');
+  await to.fill('01032024');
+  await expect(from).toHaveValue('29/02/2024');
+  await page.getByRole('button', { name: 'Filtrar' }).click();
+  await expect.poll(() => requests.length).toBe(2);
+  expect(requests[1]).toEqual({ fechaDesde: '2024-02-29', fechaHasta: '2024-03-01' });
+
+  await from.fill('31022024');
+  await page.getByRole('button', { name: 'Filtrar' }).click();
+  await expect(page.getByRole('alert')).toHaveText('Ingresá fechas válidas en formato dd/mm/aaaa.');
+  expect(requests).toHaveLength(2);
+});
+
 test('editorial review presents evidence in human language and keeps raw keys hidden @product-polish @state', async ({ page }) => {
   await installAdminSession(page);
   await page.route('**/api/**', async (route) => {
@@ -210,4 +245,101 @@ test('workspace preview uses a tablet overlay and a sequential mobile view @prod
   expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);
+});
+
+test('mobile navigation moves focus into the drawer and restores it after Escape @product-polish @sidebar', async ({ page }) => {
+  await installAdminSession(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/api/auth/me') return json(route, {
+      id: 8901, nombre: 'Cuenta', apellido: 'QA', email: 'admin-product-polish@example.invalid',
+      activo: true, rol: { id: 1, nombre: 'ADMIN' },
+    });
+    return json(route, { data: [], meta: { page: 1, pageCount: 1, total: 0, pageSize: 25 } });
+  });
+
+  await page.goto('/consulta');
+  const trigger = page.locator('button[aria-controls="galilei-primary-navigation"]');
+  await trigger.click();
+  const primaryNavigation = page.getByRole('navigation', { name: 'Navegación principal' });
+  await expect(primaryNavigation.locator('svg')).toHaveCount(4);
+  await expect(primaryNavigation.getByRole('link', { name: 'Jurisprudencia' })).toBeVisible();
+  await expect(primaryNavigation.getByRole('link').first()).toBeFocused();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+
+  await page.keyboard.press('Escape');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(trigger).toBeFocused();
+  await expect(page.locator('aside').first()).toHaveCSS('visibility', 'hidden');
+});
+
+test('search dates display dd/mm/yyyy and submit ISO query values @product-polish @dates', async ({ page }) => {
+  await installAdminSession(page);
+  await page.route('**/api/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/api/auth/me') return json(route, {
+      id: 8901, nombre: 'Cuenta', apellido: 'QA', email: 'admin-product-polish@example.invalid',
+      activo: true, rol: { id: 1, nombre: 'ADMIN' },
+    });
+    return json(route, { data: [], meta: { page: 1, pageCount: 1, total: 0, pageSize: 25 } });
+  });
+
+  await page.goto('/consulta');
+  await expect(page.getByText('No encontramos fallos con estos criterios.')).toBeVisible();
+  const from = page.getByLabel('Fecha desde (dd/mm/aaaa)');
+  const to = page.getByLabel('Fecha hasta (dd/mm/aaaa)');
+  await expect(from).toHaveAttribute('placeholder', 'dd/mm/aaaa');
+  await expect(to).toHaveAttribute('placeholder', 'dd/mm/aaaa');
+  await from.fill('29022024');
+  await to.fill('01032024');
+  await expect(from).toHaveValue('29/02/2024');
+  await expect(to).toHaveValue('01/03/2024');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(page).toHaveURL(/fechaDesde=2024-02-29/u);
+  await expect(page).toHaveURL(/fechaHasta=2024-03-01/u);
+
+  await from.fill('31022024');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('Ingresá fechas válidas en formato dd/mm/aaaa.');
+  await expect(page).toHaveURL(/fechaDesde=2024-02-29/u);
+});
+
+test('mobile search keeps the query first and folds optional filters and management actions @product-polish @mobile-search', async ({ page }) => {
+  await installAdminSession(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/api/auth/me') return json(route, {
+      id: 8901, nombre: 'Cuenta', apellido: 'QA', email: 'admin-product-polish@example.invalid',
+      activo: true, rol: { id: 1, nombre: 'ADMIN' },
+    });
+    return json(route, { data: [], meta: { page: 1, pageCount: 1, total: 0, pageSize: 25 } });
+  });
+
+  await page.goto('/consulta');
+  await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Buscar', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Tema')).toBeHidden();
+  await expect(page.getByLabel('Fecha desde (dd/mm/aaaa)')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Consejos de búsqueda' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Guardar búsqueda' })).toHaveCount(0);
+
+  const filtersToggle = page.locator('button[aria-controls="public-search-filters"]');
+  await expect(filtersToggle).toHaveAttribute('aria-expanded', 'false');
+  await filtersToggle.click();
+  await expect(filtersToggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByLabel('Tema')).toBeVisible();
+  await expect(page.getByLabel('Fecha desde (dd/mm/aaaa)')).toBeVisible();
+
+  const management = page.locator('details').filter({ has: page.getByText('Acciones de gestión') });
+  await expect(management).toBeVisible();
+  await expect(management.getByRole('link')).toHaveCount(0);
+  await management.locator('summary').click();
+  await expect(management.getByRole('link')).toHaveCount(3);
+  const moreActions = page.locator('details').filter({ has: page.getByText('Más acciones') });
+  await expect(moreActions).toBeVisible();
+  await expect(moreActions.getByRole('button')).toHaveCount(0);
+  await moreActions.locator('summary').click();
+  await expect(moreActions.getByRole('button')).toHaveCount(3);
 });
