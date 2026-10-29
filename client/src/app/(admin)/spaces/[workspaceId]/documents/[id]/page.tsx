@@ -250,7 +250,9 @@ export default function WorkspaceDocumentViewer() {
       )}
       {document?.status === "OCR_REQUIRED" && (
         <Card>
-          <p>Procesando documento… El texto todavía no está disponible para buscar.</p>
+          <p role="status">
+            El PDF original está disponible. Todavía no hay texto para buscar; puede requerir OCR y revisión.
+          </p>
         </Card>
       )}
       {document?.status === "OCR_FAILED" && (
@@ -269,9 +271,10 @@ export default function WorkspaceDocumentViewer() {
             aria-label="Buscar en el documento"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar y resaltar en el documento"
+            placeholder={document?.status === "OCR_REQUIRED" ? "El texto todavía no está disponible" : "Buscar y resaltar en el documento"}
+            disabled={document?.status === "OCR_REQUIRED"}
           />
-          <button>Buscar</button>
+          <button disabled={document?.status === "OCR_REQUIRED"}>Buscar</button>
         </form>
         {matches && (
           <p>
@@ -315,16 +318,20 @@ export default function WorkspaceDocumentViewer() {
             marginBottom: 12,
           }}
         >
-          {isPdf && (<button
+          {isPdf && document?.status !== "OCR_REQUIRED" && (<button
             disabled={page <= 1}
             onClick={() => setPage((value) => Math.max(1, value - 1))}
           >
             Página anterior
           </button>)}
           <span>
-            {isPdf ? "Página " + page + " de " + (effectivePageCount || "?") : "Texto extraído"}
+            {isPdf && document?.status === "OCR_REQUIRED"
+              ? "PDF original · navegación del visor"
+              : isPdf
+                ? "Página " + page + " de " + (effectivePageCount || "?")
+                : "Texto extraído"}
           </span>
-          {isPdf && (<button
+          {isPdf && document?.status !== "OCR_REQUIRED" && (<button
             disabled={!!effectivePageCount && page >= effectivePageCount}
             onClick={() => setPage((value) => value + 1)}
           >
@@ -348,15 +355,23 @@ export default function WorkspaceDocumentViewer() {
           {document?.selectedPage?.textKind === 'OCR' && (
             <p role="status">Texto reconocido automáticamente. La navegación está disponible; el resaltado visual no está disponible para texto reconocido.</p>
           )}
-          <CorpusPdfViewer
-            file={pdf}
-            page={page}
-            matches={matches?.matches ?? []}
-            activeMatch={active}
-            onLoadSuccess={setPageCount}
-            structurePath={`/workspaces/${params.workspaceId}/documents/${params.id}/structure`}
-            onGoToPage={setPage}
-          />
+          {isPdf && document?.status === "OCR_REQUIRED" ? (
+            <iframe
+              className={styles.workspacePdfNativeViewer}
+              title={`PDF original: ${document.file?.filename ?? document.title}`}
+              src={pdf}
+            />
+          ) : (
+            <CorpusPdfViewer
+              file={pdf}
+              page={page}
+              matches={matches?.matches ?? []}
+              activeMatch={active}
+              onLoadSuccess={setPageCount}
+              structurePath={`/workspaces/${params.workspaceId}/documents/${params.id}/structure`}
+              onGoToPage={setPage}
+            />
+          )}
           </>
         ) : (
           <p>Cargando documento…</p>

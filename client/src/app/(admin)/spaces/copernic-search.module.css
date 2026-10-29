@@ -238,6 +238,7 @@
 .pdfPreview :global(.react-pdf__Page__canvas) { max-width: 100%; height: auto !important; }
 .pdfPreview :global(.bjc-pdf-match) { background: #ffe082; color: #263646; }
 .pdfPreview :global(.bjc-pdf-match-current) { background: #f4a261; color: #172a3a; outline: 2px solid #bd642c; border-radius: 2px; }
+.workspacePdfNativeViewer { display: block; width: 100%; height: min(72vh, 820px); min-height: min(440px, 60vh); border: 1px solid #cbd5e1; border-radius: .55rem; background: #e5eaf0; }
 .textPreview { flex: 1 1 auto; min-height: 15rem; margin: 0; padding: .9rem; overflow: auto; color: #2b3e50; background: #fff; white-space: pre-wrap; overflow-wrap: anywhere; font: .75rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .textPreview :global(.bjc-text-match) { background: #ffe082; color: #263646; }
 .textPreview :global(.bjc-text-match-current) { background: #f4a261; color: #172a3a; outline: 2px solid #bd642c; border-radius: 2px; }
@@ -246,6 +247,10 @@
 .matchNavigator > div { gap: .25rem; }
 .truncatedNote { margin: 0; padding: 0 .65rem .55rem; color: #7b8996; background: #fff; font-size: .63rem; }
 .visuallyHidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+@media (max-width: 600px) {
+  .workspacePdfNativeViewer { height: min(62vh, 620px); min-height: min(380px, 48vh); }
+}
 
 .leftCollapsed { grid-template-columns: 2.7rem minmax(20rem, 1fr) minmax(18rem, 32%); }
 .leftCollapsed .leftPanel > .panelHeading { flex-direction: column; padding: .4rem; }
