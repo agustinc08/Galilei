@@ -233,6 +233,7 @@
 .viewerError { margin: 1rem 0; padding: .85rem 1rem; border: 1px solid #efc4bf; border-radius: .55rem; color: #8f302a; background: #fff6f4; font-size: .9rem; line-height: 1.5; }
 .previewToolbar { justify-content: space-between; gap: .5rem; padding: .45rem .65rem; color: #536c80; background: #f0f4f7; font-size: .68rem; }
 .pageControls { gap: .25rem; }
+.pageControls[hidden] { display: none; }
 .pageControls button { min-width: 1.9rem; font-size: 1rem; line-height: 1; }
 .pdfPreview { flex: 1 0 15rem; min-height: 15rem; overflow: auto; background: #e7ebef; }
 .pdfPreview :global(.pdfDocument) { min-height: 15rem; padding: .45rem; }

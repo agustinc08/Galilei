@@ -1584,7 +1584,7 @@ export function CopernicWorkspaceSearch() {
                         <p className={styles.missingSourceNote}>Procesando documento… La búsqueda se actualizará cuando termine.</p>
                       )}
                       {preview.document.status === "OCR_REQUIRED" && (
-                        <p className={styles.missingSourceNote}>Procesando documento… El texto todavía no está disponible para buscar.</p>
+                        <p className={styles.missingSourceNote}>El PDF original está disponible. El texto requiere OCR y revisión antes de poder buscarlo; podés navegarlo en el visor.</p>
                       )}
                       {preview.document.status === "OCR_FAILED" && (
                         <p className={styles.missingSourceNote}>No pudimos extraer el texto de este archivo.</p>
@@ -1594,9 +1594,13 @@ export function CopernicWorkspaceSearch() {
                       )}
                       <div className={styles.previewToolbar}>
                         <span>
-                          {preview.document.file?.mimeType === "application/pdf" ? "Página " + previewPage + " de " + (previewPageCount || preview.document.file?.pageCount || preview.document.extraction?.pageCount || "?") : "Texto extraído"}
+                          {preview.document.file?.mimeType === "application/pdf"
+                            ? preview.document.status === "OCR_REQUIRED"
+                              ? "PDF original · navegación del visor"
+                              : "Página " + previewPage + " de " + (previewPageCount || preview.document.file?.pageCount || preview.document.extraction?.pageCount || "?")
+                            : "Texto extraído"}
                         </span>
-                        <div className={styles.pageControls} hidden={preview.document.file?.mimeType !== "application/pdf"}>
+                        <div className={styles.pageControls} hidden={preview.document.file?.mimeType !== "application/pdf" || preview.document.status === "OCR_REQUIRED"}>
                           <button
                             type="button"
                             aria-label="Página anterior"
@@ -1617,15 +1621,23 @@ export function CopernicWorkspaceSearch() {
                       </div>
                       {preview.document.file?.mimeType === "application/pdf" ? (
                         <div className={styles.pdfPreview}>
-                          <CorpusPdfViewer
-                            file={preview.fileUrl}
-                            page={previewPage}
-                            matches={preview.matches.matches}
-                            activeMatch={selectedMatchIndex}
-                            onLoadSuccess={setPreviewPageCount}
-                            structurePath={`/workspaces/${workspaceId}/documents/${preview.document.id}/structure`}
-                            onGoToPage={setPreviewPage}
-                          />
+                          {preview.document.status === "OCR_REQUIRED" ? (
+                            <iframe
+                              className={styles.workspacePdfNativeViewer}
+                              title={`PDF original: ${preview.document.file?.filename ?? preview.document.title}`}
+                              src={preview.fileUrl}
+                            />
+                          ) : (
+                            <CorpusPdfViewer
+                              file={preview.fileUrl}
+                              page={previewPage}
+                              matches={preview.matches.matches}
+                              activeMatch={selectedMatchIndex}
+                              onLoadSuccess={setPreviewPageCount}
+                              structurePath={`/workspaces/${workspaceId}/documents/${preview.document.id}/structure`}
+                              onGoToPage={setPreviewPage}
+                            />
+                          )}
                         </div>
                       ) : preview.document.file ? (
                         <pre className={styles.textPreview} aria-label="Vista previa del texto extraído">
@@ -1641,7 +1653,7 @@ export function CopernicWorkspaceSearch() {
                           <p>{selectedHit.snippet ?? "Podés abrir o descargar el documento."}</p>
                         </div>
                       )}
-                      <div className={styles.matchNavigator}>
+                      {preview.document.status !== "OCR_REQUIRED" && <div className={styles.matchNavigator}>
                         <span aria-live="polite">
                           {preview.matches.matches.length
                             ? `Coincidencia ${Math.min(selectedMatchIndex + 1, preview.matches.matches.length)} de ${preview.matches.total}${preview.matches.truncated ? "+" : ""}`
@@ -1665,7 +1677,7 @@ export function CopernicWorkspaceSearch() {
                             Siguiente
                           </button>
                         </div>
-                      </div>
+                      </div>}
                       {preview.matches.truncated && (
                         <p className={styles.truncatedNote}>Se muestran las primeras 500 coincidencias.</p>
                       )}

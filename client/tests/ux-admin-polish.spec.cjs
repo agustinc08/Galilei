@@ -22,6 +22,28 @@ function json(route, body, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
+function makePdfFixture() {
+  const stream = 'BT /F1 14 Tf 72 720 Td (Original QA PDF page) Tj ET';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let source = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const [index, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(source, 'binary'));
+    source += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  }
+  const xrefOffset = Buffer.byteLength(source, 'binary');
+  source += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) source += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  source += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(source, 'binary');
+}
+
 test('dashboard ends a failed load, shows its tracking id, and retries without reload @product-polish @state', async ({ page }) => {
   await installAdminSession(page);
   let summaryRequests = 0;
@@ -242,6 +264,59 @@ test('workspace preview uses a tablet overlay and a sequential mobile view @prod
   await expect(preview).toBeHidden();
   await expect(results).toBeVisible();
   await expect(page.getByRole('button', { name: 'Vista previa de fallo-qa.txt' })).toBeVisible();
+  expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+  expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
+  expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);
+});
+
+test('workspace shows OCR-required originals in the native PDF viewer @product-polish @workspace @ocr', async ({ page }) => {
+  const reader = {
+    id: 8903, nombre: 'Cuenta', apellido: 'Sala QA', email: 'ocr-reader-product-polish@example.invalid',
+    activo: true, rol: { id: 6, nombre: 'LECTOR' },
+  };
+  const workspaceId = 'synthetic-ocr-pdf-sala';
+  const documentId = 'synthetic-ocr-pdf-document';
+  await page.addInitScript((user) => {
+    localStorage.setItem('jurisprudencia_token', 'synthetic-ocr-workspace-token');
+    localStorage.setItem('jurisprudencia_user', JSON.stringify(user));
+  }, reader);
+  await page.route('**/api/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/api/auth/me') return json(route, reader);
+    if (pathname === '/api/workspaces/mine') return json(route, [{
+      id: workspaceId, name: 'Sala OCR QA', code: 'SALA-OCR-QA', type: 'SALA', role: 'VIEWER',
+    }]);
+    if (pathname === `/api/workspaces/${workspaceId}/folders` || pathname === `/api/workspaces/${workspaceId}/search/sources`) return json(route, []);
+    if (pathname === `/api/workspaces/${workspaceId}/documents/${documentId}/file`) {
+      return route.fulfill({ status: 200, contentType: 'application/pdf', body: makePdfFixture() });
+    }
+    if (pathname === `/api/workspaces/${workspaceId}/documents/${documentId}`) return json(route, {
+      id: documentId, title: 'Sentencia escaneada', status: 'OCR_REQUIRED',
+      file: { filename: 'sentencia-sin-texto.pdf', mimeType: 'application/pdf', pageCount: 1 },
+      extraction: { status: 'REVIEW_REQUIRED', pageCount: 1 },
+      selectedPage: { pageNumber: 1, text: '', textKind: null },
+    });
+    if (pathname.startsWith(`/api/workspaces/${workspaceId}/documents`)) return json(route, {
+      page: 1, pageSize: 20, total: 1,
+      results: [{ createdAt: '2026-10-29T12:00:00.000Z', folder: null, document: {
+        id: documentId, title: 'Sentencia escaneada', status: 'OCR_REQUIRED',
+        file: { filename: 'sentencia-sin-texto.pdf', mimeType: 'application/pdf', pageCount: 1 },
+      } }],
+    });
+    return json(route, {});
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/spaces?workspaceId=${workspaceId}`);
+  await page.getByRole('button', { name: 'Vista previa de sentencia-sin-texto.pdf' }).click();
+  const preview = page.getByRole('complementary', { name: 'Vista previa del documento' });
+  const nativePdf = preview.getByTitle('PDF original: sentencia-sin-texto.pdf');
+  await expect(nativePdf).toBeVisible();
+  expect(await nativePdf.evaluate((frame) => frame.getBoundingClientRect().height)).toBeGreaterThan(300);
+  await expect(preview.getByText('PDF original · navegación del visor')).toBeVisible();
+  await expect(preview.getByRole('button', { name: 'Página siguiente' })).toBeHidden();
+  await expect(preview.locator('canvas')).toHaveCount(0);
+  await expect(preview.getByText('El PDF original está disponible. El texto requiere OCR y revisión antes de poder buscarlo; podés navegarlo en el visor.')).toBeVisible();
   expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);
