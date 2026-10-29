@@ -8,6 +8,128 @@ import {
 } from './opensearch-mapping';
 
 describe('OpenSearchIndexService managed aliases', () => {
+  it('verifies all indexed IDs from one point-in-time snapshot with efficient cursors', async () => {
+    const createPit = jest.fn().mockResolvedValue({
+      body: { pit_id: 'pit-1', _shards: { failed: 0 } },
+    });
+    const search = jest
+      .fn()
+      .mockResolvedValueOnce({
+        body: {
+          pit_id: 'pit-2',
+          hits: {
+            hits: [
+              { _id: 'CORPUS:one', sort: ['CORPUS:one'] },
+              {
+                _id: 'JURISPRUDENCIA:SUMARIO:7',
+                sort: ['JURISPRUDENCIA:SUMARIO:7'],
+              },
+              {
+                _id: 'JURISPRUDENCIA:SENTENCIA:9',
+                sort: ['JURISPRUDENCIA:SENTENCIA:9'],
+              },
+            ],
+          },
+        },
+      })
+      .mockResolvedValueOnce({ body: { hits: { hits: [] } } })
+      .mockResolvedValueOnce({
+        body: {
+          pit_id: 'pit-3',
+          hits: {
+            hits: [
+              {
+                _id: 'JURISPRUDENCIA:SENTENCIA:9',
+                sort: ['JURISPRUDENCIA:SENTENCIA:9'],
+              },
+            ],
+          },
+        },
+      })
+      .mockResolvedValueOnce({ body: { hits: { hits: [] } } });
+    const deletePit = jest.fn().mockResolvedValue({ body: { pits: [] } });
+    const service = new OpenSearchIndexService(
+      { createPit, search, deletePit } as unknown as Client,
+      {} as OpenSearchDocumentRepository,
+      'galilei-search-active',
+      'galilei-search',
+      4,
+      false,
+      'galilei-search-v004-test',
+      false,
+      true,
+    );
+    const result = await (
+      service as unknown as {
+        readAllIds: (index: string) => Promise<{
+          all: string[];
+          corpus: string[];
+          sumarios: string[];
+          sentencias: string[];
+          publishedSentencias: string[];
+        }>;
+      }
+    ).readAllIds('galilei-search-v004-test');
+    const searchCalls = search.mock.calls as unknown as Array<
+      [{ body: Record<string, unknown> }]
+    >;
+
+    expect(createPit).toHaveBeenCalledWith({
+      index: ['galilei-search-v004-test'],
+      keep_alive: '5m',
+      allow_partial_pit_creation: false,
+      ignore_unavailable: false,
+    });
+    expect(searchCalls[0]?.[0]).toMatchObject({
+      body: {
+        size: 500,
+        pit: { id: 'pit-1', keep_alive: '5m' },
+        track_total_hits: false,
+        _source: false,
+        sort: [{ id: { order: 'asc' } }],
+      },
+    });
+    expect(searchCalls[1]?.[0]).toMatchObject({
+      body: {
+        pit: { id: 'pit-2', keep_alive: '5m' },
+        search_after: ['JURISPRUDENCIA:SENTENCIA:9'],
+      },
+    });
+    expect(searchCalls[2]?.[0]).toMatchObject({
+      body: {
+        pit: { id: 'pit-2', keep_alive: '5m' },
+        query: {
+          bool: {
+            filter: [
+              { term: { sourceSystem: 'JURISPRUDENCIA' } },
+              { term: { sourceType: 'SENTENCIA' } },
+              { term: { publicationStatus: 'PUBLISHED' } },
+            ],
+          },
+        },
+      },
+    });
+    expect(searchCalls[2]?.[0].body).not.toHaveProperty('search_after');
+    expect(searchCalls[3]?.[0]).toMatchObject({
+      body: {
+        pit: { id: 'pit-3', keep_alive: '5m' },
+        search_after: ['JURISPRUDENCIA:SENTENCIA:9'],
+      },
+    });
+    expect(result).toEqual({
+      all: [
+        'CORPUS:one',
+        'JURISPRUDENCIA:SUMARIO:7',
+        'JURISPRUDENCIA:SENTENCIA:9',
+      ],
+      corpus: ['CORPUS:one'],
+      sumarios: ['JURISPRUDENCIA:SUMARIO:7'],
+      sentencias: ['JURISPRUDENCIA:SENTENCIA:9'],
+      publishedSentencias: ['JURISPRUDENCIA:SENTENCIA:9'],
+    });
+    expect(deletePit).toHaveBeenCalledWith({ body: { pit_id: ['pit-3'] } });
+  });
+
   it('recognizes a physical index under the isolated preproduction prefix', async () => {
     const getAlias = jest.fn().mockResolvedValue({
       body: {

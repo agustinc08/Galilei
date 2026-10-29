@@ -90,12 +90,12 @@ function normalizeOpenSearchMappingDefaults(value: unknown): unknown {
 }
 
 type SearchHitsResponse = {
+  pit_id?: string;
   hits?: {
     total?: { value: number; relation: 'eq' | 'gte' };
     hits?: Array<{
       _id: string;
       sort?: NonNullable<API.Search_RequestBody['search_after']>;
-      _source?: { publicationStatus?: string };
     }>;
   };
 };
@@ -810,6 +810,7 @@ export class OpenSearchIndexService {
     index: string,
     expectedSchemaVersion: number | undefined = this.schemaVersion,
   ) {
+    const diagnostics = process.env.OPENSEARCH_DIAGNOSTICS_SAFE === 'true';
     const [mappingResponse, countResponse] = await Promise.all([
       this.client.indices.getMapping({ index }),
       this.client.count({ index, body: { query: { match_all: {} } } }),
@@ -829,8 +830,24 @@ export class OpenSearchIndexService {
     )
       throw new Error('SEARCH_INDEX_SCHEMA_VERSION_MISMATCH');
     const count = bodyOf<{ count: number }>(countResponse).count;
+    if (diagnostics)
+      console.error(JSON.stringify({ event: 'search-verify-metadata-ready' }));
     const actual = await this.readAllIds(index);
+    if (diagnostics)
+      console.error(
+        JSON.stringify({
+          event: 'search-verify-index-scan-complete',
+          indexedIds: actual.all.length,
+        }),
+      );
     const expected = await this.expectedIds();
+    if (diagnostics)
+      console.error(
+        JSON.stringify({
+          event: 'search-verify-source-scan-complete',
+          expectedIds: expected.all.length,
+        }),
+      );
     const expectedSet = new Set(expected.all);
     const actualSet = new Set(actual.all);
     const missing = [...expectedSet].filter((id) => !actualSet.has(id));
@@ -1151,21 +1168,64 @@ export class OpenSearchIndexService {
     const sumarios: string[] = [];
     const sentencias: string[] = [];
     const publishedSentencias: string[] = [];
+    const diagnostics = process.env.OPENSEARCH_DIAGNOSTICS_SAFE === 'true';
     await this.repository.withReadSnapshot(async (pg) => {
       let after = '';
+      let corpusPage = 0;
       for (;;) {
+        const page = ++corpusPage;
+        const pageStartedAt = Date.now();
+        if (diagnostics)
+          console.error(
+            JSON.stringify({
+              event: 'search-verify-source-page-start',
+              source: 'CORPUS',
+              page,
+            }),
+          );
         const ids = await this.repository.corpusEligibleIdPage(pg, after, 1000);
+        if (diagnostics)
+          console.error(
+            JSON.stringify({
+              event: 'search-verify-source-page-complete',
+              source: 'CORPUS',
+              page,
+              rows: ids.length,
+              elapsedMs: Date.now() - pageStartedAt,
+            }),
+          );
         if (!ids.length) break;
         corpus.push(...ids);
         after = ids[ids.length - 1];
       }
       let afterSumario = 0;
+      let sumarioPage = 0;
       for (;;) {
+        const page = ++sumarioPage;
+        const pageStartedAt = Date.now();
+        if (diagnostics)
+          console.error(
+            JSON.stringify({
+              event: 'search-verify-source-page-start',
+              source: 'SUMARIO',
+              page,
+            }),
+          );
         const ids = await this.repository.jurisprudenciaEligibleIdPage(
           pg,
           afterSumario,
           1000,
         );
+        if (diagnostics)
+          console.error(
+            JSON.stringify({
+              event: 'search-verify-source-page-complete',
+              source: 'SUMARIO',
+              page,
+              rows: ids.length,
+              elapsedMs: Date.now() - pageStartedAt,
+            }),
+          );
         if (!ids.length) break;
         const logicalIds = ids.map((id) => `JURISPRUDENCIA:SUMARIO:${id}`);
         sumarios.push(...logicalIds);
@@ -1173,12 +1233,33 @@ export class OpenSearchIndexService {
         afterSumario = ids[ids.length - 1];
       }
       let afterSentencia = 0;
+      let sentenciaPage = 0;
       for (;;) {
+        const page = ++sentenciaPage;
+        const pageStartedAt = Date.now();
+        if (diagnostics)
+          console.error(
+            JSON.stringify({
+              event: 'search-verify-source-page-start',
+              source: 'SENTENCIA',
+              page,
+            }),
+          );
         const rows = await this.repository.sentenciaEligibleIdPage(
           pg,
           afterSentencia,
           1000,
         );
+        if (diagnostics)
+          console.error(
+            JSON.stringify({
+              event: 'search-verify-source-page-complete',
+              source: 'SENTENCIA',
+              page,
+              rows: rows.length,
+              elapsedMs: Date.now() - pageStartedAt,
+            }),
+          );
         if (!rows.length) break;
         const ids = rows.map((row) => `JURISPRUDENCIA:SENTENCIA:${row.id}`);
         sentencias.push(...ids);
@@ -1200,38 +1281,120 @@ export class OpenSearchIndexService {
     const sumarios: string[] = [];
     const sentencias: string[] = [];
     const publishedSentencias: string[] = [];
+    const pitResponse = await this.client.createPit({
+      index: [index],
+      keep_alive: '5m',
+      allow_partial_pit_creation: false,
+      ignore_unavailable: false,
+    });
+    const pit = bodyOf<{ pit_id?: string; _shards?: { failed?: number } }>(
+      pitResponse,
+    );
+    if (!pit.pit_id) throw new Error('SEARCH_VERIFY_PIT_CREATION_FAILED');
+    let pitId = pit.pit_id;
+    if ((pit._shards?.failed ?? 0) > 0) {
+      await this.client
+        .deletePit({ body: { pit_id: [pitId] } })
+        .catch(() => undefined);
+      throw new Error('SEARCH_VERIFY_PIT_CREATION_FAILED');
+    }
     let searchAfter:
       NonNullable<API.Search_RequestBody['search_after']> | undefined;
-    for (;;) {
-      const response = await this.client.search({
-        index: [index],
-        body: {
-          size: 1000,
-          track_total_hits: true,
-          _source: ['sourceSystem', 'sourceType', 'publicationStatus'],
-          sort: [{ id: { order: 'asc' } }],
-          ...(searchAfter ? { search_after: searchAfter } : {}),
-        },
-      });
-      const body = bodyOf<SearchHitsResponse>(response);
-      if (body.hits?.total?.relation !== 'eq')
-        throw new Error('SEARCH_VERIFY_NON_EXACT_TOTAL');
-      const hits = body.hits.hits ?? [];
-      if (!hits.length) break;
-      for (const hit of hits) {
-        all.push(hit._id);
-        if (hit._id.startsWith('JURISPRUDENCIA:SUMARIO:'))
-          sumarios.push(hit._id);
-        else if (hit._id.startsWith('JURISPRUDENCIA:SENTENCIA:')) {
-          sentencias.push(hit._id);
-          if (hit._source?.publicationStatus === 'PUBLISHED')
-            publishedSentencias.push(hit._id);
-        } else corpus.push(hit._id);
+    let page = 0;
+    try {
+      for (;;) {
+        const pageStartedAt = Date.now();
+        const response = await this.client.search({
+          body: {
+            size: 500,
+            pit: { id: pitId, keep_alive: '5m' },
+            track_total_hits: false,
+            _source: false,
+            // A unique keyword field is required as a stable search_after
+            // cursor across segments. _doc is not a unique global key, so it
+            // can skip documents in a multi-segment index during verification.
+            sort: [{ id: { order: 'asc' } }],
+            ...(searchAfter ? { search_after: searchAfter } : {}),
+          },
+        });
+        const body = bodyOf<SearchHitsResponse>(response);
+        pitId = body.pit_id ?? pitId;
+        const hits = body.hits?.hits ?? [];
+        page += 1;
+        if (process.env.OPENSEARCH_DIAGNOSTICS_SAFE === 'true')
+          console.error(
+            JSON.stringify({
+              event: 'search-verify-index-page',
+              page,
+              hitCount: hits.length,
+              elapsedMs: Date.now() - pageStartedAt,
+            }),
+          );
+        if (!hits.length) break;
+        for (const hit of hits) {
+          all.push(hit._id);
+          if (hit._id.startsWith('JURISPRUDENCIA:SUMARIO:'))
+            sumarios.push(hit._id);
+          else if (hit._id.startsWith('JURISPRUDENCIA:SENTENCIA:'))
+            sentencias.push(hit._id);
+          else corpus.push(hit._id);
+        }
+        searchAfter = hits[hits.length - 1].sort;
+        if (!searchAfter) throw new Error('SEARCH_VERIFY_SORT_VALUE_MISSING');
       }
-      searchAfter = hits[hits.length - 1].sort;
-      if (!searchAfter) throw new Error('SEARCH_VERIFY_SORT_VALUE_MISSING');
+      let publishedSearchAfter:
+        NonNullable<API.Search_RequestBody['search_after']> | undefined;
+      for (;;) {
+        const pageStartedAt = Date.now();
+        const response = await this.client.search({
+          body: {
+            size: 500,
+            pit: { id: pitId, keep_alive: '5m' },
+            track_total_hits: false,
+            _source: false,
+            query: {
+              bool: {
+                filter: [
+                  { term: { sourceSystem: 'JURISPRUDENCIA' } },
+                  { term: { sourceType: 'SENTENCIA' } },
+                  { term: { publicationStatus: 'PUBLISHED' } },
+                ],
+              },
+            },
+            sort: [{ id: { order: 'asc' } }],
+            ...(publishedSearchAfter
+              ? { search_after: publishedSearchAfter }
+              : {}),
+          },
+        });
+        const body = bodyOf<SearchHitsResponse>(response);
+        pitId = body.pit_id ?? pitId;
+        const hits = body.hits?.hits ?? [];
+        page += 1;
+        if (process.env.OPENSEARCH_DIAGNOSTICS_SAFE === 'true')
+          console.error(
+            JSON.stringify({
+              event: 'search-verify-published-page',
+              page,
+              hitCount: hits.length,
+              elapsedMs: Date.now() - pageStartedAt,
+            }),
+          );
+        if (!hits.length) break;
+        for (const hit of hits) {
+          if (hit._id.startsWith('JURISPRUDENCIA:SENTENCIA:'))
+            publishedSentencias.push(hit._id);
+        }
+        publishedSearchAfter = hits[hits.length - 1].sort;
+        if (!publishedSearchAfter)
+          throw new Error('SEARCH_VERIFY_SORT_VALUE_MISSING');
+      }
+      return { all, corpus, sumarios, sentencias, publishedSentencias };
+    } finally {
+      await this.client
+        .deletePit({ body: { pit_id: [pitId] } })
+        .catch(() => undefined);
     }
-    return { all, corpus, sumarios, sentencias, publishedSentencias };
   }
 
   private async resolveKey(

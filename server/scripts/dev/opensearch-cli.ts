@@ -82,8 +82,9 @@ async function main() {
 
 function loadLocalEnvironment() {
   const localFile = resolve(process.cwd(), '.env.development.local');
-  let file = localFile;
-  if (!existsSync(localFile)) {
+  const configuredFile = process.env.DOTENV_CONFIG_PATH;
+  let file = configuredFile ? resolve(configuredFile) : localFile;
+  if (!existsSync(file)) {
     let canonicalRepositoryRoot = resolve(process.cwd(), '..');
     try {
       const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
@@ -97,12 +98,7 @@ function loadLocalEnvironment() {
     } catch {
       // Outside a Git checkout, use only the package-local environment file.
     }
-    file = resolve(
-      canonicalRepositoryRoot,
-      'JurisprudenciaN',
-      'back',
-      '.env.development.local',
-    );
+    file = resolve(canonicalRepositoryRoot, 'server', '.env.development.local');
   }
 
   let contents: string;
@@ -132,9 +128,35 @@ void main().catch((error: unknown) => {
     safeCode = 'DEV_DATABASE_STATEMENT_TIMEOUT';
   else if (databaseCode === '55P03')
     safeCode = 'DEV_DATABASE_LOCK_NOT_AVAILABLE';
-  console.error(safeCode);
+  if (process.env.OPENSEARCH_DIAGNOSTICS_SAFE === 'true') {
+    const diagnostic = safeOpenSearchDiagnostic(error);
+    console.error(JSON.stringify({ code: safeCode, ...diagnostic }));
+  } else console.error(safeCode);
   process.exitCode = 1;
 });
+
+function safeOpenSearchDiagnostic(error: unknown) {
+  if (!error || typeof error !== 'object') return {};
+  const value = error as {
+    name?: unknown;
+    meta?: {
+      statusCode?: unknown;
+      body?: { error?: { type?: unknown; reason?: unknown } };
+    };
+  };
+  const statusCode = value.meta?.statusCode;
+  const type = value.meta?.body?.error?.type;
+  const reason = value.meta?.body?.error?.reason;
+  return {
+    name: typeof value.name === 'string' ? value.name : undefined,
+    statusCode: typeof statusCode === 'number' ? statusCode : undefined,
+    type: typeof type === 'string' ? type.slice(0, 80) : undefined,
+    reason:
+      typeof reason === 'string'
+        ? reason.replace(/[\r\n\t]+/gu, ' ').slice(0, 240)
+        : undefined,
+  };
+}
 
 function readDatabaseErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== 'object') return undefined;

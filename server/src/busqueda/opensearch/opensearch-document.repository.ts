@@ -205,6 +205,33 @@ export class OpenSearchDocumentRepository {
     });
   }
 
+  /**
+   * Queue exact Search deletes for already-absent Corpus rows after an
+   * operator has verified the orphan IDs against the active index. The
+   * OpenSearch worker remains the only component that applies the deletion.
+   */
+  async enqueueDeleteForMissingCorpusDocuments(documentIds: string[]) {
+    const uniqueIds = [...new Set(documentIds)];
+    if (!uniqueIds.every((id) => /^c[a-z0-9]{24}$/u.test(id)))
+      throw new Error('SEARCH_ORPHAN_CORPUS_ID_INVALID');
+    if (!uniqueIds.length) return 0;
+
+    const result = await this.pool.query<{ id: string }>(
+      `INSERT INTO "SearchIndexOutbox" ("documentKey", "operation")
+       SELECT 'CORPUS:' || candidate."documentId", 'DELETE'
+         FROM unnest($1::text[]) AS candidate("documentId")
+        WHERE NOT EXISTS (
+          SELECT 1 FROM "SearchIndexOutbox" existing
+           WHERE existing."documentKey" = 'CORPUS:' || candidate."documentId"
+             AND existing."operation" = 'DELETE'
+             AND existing."processedAt" IS NULL
+        )
+       RETURNING "id"::text AS id`,
+      [uniqueIds],
+    );
+    return result.rowCount ?? result.rows.length;
+  }
+
   async withReadSnapshot<T>(
     run: (client: PoolClient) => Promise<T>,
   ): Promise<T> {

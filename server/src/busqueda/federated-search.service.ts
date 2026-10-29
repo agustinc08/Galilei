@@ -78,7 +78,9 @@ export class FederatedSearchService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     await Promise.all(
-      [this.jurisprudencia, this.corpus].map((adapter) => adapter?.warmup?.()),
+      [this.jurisprudencia, this.corpus].map(async (adapter) => {
+        await adapter?.warmup?.();
+      }),
     );
   }
 

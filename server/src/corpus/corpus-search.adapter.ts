@@ -95,6 +95,14 @@ function pattern(literal: SearchLiteralNode) {
   return `%${value}%`;
 }
 
+function usesImplicitLexicalPrefix(literal: SearchLiteralNode) {
+  return (
+    literal.type === 'term' &&
+    literal.matchMode === 'contains' &&
+    !literal.sourceText.includes('%')
+  );
+}
+
 function patternColumn(expression: string, literal: SearchLiteralNode) {
   if (
     literal.type === 'term' &&
@@ -142,10 +150,12 @@ function buildBooleanCandidateCte(
   useTokenProjection: boolean,
   deferPhraseVerification = false,
   scopePredicate = 'd."documentScope" = \'GENERAL\'',
+  scopedDocumentsSql?: string,
 ) {
   const ctes: string[] = [];
   let nextId = 0;
   const nextName = () => `"corpusCandidateNode${nextId++}"`;
+  let scopedDocumentsName: string | null = null;
   const eligible = `d."visibility" = ANY($1::text[]) AND d."status" IN ('INDEXED', 'OCR_REQUIRED') AND ${scopePredicate}`;
   const fields: Record<string, string> = {
     tema: 'd."subtitle"',
@@ -162,32 +172,111 @@ function buildBooleanCandidateCte(
     numeroSumario: 'd."searchText"',
   };
   const addLiteral = (node: SearchLiteralNode) => {
+    if (scopedDocumentsSql && !node.field) {
+      if (!scopedDocumentsName) {
+        scopedDocumentsName = '"corpusWorkspaceDocuments"';
+        ctes.push(
+          `${scopedDocumentsName} AS MATERIALIZED (${scopedDocumentsSql})`,
+        );
+      }
+      const normalizedValue = normalizeSearchText(node.value);
+      const tokens = [
+        ...new Set(normalizedValue.split(/\s+/u).filter(Boolean)),
+      ];
+      if (useTokenProjection && tokens.length > 0) {
+        let tokenPattern: string;
+        let tokenPredicate: string;
+        if (node.type === 'phrase') {
+          const anchor = tokens.reduce((best, value, index, candidates) =>
+            [...value].length > [...candidates[best]].length ? index : best,
+          0);
+          tokenPattern = `%${escapeLike(tokens[anchor])}%`;
+          tokenPredicate = `token."token" ILIKE $TOKEN$`;
+        } else if (
+          tokens.length === 1 &&
+          (node.matchMode === 'prefix' || usesImplicitLexicalPrefix(node))
+        ) {
+          tokenPattern = `${escapeLike(tokens[0])}%`;
+          tokenPredicate = `lower(token."token") LIKE $TOKEN$`;
+        } else if (tokens.length === 1 && node.matchMode === 'suffix') {
+          tokenPattern = `${escapeLike([...tokens[0]].reverse().join(''))}%`;
+          tokenPredicate = `reverse(token."token") LIKE $TOKEN$`;
+        } else if (tokens.length === 1) {
+          tokenPattern = pattern(node);
+          tokenPredicate = `token."token" ILIKE $TOKEN$`;
+        } else {
+          tokenPattern = '';
+          tokenPredicate = '';
+        }
+        if (tokenPattern) {
+          const name = nextName();
+          const tokenParameter = `$${values.push(tokenPattern)}`;
+          ctes.push(`${name} AS MATERIALIZED (
+            SELECT scoped."id" AS "id"
+              FROM ${scopedDocumentsName} scoped
+             WHERE EXISTS (
+               SELECT 1 FROM (
+                 SELECT token."token" FROM "CorpusSearchToken" token
+                  WHERE token."documentId" = scoped."id"
+                  OFFSET 0
+               ) scopedToken
+                WHERE ${tokenPredicate.replace('token."token"', 'scopedToken."token"').replace('$TOKEN$', tokenParameter)} ESCAPE E'\\\\'
+             )
+          )`);
+          if (
+            (node.type === 'term' &&
+              (node.matchMode === 'prefix' ||
+                node.matchMode === 'suffix' ||
+                usesImplicitLexicalPrefix(node))) ||
+            (node.type === 'term' &&
+              node.matchMode === 'contains' &&
+              tokens.length === 1 &&
+              tokens[0].length >= 3) ||
+            (node.type === 'phrase' && deferPhraseVerification)
+          )
+            return name;
+
+          const candidateDocuments = nextName();
+          ctes.push(`${candidateDocuments} AS MATERIALIZED (
+            SELECT d."id", d."searchText" FROM ${name} candidates
+            JOIN "CorpusDocument" d ON d."id" = candidates."id"
+          )`);
+          const verifiedName = nextName();
+          values.push(pattern(node));
+          ctes.push(`${verifiedName} AS MATERIALIZED (
+            SELECT candidates."id" FROM ${candidateDocuments} candidates
+            WHERE candidates."searchText" ILIKE $${values.length} ESCAPE E'\\\\'
+          )`);
+          return verifiedName;
+        }
+      }
+      const name = nextName();
+      values.push(pattern(node));
+      ctes.push(`${name} AS MATERIALIZED (
+        SELECT d."id" AS "id"
+          FROM ${scopedDocumentsName} scoped
+          JOIN "CorpusDocument" d ON d."id" = scoped."id"
+         WHERE ${patternColumn('d."searchText"', node)} ILIKE $${values.length} ESCAPE E'\\\\'
+      )`);
+      return name;
+    }
     if (useTokenProjection && !node.field) {
       const normalizedValue = normalizeSearchText(node.value);
       const tokens = [
         ...new Set(normalizedValue.split(/\s+/u).filter(Boolean)),
       ];
       if (node.type === 'phrase' && tokens.length > 0) {
-        // Intersect every indexable phrase token. A single common-word anchor
-        // can leave most of the corpus to verify; retaining substring
-        // predicates keeps this candidate set a superset of ILIKE phrase
-        // matches (the complete phrase predicate below remains authoritative).
-        const selectiveTokenIndexes = tokens
-          .map((value, index) => ({ value, index }))
-          .filter(({ value }) => [...value].length >= 3)
-          .map(({ index }) => index);
-        const tokenIndexes =
-          selectiveTokenIndexes.length > 0
-            ? selectiveTokenIndexes
-            : [
-                tokens.reduce(
-                  (best, value, index, candidates) =>
-                    [...value].length > [...candidates[best]].length
-                      ? index
-                      : best,
-                  0,
-                ),
-              ];
+        // Use one longest token as a substring candidate anchor. Every exact
+        // phrase match must contain it, and the complete phrase predicate below
+        // remains authoritative. This avoids repeated GIN heap reads for each
+        // phrase word on large corpora.
+        const tokenIndexes = [
+          tokens.reduce(
+            (best, value, index, candidates) =>
+              [...value].length > [...candidates[best]].length ? index : best,
+            0,
+          ),
+        ];
         const tokenCandidates = tokenIndexes.map((tokenIndex) => {
           const value = tokens[tokenIndex];
           const name = nextName();
@@ -228,7 +317,7 @@ function buildBooleanCandidateCte(
       if (
         tokens.length === 1 &&
         node.type === 'term' &&
-        node.matchMode === 'prefix'
+        (node.matchMode === 'prefix' || usesImplicitLexicalPrefix(node))
       ) {
         const name = nextName();
         values.push(`${escapeLike(tokens[0])}%`);
@@ -236,7 +325,7 @@ function buildBooleanCandidateCte(
           SELECT DISTINCT token."documentId" AS "id"
             FROM "CorpusSearchToken" token
             JOIN "CorpusDocument" d ON d."id" = token."documentId"
-           WHERE ${eligible} AND token."token" LIKE $${values.length} ESCAPE E'\\\\'
+           WHERE ${eligible} AND lower(token."token") LIKE $${values.length} ESCAPE E'\\\\'
         )`);
         return name;
       }
@@ -625,9 +714,34 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
               OR chain."visibilityScope" = 'RESTRICTED'
         )`
       : ' AND FALSE';
+    const workspaceDocumentAssociation = userIdIndex
+      ? `d."id" IN (
+          SELECT workspaceDocument."documentId"
+            FROM "WorkspaceDocument" workspaceDocument
+           WHERE workspaceDocument."workspaceId" = $2
+             AND workspaceDocument."ownerUserId" IS NULL${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${workspaceFolderAcl}
+        )`
+      : 'FALSE';
+    const publishedSentenceLink = `EXISTS (
+      SELECT 1
+        FROM "CorpusDocumentLink" sentenceLink
+        JOIN "Sentencia" sentence
+          ON sentence."id" = CASE
+            WHEN sentenceLink."targetId" ~ '^[0-9]+$'
+              THEN sentenceLink."targetId"::integer
+            ELSE NULL
+          END
+       WHERE sentenceLink."documentId" = d."id"
+         AND sentenceLink."targetDomain" = 'JURISPRUDENCIA'
+         AND sentenceLink."targetType" = 'SENTENCIA'
+         AND sentenceLink."relationship" = 'ASSOCIATED_WITH'
+         AND sentence.activo = TRUE
+         AND sentence.publicado = TRUE
+         AND sentence."estadoCarga" = 'PUBLICADA'
+    )`;
     const scopePredicate =
       workspaceId && userIdIndex
-        ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND ${workspaceMembershipAcl} AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" = $2 AND workspaceDocument."ownerUserId" IS NULL${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${workspaceFolderAcl})${sourcePredicate}`
+        ? `((d."documentScope" = 'PRIVATE_WORKSPACE' AND ${workspaceMembershipAcl} AND ${workspaceDocumentAssociation}) OR (d."documentScope" = 'GENERAL' AND d."visibility" IN ('PUBLIC', 'INTERNAL') AND ${workspaceMembershipAcl} AND ${workspaceDocumentAssociation} AND ${publishedSentenceLink}))${sourcePredicate}`
         : isPersonalScope && userIdIndex
           ? `d."documentScope" = 'PRIVATE_WORKSPACE' AND EXISTS (SELECT 1 FROM "WorkspaceDocument" workspaceDocument WHERE workspaceDocument."documentId" = d."id" AND workspaceDocument."workspaceId" IS NULL AND workspaceDocument."ownerUserId" = $${userIdIndex}${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${personalFolderAcl})`
           : isWorkspaceScope || isPersonalScope
@@ -676,7 +790,24 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       !candidateDocumentIds &&
       useTokenProjection &&
       query.root?.type === 'phrase';
-    const candidateValuesStart = values.length + 1;
+    let workspaceScopedDocumentsSql: string | undefined;
+    if (
+      workspaceScope &&
+      userIdIndex &&
+      this.candidateStrategy === 'set-algebra-v2' &&
+      !candidateDocumentIds
+    ) {
+      workspaceScopedDocumentsSql = `SELECT d."id" AS "id"
+             FROM "WorkspaceDocument" workspaceDocument
+             JOIN "CorpusDocument" d
+               ON d."id" = workspaceDocument."documentId"
+            WHERE workspaceDocument."workspaceId" = $2
+              AND workspaceDocument."ownerUserId" IS NULL${hasWorkspaceFolderScope ? (workspaceFolderId === null ? ' AND workspaceDocument."folderId" IS NULL' : ` AND workspaceDocument."folderId" = $${workspaceFolderIdIndex}`) : ''}${workspaceFolderAcl}
+              AND d."visibility" = ANY($1::text[])
+              AND d."status" IN ('INDEXED', 'OCR_REQUIRED')
+              AND ${workspaceMembershipAcl}
+              AND (d."documentScope" = 'PRIVATE_WORKSPACE' OR (d."documentScope" = 'GENERAL' AND d."visibility" IN ('PUBLIC', 'INTERNAL') AND ${publishedSentenceLink}))${sourcePredicate}${filterPredicate ? ` AND (${filterPredicate})` : ''}`;
+    }
     const candidateBuildStartedAt = performance.now();
     const candidateCte =
       !candidateDocumentIds &&
@@ -688,9 +819,9 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
             useTokenProjection,
             deferredSinglePhrase,
             candidateScopePredicate,
+            workspaceScopedDocumentsSql,
           )
         : null;
-    const candidateValuesEnd = candidateCte ? values.length : values.length - 1;
     const candidateBuildMs = performance.now() - candidateBuildStartedAt;
     const activeCandidateStrategy =
       this.candidateStrategy === 'predicate-v1'
@@ -699,16 +830,25 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
           ? shortTermWindow
             ? 'token-projection-short-window-v2'
             : deferredSinglePhrase
-              ? 'token-projection-phrase-setwise-exact-v9'
+              ? workspaceScopedDocumentsSql
+                ? 'workspace-scoped-phrase-token-v12'
+                : 'corpus-token-phrase-exact-v12'
+              : workspaceScopedDocumentsSql
+                ? 'workspace-scoped-token-v12'
               : 'token-projection-v2'
           : 'document-text-fallback-v2';
     const boundedCandidatePage = this.candidateStrategy === 'set-algebra-v2';
-    const predicates = [
-      `d."visibility" = ANY($1::text[])`,
-      `d."status" IN ('INDEXED', 'OCR_REQUIRED')`,
-      scopePredicate,
-      ...(filterPredicate ? [filterPredicate] : []),
-    ];
+    // Candidate CTEs already apply eligibility, scope/ACL, and date/type
+    // filters before producing IDs. Repeating them can force another full
+    // Corpus scan before paging.
+    const predicates = candidateCte
+      ? []
+      : [
+          `d."visibility" = ANY($1::text[])`,
+          `d."status" IN ('INDEXED', 'OCR_REQUIRED')`,
+          scopePredicate,
+          ...(filterPredicate ? [filterPredicate] : []),
+        ];
     if (candidateDocumentIds) {
       values.push(candidateDocumentIds);
       predicates.push(`d."id" = ANY($${values.length}::text[])`);
@@ -798,7 +938,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
            (CASE WHEN ${phraseSnippetStart} + 279 < char_length(${phraseSnippetSource}) THEN '…' ELSE '' END)
          END`
         : null;
-    const where = predicates.join(' AND ');
+    const where = predicates.join(' AND ') || 'TRUE';
     const queryFingerprints = [
       queryFingerprint(
         `${candidateCte ? 'CANDIDATE_SET_V2' : 'COUNT_V1'}|${where}`,
@@ -827,7 +967,8 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
     const offset = `$${rowValues.length}`;
     let rows: QueryResult<SearchRow>;
     let total = 0;
-    let queryCount = readinessQueryCount + 1;
+    let queryCount =
+      readinessQueryCount + 1;
     let workspaceTermTotalExact = false;
     let outOfRangeTotalExact = false;
     let phraseCandidateCount: number | undefined;
@@ -840,6 +981,8 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         while (true) {
           const pageQueryStartedAt = performance.now();
           const pagePatternsParam = `$${values.length + 1}`;
+          const phraseIndexedWhere = `${where} AND d."status" = 'INDEXED'`;
+          const phraseOcrRequiredWhere = `${where} AND d."status" = 'OCR_REQUIRED'`;
           const candidateWindowCtes = deferredSinglePhrase
             ? `"phraseCandidateStats" AS MATERIALIZED (
                  SELECT count(*)::integer AS "candidateCount"
@@ -851,7 +994,12 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
                  SELECT d."id", d."decisionDate", d."updatedAt"
                    FROM "corpusSearchCandidates" c
                    JOIN "CorpusDocument" d ON d."id" = c."id"
-                  WHERE ${where} AND ${exactPhraseVerification}
+                  WHERE ${phraseIndexedWhere} AND ${exactPhraseVerification}
+                 UNION ALL
+                 SELECT d."id", d."decisionDate", d."updatedAt"
+                   FROM "corpusSearchCandidates" c
+                   JOIN "CorpusDocument" d ON d."id" = c."id"
+                  WHERE ${phraseOcrRequiredWhere} AND ${exactPhraseVerification}
                ),
                "pageStats" AS MATERIALIZED (
                  SELECT (matches.total > ${offset}::integer + ${limit}::integer) AS "hasMore",
@@ -1043,17 +1191,20 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         boundedCandidatePage
       ) {
         const exactValues = [...values];
-        const exactQueryPredicate = compileNode(query.root, exactValues);
-        const candidateParameterTypeChecks = Array.from(
-          {
-            length: Math.max(0, candidateValuesEnd - candidateValuesStart + 1),
-          },
-          (_, index) => `$${candidateValuesStart + index}::text IS NOT NULL`,
-        ).join(' AND ');
+        // Single-term candidate generation applies the term semantics against
+        // the token projection. Reuse that exact set for the total instead of
+        // scanning large CorpusDocument.searchText values a second time.
+        const exactCountSource = candidateCte
+          ? `${candidateCte} SELECT COUNT(*)::text AS total
+               FROM "corpusSearchCandidates" candidates
+               JOIN "CorpusDocument" d ON d."id" = candidates."id"
+              WHERE ${where}`
+          : `SELECT COUNT(*)::text AS total FROM "CorpusDocument" d
+              WHERE ${where}`;
         const exactCountStartedAt = performance.now();
         try {
           const exactCount = await this.pool.query<{ total: string }>(
-            `SELECT COUNT(*)::text AS total FROM "CorpusDocument" d WHERE ${where} AND (${exactQueryPredicate})${candidateParameterTypeChecks ? ` AND ${candidateParameterTypeChecks}` : ''}`,
+            exactCountSource,
             exactValues,
           );
           total = Number(exactCount.rows[0]?.total ?? 0);

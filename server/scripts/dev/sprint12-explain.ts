@@ -41,6 +41,8 @@ async function main() {
       const [sql, values] = args as [string, unknown[]?];
       if (typeof sql !== 'string') throw new Error('SPRINT12_EXPLAIN_UNEXPECTED_QUERY_SHAPE');
       captured.push({ sql, values: values ?? [] });
+      if (sql.includes('"CorpusSearchTokenProjectionControl"'))
+        return { rows: [{ isReady: true }], rowCount: 1 };
       return /SELECT\s+COUNT\(\*\)/iu.test(sql)
         ? { rows: [{ total: '0' }], rowCount: 1 }
         : { rows: [], rowCount: 0 };

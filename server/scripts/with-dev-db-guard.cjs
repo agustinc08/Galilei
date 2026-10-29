@@ -23,6 +23,11 @@ try {
   // The package-local configuration remains the only option outside a Git checkout.
 }
 const defaultEnvFile = path.resolve(__dirname, '..', '.env.development.local');
+const canonicalDevelopmentEnvFile = path.join(
+  canonicalRepositoryRoot,
+  'server',
+  '.env.development.local',
+);
 const allowDeepQa = process.env.BJC_DEEP_QA_ALLOW_ISOLATED_DATABASE === 'true';
 const allowSuite7Qa =
   process.env.BJC_SPRINT7_ALLOW_ISOLATED_DATABASE === 'true';
@@ -65,6 +70,7 @@ const suite9PageAwareQaEnvFile = path.join(
 const configuredEnvFile = process.env.BJC_DEV_DB_GUARD_ENV_FILE;
 const permittedEnvFiles = [
   defaultEnvFile,
+  canonicalDevelopmentEnvFile,
   historicalEnvFile,
   ...(allowDeepQa ? [comparisonQaEnvFile] : []),
   ...(allowSuite7Qa ? [suite7QaEnvFile] : []),
@@ -195,7 +201,7 @@ const actions = {
   'int1-temp-drop': 'node scripts/dev/int1-temp-db.cjs drop',
   'int1-temp-inspect': 'node scripts/dev/int1-temp-db.cjs inspect',
   'opensearch-status':
-    'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts status',
+    'node ./node_modules/ts-node/dist/bin.js scripts/dev/opensearch-cli.ts status',
   'opensearch-v4-shadow':
     'pnpm.cmd exec ts-node scripts/dev/opensearch-v4-shadow.ts',
   'search-v4-operator':
@@ -209,13 +215,13 @@ const actions = {
   'search-v4-fresh-lifecycle':
     'pnpm.cmd exec ts-node scripts/dev/search-v4-fresh-lifecycle.integration.ts',
   'opensearch-verify':
-    'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts verify',
+    'node ./node_modules/ts-node/dist/bin.js scripts/dev/opensearch-cli.ts verify',
   'opensearch-rebuild':
     'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts rebuild',
   'opensearch-candidate':
     'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts candidate',
   'opensearch-sync-once':
-    'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts sync-once',
+    'node ./node_modules/ts-node/dist/bin.js scripts/dev/opensearch-cli.ts sync-once',
   'opensearch-retry-failed':
     'pnpm.cmd exec ts-node scripts/dev/opensearch-cli.ts retry-failed',
   'opensearch-cleanup':
@@ -432,7 +438,11 @@ const actions = {
   'sprint149-concurrency':
     'pnpm.cmd exec ts-node scripts/dev/sprint121-concurrency.ts',
   'sprint15-postgres-tests':
-    'pnpm.cmd exec jest --runInBand --testTimeout=120000 --testPathPatterns=workspace-document.integration.spec.ts',
+    'node ./node_modules/jest/bin/jest.js --runInBand --testTimeout=300000 --testPathPatterns=workspace-document.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SPRINT15',
+  'sprint15-workspace-global-admin-test':
+    'node ./node_modules/jest/bin/jest.js --runInBand --testTimeout=120000 --testPathPatterns=workspace-document.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SPRINT15 --testNamePattern=global',
+  'sprint15-workspace-delete-tests':
+    'node ./node_modules/jest/bin/jest.js --runInBand --testTimeout=120000 --testPathPatterns=workspace-document-delete.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SPRINT15_DELETE',
   'sprint3-postgres-acl-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=180000 --testPathPatterns=workspace-document.integration.spec.ts --testPathIgnorePatterns=NEVER_MATCH_SPRINT3',
   'sprint3-qa-seed': 'node scripts/dev/sprint3-qa-seed.cjs',
@@ -447,7 +457,7 @@ const actions = {
   'sprint1561-default-queue-repro':
     'pnpm.cmd exec jest --runInBand --testTimeout=180000 --testPathPatterns=workspace-document.integration.spec.ts',
   'sprint1511-postgres-tests':
-    'pnpm.cmd exec jest --runInBand --testTimeout=300000 --testPathPatterns=workspace-document.integration.spec.ts',
+    'node ./node_modules/jest/bin/jest.js --runInBand --testTimeout=300000 --testPathPatterns=workspace-document.integration.spec.ts',
   'sprint152-source-tests':
     'pnpm.cmd exec jest --runInBand --testTimeout=300000 --testPathPatterns=document-source.integration.spec.ts',
   'sprint152-search-smoke':
@@ -560,7 +570,8 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/office-beta-legacy-corpus.ts',
   'office-beta-legacy-pdfs':
     'pnpm.cmd exec ts-node scripts/dev/office-beta-legacy-pdfs.ts',
-  'office-beta-pdfs-backup': 'pnpm.cmd exec ts-node scripts/dev/backup-dev-db.ts',
+  'office-beta-pdfs-backup':
+    'pnpm.cmd exec ts-node scripts/dev/backup-dev-db.ts',
   'institutional-associations':
     'pnpm.cmd exec ts-node scripts/dev/preview-institutional-associations.ts',
   'institutional-ingest':
@@ -596,9 +607,10 @@ const actions = {
     'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts baseline',
   'sprint12-search-after':
     'pnpm.cmd exec ts-node scripts/dev/sprint12-search-benchmark.ts after',
-  'sprint12-explain': 'pnpm.cmd exec ts-node scripts/dev/sprint12-explain.ts',
+  'sprint12-explain':
+    'node ./node_modules/ts-node/dist/bin.js scripts/dev/sprint12-explain.ts',
   'sprint12-explain-after':
-    'pnpm.cmd exec ts-node scripts/dev/sprint12-explain.ts after',
+    'node ./node_modules/ts-node/dist/bin.js scripts/dev/sprint12-explain.ts after',
   'sprint12-backup-verify':
     'pnpm.cmd exec ts-node scripts/dev/sprint12-backup-verify.ts',
   'sprint12-db-preflight':
@@ -731,6 +743,8 @@ const childEnv = {
   SPRINT_J9_POSTGRES_TEST: action === 'sprint-j9-postgres-tests' ? '1' : '',
   SPRINT15_POSTGRES_TEST:
     action === 'sprint15-postgres-tests' ||
+    action === 'sprint15-workspace-global-admin-test' ||
+    action === 'sprint15-workspace-delete-tests' ||
     action === 'sprint3-postgres-acl-tests' ||
     action === 'sprint15-full-tests' ||
     action === 'sprint1511-postgres-tests' ||
@@ -822,6 +836,8 @@ const childEnv = {
             .filter(Boolean)
             .join(' ')
         : action === 'sprint15-postgres-tests' ||
+            action === 'sprint15-workspace-global-admin-test' ||
+            action === 'sprint15-workspace-delete-tests' ||
             action === 'sprint3-postgres-acl-tests' ||
             action === 'sprint15-full-tests' ||
             action === 'sprint1511-postgres-tests' ||
@@ -1053,9 +1069,15 @@ const childEnv = {
       : '',
   BJC_DEV_BACKUP_DIR:
     action === 'office-beta-pdfs-backup'
-      ? path.resolve(__dirname, '../../_recovery-work/office-beta-legacy-corpus/backups')
+      ? path.resolve(
+          __dirname,
+          '../../_recovery-work/office-beta-legacy-corpus/backups',
+        )
       : action === 'sprint-j1-backup'
-        ? path.resolve(__dirname, '../../_recovery-work/jurisprudencia-j1/backups')
+        ? path.resolve(
+            __dirname,
+            '../../_recovery-work/jurisprudencia-j1/backups',
+          )
         : process.env.BJC_DEV_BACKUP_DIR,
   BJC_DEV_BACKUP_LABEL:
     action === 'office-beta-pdfs-backup'

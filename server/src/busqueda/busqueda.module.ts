@@ -47,7 +47,7 @@ export const BUSQUEDA_RUNTIME_PROVIDERS: Provider[] = [
   {
     provide: FederatedSearchService,
     inject: [OpenSearchRuntimeService, SEARCH_DATABASE_POOL_CONFIG],
-    useFactory: async (
+    useFactory: (
       runtime: OpenSearchRuntimeService | null,
       database: MaybeApprovedDatabase,
     ) => {

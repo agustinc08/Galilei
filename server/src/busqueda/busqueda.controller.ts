@@ -609,6 +609,9 @@ function toPublicConsultaPage(
       textoSumario: result.snippet ?? '',
       extractoFallo: stringField('extractoFallo'),
       esFalloCorpus: booleanField('legacyCorpus'),
+      cantidadSumarios: Number.isSafeInteger(Number(metadata.cantidadSumarios))
+        ? Math.max(0, Number(metadata.cantidadSumarios))
+        : 0,
       highlights: [],
       tienePdf: pdfDisponible,
       pdfDisponible,

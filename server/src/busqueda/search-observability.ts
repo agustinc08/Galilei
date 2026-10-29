@@ -369,10 +369,7 @@ function classifyError(
     'message' in error ? (error as { message?: unknown }).message : undefined;
   if (message === 'search source timeout') return 'timeout';
   const code = 'code' in error ? (error as { code?: unknown }).code : undefined;
-  if (
-    code === '57014'
-  )
-    return 'timeout';
+  if (code === '57014') return 'timeout';
   if (
     code === 'ETIMEDOUT' ||
     code === 'ECONNRESET' ||

@@ -39,3 +39,42 @@ describe('OpenSearchDocumentRepository mutation barrier', () => {
     expect(client.release).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('OpenSearchDocumentRepository stale Corpus deletes', () => {
+  it('queues deduplicated exact deletes through the outbox', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValue({ rows: [{ id: '41' }], rowCount: 1 });
+    const repository = Object.create(
+      OpenSearchDocumentRepository.prototype,
+    ) as OpenSearchDocumentRepository;
+    Object.defineProperty(repository, 'pool', { value: { query } });
+
+    await expect(
+      repository.enqueueDeleteForMissingCorpusDocuments([
+        'cmvssujtj0009igic2xfqdxmx',
+        'cmvssujtj0009igic2xfqdxmx',
+      ]),
+    ).resolves.toBe(1);
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO "SearchIndexOutbox"'),
+      [['cmvssujtj0009igic2xfqdxmx']],
+    );
+  });
+
+  it('rejects non-Corpus IDs without writing to the outbox', async () => {
+    const query = jest.fn();
+    const repository = Object.create(
+      OpenSearchDocumentRepository.prototype,
+    ) as OpenSearchDocumentRepository;
+    Object.defineProperty(repository, 'pool', { value: { query } });
+
+    await expect(
+      repository.enqueueDeleteForMissingCorpusDocuments([
+        'JURISPRUDENCIA:SENTENCIA:41889',
+      ]),
+    ).rejects.toThrow('SEARCH_ORPHAN_CORPUS_ID_INVALID');
+    expect(query).not.toHaveBeenCalled();
+  });
+});

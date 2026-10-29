@@ -10,6 +10,7 @@ function event(id: string, documentKey: string): SearchOutboxEvent {
 }
 
 function workerWith(events: SearchOutboxEvent[], indexKey: jest.Mock) {
+  const markOutboxProcessedMany = jest.fn().mockResolvedValue(undefined);
   const repository = {
     withAdvisoryLock: jest.fn(
       async (_required: boolean, action: () => Promise<unknown>) => ({
@@ -18,7 +19,7 @@ function workerWith(events: SearchOutboxEvent[], indexKey: jest.Mock) {
       }),
     ),
     claimOutboxByDocumentKey: jest.fn().mockResolvedValue(events),
-    markOutboxProcessedMany: jest.fn().mockResolvedValue(undefined),
+    markOutboxProcessedMany,
     markOutboxFailed: jest.fn().mockResolvedValue(undefined),
   } as unknown as OpenSearchDocumentRepository;
   const index = {
@@ -28,13 +29,14 @@ function workerWith(events: SearchOutboxEvent[], indexKey: jest.Mock) {
   return {
     worker: new OpenSearchSyncWorker(repository, index),
     repository,
+    markOutboxProcessedMany,
   };
 }
 
 describe('OpenSearchSyncWorker', () => {
   it('indexes each current document key once and acknowledges all its notifications', async () => {
     const indexKey = jest.fn().mockResolvedValue(undefined);
-    const { worker, repository } = workerWith(
+    const { worker, markOutboxProcessedMany } = workerWith(
       [
         event('1', 'SENTENCIA:10'),
         event('2', 'SENTENCIA:10'),
@@ -48,9 +50,9 @@ describe('OpenSearchSyncWorker', () => {
     expect(indexKey).toHaveBeenCalledTimes(2);
     expect(indexKey).toHaveBeenCalledWith('SENTENCIA:10');
     expect(indexKey).toHaveBeenCalledWith('SUMARIO:20');
-    expect(repository.markOutboxProcessedMany).toHaveBeenCalledTimes(2);
-    expect(repository.markOutboxProcessedMany).toHaveBeenCalledWith(['1', '2']);
-    expect(repository.markOutboxProcessedMany).toHaveBeenCalledWith(['3']);
+    expect(markOutboxProcessedMany).toHaveBeenCalledTimes(2);
+    expect(markOutboxProcessedMany).toHaveBeenCalledWith(['1', '2']);
+    expect(markOutboxProcessedMany).toHaveBeenCalledWith(['3']);
   });
 
   it('limits parallel indexing to the configured concurrency', async () => {

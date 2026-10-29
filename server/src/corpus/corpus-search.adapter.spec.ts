@@ -400,12 +400,12 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
       });
       const [candidateSql, values] = query.mock.calls[1] as [string, unknown[]];
       expect(candidateSql).toContain('"CorpusSearchToken" token');
-      expect(candidateSql).toContain('token."token" ILIKE $2');
+      expect(candidateSql).toContain('lower(token."token") LIKE $2');
       expect(candidateSql.indexOf('"candidateWindow"')).toBeLessThan(
         candidateSql.indexOf('SELECT p."pageNumber"'),
       );
       expect(candidateSql).toContain('FROM "pagedCandidates" selected');
-      expect(values).toContain('%responsabilidad%');
+      expect(values).toContain('responsabilidad%');
       expect(candidateSql).toContain('LIMIT ($4 + 1) OFFSET $5');
       expect(candidateSql).toContain('"pageStats"');
       expect(candidateSql).not.toContain('count(*) OVER()');
@@ -418,7 +418,70 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
     }
   });
 
-  it('intersects phrase token candidates, then verifies the exact phrase before paging', async () => {
+  it('reuses the verified workspace candidate set for an exact term total', async () => {
+    const adapter = new CorpusSearchSourceAdapter(
+      'postgresql://bjc_dev:test@127.0.0.1:55432/buscador_juridico_civil_dev',
+    );
+    const pool = (
+      adapter as unknown as {
+        pool: {
+          query: (...args: unknown[]) => unknown;
+          end: () => Promise<void>;
+        };
+      }
+    ).pool;
+    const query = jest
+      .spyOn(pool, 'query')
+      .mockResolvedValueOnce({
+        rows: [{ isReady: true }],
+        rowCount: 1,
+      } as never)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 } as never)
+      .mockResolvedValueOnce({ rows: [{ total: '0' }], rowCount: 1 } as never);
+    try {
+      const result = await adapter.search(
+        parseSearchQuery('workspacefixturetoken'),
+        {
+          visibility: 'INTERNAL',
+          dialect: 'modern',
+          publicationPolicy: 'published-active-only',
+          page: 1,
+          pageSize: 20,
+          documentScope: {
+            kind: 'WORKSPACE',
+            workspaceId: 'workspace-1',
+            userId: 17,
+            folderId: null,
+          },
+        },
+      );
+
+      const [exactCountSql] = query.mock.calls[2] as [string, unknown[]];
+      expect(exactCountSql).toContain(
+        'WITH "corpusWorkspaceDocuments" AS MATERIALIZED',
+      );
+      expect(exactCountSql).toContain(
+        'FROM "WorkspaceDocument" workspaceDocument',
+      );
+      expect(exactCountSql).toContain('FROM "CorpusSearchToken" token');
+      expect(exactCountSql).toContain(
+        'FROM "corpusSearchCandidates" candidates',
+      );
+      expect(exactCountSql).toContain(
+        'JOIN "CorpusDocument" d ON d."id" = candidates."id"',
+      );
+      expect(exactCountSql).toContain('lower(scopedToken."token") LIKE');
+      expect(exactCountSql).not.toContain('d."searchText" ILIKE');
+      expect(query.mock.calls[2]?.[1]).toContain('workspacefixturetoken%');
+      expect(result.total).toBe(0);
+      expect(result.totalExact).toBe(true);
+      expect(query).toHaveBeenCalledTimes(3);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('uses one phrase token anchor, then verifies the exact phrase before paging', async () => {
     const adapter = new CorpusSearchSourceAdapter(
       'postgresql://bjc_dev:test@127.0.0.1:55432/buscador_juridico_civil_dev',
     );
@@ -459,27 +522,22 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
         pageSize: 10,
       });
       const [sql, values] = query.mock.calls[1] as [string, unknown[]];
-      expect(sql).toContain('WITH RECURSIVE');
-      expect(sql).toContain('token."token" ILIKE');
-      expect(sql).not.toContain('lower(token."token") LIKE');
+      expect(sql).toContain('d."searchText" ILIKE');
+      expect(sql).toContain('"CorpusSearchToken" token');
       expect(sql).not.toContain('"phraseWindowScan"');
       expect(sql).toContain('"verifiedCandidates" AS MATERIALIZED');
       expect(sql).toContain('true AS "totalExact"');
       expect(sql).toContain('AND d."searchText" ILIKE');
       expect(sql).toContain('"candidateWindowSizes"');
       expect(sql).toContain('FROM "corpusSearchCandidates" c');
-      expect(sql).toContain('SELECT DISTINCT "id" FROM (');
-      expect(sql).toContain('INTERSECT');
       expect(sql).not.toContain('scan."verifiedCount" <=');
       expect(
         sql.match(/"corpusSearchCandidates" AS MATERIALIZED/gu),
       ).toHaveLength(1);
-      expect(values).toContain('%responsabilidad%');
-      expect(values).toContain('%civil%');
       expect(values).toContain('%responsabilidad civil%');
       expect(query).toHaveBeenCalledTimes(2);
       expect(adapter.getLastSearchProfile()?.candidateStrategy).toBe(
-        'token-projection-phrase-setwise-exact-v9',
+        'corpus-token-phrase-exact-v12',
       );
       expect(adapter.getLastSearchProfile()?.candidateGenerationCount).toBe(1);
       expect(adapter.getLastSearchProfile()?.candidateCount).toBe(1000);
@@ -491,7 +549,7 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
     }
   });
 
-  it('intersects phrase token substrings and still verifies the full phrase', async () => {
+  it('uses exact Corpus text for phrase candidates and verifies the full phrase', async () => {
     const adapter = new CorpusSearchSourceAdapter(
       'postgresql://bjc_dev:test@127.0.0.1:55432/buscador_juridico_civil_dev',
     );
@@ -532,18 +590,16 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
         pageSize: 10,
       });
       const [sql, values] = query.mock.calls[1] as [string, unknown[]];
-      expect(sql).toContain('token."token" ILIKE');
-      expect(sql).toContain('INTERSECT');
+      expect(sql).toContain('"CorpusSearchToken" token');
       expect(sql).toContain('AND d."searchText" ILIKE');
-      expect(values).toContain('%falta%');
-      expect(values).toContain('%servicio%');
+      expect(sql).toContain('AND d."searchText" ILIKE');
       expect(values).toContain('%falta de servicio%');
     } finally {
       await adapter.close();
     }
   });
 
-  it('uses indexed substring candidates for every significant token in multiword phrases', async () => {
+  it('uses exact Corpus text candidates for multiword phrases', async () => {
     const adapter = new CorpusSearchSourceAdapter(
       'postgresql://bjc_dev:test@127.0.0.1:55432/buscador_juridico_civil_dev',
     );
@@ -584,10 +640,8 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
         pageSize: 10,
       });
       const [sql, values] = query.mock.calls[1] as [string, unknown[]];
-      expect(sql).toContain('INTERSECT');
-      expect(values).toContain('%alpha%');
-      expect(values).toContain('%needle%');
-      expect(values).toContain('%omega%');
+      expect(sql).toContain('d."searchText" ILIKE');
+      expect(sql).toContain('"CorpusSearchToken" token');
       expect(values).toContain('%alpha needle omega%');
       expect(query).toHaveBeenCalledTimes(2);
     } finally {
@@ -673,8 +727,9 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
   });
 
   it.each([
-    { queryText: 'responsa%', expected: 'token."token" LIKE' },
+    { queryText: 'responsa%', expected: 'lower(token."token") LIKE' },
     { queryText: '%bilidad', expected: 'reverse(token."token") LIKE' },
+    { queryText: '%sponsabili%', expected: 'token."token" ILIKE' },
   ])(
     'uses token projection for $queryText without scanning the full text for candidates',
     async ({ queryText, expected }) => {

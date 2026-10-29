@@ -184,9 +184,12 @@ describe('Search observability', () => {
       write: (event) => events.push(event),
     });
     const requestId = createSearchRequestId();
-    const failure = Object.assign(new Error('canceling statement due to statement timeout'), {
-      code: '57014',
-    });
+    const failure = Object.assign(
+      new Error('canceling statement due to statement timeout'),
+      {
+        code: '57014',
+      },
+    );
 
     await withSearchRequestContext(requestId, async () => {
       await expect(
