@@ -92,7 +92,7 @@ export default function OcrReviewPage() {
   const [runtimeFile, setRuntimeFile] = useState<File | null>(null);
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [runtimeCheck, setRuntimeCheck] = useState<RuntimeCheck | null>(null);
-  const [guideOpen, setGuideOpen] = useState(true);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const loadQueue = useCallback(async (requestedPage = queuePage, requestedFilter = filter) => {
     try {

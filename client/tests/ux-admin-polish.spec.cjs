@@ -418,7 +418,7 @@ test('OCR queue labels numeric legacy titles and reviewer assignment without ope
   await expect.poll(() => guide.evaluate((element) => element.open)).toBe(false);
   const queueHeading = page.getByRole('heading', { name: 'Cola institucional' });
   await expect(queueHeading).toBeVisible();
-  expect((await queueHeading.boundingBox())?.y).toBeLessThan(844);
+  expect((await queueHeading.boundingBox())?.y, 'OCR review queue should appear early in the mobile viewport').toBeLessThan(650);
   await guide.locator('summary').click();
   await expect.poll(() => guide.evaluate((element) => element.open)).toBe(true);
   await expect(guide.getByText('El archivo original no se reemplaza.')).toBeVisible();
