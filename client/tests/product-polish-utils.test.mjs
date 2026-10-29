@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normalizeLegacyBreaks } from '../src/lib/html-to-plain-text.ts';
 import { confidenceLabel, evidenceLabel, reviewStatusLabel } from '../src/lib/review-presentation.ts';
-import { formatAuditAction, formatDateInput, maskDateInput, parseDateInput } from '../src/lib/utils.ts';
+import { formatAuditAction, formatAuditEntity, formatDateInput, maskDateInput, parseDateInput } from '../src/lib/utils.ts';
 
 test('legacy summary breaks become safe text line breaks', () => {
   assert.equal(normalizeLegacyBreaks('Uno<br>Dos<BR />Tres'), 'Uno\nDos\nTres');
@@ -34,4 +34,12 @@ test('audit actions show operational labels instead of internal enum keys', () =
   assert.equal(formatAuditAction('WORKSPACE_DOCUMENT_UPLOAD'), 'Subir documento al espacio');
   assert.equal(formatAuditAction('UNKNOWN_ACTION_CODE'), 'Unknown action code');
   assert.equal(formatAuditAction(''), 'Acción sin descripción');
+});
+
+test('audit entities show human labels for newer records', () => {
+  assert.equal(formatAuditEntity('SENTENCIA'), 'Fallo');
+  assert.equal(formatAuditEntity('WorkspaceDocument'), 'Documento compartido');
+  assert.equal(formatAuditEntity('OcrJob'), 'Trabajo de OCR');
+  assert.equal(formatAuditEntity('UnknownWorkspaceEntity'), 'Unknown workspace entity');
+  assert.equal(formatAuditEntity(''), 'Entidad sin descripción');
 });

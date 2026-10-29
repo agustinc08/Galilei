@@ -12,6 +12,10 @@ import styles from './revision.module.css';
 type ReviewKind = 'classification' | 'candidate' | 'ocr' | 'sourceMissing' | 'failed' | 'metadata';
 type Queue = { total: number; page: number; pageSize: number; results: Array<{ id: string; title: string; status: string; locations?: Array<{ id: string }>; caseNumber: string | null; associations: Array<{ id: string; targetId: string; confidence: string; reviewStatus: string; evidence: unknown }>; classifications: Array<{ id: string; category: string; value: string; origin: string; confidence: number | null; reviewStatus: string }> }> };
 
+function sourceDocumentLabel(title: string): string {
+  return /^\d+$/u.test(title.trim()) ? 'Ver documento de origen' : title;
+}
+
 export default function RevisionPage() {
   const searchParams = useSearchParams();
   const [kind, setKind] = useState<ReviewKind>(() => {
@@ -34,7 +38,7 @@ export default function RevisionPage() {
   const reviewBatch = async (status: 'APPROVED' | 'REJECTED') => {
     if (!selected.length) return;
     const action = status === 'APPROVED' ? 'aprobar' : 'rechazar';
-    const preview = suggestions.filter((item) => selected.includes(item.id)).map((item) => `• ${item.doc.title}: ${item.value}`).join('\n');
+    const preview = suggestions.filter((item) => selected.includes(item.id)).map((item) => `• ${sourceDocumentLabel(item.doc.title)}: ${item.value}`).join('\n');
     if (!window.confirm(`Vista previa: ${action} ${selected.length} clasificación(es).\n\n${preview}\n\nLa decisión quedará auditada. No existe deshacer automático.`)) return;
     setBusy(true);
     try { await api.post('/corpus/curation/classifications/batch', { ids: selected, status }); await load(); }
@@ -68,12 +72,12 @@ export default function RevisionPage() {
       <div className={styles.actions}><span>{selected.length} seleccionadas (máximo 20 por acción)</span><button disabled={!selected.length || busy} onClick={() => void reviewBatch('APPROVED')}>Aprobar seleccionadas</button><button disabled={!selected.length || busy} onClick={() => void reviewBatch('REJECTED')}>Rechazar seleccionadas</button></div>
       {suggestions.length ? <div className={styles.list}>{suggestions.map((item) => <div key={item.id} className={styles.row}>
         <input type="checkbox" aria-label={`Seleccionar sugerencia ${item.value}`} checked={selected.includes(item.id)} disabled={!selected.includes(item.id) && selected.length >= 20} onChange={(event) => setSelected((ids) => event.target.checked ? [...ids, item.id] : ids.filter((id) => id !== item.id))} />
-        <span><strong>{item.value}</strong><small>{item.category} · {item.origin} · confianza {item.confidence == null ? '—' : `${Math.round(item.confidence * 100)}%`}</small><Link href={`/corpus/${encodeURIComponent(item.doc.id)}`}>{item.doc.title}</Link><button type="button" disabled={busy} onClick={() => void editClassification(item)}>Editar y aprobar</button></span>
+        <span><strong>{item.value}</strong><small>{item.category} · {item.origin} · confianza {item.confidence == null ? '—' : `${Math.round(item.confidence * 100)}%`}</small><Link href={`/corpus/${encodeURIComponent(item.doc.id)}`} aria-label="Abrir documento de origen">{sourceDocumentLabel(item.doc.title)}</Link><button type="button" disabled={busy} onClick={() => void editClassification(item)}>Editar y aprobar</button></span>
       </div>)}</div> : <p>No hay temas sugeridos pendientes en esta página.</p>}
     </Card> : kind === 'candidate' ? <Card>
       <p>{queue?.total.toLocaleString('es-AR') ?? '—'} documentos con sugerencias de asociación. Todas requieren revisión humana; la coincidencia automática no aprueba ni publica un vínculo.</p>
       {associations.length ? <div className={styles.list}>{associations.map((item) => <article key={item.id} className={styles.row}>
-        <span><strong>{confidenceLabel(item.confidence)}</strong><small>{reviewStatusLabel(item.reviewStatus)}</small><small>Destino sugerido: sentencia #{item.targetId || 'sin ID'} · {item.doc.caseNumber ?? 'sin expediente'}</small><small className={styles.evidence}>Evidencia: {evidenceLabel(item.evidence)}</small><Link href={`/corpus/${encodeURIComponent(item.doc.id)}`}>{item.doc.title}</Link></span>
+        <span><strong>{confidenceLabel(item.confidence)}</strong><small>{reviewStatusLabel(item.reviewStatus)}</small><small>Destino sugerido: sentencia #{item.targetId || 'sin ID'} · {item.doc.caseNumber ?? 'sin expediente'}</small><small className={styles.evidence}>Evidencia: {evidenceLabel(item.evidence)}</small><Link href={`/corpus/${encodeURIComponent(item.doc.id)}`} aria-label="Abrir documento de origen">{sourceDocumentLabel(item.doc.title)}</Link></span>
         <div className={styles.actions}><button disabled={busy || !/^\d+$/.test(item.targetId)} title={!/^\d+$/.test(item.targetId) ? 'No hay un ID de sentencia verificable para aprobar' : undefined} onClick={() => void reviewAssociation(item.id, 'APPROVED')}>Aprobar vínculo</button><button disabled={busy} onClick={() => void reviewAssociation(item.id, 'REJECTED')}>Rechazar</button></div>
       </article>)}</div> : <p>No hay asociaciones pendientes en esta página.</p>}
     </Card> : <Card>

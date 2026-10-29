@@ -203,15 +203,22 @@ function InstitutionalIngestionWorkspace() {
           <Card>
             <h2>Cargar un PDF</h2>
             <p className={styles.help}>Un archivo por vez. PDF de hasta 100 MB. La carga queda interna y no publica el fallo.</p>
-            <label className={styles.fileLabel} htmlFor="institutional-pdf">Archivo PDF</label>
-            <input
-              id="institutional-pdf"
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-              disabled={busy}
-              aria-describedby="institutional-pdf-help"
-            />
+            <label className={styles.fileLabel} htmlFor="institutional-pdf">
+              Archivo PDF
+              <span className={styles.filePicker}>
+                <span className={styles.filePickerButton}>Seleccionar archivo PDF</span>
+                <span className={styles.filePickerName} aria-live="polite">{selectedFile?.name ?? "Ningún archivo seleccionado"}</span>
+              </span>
+              <input
+                id="institutional-pdf"
+                className={styles.fileInput}
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                disabled={busy}
+                aria-describedby="institutional-pdf-help"
+              />
+            </label>
             <p id="institutional-pdf-help" className={styles.help}>Se valida tipo, estructura y páginas antes de aceptar el archivo.</p>
             {selectedFile ? <p className={styles.fileSummary}><strong>{selectedFile.name}</strong><span>{formatBytes(selectedFile.size)}</span></p> : null}
             <Button onClick={() => void upload()} disabled={!canUpload}>{busy ? "Procesando…" : "Recibir PDF"}</Button>

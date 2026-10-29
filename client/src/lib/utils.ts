@@ -138,6 +138,28 @@ export function formatAuditAction(value: string): string {
   return words ? words[0].toLocaleUpperCase('es-AR') + words.slice(1) : 'Acción sin descripción';
 }
 
+const AUDIT_ENTITY_LABELS: Record<string, string> = {
+  SENTENCIA: 'Fallo',
+  SUMARIO: 'Sumario',
+  RESEÑA: 'Reseña',
+  CITA: 'Cita',
+  REFERENCIA: 'Referencia',
+  PDF: 'PDF',
+  PersonalDocument: 'Documento personal',
+  WorkspaceDocument: 'Documento compartido',
+  OcrJob: 'Trabajo de OCR',
+  Document: 'Documento',
+  DocumentLink: 'Vínculo documental',
+};
+
+export function formatAuditEntity(value: string): string {
+  const knownLabel = AUDIT_ENTITY_LABELS[value];
+  if (knownLabel) return knownLabel;
+
+  const words = value.replace(/([a-z0-9])([A-Z])/gu, '$1 $2').replace(/[_-]+/gu, ' ').toLocaleLowerCase('es-AR').trim();
+  return words ? words[0].toLocaleUpperCase('es-AR') + words.slice(1) : 'Entidad sin descripción';
+}
+
 export async function copyToClipboard(value: string): Promise<boolean> {
   if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
     try {

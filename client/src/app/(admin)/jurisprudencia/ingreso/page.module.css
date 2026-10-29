@@ -32,6 +32,51 @@
   font-weight: 600;
 }
 
+.fileLabel {
+  position: relative;
+  gap: 0.55rem;
+}
+
+.filePicker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+}
+
+.filePickerButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.6rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--color-border, #cbd2d8);
+  border-radius: 0.4rem;
+  background: var(--color-surface-muted, #f3f5f6);
+  color: var(--color-text, #29323a);
+  font-weight: 700;
+}
+
+.filePickerName {
+  color: var(--color-text-muted, #58636e);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.fileLabel:focus-within .filePickerButton {
+  outline: 3px solid color-mix(in srgb, var(--color-primary, #315f82) 28%, transparent);
+  outline-offset: 2px;
+}
+
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .fileSummary,
 .queueHeading,
 .queueTop,

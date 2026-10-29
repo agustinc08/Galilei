@@ -11,7 +11,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Select } from '@/components/ui/Select';
 import { StatusMessage } from '@/components/ui/StatusMessage';
 import { api } from '@/lib/api';
-import { formatAuditAction, formatDateInput, formatDateTime, maskDateInput, parseDateInput } from '@/lib/utils';
+import { formatAuditAction, formatAuditEntity, formatDateInput, formatDateTime, maskDateInput, parseDateInput } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types/common';
 import type { AccionLog, LogsFilters } from '@/types/logs';
 import styles from './logs.module.css';
@@ -20,7 +20,8 @@ const entidadOptions = [
   { label: 'Todas', value: '' }, { label: 'Sentencia', value: 'SENTENCIA' },
   { label: 'Sumario', value: 'SUMARIO' }, { label: 'Reseña', value: 'RESEÑA' },
   { label: 'Cita', value: 'CITA' }, { label: 'Referencia', value: 'REFERENCIA' },
-  { label: 'PDF', value: 'PDF' },
+  { label: 'PDF', value: 'PDF' }, { label: 'Documento personal', value: 'PersonalDocument' },
+  { label: 'Documento compartido', value: 'WorkspaceDocument' }, { label: 'Trabajo de OCR', value: 'OcrJob' },
 ];
 const accionOptions = [
   { label: 'Todas', value: '' }, { label: 'Crear', value: 'CREATE' },
@@ -28,7 +29,14 @@ const accionOptions = [
   { label: 'Publicar', value: 'PUBLICAR' }, { label: 'Despublicar', value: 'DESPUBLICAR' },
   { label: 'Anonimizar', value: 'ANONIMIZAR' }, { label: 'Desanonimizar', value: 'DESANONIMIZAR' },
   { label: 'Confirmar', value: 'CONFIRMAR' }, { label: 'Subir archivo', value: 'UPLOAD' },
-  { label: 'Detectar', value: 'DETECTAR' },
+  { label: 'Detectar', value: 'DETECTAR' }, { label: 'Subir documento personal', value: 'PERSONAL_UPLOAD' },
+  { label: 'Subir carpeta a Mis documentos', value: 'PERSONAL_FOLDER_UPLOAD' },
+  { label: 'Eliminar documento personal', value: 'PERSONAL_DOCUMENT_DELETE' },
+  { label: 'Subir documento al espacio', value: 'WORKSPACE_DOCUMENT_UPLOAD' },
+  { label: 'Eliminar documento del espacio', value: 'WORKSPACE_DOCUMENT_DELETE' },
+  { label: 'Mover documento entre espacios', value: 'WORKSPACE_DOCUMENT_MOVE' },
+  { label: 'Aprobar vínculo documental', value: 'DOCUMENT_LINK_APPROVE' },
+  { label: 'Rechazar vínculo documental', value: 'DOCUMENT_LINK_REJECT' },
 ];
 const defaultFilters: LogsFilters = {
   usuarioId: '', entidad: '', accion: '', fechaDesde: '', fechaHasta: '', page: 1, pageSize: 20,
@@ -160,7 +168,7 @@ export default function AdminLogsPage() {
                       <span><small>Fecha</small><strong>{formatDateTime(item.createdAt)}</strong></span>
                       <span><small>Usuario</small><strong>{item.usuario.nombre} {item.usuario.apellido ?? ''}</strong></span>
                       <span><small>Acción</small><strong>{formatAuditAction(item.accion)}</strong></span>
-                      <span className={styles.logDescription}><small>Registro</small><strong>{item.descripcion ?? `${item.entidad}${item.entidadId ? ` #${item.entidadId}` : ''}`}</strong><small>{item.entidad}</small></span>
+                      <span className={styles.logDescription}><small>Registro</small><strong>{item.descripcion ?? `${formatAuditEntity(item.entidad)}${item.entidadId ? ` #${item.entidadId}` : ''}`}</strong><small>{formatAuditEntity(item.entidad)}</small></span>
                     </button>
                     <Button variant="secondary" onClick={() => void loadDetail(item.id)}>Ver detalle</Button>
                   </article>
@@ -182,10 +190,10 @@ export default function AdminLogsPage() {
           {detailLoading ? <LoadingSpinner label="Cargando detalle…" />
             : detailError ? <div className={styles.errorBlock}><StatusMessage variant="error" title="Detalle no disponible" message={detailError} /><Button onClick={() => void loadDetail(selectedId)}>Reintentar</Button></div>
               : selected ? <div className={styles.detailContent}>
-                <strong>{selected.descripcion ?? `${selected.accion} ${selected.entidad}`}</strong>
+                <strong>{selected.descripcion ?? `${formatAuditAction(selected.accion)} · ${formatAuditEntity(selected.entidad)}`}</strong>
                 <span>{formatDateTime(selected.createdAt)}</span>
                 <span>Usuario: {selected.usuario.nombre} {selected.usuario.apellido ?? ''} ({selected.usuario.email})</span>
-                <span>Entidad: {selected.entidad} {selected.entidadId ? `#${selected.entidadId}` : ''}</span>
+                <span>Entidad: {formatAuditEntity(selected.entidad)} {selected.entidadId ? `#${selected.entidadId}` : ''}</span>
                 <span>Acción: {formatAuditAction(selected.accion)}</span>
                 <details><summary>Datos anteriores</summary><pre>{JSON.stringify(selected.datosAntes ?? null, null, 2)}</pre></details>
                 <details><summary>Datos posteriores</summary><pre>{JSON.stringify(selected.datosDespues ?? null, null, 2)}</pre></details>

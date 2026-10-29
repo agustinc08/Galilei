@@ -162,6 +162,47 @@ test('audit filters use day-first dates and send ISO values @product-polish @aud
   expect(requests).toHaveLength(2);
 });
 
+test('audit presents new entity and action names in Spanish and can filter them @product-polish @audit-labels', async ({ page }) => {
+  await installAdminSession(page);
+  const requests = [];
+  const log = {
+    id: 29, usuarioId: 8901, entidad: 'WorkspaceDocument', entidadId: 'document-29', accion: 'WORKSPACE_DOCUMENT_UPLOAD',
+    descripcion: null, createdAt: '2026-10-29T12:00:00.000Z',
+    usuario: { id: 8901, nombre: 'Cuenta', apellido: 'QA', email: 'admin-product-polish@example.invalid', rol: { nombre: 'ADMIN' } },
+    datosAntes: null, datosDespues: null,
+  };
+  await page.route('**/api/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/api/auth/me') return json(route, {
+      id: 8901, nombre: 'Cuenta', apellido: 'QA', email: 'admin-product-polish@example.invalid',
+      activo: true, rol: { id: 1, nombre: 'ADMIN' },
+    });
+    if (pathname === '/api/logs') {
+      const url = new URL(route.request().url());
+      requests.push({ entidad: url.searchParams.get('entidad'), accion: url.searchParams.get('accion') });
+      return json(route, { data: [log], meta: { page: 1, pageCount: 1, total: 1, pageSize: 20 } });
+    }
+    if (pathname === '/api/logs/29') return json(route, { data: log });
+    return json(route, {});
+  });
+
+  await page.goto('/admin/logs');
+  const logRow = page.getByRole('button', { name: 'Ver detalle del registro 29' });
+  await expect(logRow.getByText('Documento compartido', { exact: true })).toBeVisible();
+  await expect(logRow.getByText('Subir documento al espacio', { exact: true })).toBeVisible();
+  await expect(page.getByText('WorkspaceDocument', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Ver detalle del registro 29' }).click();
+  const drawer = page.getByRole('dialog', { name: 'Detalle de auditoría' });
+  await expect(drawer.getByText('Entidad: Documento compartido #document-29')).toBeVisible();
+  await expect(drawer.getByText('Acción: Subir documento al espacio')).toBeVisible();
+  await drawer.getByRole('button', { name: 'Cerrar' }).click();
+
+  await page.getByLabel('Entidad').selectOption('WorkspaceDocument');
+  await page.getByLabel('Acción').selectOption('WORKSPACE_DOCUMENT_UPLOAD');
+  await page.getByRole('button', { name: 'Filtrar' }).click();
+  await expect.poll(() => requests.at(-1)).toEqual({ entidad: 'WorkspaceDocument', accion: 'WORKSPACE_DOCUMENT_UPLOAD' });
+});
+
 test('editorial review presents evidence in human language and keeps raw keys hidden @product-polish @state', async ({ page }) => {
   await installAdminSession(page);
   await page.route('**/api/**', async (route) => {
@@ -173,7 +214,7 @@ test('editorial review presents evidence in human language and keeps raw keys hi
     if (pathname === '/api/corpus/documents/admin/review') return json(route, {
       total: 1, page: 1, pageSize: 50,
       results: [{
-        id: 'doc-polish-qa', title: 'Sentencia de prueba', status: 'INDEXED', caseNumber: '123/2024',
+        id: 'doc-polish-qa', title: '36508', status: 'INDEXED', caseNumber: '123/2024',
         locations: [],
         associations: [{ id: 'association-qa', targetId: '19624', confidence: 'HIGH_CONFIDENCE', reviewStatus: 'REVIEW_PENDING', evidence: { strategies: ['EXACT_LEGACY_ID_OR_SENTENCE_NUMBER_FILENAME'] } }],
         classifications: [],
@@ -186,6 +227,8 @@ test('editorial review presents evidence in human language and keeps raw keys hi
   await expect(page.getByText('Coincidencia alta')).toBeVisible();
   await expect(page.getByText('Pendiente de revisión humana')).toBeVisible();
   await expect(page.getByText('Coinciden el identificador o número de sentencia y el nombre del archivo.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Abrir documento de origen' })).toHaveText('Ver documento de origen');
+  await expect(page.getByText('36508', { exact: true })).toHaveCount(0);
   await expect(page.getByText(/HIGH_CONFIDENCE|EXACT_LEGACY|strategies|\{"strategies"/u)).toHaveCount(0);
   await expect(page.getByText(/Todas requieren revisión humana/u)).toBeVisible();
 });
@@ -264,6 +307,39 @@ test('workspace preview uses a tablet overlay and a sequential mobile view @prod
   await expect(preview).toBeHidden();
   await expect(results).toBeVisible();
   await expect(page.getByRole('button', { name: 'Vista previa de fallo-qa.txt' })).toBeVisible();
+  expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+  expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
+  expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);
+});
+
+test('institutional PDF picker is localized and selecting a file does not upload it @product-polish @ingestion', async ({ page }) => {
+  await installAdminSession(page);
+  let uploadRequests = 0;
+  await page.route('**/api/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/api/auth/me') return json(route, {
+      id: 8901, nombre: 'Cuenta', apellido: 'QA', email: 'admin-product-polish@example.invalid',
+      activo: true, rol: { id: 1, nombre: 'ADMIN' },
+    });
+    if (pathname === '/api/corpus/institutional-ingestions/upload') {
+      uploadRequests += 1;
+      return json(route, { statusCode: 500 }, 500);
+    }
+    if (pathname === '/api/corpus/institutional-ingestions') return json(route, {
+      data: [], meta: { total: 0, page: 1, pageSize: 25, pageCount: 1, counters: { pending: 0, ocrRequired: 0, duplicates: 0, reviewRequired: 0, completed: 0 } },
+    });
+    return json(route, {});
+  });
+
+  await page.goto('/jurisprudencia/ingreso');
+  await expect(page.getByText('Ningún archivo seleccionado')).toBeVisible();
+  const input = page.locator('#institutional-pdf');
+  await input.setInputFiles({ name: 'fallo-qa.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\nQA') });
+  await expect(page.locator('label[for="institutional-pdf"] [aria-live="polite"]')).toHaveText('fallo-qa.pdf');
+  await expect(page.getByText('Seleccionar archivo PDF', { exact: true })).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('No file chosen');
+  await expect(page.getByRole('button', { name: 'Recibir PDF' })).toBeEnabled();
+  expect(uploadRequests).toBe(0);
   expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);
