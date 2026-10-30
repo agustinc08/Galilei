@@ -423,6 +423,12 @@ test('workspace preview uses a full-width tablet detail view and a sequential mo
   expect(mobilePreviewNavigation.navigatorBottom).toBeLessThanOrEqual(mobilePreviewNavigation.contentBottom + 1);
   expect(mobilePreviewNavigation.buttons.every((button) => button.top >= mobilePreviewNavigation.navigatorTop - 1 && button.bottom <= mobilePreviewNavigation.panelBottom + 1), `mobile navigation buttons should not be clipped by the preview card: ${JSON.stringify(mobilePreviewNavigation)}`).toBe(true);
   expect(mobilePreviewNavigation.scrollHeight).toBeLessThanOrEqual(mobilePreviewNavigation.clientHeight + 1);
+  const mobileTouchTargets = await preview.evaluate((element) =>
+    Array.from(element.querySelectorAll('[class*="previewActions"] a, [class*="previewActions"] button, [class*="matchNavigator"] button'))
+      .map((control) => ({ width: control.getBoundingClientRect().width, height: control.getBoundingClientRect().height })),
+  );
+  expect(mobileTouchTargets.length).toBeGreaterThanOrEqual(4);
+  expect(mobileTouchTargets.every((target) => target.height >= 44), `mobile preview controls should provide 44px tap targets: ${JSON.stringify(mobileTouchTargets)}`).toBe(true);
   await expect(leftPanel).toBeHidden();
   await expect(results).toBeHidden();
   await page.getByRole('button', { name: 'Volver a resultados' }).click();

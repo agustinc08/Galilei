@@ -258,6 +258,15 @@
 .visuallyHidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 @media (max-width: 600px) {
+  .searchForm input,
+  .searchButton,
+  .previewActions .openButton,
+  .previewActions .downloadButton,
+  .matchNavigator button,
+  .pageControls button {
+    min-height: 2.75rem;
+  }
+  .pageControls button { min-width: 2.75rem; }
   .workspacePdfNativeViewer { height: min(62vh, 620px); min-height: min(380px, 48vh); }
 }
 
