@@ -105,7 +105,9 @@
 .folderGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .folderRow { display: flex; align-items: stretch; gap: 4px; }
 .folderOpen { flex: 1; min-width: 0; text-align: left; }
-.folderOpen strong { display: block; overflow-wrap: anywhere; }
+.folderOpen strong { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.folderIcon { flex: none; width: 18px; height: 18px; color: #486581; }
+.folderOpen strong > span { min-width: 0; overflow-wrap: anywhere; }
 .folderOpen small { display: block; margin-top: 5px; color: #667085; font-weight: 400; }
 .folderRename { display: flex; gap: 6px; align-items: center; }
 .folderRename input { min-width: 160px; }

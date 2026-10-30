@@ -29,6 +29,8 @@ test('sidebar agrupa navegación por rol y reserva gestión según permisos @sid
   await expect(mainNavigation.getByRole('link', { name: /Jurisprudencia/u })).toBeVisible();
   await expect(mainNavigation.getByRole('link', { name: /Mi Sala \/ Juzgado/u })).toBeVisible();
   await expect(mainNavigation.getByRole('link', { name: /Mis documentos/u })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Mi Sala \/ Juzgado.*Documentos compartidos/u }).locator('svg[aria-hidden="true"]')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Mis documentos.*Archivos privados/u }).locator('svg[aria-hidden="true"]')).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'CUENTA' })).toHaveCount(0);
   await expect(page.getByText('CUENTA', { exact: true })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Gestión' })).toHaveCount(0);

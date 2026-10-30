@@ -1,6 +1,6 @@
 .page { display: grid; gap: 18px; color: #102a43; }
 .privateNotice { display: flex; align-items: flex-start; gap: 12px; padding: 15px 18px; border: 1px solid #b7d9ca; border-radius: 10px; background: #f2faf6; color: #153d30; }
-.privateNotice > span { font-size: 20px; }
+.privateIcon { flex: none; width: 20px; height: 20px; margin-top: 1px; color: #18734f; }
 .privateNotice div { display: grid; gap: 3px; }
 .privateNotice div span { font-size: 14px; line-height: 1.45; }
 .columns { display: grid; grid-template-columns: minmax(270px, .8fr) minmax(440px, 1.5fr); align-items: start; gap: 18px; }
@@ -13,6 +13,7 @@
 .folderList, .documentList { list-style: none; padding: 0; margin: 0; }
 .folderList li + li { border-top: 1px solid #e6edf3; }
 .folderButton { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; width: 100%; align-items: center; gap: 8px; padding: 10px 4px; border: 0; background: transparent; text-align: left; color: #102a43; cursor: pointer; }
+.folderIcon { width: 18px; height: 18px; color: #486581; }
 .folderButton:hover { background: #f4f8fb; }
 .folderButton small { color: #627d98; }
 .empty { padding: 12px 4px; color: #627d98; font-size: 14px; }

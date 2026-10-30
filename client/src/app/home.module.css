@@ -79,8 +79,10 @@
   outline: none;
 }
 
-.card > span {
-  font-size: 22px;
+.destinationIcon {
+  width: 23px;
+  height: 23px;
+  color: #315f82;
 }
 
 .card strong {

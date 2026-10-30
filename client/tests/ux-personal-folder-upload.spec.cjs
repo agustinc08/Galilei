@@ -82,6 +82,7 @@ test('sube una carpeta con estructura, omite formatos ajenos y aísla un archivo
 
   await page.goto('/personal');
   await expect(page.getByRole('heading', { name: 'Mis documentos', exact: true })).toBeVisible();
+  await expect(page.locator('svg[class*="privateIcon"]')).toHaveAttribute('aria-hidden', 'true');
   const input = page.locator('#personal-folder-upload');
   await expect(input).toBeEnabled();
   const fixtureDirectory = ensureFolderUploadFixture(
@@ -104,6 +105,7 @@ test('sube una carpeta con estructura, omite formatos ajenos y aísla un archivo
 
   const folderButton = page.getByRole('button', { name: /Contratos ñ 2026/iu });
   await expect(folderButton).toBeVisible();
+  await expect(folderButton.locator('svg[class*="folderIcon"]')).toHaveAttribute('aria-hidden', 'true');
   await expect(folderButton).toContainText('4');
   for (const viewport of [
     { width: 390, height: 844 },

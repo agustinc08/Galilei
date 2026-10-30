@@ -1,12 +1,13 @@
 import { Link } from "@/lib/router-compat";
 import { Button } from '@/components/ui/Button';
+import { LineIcon } from '@/components/ui/LineIcon';
 import styles from './home.module.css';
 
 const destinations = [
-  { href: '/consulta', icon: '⚖', title: 'Jurisprudencia', text: 'Buscar fallos publicados.' },
-  { href: '/spaces', icon: '🏛', title: 'Mi Sala / Juzgado', text: 'Documentos compartidos de tu dependencia.' },
-  { href: '/personal', icon: '🔒', title: 'Mis documentos', text: 'Tus archivos privados.' },
-];
+  { href: '/consulta', icon: 'scales', title: 'Jurisprudencia', text: 'Buscar fallos publicados.' },
+  { href: '/spaces', icon: 'institution', title: 'Mi Sala / Juzgado', text: 'Documentos compartidos de tu dependencia.' },
+  { href: '/personal', icon: 'lock', title: 'Mis documentos', text: 'Tus archivos privados.' },
+] as const;
 
 export default function HomePage() {
   return (
@@ -20,7 +21,7 @@ export default function HomePage() {
         <nav className={styles.cards} aria-label="Secciones de Galilei">
           {destinations.map((destination) => (
             <Link className={styles.card} href={destination.href} key={destination.href}>
-              <span aria-hidden="true">{destination.icon}</span>
+              <LineIcon name={destination.icon} className={styles.destinationIcon} />
               <strong>{destination.title}</strong>
               <p>{destination.text}</p>
             </Link>

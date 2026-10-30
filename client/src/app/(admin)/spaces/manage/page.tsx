@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
+import { LineIcon } from "@/components/ui/LineIcon";
 import styles from "../spaces.module.css";
 
 type WorkspaceRole = "ADMIN" | "EDITOR" | "VIEWER";
@@ -1513,7 +1514,7 @@ export default function PrivateSpacesPage() {
                             clearSearch();
                           }}
                         >
-                          <strong>📁 {folder.name}</strong>
+                          <strong><LineIcon name="folder" className={styles.folderIcon} /><span>{folder.name}</span></strong>
                           <small>
                           {folder.visibilityLabel}{folder.effectiveVisibilityScope === "RESTRICTED" && folder.authorizedCount !== undefined ? ` · ${folder.authorizedCount} personas elegidas; creador y administradores también acceden` : ""} · {folder._count.documents} documentos · {folder._count.children} subcarpetas
                           </small>

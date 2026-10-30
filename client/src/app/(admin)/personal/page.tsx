@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
+import { LineIcon } from "@/components/ui/LineIcon";
 import { CorpusPdfViewer } from "../corpus/[id]/CorpusPdfViewer";
 import styles from "./personal.module.css";
 import {
@@ -414,7 +415,7 @@ export default function PersonalDocumentsPage() {
     <div className={styles.page}>
       <PageHeader title="Mis documentos" description="Sólo vos podés verlos." />
       <div className={styles.privateNotice} role="note">
-        <span aria-hidden="true">🔒</span>
+        <LineIcon name="lock" className={styles.privateIcon} />
         <div><strong>Acceso privado</strong><span>Estos documentos pertenecen a tu cuenta y no aparecen en las salas, juzgados ni en la búsqueda general.</span></div>
       </div>
 
@@ -439,7 +440,7 @@ export default function PersonalDocumentsPage() {
               {visibleFolders.map((folder) => (
                 <li key={folder.id}>
                   <button className={styles.folderButton} onClick={() => navigateToFolder(folder.id)}>
-                    <span aria-hidden="true">📁</span><span>{folder.name}</span><small>{folder._count.documents}</small>
+                    <LineIcon name="folder" className={styles.folderIcon} /><span>{folder.name}</span><small>{folder._count.documents}</small>
                   </button>
                 </li>
               ))}
