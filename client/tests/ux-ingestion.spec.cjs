@@ -53,6 +53,7 @@ test('ingreso mantiene métricas legibles en desktop, tablet y móvil @ingreso',
           leftColumnWidth: Math.round(left?.getBoundingClientRect().width ?? 0),
           metricColumns: metrics ? getComputedStyle(metrics).gridTemplateColumns.split(' ').length : 0,
           metricCardWidths: cards.map((card) => Math.round(card.getBoundingClientRect().width)),
+          pageColumnCount: columns ? getComputedStyle(columns).gridTemplateColumns.split(' ').length : 0,
           pageColumns: columns ? getComputedStyle(columns).gridTemplateColumns : null,
         };
       });
@@ -61,9 +62,13 @@ test('ingreso mantiene métricas legibles en desktop, tablet y móvil @ingreso',
       if (viewport.width === 1440) {
         expect(layout.leftColumnWidth).toBeGreaterThanOrEqual(520);
         expect(layout.metricColumns).toBe(3);
+        expect(layout.pageColumnCount).toBe(2);
         expect(Math.min(...layout.metricCardWidths)).toBeGreaterThanOrEqual(150);
       }
-      if (viewport.width === 1024 || viewport.width === 768) expect(layout.metricColumns).toBe(2);
+      if (viewport.width === 1024 || viewport.width === 768) {
+        expect(layout.metricColumns).toBe(2);
+        expect(layout.pageColumnCount).toBe(1);
+      }
       if (viewport.width === 390) {
         await page.locator('#institutional-pdf').setInputFiles({
           name: 'ingreso-sintetico.pdf',
