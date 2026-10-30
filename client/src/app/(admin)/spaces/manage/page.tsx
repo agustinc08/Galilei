@@ -280,6 +280,8 @@ export default function PrivateSpacesPage() {
   const [managedAccessPeople, setManagedAccessPeople] = useState<FolderAccessPerson[]>([]);
   const [renamingFolderId, setRenamingFolderId] = useState("");
   const [renamedFolder, setRenamedFolder] = useState("");
+  const [deletingFolderId, setDeletingFolderId] = useState("");
+  const [folderDeleteReason, setFolderDeleteReason] = useState("");
   const [depCode, setDepCode] = useState("");
   const [depName, setDepName] = useState("");
   const [depType, setDepType] = useState("JUZGADO");
@@ -750,6 +752,30 @@ export default function PrivateSpacesPage() {
       setNotice("Nombre de carpeta actualizado.");
     } catch (cause) {
       setError(friendlyError(cause, "No se pudo renombrar la carpeta."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteFolder(folder: Folder) {
+    if (!workspaceId || !canEdit || !folderDeleteReason.trim()) return;
+    if (folder._count.documents || folder._count.children) {
+      setError("Sólo se pueden eliminar carpetas vacías y sin subcarpetas.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await api.delete(`/workspaces/${workspaceId}/folders/${folder.id}`, {
+        body: JSON.stringify({ reason: folderDeleteReason.trim() }),
+      });
+      setDeletingFolderId("");
+      setFolderDeleteReason("");
+      await refresh(workspaceId, folderId);
+      setNotice("Carpeta vacía eliminada.");
+    } catch (cause) {
+      setError(friendlyError(cause, "No se pudo eliminar la carpeta."));
     } finally {
       setBusy(false);
     }
@@ -1534,6 +1560,53 @@ export default function PrivateSpacesPage() {
                           >
                             Renombrar
                           </button>
+                        )}
+                        {canEdit && (
+                          <details className={styles.folderDelete}>
+                            <summary>Eliminar carpeta</summary>
+                            <form
+                              onSubmit={(event) => {
+                                event.preventDefault();
+                                void deleteFolder(folder);
+                              }}
+                            >
+                              <label htmlFor={`folder-delete-reason-${folder.id}`}>
+                                Motivo de eliminación
+                              </label>
+                              <input
+                                id={`folder-delete-reason-${folder.id}`}
+                                value={deletingFolderId === folder.id ? folderDeleteReason : ""}
+                                onFocus={() => {
+                                  if (deletingFolderId !== folder.id) {
+                                    setDeletingFolderId(folder.id);
+                                    setFolderDeleteReason("");
+                                  }
+                                }}
+                                onChange={(event) => {
+                                  setDeletingFolderId(folder.id);
+                                  setFolderDeleteReason(event.target.value);
+                                }}
+                                maxLength={500}
+                                minLength={5}
+                                required
+                              />
+                              <button
+                                type="submit"
+                                disabled={
+                                  busy ||
+                                  deletingFolderId !== folder.id ||
+                                  folderDeleteReason.trim().length < 5 ||
+                                  folder._count.documents > 0 ||
+                                  folder._count.children > 0
+                                }
+                              >
+                                Eliminar carpeta vacía
+                              </button>
+                              {folder._count.documents > 0 || folder._count.children > 0 ? (
+                                <small>Primero mové los documentos y subcarpetas.</small>
+                              ) : null}
+                            </form>
+                          </details>
                         )}
                       </>
                     )}

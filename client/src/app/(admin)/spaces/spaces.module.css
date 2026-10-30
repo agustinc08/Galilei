@@ -111,6 +111,10 @@
 .folderOpen small { display: block; margin-top: 5px; color: #667085; font-weight: 400; }
 .folderRename { display: flex; gap: 6px; align-items: center; }
 .folderRename input { min-width: 160px; }
+.folderDelete { display: grid; align-content: start; gap: 6px; min-width: 0; }
+.folderDelete form { display: grid; gap: 6px; min-width: 0; }
+.folderDelete input { min-width: min(160px, 52vw); min-height: 38px; padding: 7px 9px; }
+.folderDelete small { color: #667085; font-size: 12px; }
 .breadcrumb { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: #667085; font-size: 14px; }
 .breadcrumb button { padding: 3px; border: 0; color: #176b87; background: transparent; text-decoration: underline; cursor: pointer; }
 .documentList { display: grid; gap: 10px; }
