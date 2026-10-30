@@ -1576,6 +1576,7 @@ export class WorkspaceDocumentService {
              actor."nombre", actor."apellido"
         FROM "AccionLog" AS log
         JOIN "Usuario" AS actor ON actor."id" = log."usuarioId"
+       -- Document activity includes the current WorkspaceDocument audit entity.
        WHERE log."entidad" IN ('DocumentWorkspace', 'WorkspaceDocument')
          AND COALESCE(log."datosDespues"->>'workspaceId', log."datosAntes"->>'workspaceId') = ${workspaceId}
        ORDER BY log."createdAt" DESC
