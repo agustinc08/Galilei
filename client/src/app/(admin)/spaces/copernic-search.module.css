@@ -108,7 +108,7 @@
 .centerPanel,
 .previewPanel { min-width: 0; min-height: 0; overflow: hidden; background: var(--copernic-panel); }
 .leftPanel { display: flex; flex-direction: column; border-right: 1px solid var(--copernic-line); background: #f8fafc; }
-.centerPanel { display: grid; grid-template-rows: auto minmax(0, 1fr); border-right: 1px solid var(--copernic-line); }
+.centerPanel { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); border-right: 1px solid var(--copernic-line); }
 .previewPanel { display: flex; flex-direction: column; background: #f8fafc; }
 .previewBackButton { display: none; }
 .panelHeading { justify-content: space-between; min-height: 2.65rem; padding: .4rem .65rem .4rem .85rem; border-bottom: 1px solid #e5ebf0; }
