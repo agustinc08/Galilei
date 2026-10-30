@@ -146,6 +146,7 @@ test('OCR review is usable at required widths and exposes keyboard, labels, and 
       await expect(page.getByRole('heading', { name: 'Elegí un documento' })).toBeVisible();
       const queueItem = page.getByRole('button', { name: /Caso sintético para revisión OCR/ });
       await expect(queueItem).toBeVisible();
+      await expect(queueItem).toContainText('1 páginas · 0/1 con decisión final');
       await expect(queueItem).toContainText('OCR listo para revisión humana · 1/1 páginas · aún no indexado');
       await page.getByRole('button', { name: 'Actualizar' }).focus();
       await page.keyboard.press('Tab');
@@ -162,7 +163,9 @@ test('OCR review is usable at required widths and exposes keyboard, labels, and 
       await expect(page.getByRole('heading', { name: 'Caso sintético para revisión OCR' })).toBeVisible();
       await expect(page.getByRole('status').filter({ hasText: 'OCR completo · 1/1 páginas preparadas para revisión humana.' })).toBeVisible();
       await expect(page.getByRole('status').filter({ hasText: 'El texto todavía no está indexado; requiere aprobación humana.' })).toBeVisible();
-      await expect(page.getByText('0/1 páginas confirmadas')).toBeVisible();
+      await expect(page.getByText('0/1 páginas con decisión final')).toBeVisible();
+      await expect(page.getByText('Repetí el procesamiento sólo si el texto no sirve para revisar; la corrida anterior y el PDF original se conservan.')).toBeVisible();
+      await expect(page.getByText('Se habilita cuando cada página tiene una decisión final: texto aprobado o “sin texto”. Solo el texto aprobado se incorpora a Search interno.')).toBeVisible();
       await expect(page.getByLabel('Texto corregido')).toHaveValue(PAGE.ocrText);
       await expect(page.getByRole('button', { name: 'Aprobar página' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Requiere nueva revisión' })).toBeVisible();

@@ -385,7 +385,7 @@ export default function OcrReviewPage() {
                     onClick={() => void openDocument(item)} disabled={busy !== ''}>
                     <strong>{queueDocumentTitle(item.title)}</strong>
                     <span>{[item.court, item.chamber, item.caseNumber].filter(Boolean).join(' · ') || 'Metadatos de carátula incompletos'}</span>
-                    <span>{item.pageCount} páginas · {item.approvedPages}/{item.pageCount} confirmadas</span>
+                    <span>{item.pageCount} páginas · {item.approvedPages}/{item.pageCount} con decisión final</span>
                     <span>{queueStatus(item.status)}{item.assignedToId ? (item.assignedToId === actorId ? ' · tomado por vos' : ' · tomado por otro revisor') : ''}</span>
                     {queueOcrStatus(item) && <span className={item.ocrRun?.status === 'FAILED' ? styles.warningText : item.ocrRun?.status === 'COMPLETE' ? styles.ocrReadyText : undefined}>{queueOcrStatus(item)}</span>}
                   </button>
@@ -427,8 +427,9 @@ export default function OcrReviewPage() {
                 </div>}
                 {review.activeRun && <div className={styles.runSummary}>
                   <span>OCR local #{review.activeRun.runNumber} · {review.activeRun.processorVersion}</span>
-                  <span>{terminalCount}/{review.file.pageCount} páginas confirmadas</span>
+                  <span>{terminalCount}/{review.file.pageCount} páginas con decisión final</span>
                   <button type="button" className={styles.secondaryButton} disabled={busy !== '' || lockedForOther} onClick={() => void generateOcr(true)}>Nueva ejecución OCR</button>
+                  <span className={styles.muted}>Repetí el procesamiento sólo si el texto no sirve para revisar; la corrida anterior y el PDF original se conservan.</span>
                 </div>}
                 {ocrReadyForHumanReview && <p className={styles.ocrReadyNotice} role="status" aria-live="polite">
                   <strong>OCR completo · {completedOcrPages}/{review.file.pageCount} páginas preparadas para revisión humana.</strong>
@@ -474,7 +475,7 @@ export default function OcrReviewPage() {
                   {page ? <>
                     <div className={styles.panelHeading}>
                       <div><h3>Página {pageNumber}</h3><p>{pageStatusLabel(page.status)}</p></div>
-                  <span>{terminalCount}/{review.file.pageCount} confirmadas</span>
+                  <span>{terminalCount}/{review.file.pageCount} con decisión final</span>
                     </div>
                     {page.processingError && <p className={styles.warning}>El OCR no obtuvo texto confiable. Revisá el original o confirmá “Sin texto” si corresponde.</p>}
                     <section className={styles.textSource} aria-labelledby="ocr-source-heading">
@@ -513,7 +514,7 @@ export default function OcrReviewPage() {
 
               {review.activeRun && <Card><div className={styles.finalApproval}>
                 <div><h3>Aprobación del documento</h3>
-                  <p>Requiere todas las páginas aprobadas o confirmadas sin texto. Solo el texto aprobado entra a Search interno.</p>
+                  <p>Se habilita cuando cada página tiene una decisión final: texto aprobado o “sin texto”. Solo el texto aprobado se incorpora a Search interno.</p>
                   {review.hasApprovedVersion && <p className={styles.muted}>La extracción aprobada sigue activa mientras revisás la siguiente versión.</p>}
                 </div>
                 <button type="button" className={styles.primaryButton} disabled={!canApproveDocument || busy !== '' || lockedForOther} onClick={() => void approveDocument()}>
