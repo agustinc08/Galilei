@@ -828,6 +828,26 @@ describe('Sprint 8 human OCR review real PostgreSQL and local OCR integration', 
       'correccion humana',
     );
 
+    const queueAfterOcr = await request(server())
+      .get('/api/ocr-human-review/queue?filter=all&page=1&pageSize=100')
+      .set(auth(reviewerId, 'REVISOR'))
+      .expect(200);
+    const queuedDocument = queueAfterOcr.body.results.find(
+      (item: { documentId: string }) => item.documentId === document.id,
+    );
+    expect(queuedDocument).toMatchObject({
+      status: 'IN_REVIEW',
+      hasApprovedVersion: false,
+      ocrRun: {
+        status: 'COMPLETE',
+        generatedPageCount: 3,
+        pageCount: 3,
+      },
+    });
+    expect(JSON.stringify(queuedDocument)).not.toContain(
+      generated.body.activeRun.pages[0].ocrText,
+    );
+
     const beforeApproval = await prisma.corpusDocument.findUniqueOrThrow({
       where: { id: document.id },
       select: {

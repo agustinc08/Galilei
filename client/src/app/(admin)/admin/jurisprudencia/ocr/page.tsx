@@ -15,6 +15,7 @@ type QueueItem = {
   fileSha256: string | null; pageCount: number; reviewId: string | null;
   status: string; assignedToId: number | null; hasApprovedVersion: boolean;
   approvedPages: number;
+  ocrRun: null | { status: string; generatedPageCount: number; pageCount: number };
 };
 type QueueResult = {
   page: number; pageSize: number; total: number; pageCount: number;
@@ -122,7 +123,7 @@ export default function OcrReviewPage() {
   }, [role]);
 
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 760px)');
+    const media = window.matchMedia('(max-width: 900px)');
     const update = () => setGuideOpen(!media.matches);
     update();
     media.addEventListener('change', update);
@@ -141,6 +142,13 @@ export default function OcrReviewPage() {
   const pdfUrl = review && loadedPdf?.href === review.file.href ? loadedPdf.url : null;
   const pdfPageCountVerified = Boolean(review && loadedPdf?.href === review.file.href && loadedPdf.pageCountVerified);
   const terminalCount = review?.activeRun?.pages.filter((item) => ['APPROVED', 'NO_TEXT'].includes(item.status)).length ?? 0;
+  const completedOcrPages = review?.activeRun?.status === 'COMPLETE'
+    ? review.activeRun.pages.length
+    : 0;
+  const ocrReadyForHumanReview = Boolean(
+    review?.activeRun?.status === 'COMPLETE' &&
+    completedOcrPages === review.file.pageCount,
+  );
   const lockedForOther = Boolean(review?.assignedToId && review.assignedToId !== actorId && !['ADMIN', 'OPERADOR'].includes(role));
   const canApproveDocument = Boolean(
     review?.activeRun?.status === 'COMPLETE' &&
@@ -377,8 +385,9 @@ export default function OcrReviewPage() {
                     onClick={() => void openDocument(item)} disabled={busy !== ''}>
                     <strong>{queueDocumentTitle(item.title)}</strong>
                     <span>{[item.court, item.chamber, item.caseNumber].filter(Boolean).join(' · ') || 'Metadatos de carátula incompletos'}</span>
-                    <span>{item.pageCount} páginas · {item.approvedPages}/{item.pageCount} resueltas</span>
+                    <span>{item.pageCount} páginas · {item.approvedPages}/{item.pageCount} confirmadas</span>
                     <span>{queueStatus(item.status)}{item.assignedToId ? (item.assignedToId === actorId ? ' · tomado por vos' : ' · tomado por otro revisor') : ''}</span>
+                    {queueOcrStatus(item) && <span className={item.ocrRun?.status === 'FAILED' ? styles.warningText : item.ocrRun?.status === 'COMPLETE' ? styles.ocrReadyText : undefined}>{queueOcrStatus(item)}</span>}
                   </button>
                 )) : <p className={styles.muted}>No hay documentos con esos filtros.</p>}
               </div>
@@ -418,9 +427,15 @@ export default function OcrReviewPage() {
                 </div>}
                 {review.activeRun && <div className={styles.runSummary}>
                   <span>OCR local #{review.activeRun.runNumber} · {review.activeRun.processorVersion}</span>
-                  <span>{terminalCount}/{review.file.pageCount} páginas resueltas</span>
+                  <span>{terminalCount}/{review.file.pageCount} páginas confirmadas</span>
                   <button type="button" className={styles.secondaryButton} disabled={busy !== '' || lockedForOther} onClick={() => void generateOcr(true)}>Nueva ejecución OCR</button>
                 </div>}
+                {ocrReadyForHumanReview && <p className={styles.ocrReadyNotice} role="status" aria-live="polite">
+                  <strong>OCR completo · {completedOcrPages}/{review.file.pageCount} páginas preparadas para revisión humana.</strong>
+                  {review.document.status === 'OCR_REQUIRED' && !review.hasApprovedVersion
+                    ? ' El texto todavía no está indexado; requiere aprobación humana.'
+                    : ' Revisá el estado de aprobación antes de continuar.'}
+                </p>}
                 {review.activeRun?.status === 'FAILED' ? <div className={styles.warning} role="alert">
                   <strong>No se pudieron preparar las páginas para revisión.</strong>
                   <p>{ocrRunRecoveryMessage(review.activeRun.provenance)}</p>
@@ -459,7 +474,7 @@ export default function OcrReviewPage() {
                   {page ? <>
                     <div className={styles.panelHeading}>
                       <div><h3>Página {pageNumber}</h3><p>{pageStatusLabel(page.status)}</p></div>
-                      <span>{terminalCount}/{review.file.pageCount} resueltas</span>
+                  <span>{terminalCount}/{review.file.pageCount} confirmadas</span>
                     </div>
                     {page.processingError && <p className={styles.warning}>El OCR no obtuvo texto confiable. Revisá el original o confirmá “Sin texto” si corresponde.</p>}
                     <section className={styles.textSource} aria-labelledby="ocr-source-heading">
@@ -515,6 +530,21 @@ export default function OcrReviewPage() {
 
 function queueStatus(status: string) {
   return ({ PENDING: 'Pendiente', IN_REVIEW: 'En revisión', READY_FOR_APPROVAL: 'Listo para aprobación', APPROVED: 'Aprobado', FAILED: 'Falló' } as Record<string, string>)[status] ?? status;
+}
+function queueOcrStatus(item: QueueItem) {
+  const run = item.ocrRun;
+  if (!run) return null;
+  if (run.status === 'FAILED') return 'OCR detenido · consultar el detalle con Administración';
+  if (run.status === 'RUNNING') return `OCR en curso · ${run.generatedPageCount}/${run.pageCount} páginas preparadas`;
+  if (run.status !== 'COMPLETE') return null;
+  if (run.generatedPageCount !== run.pageCount) {
+    return `OCR incompleto · ${run.generatedPageCount}/${run.pageCount} páginas · requiere revisión de Administración`;
+  }
+  if (item.status === 'READY_FOR_APPROVAL') {
+    return 'OCR revisado · pendiente de aprobación · aún no indexado';
+  }
+  if (item.hasApprovedVersion) return 'OCR aprobado';
+  return `OCR listo para revisión humana · ${run.generatedPageCount}/${run.pageCount} páginas · aún no indexado`;
 }
 function queueDocumentTitle(title: string) {
   return /^\d+$/u.test(title.trim()) ? `Documento sin carátula · referencia #${title}` : title;

@@ -109,6 +109,7 @@ test('OCR review is usable at required widths and exposes keyboard, labels, and 
             filename: review.file.filename, fileSha256: review.file.sha256,
             pageCount: 1, reviewId: review.id, status: 'IN_REVIEW',
             assignedToId: QA_USER.id, hasApprovedVersion: false, approvedPages: 0,
+            ocrRun: { status: 'COMPLETE', generatedPageCount: 1, pageCount: 1 },
           }],
         } });
       }
@@ -145,6 +146,7 @@ test('OCR review is usable at required widths and exposes keyboard, labels, and 
       await expect(page.getByRole('heading', { name: 'Elegí un documento' })).toBeVisible();
       const queueItem = page.getByRole('button', { name: /Caso sintético para revisión OCR/ });
       await expect(queueItem).toBeVisible();
+      await expect(queueItem).toContainText('OCR listo para revisión humana · 1/1 páginas · aún no indexado');
       await page.getByRole('button', { name: 'Actualizar' }).focus();
       await page.keyboard.press('Tab');
       await expect(page.getByLabel('Filtrar cola')).toBeFocused();
@@ -158,6 +160,9 @@ test('OCR review is usable at required widths and exposes keyboard, labels, and 
 
       await queueItem.click();
       await expect(page.getByRole('heading', { name: 'Caso sintético para revisión OCR' })).toBeVisible();
+      await expect(page.getByRole('status').filter({ hasText: 'OCR completo · 1/1 páginas preparadas para revisión humana.' })).toBeVisible();
+      await expect(page.getByRole('status').filter({ hasText: 'El texto todavía no está indexado; requiere aprobación humana.' })).toBeVisible();
+      await expect(page.getByText('0/1 páginas confirmadas')).toBeVisible();
       await expect(page.getByLabel('Texto corregido')).toHaveValue(PAGE.ocrText);
       await expect(page.getByRole('button', { name: 'Aprobar página' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Requiere nueva revisión' })).toBeVisible();
@@ -182,6 +187,8 @@ test('OCR review is usable at required widths and exposes keyboard, labels, and 
           viewportWidth: window.innerWidth,
           documentWidth: document.documentElement.scrollWidth,
           horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,
+          guideOpen: document.querySelector('details[class*="ocrGuide"]')?.open ?? null,
+          queueItemBottom: Math.round(document.querySelector('[class*="queueItem"]')?.getBoundingClientRect().bottom ?? 0),
           workspaceWidth: width('[class*="workspace"]'),
           queueWidth: width('[class*="queueColumn"]'),
           reviewWidth: width('[class*="reviewColumn"]'),
@@ -191,6 +198,8 @@ test('OCR review is usable at required widths and exposes keyboard, labels, and 
         };
       });
       expect(layout.horizontalOverflow, `horizontal overflow at ${viewport.width}x${viewport.height}`).toBe(false);
+      expect(layout.guideOpen, `guide should collapse at ${viewport.width}px or remain open on desktop`).toBe(viewport.width > 900);
+      if (viewport.width === 768) expect(layout.queueItemBottom, 'tablet queue item should fit in the initial viewport after collapsing the guide').toBeLessThanOrEqual(viewport.height);
       expect(layout.queueWidth, `queue is too narrow at ${viewport.width}x${viewport.height}`).toBeGreaterThanOrEqual(220);
       expect(layout.reviewWidth, `review is too narrow at ${viewport.width}x${viewport.height}`).toBeGreaterThanOrEqual(280);
       expect(layout.editorLabelled).toBe(true);

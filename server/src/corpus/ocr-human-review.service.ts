@@ -264,7 +264,13 @@ export class OcrHumanReviewService {
               assignedToId: true,
               version: true,
               activeApprovalId: true,
-              activeRun: { select: { pages: { select: { status: true } } } },
+              activeRun: {
+                select: {
+                  status: true,
+                  pageCount: true,
+                  pages: { select: { status: true } },
+                },
+              },
             },
           },
         },
@@ -321,6 +327,13 @@ export class OcrHumanReviewService {
           version: review?.version ?? null,
           hasApprovedVersion: Boolean(review?.activeApprovalId),
           approvedPages,
+          ocrRun: review?.activeRun
+            ? {
+                status: review.activeRun.status,
+                generatedPageCount: review.activeRun.pages.length,
+                pageCount: review.activeRun.pageCount,
+              }
+            : null,
         };
       }),
     };
