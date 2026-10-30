@@ -38,6 +38,10 @@ test('ingreso mantiene métricas legibles en desktop, tablet y móvil @ingreso',
       const page = await context.newPage();
       await page.goto(new URL('/jurisprudencia/ingreso', baseURL).toString());
       await expect(page.getByRole('heading', { name: 'Ingreso de jurisprudencia' })).toBeVisible();
+      const receiveButton = page.getByRole('button', { name: 'Recibir PDF' });
+      await expect(receiveButton).toBeDisabled();
+      await expect(page.locator('#institutional-pdf-submit-help')).toHaveText('Seleccioná un PDF para habilitar la recepción.');
+      await expect(receiveButton).toHaveAttribute('aria-describedby', 'institutional-pdf-submit-help');
       const layout = await page.evaluate(() => {
         const columns = document.querySelector('[class*="columns"]');
         const left = document.querySelector('[class*="leftColumn"]');
@@ -60,6 +64,15 @@ test('ingreso mantiene métricas legibles en desktop, tablet y móvil @ingreso',
         expect(Math.min(...layout.metricCardWidths)).toBeGreaterThanOrEqual(150);
       }
       if (viewport.width === 1024 || viewport.width === 768) expect(layout.metricColumns).toBe(2);
+      if (viewport.width === 390) {
+        await page.locator('#institutional-pdf').setInputFiles({
+          name: 'ingreso-sintetico.pdf',
+          mimeType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4\n% fixture sintético para QA\n'),
+        });
+        await expect(receiveButton).toBeEnabled();
+        await expect(page.locator('#institutional-pdf-submit-help')).toHaveCount(0);
+      }
       await page.screenshot({
         path: testInfo.outputPath(`ingreso-${viewport.width}x${viewport.height}.png`),
         fullPage: true,

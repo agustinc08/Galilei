@@ -221,7 +221,14 @@ function InstitutionalIngestionWorkspace() {
             </label>
             <p id="institutional-pdf-help" className={styles.help}>Se valida tipo, estructura y páginas antes de aceptar el archivo.</p>
             {selectedFile ? <p className={styles.fileSummary}><strong>{selectedFile.name}</strong><span>{formatBytes(selectedFile.size)}</span></p> : null}
-            <Button onClick={() => void upload()} disabled={!canUpload}>{busy ? "Procesando…" : "Recibir PDF"}</Button>
+            {!selectedFile ? <p id="institutional-pdf-submit-help" className={styles.help}>Seleccioná un PDF para habilitar la recepción.</p> : null}
+            <Button
+              onClick={() => void upload()}
+              disabled={!canUpload}
+              aria-describedby={!selectedFile ? "institutional-pdf-submit-help" : undefined}
+            >
+              {busy ? "Procesando…" : "Recibir PDF"}
+            </Button>
           </Card>
 
           <Card>
