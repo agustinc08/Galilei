@@ -315,7 +315,7 @@ async function installApiMocks(
     if (path === '/public/sentencias/mas-recientes') {
       return route.fulfill({ json: { data: [{ id: 79, slugPublico: 'decision-reciente', caratula: 'Fallo con decisión reciente', expediente: 'CIV 2/2025', sala: 'A', fecha: '2025-06-01T00:00:00.000Z' }] } });
     }
-    if (path === '/catalogos/salas') return route.fulfill({ json: { data: [{ id: 1, nombre: 'C', activo: true }] } });
+    if (path === '/catalogos/salas') return route.fulfill({ json: { data: [{ id: 1, nombre: 'C', activo: true }, { id: 2, nombre: 'Sala H', activo: true }] } });
     if (path.startsWith('/catalogos/')) return route.fulfill({ json: { data: [] } });
     if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}` && method === 'GET') {
       return route.fulfill({ json: { data: makePublicSentence() } });
@@ -588,6 +588,21 @@ test('public search state is canonical and a copied deep link preserves query, f
   expect(returnedSearch.get('pageSize')).toBe('10');
   await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('responsabilidad civil');
   await expect(page.getByLabel('Filtros activos')).toContainText('Sala: Sala C');
+});
+
+test('public Sala filter submits the canonical value accepted by the search API', async ({ page }) => {
+  const { calls } = await installApiMocks(page);
+  await page.goto('/consulta?q=responsabilidad%20civil');
+  await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('responsabilidad civil');
+  await page.getByRole('button', { name: 'Más filtros', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Sala', exact: true }).selectOption({ label: 'Sala H' });
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+
+  await expect.poll(() => new URL(page.url()).searchParams.get('sala')).toBe('H');
+  await expect.poll(() => new URLSearchParams(calls.filter((call) => call.path === '/public/busqueda').at(-1)?.search).get('sala')).toBe('H');
+  const searchCall = calls.filter((call) => call.path === '/public/busqueda').at(-1);
+  expect(new URLSearchParams(searchCall?.search).get('sala')).toBe('H');
+  await expect(page.getByLabel('Filtros activos')).toContainText('Sala: Sala H');
 });
 
 test('authorized researcher can favorite results, copy an authoritative citation and save/reopen the query', async ({ page }) => {
@@ -1049,7 +1064,13 @@ test('search continuity controls remain usable without horizontal overflow at ta
   await page.goto('/consulta?q=responsabilidad%20civil&page=2');
   for (const viewport of [{ width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
     await page.setViewportSize(viewport);
-    await expect(page.getByRole('button', { name: 'Copiar enlace de búsqueda' })).toBeVisible();
+    if (viewport.width <= 600) {
+      const mobileActions = page.locator('details').filter({ hasText: 'Más acciones' }).first();
+      await mobileActions.locator('summary').click();
+      await expect(mobileActions.getByRole('button', { name: 'Copiar enlace', exact: true })).toBeVisible();
+    } else {
+      await expect(page.getByRole('button', { name: 'Copiar enlace de búsqueda' })).toBeVisible();
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
 });
