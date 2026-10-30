@@ -21,7 +21,10 @@ const entidadOptions = [
   { label: 'Sumario', value: 'SUMARIO' }, { label: 'Reseña', value: 'RESEÑA' },
   { label: 'Cita', value: 'CITA' }, { label: 'Referencia', value: 'REFERENCIA' },
   { label: 'PDF', value: 'PDF' }, { label: 'Documento personal', value: 'PersonalDocument' },
-  { label: 'Documento compartido', value: 'WorkspaceDocument' }, { label: 'Trabajo de OCR', value: 'OcrJob' },
+  { label: 'Documento compartido', value: 'WorkspaceDocument' },
+  { label: 'Carpeta de dependencia', value: 'WorkspaceFolder' },
+  { label: 'Espacio documental', value: 'DocumentWorkspace' },
+  { label: 'Trabajo de OCR', value: 'OcrJob' },
 ];
 const accionOptions = [
   { label: 'Todas', value: '' }, { label: 'Crear', value: 'CREATE' },
@@ -35,6 +38,14 @@ const accionOptions = [
   { label: 'Subir documento al espacio', value: 'WORKSPACE_DOCUMENT_UPLOAD' },
   { label: 'Eliminar documento del espacio', value: 'WORKSPACE_DOCUMENT_DELETE' },
   { label: 'Mover documento entre espacios', value: 'WORKSPACE_DOCUMENT_MOVE' },
+  { label: 'Crear carpeta de dependencia', value: 'FOLDER_CREATE' },
+  { label: 'Crear carpeta restringida', value: 'RESTRICTED_FOLDER_CREATE' },
+  { label: 'Renombrar carpeta', value: 'FOLDER_RENAME' },
+  { label: 'Eliminar carpeta', value: 'WORKSPACE_FOLDER_DELETE' },
+  { label: 'Cambiar visibilidad de carpeta', value: 'FOLDER_VISIBILITY_CHANGED' },
+  { label: 'Cambiar acceso restringido', value: 'RESTRICTED_FOLDER_ACCESS_CHANGED' },
+  { label: 'Crear carpeta personal', value: 'PERSONAL_FOLDER_CREATE' },
+  { label: 'Renombrar carpeta personal', value: 'PERSONAL_FOLDER_RENAME' },
   { label: 'Aprobar vínculo documental', value: 'DOCUMENT_LINK_APPROVE' },
   { label: 'Rechazar vínculo documental', value: 'DOCUMENT_LINK_REJECT' },
 ];
