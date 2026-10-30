@@ -1576,7 +1576,7 @@ export class WorkspaceDocumentService {
              actor."nombre", actor."apellido"
         FROM "AccionLog" AS log
         JOIN "Usuario" AS actor ON actor."id" = log."usuarioId"
-       WHERE log."entidad" = 'DocumentWorkspace'
+       WHERE log."entidad" IN ('DocumentWorkspace', 'WorkspaceDocument')
          AND COALESCE(log."datosDespues"->>'workspaceId', log."datosAntes"->>'workspaceId') = ${workspaceId}
        ORDER BY log."createdAt" DESC
        LIMIT 20

@@ -375,6 +375,11 @@ describe('Workspace official deletion lifecycle', () => {
         blobReferenceCountAfter: 0,
       });
       expect(await storage.get(uniqueFile.storageKey)).toEqual(uniqueBytes);
+      expect(await service.activity(workspaceA.id, adminUser)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ accion: 'WORKSPACE_DOCUMENT_DELETE' }),
+        ]),
+      );
     },
   );
 
