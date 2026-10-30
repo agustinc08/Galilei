@@ -365,6 +365,12 @@ test('workspace preview uses a full-width tablet detail view and a sequential mo
   expect(tabletResultsBounds.x).toBeGreaterThan(tabletLeftBounds.x);
   await page.getByRole('button', { name: 'Vista previa de fallo-qa.txt' }).click();
   await expect(preview.getByText('Contenido textual sintético para la vista previa.')).toBeVisible();
+  const tabletPreviewFonts = await preview.evaluate((element) => ({
+    metadata: parseFloat(getComputedStyle(element.querySelector('[class*="previewDocumentHeader"] > p:not([class*="previewType"])')).fontSize),
+    toolbar: parseFloat(getComputedStyle(element.querySelector('[class*="previewToolbar"]')).fontSize),
+  }));
+  expect(tabletPreviewFonts.metadata).toBeGreaterThanOrEqual(12);
+  expect(tabletPreviewFonts.toolbar).toBeGreaterThanOrEqual(12);
   await expect(leftPanel).toBeHidden();
   await expect(results).toBeHidden();
   await expect(page.getByRole('button', { name: 'Volver a resultados' })).toBeVisible();
@@ -386,6 +392,12 @@ test('workspace preview uses a full-width tablet detail view and a sequential mo
   await expect(preview).toBeHidden();
   await page.getByRole('button', { name: 'Vista previa de fallo-qa.txt' }).click();
   await expect(preview.getByText('Contenido textual sintético para la vista previa.')).toBeVisible();
+  const mobilePreviewFonts = await preview.evaluate((element) => ({
+    metadata: parseFloat(getComputedStyle(element.querySelector('[class*="previewDocumentHeader"] > p:not([class*="previewType"])')).fontSize),
+    toolbar: parseFloat(getComputedStyle(element.querySelector('[class*="previewToolbar"]')).fontSize),
+  }));
+  expect(mobilePreviewFonts.metadata).toBeGreaterThanOrEqual(12);
+  expect(mobilePreviewFonts.toolbar).toBeGreaterThanOrEqual(12);
   await expect(leftPanel).toBeHidden();
   await expect(results).toBeHidden();
   await page.getByRole('button', { name: 'Volver a resultados' }).click();
