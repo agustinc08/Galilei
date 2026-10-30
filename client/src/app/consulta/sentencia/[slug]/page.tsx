@@ -227,7 +227,10 @@ export default function ConsultaSentenciaPublicaPage() {
             <dt>PDF</dt><dd>{pdfAvailable ? 'Disponible' : 'No disponible'}</dd>
           </dl>
           <div className={styles.relatedActions}>
-            {pdfAvailable ? <Link href={fullJudgmentHref}><Button>Abrir fallo completo</Button></Link> : <p className={styles.emptyNote}>Este fallo no tiene un PDF asociado.</p>}
+            <Link href={fullJudgmentHref}>
+              <Button>{pdfAvailable ? 'Abrir fallo completo' : 'Abrir detalle del fallo'}</Button>
+            </Link>
+            {!pdfAvailable ? <p className={styles.emptyNote}>Este fallo no tiene un PDF asociado.</p> : null}
             {pdfHref ? <a className={styles.pdfLink} href={pdfHref} target="_blank" rel="noreferrer">Abrir PDF</a> : null}
             <Link href={backHref}><Button variant="secondary">Volver a la búsqueda</Button></Link>
           </div>
