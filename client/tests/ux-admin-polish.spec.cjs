@@ -390,6 +390,17 @@ test('workspace preview uses a full-width tablet detail view and a sequential mo
   expect(mobileResultsBounds).not.toBeNull();
   expect(Math.abs(mobileLeftBounds.x - mobileResultsBounds.x), 'mobile workspace should stack folders above results').toBeLessThan(2);
   await expect(preview).toBeHidden();
+  const mobileListTouchTargets = await page.evaluate(() => {
+    const selectors = [
+      '[class*="searchForm"] input', '[class*="searchButton"]', '[class*="filterControls"] select',
+      '[class*="syntaxHelp"] summary', '[class*="resultSelect"]', '[class*="resultMenu"] summary',
+    ];
+    return [...document.querySelectorAll(selectors.join(', '))]
+      .filter((control) => getComputedStyle(control).display !== 'none')
+      .map((control) => ({ width: control.getBoundingClientRect().width, height: control.getBoundingClientRect().height }));
+  });
+  expect(mobileListTouchTargets.length).toBeGreaterThanOrEqual(7);
+  expect(mobileListTouchTargets.every((target) => target.height >= 44), `mobile Workspace search and result controls should provide 44px tap targets: ${JSON.stringify(mobileListTouchTargets)}`).toBe(true);
   await page.getByRole('button', { name: 'Vista previa de fallo-qa.txt' }).click();
   await expect(preview.getByText('Contenido textual sintético para la vista previa.')).toBeVisible();
   const mobilePreviewFonts = await preview.evaluate((element) => ({
