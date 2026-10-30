@@ -7,7 +7,7 @@
 
 .columns {
   display: grid;
-  grid-template-columns: minmax(300px, 0.8fr) minmax(420px, 1.2fr);
+  grid-template-columns: minmax(420px, 1fr) minmax(420px, 1fr);
   align-items: start;
   gap: 1rem;
 }
@@ -108,7 +108,7 @@
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
   margin: 1rem 0;
 }
