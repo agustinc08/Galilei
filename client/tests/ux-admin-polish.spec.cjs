@@ -398,6 +398,22 @@ test('workspace preview uses a full-width tablet detail view and a sequential mo
   }));
   expect(mobilePreviewFonts.metadata).toBeGreaterThanOrEqual(12);
   expect(mobilePreviewFonts.toolbar).toBeGreaterThanOrEqual(12);
+  const mobilePreviewNavigation = await preview.evaluate((element) => {
+    const content = element.querySelector('[class*="previewContent"]');
+    const navigator = content?.querySelector('[class*="matchNavigator"]');
+    if (!content || !navigator) return null;
+    return {
+      overflowY: getComputedStyle(content).overflowY,
+      navigatorBottom: navigator.getBoundingClientRect().bottom,
+      contentBottom: content.getBoundingClientRect().bottom,
+      scrollHeight: content.scrollHeight,
+      clientHeight: content.clientHeight,
+    };
+  });
+  expect(mobilePreviewNavigation).not.toBeNull();
+  expect(mobilePreviewNavigation.overflowY, 'mobile preview actions should follow page scroll rather than a nested scroll panel').toBe('visible');
+  expect(mobilePreviewNavigation.navigatorBottom).toBeLessThanOrEqual(mobilePreviewNavigation.contentBottom + 1);
+  expect(mobilePreviewNavigation.scrollHeight).toBeLessThanOrEqual(mobilePreviewNavigation.clientHeight + 1);
   await expect(leftPanel).toBeHidden();
   await expect(results).toBeHidden();
   await page.getByRole('button', { name: 'Volver a resultados' }).click();

@@ -317,7 +317,10 @@
   .panels,.leftCollapsed,.previewCollapsed,.leftCollapsed.previewCollapsed { grid-template-columns: minmax(0, 1fr); overflow: visible; }
   .leftPanel { max-height: 15rem; border-right: 0; border-bottom: 1px solid var(--copernic-line); }
   .centerPanel { grid-row: auto; min-height: 24rem; border-right: 0; }
-  .previewPanel { position: static; width: auto; grid-column: auto; min-height: 22rem; border: 0; border-top: 1px solid var(--copernic-line); box-shadow: none; }
+  .previewPanel { position: static; width: auto; grid-column: auto; min-height: 0; overflow: visible; border: 0; border-top: 1px solid var(--copernic-line); box-shadow: none; }
+  .previewContent { flex: 0 0 auto; min-height: 0; overflow: visible; overscroll-behavior: auto; }
+  .pdfPreview { flex: 0 0 auto; height: min(48vh, 24rem); min-height: 15rem; }
+  .workspacePdfNativeViewer { height: min(48vh, 24rem); min-height: 15rem; }
   .previewOpen .previewPanel { display: flex; }
   .previewOpen .leftPanel,
   .previewOpen .centerPanel { display: none; }
