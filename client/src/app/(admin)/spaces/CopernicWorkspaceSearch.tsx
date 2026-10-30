@@ -15,6 +15,7 @@ import { api, ApiError } from "@/lib/api";
 import { normalizeWorkspaceListResponse } from "@/lib/workspace-list-response";
 import { useAuth } from "@/hooks/use-auth";
 import { downloadBlob } from "@/lib/utils";
+import { LineIcon } from "@/components/ui/LineIcon";
 import type { PdfMatch } from "@/app/(admin)/corpus/[id]/CorpusPdfViewer";
 import styles from "./copernic-search.module.css";
 
@@ -1462,7 +1463,7 @@ export function CopernicWorkspaceSearch() {
                 </div>
               ) : (
                 <div className={styles.idleState}>
-                  <span className={styles.idleIcon} aria-hidden="true">⌕</span>
+                  <span className={styles.idleIcon} aria-hidden="true"><LineIcon name="search" className={styles.idleSearchIcon} /></span>
                   <h2>Buscá en los documentos de {workspace?.name ?? "tu dependencia"}</h2>
                   <p>Podés buscar por contenido o por nombre. La búsqueda respeta la carpeta compartida que elegiste.</p>
                   <span>PDF y documentos con texto disponible</span>

@@ -629,6 +629,7 @@ test('mobile navigation moves focus into the drawer and restores it after Escape
 
   await page.goto('/consulta');
   const trigger = page.locator('button[aria-controls="galilei-primary-navigation"]');
+  await expect(trigger.locator('svg[class*="menuIcon"]')).toHaveAttribute('aria-hidden', 'true');
   await trigger.click();
   const primaryNavigation = page.getByRole('navigation', { name: 'Navegación principal' });
   await expect(primaryNavigation.locator('svg')).toHaveCount(4);

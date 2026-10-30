@@ -297,6 +297,8 @@
 .menuButton,
 .drawerBackdrop { display: none; }
 
+.menuIcon { flex: 0 0 18px; width: 18px; height: 18px; }
+
 @media (max-width: 980px) {
   .appShell { grid-template-columns: minmax(0, 1fr); }
   .sidebar {

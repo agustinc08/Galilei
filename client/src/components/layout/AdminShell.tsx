@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/Button';
+import { LineIcon } from '../ui/LineIcon';
 import styles from './layout.module.css';
 
 const mainDestinations = [
@@ -140,7 +141,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             aria-controls="galilei-primary-navigation"
             onClick={() => setMenuOpen((open) => !open)}
           >
-            <span aria-hidden="true">☰</span><span>Menú</span>
+            <LineIcon name="menu" className={styles.menuIcon} /><span>Menú</span>
           </button>
           <nav className={styles.breadcrumbs} aria-label="Migas de pan">
             <Link href="/galilei">Galilei</Link>

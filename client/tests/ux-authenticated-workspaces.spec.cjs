@@ -29,6 +29,7 @@ test('sidebar agrupa navegación por rol y reserva gestión según permisos @sid
   await expect(mainNavigation.getByRole('link', { name: /Jurisprudencia/u })).toBeVisible();
   await expect(mainNavigation.getByRole('link', { name: /Mi Sala \/ Juzgado/u })).toBeVisible();
   await expect(mainNavigation.getByRole('link', { name: /Mis documentos/u })).toBeVisible();
+  await expect(page.locator('svg[class*="menuIcon"]')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.getByRole('link', { name: /Mi Sala \/ Juzgado.*Documentos compartidos/u }).locator('svg[aria-hidden="true"]')).toBeVisible();
   await expect(page.getByRole('link', { name: /Mis documentos.*Archivos privados/u }).locator('svg[aria-hidden="true"]')).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'CUENTA' })).toHaveCount(0);
@@ -264,6 +265,49 @@ test('la lista inicial acepta el arreglo simple que devuelve Office instalado @w
   const layout = await collectLayout(page);
   expect(layout.horizontalOverflow.passes).toBe(true);
   await captureScenario(page, testInfo, { id: 'workspace-list-legacy-array-390x844', route: '/spaces' });
+  const diagnostics = page.__uxQaDiagnostics;
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.networkErrors).toEqual([]);
+  expect(diagnostics.fixtureMisses).toEqual([]);
+});
+
+test('la búsqueda de carpeta compartida presenta su icono vacío de forma decorativa @workspace-list', async ({ page }) => {
+  const reader = userFor('LECTOR');
+  const workspaceId = 'synthetic-sala-idle-search';
+  const sourceId = 'synthetic-shared-source';
+  const writes = [];
+  await page.addInitScript((user) => {
+    localStorage.setItem('jurisprudencia_token', 'synthetic-workspace-idle-search-token');
+    localStorage.setItem('jurisprudencia_user', JSON.stringify(user));
+  }, reader);
+  await page.on('request', (request) => {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method())) writes.push(request.method());
+  });
+  await page.route('**/api/auth/me', (route) => route.fulfill({ json: reader }));
+  await page.route('**/api/workspaces/mine', (route) => route.fulfill({ json: [{
+    id: workspaceId,
+    name: 'Sala QA de carpeta compartida',
+    code: 'SALA-QA-IDLE',
+    type: 'SALA',
+    role: 'VIEWER',
+  }] }));
+  await page.route(`**/api/workspaces/${workspaceId}/folders`, (route) => route.fulfill({ json: [] }));
+  await page.route(`**/api/workspaces/${workspaceId}/search/sources`, (route) => route.fulfill({ json: [{
+    id: sourceId,
+    name: 'Documentos compartidos',
+    type: 'FOLDER',
+    status: 'ACTIVE',
+    enabled: true,
+    fileCount: 1,
+  }] }));
+  await page.route(`**/api/workspaces/${workspaceId}/search/sources/${sourceId}/folders`, (route) => route.fulfill({ json: {
+    folders: [{ path: 'Actas', parentPath: null, name: 'Actas', fileCount: 1 }],
+  } }));
+
+  await page.goto(`/spaces?workspaceId=${workspaceId}&sourceId=${sourceId}&sourceFolder=Actas`);
+  await expect(page.getByRole('heading', { name: 'Buscá en los documentos de Sala QA de carpeta compartida' })).toBeVisible();
+  await expect(page.locator('svg[class*="idleSearchIcon"]')).toHaveAttribute('aria-hidden', 'true');
+  expect(writes).toEqual([]);
   const diagnostics = page.__uxQaDiagnostics;
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.networkErrors).toEqual([]);
