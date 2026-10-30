@@ -116,6 +116,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               {user?.rol.nombre === 'ADMIN' ? <>
                 <Link className={styles.footerLink} href="/dashboard" onClick={() => setMenuOpen(false)}>Panel técnico</Link>
                 <Link className={styles.footerLink} href="/admin/logs" onClick={() => setMenuOpen(false)}>Registros</Link>
+                <Link className={styles.footerLink} href="/admin/usuarios" onClick={() => setMenuOpen(false)}>Usuarios</Link>
               </> : null}
               <Link className={styles.footerLink} href="/jurisprudencia/ingreso" onClick={() => setMenuOpen(false)}>Ingreso de jurisprudencia</Link>
               <Link className={styles.footerLink} href="/citas-pendientes" onClick={() => setMenuOpen(false)}>Revisión de citas</Link>

@@ -1,0 +1,77 @@
+.page { display: grid; gap: 1rem; }
+.sectionHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.sectionHeader h2, .detailSection h3 { margin: 0; color: #17324a; }
+.sectionHeader p, .helper { margin: .35rem 0 0; color: #52677a; font-size: .9rem; }
+.notice { margin: 0; padding: .75rem 1rem; border: 1px solid #b7d7c2; border-radius: .55rem; background: #f0faf3; color: #245b36; }
+.createForm { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); align-items: end; gap: .8rem; }
+.createForm label, .filters label { display: grid; gap: .35rem; color: #29455d; font-size: .86rem; font-weight: 650; }
+.createForm input, .createForm select, .filters input, .filters select, .inlineForm input, .inlineForm select { width: 100%; min-height: 2.55rem; padding: .55rem .65rem; border: 1px solid #bdccd8; border-radius: .45rem; background: #fff; color: #20394e; font: inherit; }
+.createForm input:focus-visible, .createForm select:focus-visible, .filters input:focus-visible, .filters select:focus-visible, .inlineForm input:focus-visible, .inlineForm select:focus-visible { outline: 3px solid #8bbce4; outline-offset: 1px; }
+.helper { margin-top: .85rem; }
+.filters { display: grid; grid-template-columns: minmax(15rem, 2fr) repeat(3, minmax(9rem, 1fr)); gap: .7rem; margin-bottom: 1rem; }
+.tableWrap { overflow: auto; border: 1px solid #d8e1e9; border-radius: .55rem; }
+.tableWrap table { width: 100%; min-width: 72rem; border-collapse: collapse; }
+.tableWrap th, .tableWrap td { padding: .7rem .65rem; border-bottom: 1px solid #e5ebf0; text-align: left; vertical-align: top; }
+.tableWrap th { color: #425d73; background: #f6f9fb; font-size: .79rem; font-weight: 700; }
+.tableWrap td { color: #253f55; font-size: .87rem; }
+.tableWrap tbody tr:last-child td { border-bottom: 0; }
+.userId { display: block; margin-top: .2rem; color: #657c8e; font-size: .75rem; }
+.active, .inactive { display: inline-flex; align-items: center; padding: .2rem .5rem; border-radius: 999px; font-size: .78rem; font-weight: 700; }
+.active { color: #1e6339; background: #e5f5e9; }
+.inactive { color: #76501d; background: #fff2d8; }
+.dependencyTag { display: block; margin: 0 0 .25rem; color: #3c586e; }
+.rowActions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: .9rem; margin-top: 1rem; color: #4d6377; }
+.backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 1.25rem; background: rgb(14 31 47 / 52%); }
+.dialog { position: static; width: min(56rem, 100%); max-height: min(90dvh, 58rem); overflow: auto; margin: 0; padding: 1.25rem; border: 1px solid #cbd8e2; border-radius: .8rem; background: #fff; color: #20394e; box-shadow: 0 1.5rem 4rem rgb(14 31 47 / 28%); }
+.dialogHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding-bottom: .9rem; border-bottom: 1px solid #e1e8ee; }
+.dialogHeader h2 { margin: .15rem 0 0; color: #18364e; }
+.dialogHeader button { width: 2.4rem; height: 2.4rem; border: 1px solid #cbd8e2; border-radius: .45rem; background: #fff; color: #284860; font-size: 1.4rem; cursor: pointer; }
+.eyebrow { margin: 0; color: #5a7184; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.identityGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem 1rem; margin: 1rem 0; }
+.identityGrid div { min-width: 0; }
+.identityGrid dt { color: #657b8d; font-size: .77rem; font-weight: 700; }
+.identityGrid dd { margin: .2rem 0 0; overflow-wrap: anywhere; color: #243f55; }
+.detailSection { padding: 1rem 0; border-top: 1px solid #e1e8ee; }
+.detailSection h3 { margin-bottom: .7rem; font-size: 1rem; }
+.detailSection > p { color: #53697c; }
+.inlineForm { display: flex; align-items: end; flex-wrap: wrap; gap: .65rem; }
+.inlineForm label { display: grid; flex: 1 1 14rem; gap: .35rem; color: #29455d; font-size: .86rem; font-weight: 650; }
+.inlineForm > label:first-child:not(:has(+ select)) { flex: 0 0 auto; align-self: center; }
+.inlineForm select { max-width: 20rem; }
+.memberships, .auditList { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.memberships li, .auditList li { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; padding: .65rem .75rem; border: 1px solid #dce5ec; border-radius: .5rem; background: #fbfdfe; }
+.memberships li div, .auditList li { min-width: 0; }
+.memberships li div { display: grid; gap: .2rem; }
+.memberships li span, .auditList li span, .auditList li time { color: #5a7082; font-size: .82rem; }
+.memberships a { align-self: center; color: #155b89; font-weight: 650; }
+.auditList li { display: grid; grid-template-columns: minmax(9rem, 1fr) 2fr auto; align-items: center; }
+.auditList li time { white-space: nowrap; }
+.dialogActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .6rem; padding-top: .9rem; border-top: 1px solid #e1e8ee; }
+
+@media (max-width: 760px) {
+  .filters { grid-template-columns: 1fr 1fr; }
+  .filters label:first-child { grid-column: 1 / -1; }
+  .tableWrap { overflow: visible; border: 0; }
+  .tableWrap table, .tableWrap tbody, .tableWrap tr, .tableWrap td { display: block; width: 100%; min-width: 0; }
+  .tableWrap thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; }
+  .tableWrap tbody { display: grid; gap: .7rem; }
+  .tableWrap tr { padding: .65rem; border: 1px solid #d8e1e9; border-radius: .55rem; background: #fff; }
+  .tableWrap td { display: grid; grid-template-columns: minmax(7rem, .8fr) minmax(0, 1.2fr); gap: .6rem; padding: .45rem .2rem; border-bottom: 1px solid #edf1f4; overflow-wrap: anywhere; }
+  .tableWrap td::before { content: attr(data-label); color: #536c80; font-size: .77rem; font-weight: 700; }
+  .tableWrap td:last-child { border-bottom: 0; }
+  .rowActions { grid-column: 1 / -1; }
+  .dialog { padding: 1rem; }
+  .identityGrid { grid-template-columns: 1fr; }
+  .memberships li { display: grid; }
+  .auditList li { grid-template-columns: 1fr; }
+  .auditList li time { white-space: normal; }
+  .sectionHeader { align-items: center; }
+}
+
+@media (max-width: 430px) {
+  .filters { grid-template-columns: 1fr; }
+  .filters label:first-child { grid-column: auto; }
+  .createForm { grid-template-columns: 1fr; }
+  .pagination { gap: .45rem; font-size: .82rem; }
+}

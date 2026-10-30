@@ -25,6 +25,7 @@ const entidadOptions = [
   { label: 'Carpeta de dependencia', value: 'WorkspaceFolder' },
   { label: 'Espacio documental', value: 'DocumentWorkspace' },
   { label: 'Trabajo de OCR', value: 'OcrJob' },
+  { label: 'Usuario', value: 'Usuario' },
 ];
 const accionOptions = [
   { label: 'Todas', value: '' }, { label: 'Crear', value: 'CREATE' },
@@ -48,6 +49,12 @@ const accionOptions = [
   { label: 'Renombrar carpeta personal', value: 'PERSONAL_FOLDER_RENAME' },
   { label: 'Aprobar vínculo documental', value: 'DOCUMENT_LINK_APPROVE' },
   { label: 'Rechazar vínculo documental', value: 'DOCUMENT_LINK_REJECT' },
+  { label: 'Crear usuario', value: 'USER_CREATE' },
+  { label: 'Actualizar usuario', value: 'USER_UPDATE' },
+  { label: 'Cambiar rol global', value: 'USER_ROLE_CHANGE' },
+  { label: 'Activar usuario', value: 'USER_ACTIVATE' },
+  { label: 'Desactivar usuario', value: 'USER_DEACTIVATE' },
+  { label: 'Restablecer contraseña', value: 'USER_PASSWORD_RESET' },
 ];
 const defaultFilters: LogsFilters = {
   usuarioId: '', entidad: '', accion: '', fechaDesde: '', fechaHasta: '', page: 1, pageSize: 20,
