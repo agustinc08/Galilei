@@ -309,7 +309,6 @@
 }
 
 @container (max-width: 660px) {
-  .shell { height: auto; min-height: calc(100vh - 150px); overflow: visible; }
   .shellHeader { align-items: flex-start; flex-direction: column; }
   .productTitle { width: 100%; }
   .productTitle h1 { max-width: 100%; overflow: visible; text-overflow: clip; white-space: normal; }
@@ -331,6 +330,10 @@
   .leftCollapsed .leftPanel { max-height: 2.7rem; }
   .searchSticky { padding: .65rem; }
   .searchShortcut { display: none; }
+}
+
+@media (max-width: 660px) {
+  .shell { height: auto; min-height: calc(100vh - 150px); grid-template-rows: auto auto; overflow: visible; }
 }
 
 @media (prefers-reduced-motion: reduce) {

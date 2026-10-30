@@ -402,10 +402,18 @@ test('workspace preview uses a full-width tablet detail view and a sequential mo
     const content = element.querySelector('[class*="previewContent"]');
     const navigator = content?.querySelector('[class*="matchNavigator"]');
     if (!content || !navigator) return null;
+    const panelBottom = element.getBoundingClientRect().bottom;
+    const buttons = Array.from(navigator.querySelectorAll('button')).map((button) => {
+      const bounds = button.getBoundingClientRect();
+      return { top: bounds.top, bottom: bounds.bottom };
+    });
     return {
       overflowY: getComputedStyle(content).overflowY,
+      navigatorTop: navigator.getBoundingClientRect().top,
       navigatorBottom: navigator.getBoundingClientRect().bottom,
       contentBottom: content.getBoundingClientRect().bottom,
+      panelBottom,
+      buttons,
       scrollHeight: content.scrollHeight,
       clientHeight: content.clientHeight,
     };
@@ -413,6 +421,7 @@ test('workspace preview uses a full-width tablet detail view and a sequential mo
   expect(mobilePreviewNavigation).not.toBeNull();
   expect(mobilePreviewNavigation.overflowY, 'mobile preview actions should follow page scroll rather than a nested scroll panel').toBe('visible');
   expect(mobilePreviewNavigation.navigatorBottom).toBeLessThanOrEqual(mobilePreviewNavigation.contentBottom + 1);
+  expect(mobilePreviewNavigation.buttons.every((button) => button.top >= mobilePreviewNavigation.navigatorTop - 1 && button.bottom <= mobilePreviewNavigation.panelBottom + 1), `mobile navigation buttons should not be clipped by the preview card: ${JSON.stringify(mobilePreviewNavigation)}`).toBe(true);
   expect(mobilePreviewNavigation.scrollHeight).toBeLessThanOrEqual(mobilePreviewNavigation.clientHeight + 1);
   await expect(leftPanel).toBeHidden();
   await expect(results).toBeHidden();
