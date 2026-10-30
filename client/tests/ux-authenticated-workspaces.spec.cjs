@@ -207,6 +207,24 @@ test('un workspace lista sus documentos al entrar sin consulta y pagina resultad
       await page.setViewportSize(viewport);
       const layout = await collectLayout(page);
       expect(layout.horizontalOverflow.passes, `workspace list overflow at ${viewport.width}x${viewport.height}`).toBe(true);
+      if (viewport.width === 390) {
+        const mobileSearchLayout = await page.evaluate(() => {
+          const scopeLabel = document.querySelector('[class*="scopeLine"] > span');
+          const scopeLine = scopeLabel?.parentElement;
+          const form = document.querySelector('form[role="search"]');
+          const input = form?.querySelector('input');
+          const submit = form?.querySelector('button[type="submit"]');
+          const rect = (element) => {
+            const bounds = element?.getBoundingClientRect();
+            return bounds ? { x: bounds.x, right: bounds.right, height: bounds.height } : null;
+          };
+          return { scopeLabel: rect(scopeLabel), scopeLine: rect(scopeLine), form: rect(form), input: rect(input), submit: rect(submit) };
+        });
+        expect(mobileSearchLayout.scopeLabel, 'mobile scope label should stay on one line').not.toBeNull();
+        expect(mobileSearchLayout.scopeLabel.height).toBeLessThanOrEqual(20);
+        expect(mobileSearchLayout.submit.right).toBeLessThanOrEqual(mobileSearchLayout.form.right + 1);
+        expect(mobileSearchLayout.input.right).toBeLessThanOrEqual(mobileSearchLayout.submit.x - 4);
+      }
       await captureScenario(page, testInfo, { id: `workspace-list-${viewport.width}x${viewport.height}`, route: '/spaces' });
     }
 
