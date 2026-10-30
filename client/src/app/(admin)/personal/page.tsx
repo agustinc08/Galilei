@@ -42,6 +42,17 @@ type SearchResult = {
   title: string | null;
   snippet: string | null;
   metadata: Record<string, string | number | boolean | null>;
+  matchedIn?: string[];
+};
+type PersonalNameSearchPage = {
+  total: number;
+  results: Array<{
+    documentId: string;
+    title: string;
+    filename: string;
+    status: string;
+    matchedIn: string[];
+  }>;
 };
 type FolderUploadOutcome = {
   name: string;
@@ -329,11 +340,41 @@ export default function PersonalDocumentsPage() {
     setBusy(true);
     setError("");
     try {
-      const result = await api.get<{ total: number; results: SearchResult[] }>("personal/search", {
-        query: { q: query, folderId: folderId ?? undefined, pageSize: 100 },
-      });
-      setSearchResults(result.results);
-      setTotal(result.total);
+      const searchQuery = query.trim();
+      const [contentResult, nameResult] = await Promise.all([
+        api.get<{ total: number; results: SearchResult[] }>("personal/search", {
+          query: { q: searchQuery, folderId: folderId ?? undefined, pageSize: 100 },
+        }),
+        searchQuery.length >= 2
+          ? api.get<PersonalNameSearchPage>("personal/search/names", {
+            query: { q: searchQuery, folderId: folderId ?? undefined, pageSize: 100 },
+          })
+          : Promise.resolve({ total: 0, results: [] }),
+      ]);
+      const merged = new Map<string, SearchResult>();
+      for (const result of contentResult.results) {
+        merged.set(result.sourceId, { ...result, matchedIn: ["CONTENT"] });
+      }
+      for (const result of nameResult.results) {
+        const existing = merged.get(result.documentId);
+        if (existing) {
+          existing.matchedIn = Array.from(new Set([
+            ...(existing.matchedIn ?? []),
+            ...result.matchedIn,
+          ]));
+          continue;
+        }
+        merged.set(result.documentId, {
+          sourceId: result.documentId,
+          title: result.title,
+          snippet: null,
+          metadata: { filename: result.filename, status: result.status },
+          matchedIn: result.matchedIn,
+        });
+      }
+      const nextResults = Array.from(merged.values());
+      setSearchResults(nextResults);
+      setTotal(nextResults.length);
     } catch (cause) {
       setError(message(cause));
     } finally {
@@ -404,7 +445,7 @@ export default function PersonalDocumentsPage() {
     }
   }
 
-  const results = searchResults ?? documents.map((row) => ({
+  const results: SearchResult[] = searchResults ?? documents.map((row) => ({
     sourceId: row.documentId,
     title: row.document.title,
     snippet: null,
@@ -574,7 +615,11 @@ export default function PersonalDocumentsPage() {
               {!loading && !loadError ? results.map((result) => {
                 const filename = String(result.metadata.filename ?? result.title ?? "documento");
                 return <li key={result.sourceId}>
-                  <div><strong>{result.title ?? filename}</strong><span>{filename}</span>{result.snippet ? <p>{result.snippet}</p> : null}</div>
+                  <div><strong>{result.title ?? filename}</strong><span>{filename}</span>
+                    {result.matchedIn?.includes("FILENAME") ? <small className={styles.matchSource}>Coincidencia en el nombre del archivo</small> : null}
+                    {result.matchedIn?.includes("TITLE") && !result.matchedIn.includes("FILENAME") ? <small className={styles.matchSource}>Coincidencia en el título</small> : null}
+                    {result.snippet ? <p>{result.snippet}</p> : null}
+                  </div>
                   <div className={styles.rowActions}>
                     <button className={styles.secondary} onClick={() => void preview(result.sourceId, result.title ?? filename)}>Vista previa</button>
                     <button className={styles.textButton} onClick={() => void downloadFile(result.sourceId, filename)}>Descargar</button>

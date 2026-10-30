@@ -77,6 +77,11 @@ test('Mis documentos muestra carga antes del vacío y diferencia una búsqueda s
     contentType: 'application/json',
     body: JSON.stringify({ total: 0, results: [] }),
   }));
+  await page.route('**/api/personal/search/names**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ total: 0, results: [] }),
+  }));
 
   await page.goto('/personal');
   await expect(page.getByRole('status').filter({ hasText: 'Cargando documentos…' })).toBeVisible();

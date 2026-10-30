@@ -1933,6 +1933,117 @@ export class WorkspaceDocumentService {
     };
   }
 
+  async searchPersonalNames(
+    user: AuthenticatedUser,
+    q: string,
+    folderId?: string | null,
+    page = 1,
+    pageSize = 20,
+  ) {
+    const term = q.trim();
+    if (term.length < 2)
+      throw new BadRequestException('Ingresá al menos dos caracteres.');
+    const readableIds = await readableFolderIds(this.prisma, {
+      kind: 'PERSONAL',
+      userId: user.id,
+    });
+    if (folderId && !readableIds.includes(folderId))
+      throw new NotFoundException('Carpeta no encontrada.');
+
+    const escapedTerm = term.replace(/[\\%_]/gu, (value) => `\\${value}`);
+    const namePattern = `%${escapedTerm}%`;
+    const predicates: Prisma.Sql[] = [
+      Prisma.sql`workspaceDocument."workspaceId" IS NULL`,
+      Prisma.sql`workspaceDocument."ownerUserId" = ${user.id}`,
+      Prisma.sql`document."documentScope" = 'PRIVATE_WORKSPACE'`,
+      readableIds.length
+        ? Prisma.sql`(workspaceDocument."folderId" IS NULL OR workspaceDocument."folderId" IN (${Prisma.join(readableIds)}))`
+        : Prisma.sql`workspaceDocument."folderId" IS NULL`,
+    ];
+    if (folderId !== undefined) {
+      predicates.push(
+        folderId === null
+          ? Prisma.sql`workspaceDocument."folderId" IS NULL`
+          : Prisma.sql`workspaceDocument."folderId" = ${folderId}`,
+      );
+    }
+
+    const where = Prisma.join(predicates, ' AND ');
+    const namePredicate = Prisma.sql`(document."title" ILIKE ${namePattern} ESCAPE E'\\\\' OR latestFile."originalFilename" ILIKE ${namePattern} ESCAPE E'\\\\')`;
+    const from = Prisma.sql`
+      FROM "WorkspaceDocument" workspaceDocument
+      JOIN "CorpusDocument" document
+        ON document."id" = workspaceDocument."documentId"
+      LEFT JOIN "WorkspaceFolder" folder
+        ON folder."id" = workspaceDocument."folderId"
+      LEFT JOIN LATERAL (
+        SELECT file."originalFilename"
+          FROM "CorpusDocumentFile" file
+         WHERE file."documentId" = document."id"
+         ORDER BY file."version" DESC
+         LIMIT 1
+      ) latestFile ON TRUE
+      WHERE ${where}
+    `;
+    const safePage = Math.max(1, Math.trunc(page));
+    const safePageSize = Math.min(100, Math.max(1, Math.trunc(pageSize)));
+    const postgresFrom = Prisma.sql`${from} AND ${namePredicate}`;
+    const [countRows, links] = await this.prisma.$transaction([
+      this.prisma.$queryRaw<Array<{ total: bigint }>>(
+        Prisma.sql`SELECT count(*)::bigint AS "total" ${postgresFrom}`,
+      ),
+      this.prisma.$queryRaw<
+        Array<{
+          documentId: string;
+          title: string;
+          status: string;
+          filename: string | null;
+          uploadedAt: Date;
+          folderId: string | null;
+          folderName: string | null;
+          matchedTitle: boolean;
+          matchedFilename: boolean;
+        }>
+      >(Prisma.sql`
+        SELECT workspaceDocument."documentId" AS "documentId",
+               document."title" AS "title",
+               document."status" AS "status",
+               latestFile."originalFilename" AS "filename",
+               workspaceDocument."createdAt" AS "uploadedAt",
+               folder."id" AS "folderId",
+               folder."name" AS "folderName",
+               COALESCE(document."title" ILIKE ${namePattern} ESCAPE E'\\\\', false) AS "matchedTitle",
+               COALESCE(latestFile."originalFilename" ILIKE ${namePattern} ESCAPE E'\\\\', false) AS "matchedFilename"
+          ${postgresFrom}
+         ORDER BY workspaceDocument."createdAt" DESC,
+                  workspaceDocument."documentId" ASC
+         LIMIT ${safePageSize}
+        OFFSET ${(safePage - 1) * safePageSize}
+      `),
+    ]);
+    return {
+      total: Number(countRows[0]?.total ?? 0n),
+      totalExact: true,
+      page: safePage,
+      pageSize: safePageSize,
+      results: links.map((link) => ({
+        documentId: link.documentId,
+        title: link.title,
+        filename: link.filename ?? link.title,
+        status: link.status,
+        uploadedAt: link.uploadedAt,
+        folder:
+          link.folderId && link.folderName
+            ? { id: link.folderId, name: link.folderName }
+            : null,
+        matchedIn: [
+          ...(link.matchedFilename ? ['FILENAME'] : []),
+          ...(link.matchedTitle ? ['TITLE'] : []),
+        ],
+      })),
+    };
+  }
+
   personalMetadata(id: string, user: AuthenticatedUser, page?: number) {
     return this.documents.metadata(id, 'RESTRICTED', page, undefined, user.id);
   }

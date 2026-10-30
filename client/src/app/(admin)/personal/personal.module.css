@@ -56,6 +56,7 @@
 .documentList li > div:first-child { display: grid; gap: 4px; min-width: 0; }
 .documentList li strong, .documentList li span { overflow-wrap: anywhere; }
 .documentList li span { color: #627d98; font-size: 12px; }
+.matchSource { color: #334e68; font-size: 12px; font-weight: 600; }
 .documentList li p { margin: 3px 0 0; color: #486581; font-size: 13px; line-height: 1.45; }
 .rowActions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .preview { display: block; width: 100%; height: min(70vh, 740px); border: 0; border-radius: 6px; background: #eef2f6; }

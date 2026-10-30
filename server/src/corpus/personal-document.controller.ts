@@ -152,6 +152,23 @@ export class PersonalDocumentController {
     );
   }
 
+  @Get('search/names')
+  searchNames(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('q') q: string | undefined,
+    @Query('page') page: string | undefined,
+    @Query('pageSize') pageSize: string | undefined,
+    @Query('folderId') folderId: string | undefined,
+  ) {
+    return this.documents.searchPersonalNames(
+      user,
+      q ?? '',
+      folderId === 'ROOT' ? null : folderId,
+      positiveInt(page, 1),
+      Math.min(100, positiveInt(pageSize, 20)),
+    );
+  }
+
   @Patch('documents/:id/share')
   @ApiOperation({
     summary:

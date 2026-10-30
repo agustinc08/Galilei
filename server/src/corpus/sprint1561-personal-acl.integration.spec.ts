@@ -1748,6 +1748,31 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
       expect(
         personalResultDocumentIds(await documents.personalDocuments(admin)),
       ).not.toContain(personalDocumentId);
+      const ownerNameSearch = await documents.searchPersonalNames(
+        grantee,
+        suffix,
+        personalFolder.id,
+      );
+      expect(ownerNameSearch.results.map((item) => item.documentId)).toContain(
+        personalDocumentId,
+      );
+      expect(
+        ownerNameSearch.results.find(
+          (item) => item.documentId === personalDocumentId,
+        )?.matchedIn,
+      ).toContain('FILENAME');
+      expect(
+        (await documents.searchPersonalNames(grantee, suffix, null)).results,
+      ).toHaveLength(0);
+      expect(
+        (await documents.searchPersonalNames(otherMember, suffix)).results,
+      ).toHaveLength(0);
+      expect(
+        (await documents.searchPersonalNames(admin, suffix)).results,
+      ).toHaveLength(0);
+      await expect(
+        documents.searchPersonalNames(otherMember, suffix, personalFolder.id),
+      ).rejects.toMatchObject({ status: 404 });
 
       const general = await searchSource.search(parseSearchQuery(token), {
         visibility: 'ADMIN',

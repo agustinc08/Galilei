@@ -489,6 +489,17 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   expect(personalPdfResult).toBeTruthy();
   manifest.documentIds.push(personalResult!.documentId, personalPdfResult!.documentId);
   saveManifest();
+  const personalNameSearchResponse = await request.get(`${apiBase}/personal/search/names`, {
+    headers: operatorHeaders,
+    params: { q: personalName },
+  });
+  expect(personalNameSearchResponse.ok()).toBeTruthy();
+  const personalNameSearch = await personalNameSearchResponse.json() as {
+    total: number;
+    results: Array<{ documentId: string; matchedIn: string[] }>;
+  };
+  expect(personalNameSearch.results.find((item) => item.documentId === personalResult!.documentId)?.matchedIn)
+    .toContain('FILENAME');
   await expect.poll(async () => {
     const response = await request.get(apiBase + '/personal/search', {
       headers: operatorHeaders,
@@ -518,8 +529,13 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
   const download = page.waitForEvent('download');
   await textRow.getByRole('button', { name: 'Descargar' }).click();
   expect((await download).suggestedFilename()).toBe(personalName);
+  await page.getByLabel('Buscar en Mis documentos').fill(personalName);
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /Resultados/ })).toBeVisible();
+  const filenameRow = page.getByRole('listitem').filter({ hasText: personalName });
+  await expect(filenameRow).toContainText('Coincidencia en el nombre del archivo');
 
-  await textRow.getByRole('button', { name: 'Compartir con una dependencia' }).click();
+  await filenameRow.getByRole('button', { name: 'Compartir con una dependencia' }).click();
   const shareWarning = page.getByRole('alertdialog', { name: 'Confirmar cambio de acceso' });
   await shareWarning.getByLabel('Compartir con').selectOption(workspaceA);
   await expect(shareWarning).toContainText(`los integrantes autorizados de ${nameA} podrán encontrarlo, verlo y descargarlo.`);
@@ -533,6 +549,10 @@ test('Sprint 15.6.1 personal, shared and restricted documents stay isolated thro
     });
     return (await response.json()).total;
   }, { timeout: 15_000 }).toBe(0);
+  expect((await request.get(`${apiBase}/personal/search/names`, {
+    headers: operatorHeaders,
+    params: { q: personalName },
+  }).then((response) => response.json())).total).toBe(0);
   await expect.poll(async () => {
     const response = await request.get(apiBase + '/workspaces/' + workspaceA + '/search', {
       headers: reviewerHeaders,
