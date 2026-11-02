@@ -229,7 +229,7 @@ export default function AdminLogsPage() {
                       <span><small>Fecha</small><strong>{formatDateTime(item.createdAt)}</strong></span>
                       <span><small>Usuario</small><strong>{item.usuario.nombre} {item.usuario.apellido ?? ''}</strong></span>
                       <span><small>Acción</small><strong>{formatAuditAction(item.accion)}</strong></span>
-                      <span className={styles.logDescription}><small>Registro</small><strong>{item.descripcion ?? `${formatAuditEntity(item.entidad, item.accion)}${item.entidadId ? ` #${item.entidadId}` : ''}`}</strong><small>{formatAuditEntity(item.entidad, item.accion)}</small></span>
+                      <span className={styles.logDescription}><small>Registro</small><strong>{formatAuditDescription(item.descripcion) ?? `${formatAuditEntity(item.entidad, item.accion)}${item.entidadId ? ` #${item.entidadId}` : ''}`}</strong><small>{formatAuditEntity(item.entidad, item.accion)}</small></span>
                     </button>
                     <Button variant="secondary" onClick={() => void loadDetail(item.id)}>Ver detalle</Button>
                   </article>

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normalizeLegacyBreaks } from '../src/lib/html-to-plain-text.ts';
 import { confidenceLabel, evidenceLabel, reviewStatusLabel } from '../src/lib/review-presentation.ts';
-import { formatAuditAction, formatAuditEntity, formatDateInput, maskDateInput, parseDateInput } from '../src/lib/utils.ts';
+import { formatAuditAction, formatAuditDescription, formatAuditEntity, formatDateInput, maskDateInput, parseDateInput } from '../src/lib/utils.ts';
 
 test('legacy summary breaks become safe text line breaks', () => {
   assert.equal(normalizeLegacyBreaks('Uno<br>Dos<BR />Tres'), 'Uno\nDos\nTres');
@@ -72,4 +72,15 @@ test('audit entities show human labels for newer records', () => {
   assert.equal(formatAuditEntity('OcrJob'), 'Trabajo de OCR');
   assert.equal(formatAuditEntity('UnknownWorkspaceEntity'), 'Unknown workspace entity');
   assert.equal(formatAuditEntity(''), 'Entidad sin descripción');
+});
+
+test('audit descriptions translate legacy Workspace wording for the visible record list', () => {
+  assert.equal(
+    formatAuditDescription('Eliminación de carpeta vacía de Workspace.'),
+    'Eliminación de carpeta vacía de la dependencia.',
+  );
+  assert.equal(
+    formatAuditDescription('Vinculación de fallo publicado a Workspace.'),
+    'Vinculación de fallo publicado con la dependencia.',
+  );
 });
