@@ -1,0 +1,15 @@
+.page { display: grid; align-content: center; min-height: min(72vh, 720px); padding: clamp(28px, 8vw, 120px) clamp(18px, 8vw, 120px); background: linear-gradient(180deg, #f8fbfd, #eef4f8); }
+.hero { width: min(100%, 760px); margin: 0 auto; padding: clamp(24px, 5vw, 52px); border-left: 3px solid #4d7895; background: #fff; box-shadow: 0 12px 34px #1832470d; }
+.eyebrow { margin: 0 0 12px; color: #617789; font-size: .8rem; font-weight: 700; letter-spacing: .03em; }
+.hero h1 { margin: 0; color: #173b56; font-size: clamp(2rem, 5vw, 3.3rem); line-height: 1.12; }
+.description { max-width: 54ch; margin: 16px 0 24px; color: #526579; font-size: clamp(1rem, 1.7vw, 1.15rem); line-height: 1.6; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.searchLink { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 18px; border: 1px solid #173b56; border-radius: 5px; background: #173b56; color: #fff; font-size: .95rem; font-weight: 650; line-height: 1.2; text-decoration: none; transition: background-color 120ms ease, border-color 120ms ease; }
+.searchLink:hover { border-color: #245b7c; background: #245b7c; }
+.searchLink:focus-visible { outline: 3px solid #85b7d4; outline-offset: 3px; }
+
+@media (max-width: 480px) {
+  .page { min-height: 70vh; padding: 22px 14px; }
+  .hero { padding: 22px 18px; }
+  .searchLink { width: 100%; }
+}

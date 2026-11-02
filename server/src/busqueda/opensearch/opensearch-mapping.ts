@@ -1,3 +1,5 @@
+import { SEARCH_MAX_RESULT_WINDOW } from './search-window.constants';
+
 export const SEARCH_INDEX_SCHEMA_VERSION = 3 as const;
 export const SEARCH_INDEX_SCHEMA_VERSION_V4 = 4 as const;
 export type SearchIndexSchemaVersion =
@@ -101,7 +103,7 @@ export const SEARCH_INDEX_DEFINITION = {
     number_of_shards: 1,
     number_of_replicas: 0,
     refresh_interval: '1s',
-    max_result_window: 30000,
+    max_result_window: SEARCH_MAX_RESULT_WINDOW,
     analysis: {
       analyzer: {
         galilei_sequence: {

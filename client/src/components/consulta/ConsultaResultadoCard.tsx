@@ -81,8 +81,8 @@ export function ConsultaResultadoCard({
         return;
       }
       const sourceUrl = `${window.location.origin}/consulta/sentencia/${encodeURIComponent(item.slugPublico)}`;
-      const copied = await copyToClipboard(`${citation}\nFuente Galilei: ${sourceUrl}`);
-      setCopyMessage(copied ? 'Cita y enlace de Galilei copiados.' : 'El navegador no permitió copiar. Seleccioná y copiá el texto desde la ficha del fallo.');
+      const copied = await copyToClipboard(`${citation}\nFuente: Jurisprudencia Civil — ${sourceUrl}`);
+      setCopyMessage(copied ? 'Cita y enlace de Jurisprudencia Civil copiados.' : 'El navegador no permitió copiar. Seleccioná y copiá el texto desde la ficha del fallo.');
     } catch {
       setCopyMessage('No pudimos obtener la cita pública de este fallo.');
     } finally {

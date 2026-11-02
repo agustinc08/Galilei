@@ -58,28 +58,25 @@ export function SavePublicSearchDialog({ open, saving, onClose, onSave }: Props)
       }}
     >
       <form
-        className={styles.modal}
+        className={`${styles.modal} ${styles.saveSearchDialog}`}
         onSubmit={(event) => {
           event.preventDefault();
           if (name.trim() && !saving) void onSave(name.trim());
         }}
       >
-        <div className={styles.toolbar}>
-          <strong id="save-public-search-title">Guardar búsqueda pública</strong>
-          <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>Cerrar</Button>
-        </div>
-        <p id="save-public-search-description">Se guardan el texto, los filtros, el orden y la página actual en tu cuenta. No se guardan resultados ni copias de documentos.</p>
+        <strong id="save-public-search-title">Guardar búsqueda</strong>
+        <p id="save-public-search-description">Se guardarán la consulta, los filtros y el orden actuales.</p>
         <Input
-          label="Nombre de la búsqueda"
+          label="Nombre"
           value={name}
           onChange={(event) => setName(event.target.value)}
           maxLength={150}
           required
           autoComplete="off"
         />
-        <div className={styles.toolbar}>
-          <span />
-          <Button type="submit" disabled={saving || !name.trim()}>{saving ? 'Guardando…' : 'Guardar búsqueda'}</Button>
+        <div className={styles.saveSearchActions}>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button type="submit" disabled={saving || !name.trim()}>{saving ? 'Guardando…' : 'Guardar'}</Button>
         </div>
       </form>
     </dialog>

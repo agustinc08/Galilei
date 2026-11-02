@@ -140,8 +140,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       pathname.startsWith('/busquedas-guardadas') ||
       pathname.startsWith('/busqueda-avanzada') ||
       pathname.startsWith('/busqueda') ||
+      pathname.startsWith('/citas-pendientes') ||
       pathname.startsWith('/jurisprudencia') ||
       pathname.startsWith('/galilei') ||
+      pathname.startsWith('/evolucion/guardada') ||
+      pathname.startsWith('/colecciones') ||
+      pathname.startsWith('/corpus') ||
       pathname.startsWith('/perfil') ||
       pathname.startsWith('/institutos-juridicos') ||
       pathname.startsWith('/normas') ||

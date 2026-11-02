@@ -1,0 +1,1 @@
+export const SEARCH_MAX_RESULT_WINDOW = 30000;

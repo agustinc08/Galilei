@@ -11,7 +11,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Select } from '@/components/ui/Select';
 import { StatusMessage } from '@/components/ui/StatusMessage';
 import { api } from '@/lib/api';
-import { formatAuditAction, formatAuditEntity, formatDateInput, formatDateTime, maskDateInput, parseDateInput } from '@/lib/utils';
+import { formatAuditAction, formatAuditDescription, formatAuditEntity, formatDateInput, formatDateTime, maskDateInput, parseDateInput } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types/common';
 import type { AccionLog, LogsFilters } from '@/types/logs';
 import styles from './logs.module.css';
@@ -59,6 +59,35 @@ const accionOptions = [
 const defaultFilters: LogsFilters = {
   usuarioId: '', entidad: '', accion: '', fechaDesde: '', fechaHasta: '', page: 1, pageSize: 20,
 };
+
+const auditFieldLabels: Record<string, string> = {
+  name: 'Documento', filename: 'Documento', fileName: 'Documento', nombreArchivo: 'Documento',
+  workspaceName: 'Dependencia', dependencyName: 'Dependencia', folderName: 'Carpeta',
+  folderPath: 'Carpeta', reason: 'Motivo', normalizedReason: 'Motivo',
+  scope: 'Alcance de acceso', visibilityScope: 'Acceso a la carpeta',
+  blobReferenceCountBefore: 'Referencias anteriores', blobReferenceCountAfter: 'Referencias restantes',
+  orphanCandidateCount: 'Archivos sin referencias detectados',
+  physicalBlobsDeleted: 'Archivo físico eliminado', corpusDocumentDeleted: 'Documento del repositorio retirado',
+};
+
+const auditScopeLabels: Record<string, string> = {
+  PERSONAL: 'Personal', DEPENDENCY_SHARED: 'Compartido con la dependencia',
+  RESTRICTED: 'Restringido', PUBLIC: 'Público', INTERNAL: 'Interno', ADMIN: 'Administración',
+};
+
+function auditSummaryRows(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  return Object.entries(value as Record<string, unknown>)
+    .filter(([key, entry]) => auditFieldLabels[key] && ['string', 'number', 'boolean'].includes(typeof entry))
+    .map(([key, entry]) => ({
+      label: auditFieldLabels[key],
+      value: typeof entry === 'boolean'
+        ? (entry ? 'Sí' : 'No')
+        : (key === 'scope' || key === 'visibilityScope') && typeof entry === 'string'
+          ? auditScopeLabels[entry] ?? entry
+          : String(entry),
+    }));
+}
 
 export default function AdminLogsPage() {
   const [filters, setFilters] = useState<LogsFilters>(defaultFilters);
@@ -222,13 +251,25 @@ export default function AdminLogsPage() {
           {detailLoading ? <LoadingSpinner label="Cargando detalle…" />
             : detailError ? <div className={styles.errorBlock}><StatusMessage variant="error" title="Detalle no disponible" message={detailError} /><Button onClick={() => void loadDetail(selectedId)}>Reintentar</Button></div>
               : selected ? <div className={styles.detailContent}>
-                <strong>{selected.descripcion ?? `${formatAuditAction(selected.accion)} · ${formatAuditEntity(selected.entidad, selected.accion)}`}</strong>
+                <strong>{formatAuditDescription(selected.descripcion) ?? `${formatAuditAction(selected.accion)} · ${formatAuditEntity(selected.entidad, selected.accion)}`}</strong>
                 <span>{formatDateTime(selected.createdAt)}</span>
                 <span>Usuario: {selected.usuario.nombre} {selected.usuario.apellido ?? ''} ({selected.usuario.email})</span>
-                <span>Entidad: {formatAuditEntity(selected.entidad, selected.accion)} {selected.entidadId ? `#${selected.entidadId}` : ''}</span>
+                <span>Entidad: {formatAuditEntity(selected.entidad, selected.accion)}</span>
                 <span>Acción: {formatAuditAction(selected.accion)}</span>
-                <details><summary>Datos anteriores</summary><pre>{JSON.stringify(selected.datosAntes ?? null, null, 2)}</pre></details>
-                <details><summary>Datos posteriores</summary><pre>{JSON.stringify(selected.datosDespues ?? null, null, 2)}</pre></details>
+                {auditSummaryRows(selected.datosAntes).length || auditSummaryRows(selected.datosDespues).length ? (
+                  <section className={styles.humanSummary} aria-label="Resumen humano del cambio">
+                    <h3>Resumen del cambio</h3>
+                    {([['Datos anteriores', selected.datosAntes], ['Resultado', selected.datosDespues]] as Array<[string, unknown]>).map(([heading, data]) => {
+                      const rows = auditSummaryRows(data);
+                      return rows.length ? <div key={heading}><h4>{heading}</h4><dl>{rows.map((row, index) => <div key={`${row.label}-${index}`}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl></div> : null;
+                    })}
+                  </section>
+                ) : null}
+                <details className={styles.technicalDetails}><summary>Detalles técnicos</summary>
+                  <p>Identificador de entidad: {selected.entidadId ?? '—'}</p>
+                  <h4>Datos anteriores</h4><pre>{JSON.stringify(selected.datosAntes ?? null, null, 2)}</pre>
+                  <h4>Datos posteriores</h4><pre>{JSON.stringify(selected.datosDespues ?? null, null, 2)}</pre>
+                </details>
               </div> : null}
         </section>
       </> : null}

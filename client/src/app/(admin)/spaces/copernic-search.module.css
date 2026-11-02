@@ -372,3 +372,21 @@
 @media (prefers-reduced-motion: reduce) {
   .spinner,.miniSpinner { animation: none; }
 }
+
+.workspaceViewerSearch { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
+.workspaceViewerSearch > label { flex: 1 1 18rem; min-width: min(100%, 14rem); }
+.workspaceMatchToolbar,
+.workspaceViewerToolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.workspaceViewerToolbar { min-height: 48px; margin: 0 0 14px; padding: 8px 10px; border: 1px solid #dce6ec; border-radius: 8px; background: #f7fafc; }
+.workspaceViewerToolbar > span { margin: 0 auto; color: #365970; font-weight: 650; }
+.workspaceViewerSearch input { min-width: 0; }
+
+@media (max-width: 640px) {
+  .workspaceViewerSearch,
+  .workspaceMatchToolbar,
+  .workspaceViewerToolbar { align-items: stretch; }
+  .workspaceViewerSearch > button,
+  .workspaceMatchToolbar > button,
+  .workspaceViewerToolbar > button { flex: 1 1 8rem; }
+  .workspaceViewerToolbar > span { flex-basis: 100%; text-align: center; }
+}

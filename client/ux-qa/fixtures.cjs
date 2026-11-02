@@ -145,6 +145,9 @@ function fixtureForRequest(request) {
   if (method === 'GET' && pathname === '/public/busqueda/sugerencias') return json(200, { data: [{ value: 'responsabilidad civil', tipo: 'tema', total: 4 }] });
   if (method === 'GET' && pathname === '/public/busqueda') {
     const query = url.searchParams.get('q') || '';
+    if (Number(url.searchParams.get('page') || 1) === 999999) {
+      return json(400, { message: 'La página solicitada excede el límite disponible para esta búsqueda.' });
+    }
     if (query === 'UX_QA_SERVICE_UNAVAILABLE') {
       return json(503, { message: 'OpenSearchException: internal fixture diagnostic' });
     }

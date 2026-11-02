@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import consultaStyles from '@/components/consulta/consulta.module.css';
 import sentenciaStyles from '@/components/sentencias/sentencias.module.css';
 import { SearchHelpModal } from '@/components/consulta/SearchHelpModal';
@@ -81,11 +81,21 @@ export function BusquedaJurisprudenciaForm({
   });
   const [showAdvanced, setShowAdvanced] = useState(modo === 'admin' || hasAdvancedFilters);
   const [showHelp, setShowHelp] = useState(false);
+  const helpWasOpen = useRef(false);
   const publicMode = modo === 'publico';
+
+  useEffect(() => {
+    if (helpWasOpen.current && !showHelp) {
+      Array.from(document.querySelectorAll<HTMLButtonElement>('[aria-controls="search-help-panel"]'))
+        .find((button) => button.getClientRects().length > 0)
+        ?.focus();
+    }
+    helpWasOpen.current = showHelp;
+  }, [showHelp]);
 
   const secondaryActions = (
     <>
-      {publicMode ? <Button variant="secondary" onClick={() => setShowHelp(true)}>Consejos de búsqueda</Button> : null}
+      {publicMode ? <Button variant="secondary" aria-expanded={showHelp} aria-controls="search-help-panel" onClick={() => setShowHelp((value) => !value)}>Consejos de búsqueda <span aria-hidden="true">{showHelp ? '▴' : '▾'}</span></Button> : null}
       {!publicMode && onImprimir ? <Button variant="secondary" onClick={onImprimir}>Imprimir</Button> : null}
       {mostrarGuardarBusqueda && onGuardarBusqueda ? <Button variant="secondary" onClick={onGuardarBusqueda}>Guardar búsqueda</Button> : null}
       {mostrarExportar && onExportar ? <ExportMenu onExport={onExportar} /> : null}

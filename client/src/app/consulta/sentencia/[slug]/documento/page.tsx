@@ -108,6 +108,7 @@ export default function ConsultaSentenciaDocumentoPage() {
     <DocumentoViewerLayout
       title={title}
       subtitle={subtitle}
+      productBrand="Jurisprudencia Civil · Cámara Nacional de Apelaciones en lo Civil"
       backHref={`/consulta/sentencia/${slug}`}
       backLabel="Volver al detalle"
       sidePanel={

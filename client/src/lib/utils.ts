@@ -126,6 +126,10 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   WORKSPACE_DOCUMENT_UPLOAD: 'Subir documento al espacio',
   WORKSPACE_DOCUMENT_DELETE: 'Eliminar documento del espacio',
   WORKSPACE_DOCUMENT_MOVE: 'Mover documento entre espacios',
+  VISIBILITY_CHANGED: 'Cambiar el alcance de acceso',
+  FOLDER_VISIBILITY_CHANGED: 'Cambiar la visibilidad de la carpeta',
+  RESTRICTED_FOLDER_ACCESS_CHANGED: 'Actualizar las personas autorizadas',
+  WORKSPACE_DOCUMENT_MOVE_TO_PERSONAL: 'Mover documento a Mis documentos',
   DOCUMENT_LINK_APPROVE: 'Aprobar vínculo documental',
   DOCUMENT_LINK_REJECT: 'Rechazar vínculo documental',
 };
@@ -147,10 +151,22 @@ const AUDIT_ENTITY_LABELS: Record<string, string> = {
   PDF: 'PDF',
   PersonalDocument: 'Documento personal',
   WorkspaceDocument: 'Documento compartido',
+  WorkspaceFolder: 'Carpeta de dependencia',
+  DocumentWorkspace: 'Dependencia',
   OcrJob: 'Trabajo de OCR',
   Document: 'Documento',
   DocumentLink: 'Vínculo documental',
 };
+
+const AUDIT_DESCRIPTION_LABELS: Record<string, string> = {
+  'Eliminación de carpeta vacía de Workspace.': 'Eliminación de carpeta vacía de la dependencia.',
+  'Vinculación de fallo publicado a Workspace.': 'Vinculación de fallo publicado con la dependencia.',
+};
+
+export function formatAuditDescription(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return AUDIT_DESCRIPTION_LABELS[value] ?? value;
+}
 
 export function formatAuditEntity(value: string, action?: string): string {
   if (value === 'WorkspaceDocument' && action?.startsWith('PERSONAL_')) return 'Documento personal';

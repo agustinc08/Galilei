@@ -134,11 +134,11 @@ export function FalloPublicoViewer({ identifier }: Props) {
     document.querySelector<HTMLMetaElement>('meta[property="og:description"]')?.setAttribute('content', description);
 
     return () => {
-      document.title = 'Galilei';
-      document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute('content', 'Jurisprudencia, documentos de tu dependencia y tus documentos personales.');
+      document.title = 'Jurisprudencia Civil | Cámara Nacional de Apelaciones en lo Civil';
+      document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute('content', 'Consultá fallos y sumarios publicados por la Cámara Nacional de Apelaciones en lo Civil.');
       document.querySelector<HTMLMetaElement>('meta[property="og:type"]')?.setAttribute('content', 'website');
-      document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.setAttribute('content', 'Galilei');
-      document.querySelector<HTMLMetaElement>('meta[property="og:description"]')?.setAttribute('content', 'Jurisprudencia, documentos de tu dependencia y tus documentos personales.');
+      document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.setAttribute('content', 'Jurisprudencia Civil');
+      document.querySelector<HTMLMetaElement>('meta[property="og:description"]')?.setAttribute('content', 'Consultá fallos y sumarios publicados por la Cámara Nacional de Apelaciones en lo Civil.');
     };
   }, [data]);
 
@@ -275,6 +275,7 @@ export function FalloPublicoViewer({ identifier }: Props) {
     <DocumentoViewerLayout
       title={title}
       subtitle={subtitle}
+      productBrand="Jurisprudencia Civil · Cámara Nacional de Apelaciones en lo Civil"
       backHref={backHref}
       backLabel="Volver a resultados"
       sidePanel={

@@ -6,14 +6,29 @@ const { classifyConsoleMessage, classifyRequestFailure, isExpectedNetworkStatus 
 
 const test = base.extend({
   page: async ({ page }, use) => {
-    const diagnostics = { console: [], pageErrors: [], networkErrors: [], fixtureMisses: [] };
+    const diagnostics = { console: [], pageErrors: [], networkErrors: [], fixtureMisses: [], expectedInvalidSearchPageConsoleErrors: 0 };
     page.__uxQaDiagnostics = diagnostics;
     page.on('console', (message) => {
       const text = message.text();
-      diagnostics.console.push({ type: message.type(), text, classification: classifyConsoleMessage(message.type(), text) });
+      let classification = classifyConsoleMessage(message.type(), text);
+      if (
+        message.type() === 'error' &&
+        diagnostics.expectedInvalidSearchPageConsoleErrors > 0 &&
+        /status of 400 \(Bad Request\)/iu.test(text)
+      ) {
+        diagnostics.expectedInvalidSearchPageConsoleErrors -= 1;
+        classification = 'EXPECTED_INVALID_SEARCH_PAGE';
+      }
+      diagnostics.console.push({ type: message.type(), text, classification });
     });
     page.on('pageerror', (error) => diagnostics.pageErrors.push({ text: error.message }));
     page.on('response', (response) => {
+      if (response.status() === 400) {
+        const url = new URL(response.url());
+        if (url.pathname.endsWith('/api/public/busqueda') && Number(url.searchParams.get('page')) === 999999) {
+          diagnostics.expectedInvalidSearchPageConsoleErrors += 1;
+        }
+      }
       if (response.status() >= 400 && !isExpectedNetworkStatus(response.url(), response.status())) {
         diagnostics.networkErrors.push({ kind: 'http', url: response.url(), status: response.status() });
       }

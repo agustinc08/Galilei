@@ -3,6 +3,7 @@ import { Outlet, useRoutes, type RouteObject } from 'react-router-dom';
 import AdminOnlyLayout from '@/app/(admin)/admin/layout';
 import AdminLayout from '@/app/(admin)/layout';
 import RootLayout from '@/app/layout';
+import { PublicJurisprudenceShell } from '@/components/layout/PublicJurisprudenceShell';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Link } from '@/lib/router-compat';
 import styles from './not-found.module.css';
@@ -44,7 +45,13 @@ const isAdminOnlyPage = (file: string) =>
   file.startsWith('./(admin)/admin/') &&
   !file.startsWith('./(admin)/admin/jurisprudencia/ocr/');
 
-const publicRoutes = pages.filter(({ file }) => !isAdminPage(file)).map(({ route }) => route);
+const loginRoute = pages.find(({ path }) => path === 'login')?.route;
+const privateStandaloneRoutes = pages
+  .filter(({ file, path }) => !isAdminPage(file) && path === 'evolucion/guardada/:id')
+  .map(({ route }) => route);
+const publicContentRoutes = pages
+  .filter(({ file, path }) => !isAdminPage(file) && path !== 'login' && path !== 'evolucion/guardada/:id')
+  .map(({ route }) => route);
 const adminRoutes = pages
   .filter(({ file }) => isAdminPage(file) && !isAdminOnlyPage(file))
   .map(({ route }) => route);
@@ -55,20 +62,34 @@ const adminOnlyRoutes = pages
     path: path.replace(/^admin\//u, ''),
   }));
 
+const AuthenticatedAppShell = lazy(() =>
+  import('@/components/layout/AuthenticatedAppShell').then((module) => ({ default: module.AuthenticatedAppShell })),
+);
+
 const routes: RouteObject[] = [
   {
     element: <RootLayout><Outlet /></RootLayout>,
     children: [
-      ...publicRoutes,
       {
-        element: <AdminLayout><Outlet /></AdminLayout>,
+        element: <PublicJurisprudenceShell><Outlet /></PublicJurisprudenceShell>,
+        children: publicContentRoutes,
+      },
+      {
+        element: <Suspense fallback={<LoadingSpinner label="Cargando Galilei…" />}><AuthenticatedAppShell><Outlet /></AuthenticatedAppShell></Suspense>,
         children: [
-          ...adminRoutes.filter((route) => route.path !== 'admin/logs'),
           {
-            path: 'admin',
-            element: <AdminOnlyLayout><Outlet /></AdminOnlyLayout>,
-            children: adminOnlyRoutes,
+            element: <AdminLayout><Outlet /></AdminLayout>,
+            children: [
+              ...adminRoutes.filter((route) => route.path !== 'admin/logs'),
+              ...privateStandaloneRoutes,
+              {
+                path: 'admin',
+                element: <AdminOnlyLayout><Outlet /></AdminOnlyLayout>,
+                children: adminOnlyRoutes,
+              },
+            ],
           },
+          ...(loginRoute ? [loginRoute] : []),
         ],
       },
       {
@@ -81,7 +102,7 @@ const routes: RouteObject[] = [
                 Página no encontrada
               </h1>
               <p className={styles.description}>
-                La dirección no corresponde a una sección disponible de Galilei.
+                La dirección no corresponde a una sección disponible.
               </p>
               <Link className={styles.link} href="/">
                 Volver al inicio
@@ -96,7 +117,7 @@ const routes: RouteObject[] = [
 
 export function App() {
   const routeElement = useRoutes(routes);
-  return <Suspense fallback={<LoadingSpinner label="Cargando Galilei..." />}>{routeElement}</Suspense>;
+  return <Suspense fallback={<LoadingSpinner label="Cargando…" />}>{routeElement}</Suspense>;
 }
 
 export const routeInventory = pages.map(({ file, path }) => ({ file, path: path ? `/${path}` : '/' }));

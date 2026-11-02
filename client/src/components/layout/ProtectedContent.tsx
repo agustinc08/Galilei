@@ -12,6 +12,41 @@ type Props = {
   redirectTo?: string;
 };
 
+function rolesForPath(pathname: string) {
+  if (pathname.startsWith('/admin/logs')) return ['ADMIN'];
+  if (pathname === '/corpus' || pathname.startsWith('/corpus/')) {
+    return ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA'];
+  }
+  if (
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/estadisticas') ||
+    pathname.startsWith('/archivos') ||
+    pathname.startsWith('/favoritos') ||
+    pathname.startsWith('/busquedas-guardadas') ||
+    pathname.startsWith('/institutos-juridicos') ||
+    pathname.startsWith('/normas')
+  ) {
+    return ['ADMIN', 'OPERADOR'];
+  }
+  if (pathname.startsWith('/documentos')) {
+    return ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA'];
+  }
+  if (
+    pathname.startsWith('/revision') ||
+    pathname.startsWith('/citas-pendientes')
+  ) {
+    return ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA'];
+  }
+  if (pathname.startsWith('/digesto')) return ['ADMIN', 'OPERADOR', 'DIGESTO'];
+  if (pathname.startsWith('/jurisprudencia')) {
+    return ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO'];
+  }
+  if (pathname.startsWith('/sentencias') || pathname.startsWith('/sumarios')) {
+    return ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'];
+  }
+  return undefined;
+}
+
 export function ProtectedContent({
   children,
   allowedRoles,
@@ -20,23 +55,7 @@ export function ProtectedContent({
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, isLoading, user } = useAuth();
-  const routeRoles = pathname === '/corpus'
-    ? ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA']
-    : pathname.startsWith('/admin/logs')
-    ? ['ADMIN']
-    : pathname.startsWith('/dashboard') || pathname.startsWith('/estadisticas')
-      ? ['ADMIN', 'OPERADOR']
-      : pathname.startsWith('/revision')
-        ? ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA']
-        : pathname.startsWith('/citas-pendientes')
-          ? ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA']
-        : pathname.startsWith('/digesto')
-          ? ['ADMIN', 'OPERADOR', 'DIGESTO']
-          : pathname.startsWith('/jurisprudencia')
-            ? ['ADMIN', 'OPERADOR', 'LECTOR', 'REVISOR', 'JURISPRUDENCIA', 'DIGESTO']
-            : pathname.startsWith('/sentencias') || pathname.startsWith('/sumarios')
-            ? ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA']
-            : undefined;
+  const routeRoles = rolesForPath(pathname);
   const effectiveRoles = allowedRoles ?? routeRoles;
   const isAllowed =
     !effectiveRoles?.length || (user ? effectiveRoles.includes(user.rol.nombre) : false);

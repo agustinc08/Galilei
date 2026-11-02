@@ -348,6 +348,55 @@ describe('Search HTTP controllers in OpenSearch product mode', () => {
     expect(response.meta.sortUsed).toBe('fecha');
   });
 
+  it('rejects public pagination beyond the configured OpenSearch window before search', async () => {
+    const search = jest.fn().mockResolvedValue(federatedPage());
+    const service = mockBusquedaService(search);
+    const controller = new PublicBusquedaController(service);
+
+    await expect(
+      controller.publica({ page: 999999, pageSize: 25 }),
+    ).rejects.toMatchObject({
+      status: 400,
+      response: {
+        message:
+          'La página solicitada excede el límite disponible para esta búsqueda.',
+      },
+    });
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  const validPublicPaginationCases: Array<
+    [string, { page: number; pageSize: number }, number]
+  > = [
+    ['first page', { page: 1, pageSize: 25 }, 25],
+    ['last window page', { page: 1200, pageSize: 25 }, 25],
+    ['reasonable empty next page', { page: 986, pageSize: 25 }, 25],
+    [
+      'maximum requested page size is capped as before',
+      { page: 300, pageSize: 300 },
+      100,
+    ],
+  ];
+
+  it.each(validPublicPaginationCases)(
+    'preserves valid public pagination: %s',
+    async (_name, query, expectedSize) => {
+      const search = jest.fn().mockResolvedValue(federatedPage());
+      const controller = new PublicBusquedaController(
+        mockBusquedaService(search),
+      );
+
+      await controller.publica(query);
+
+      expect(search).toHaveBeenCalledTimes(1);
+      expect(search).toHaveBeenCalledWith(
+        undefined,
+        undefined,
+        expect.objectContaining({ pageSize: expectedSize }),
+      );
+    },
+  );
+
   it.each(['advanced', 'export', 'citation', 'simple', 'public'] as const)(
     'fails closed on OpenSearch outage with zero legacy calls for %s',
     async (route) => {

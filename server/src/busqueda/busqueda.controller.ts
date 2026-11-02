@@ -1,5 +1,6 @@
 import {
   Controller,
+  BadRequestException,
   Get,
   Query,
   PayloadTooLargeException,
@@ -17,6 +18,7 @@ import { BusquedaService } from './busqueda.service';
 import { BusquedaAvanzadaQueryDto } from './dto/busqueda-avanzada-query.dto';
 import { ExportarBusquedaQueryDto } from './dto/exportar-busqueda-query.dto';
 import { PublicBusquedaQueryDto } from './dto/public-busqueda-query.dto';
+import { SEARCH_MAX_RESULT_WINDOW } from './opensearch/search-window.constants';
 import { SugerenciasQueryDto } from './dto/sugerencias-query.dto';
 import type { SearchResult } from './adapters/search-source.adapter';
 
@@ -336,6 +338,13 @@ export class PublicBusquedaController {
   @Get('busqueda')
   @ApiOperation({ summary: 'Búsqueda pública simple' })
   async publica(@Query() query: PublicBusquedaQueryDto) {
+    const page = query.page ?? 1;
+    const pageSize = Math.min(query.pageSize ?? 25, 100);
+    if (page * pageSize > SEARCH_MAX_RESULT_WINDOW) {
+      throw new BadRequestException(
+        'La página solicitada excede el límite disponible para esta búsqueda.',
+      );
+    }
     const sortUsed = query.sortBy ?? (query.q?.trim() ? 'relevancia' : 'fecha');
     const federated = await this.busquedaService.federatedSearch(
       query.q,
@@ -344,8 +353,8 @@ export class PublicBusquedaController {
         visibility: 'PUBLIC',
         dialect: 'modern',
         publicationPolicy: 'published-active-only',
-        page: query.page ?? 1,
-        pageSize: Math.min(query.pageSize ?? 25, 100),
+        page,
+        pageSize,
         filters: searchFilters(query),
         sort: {
           field: sortUsed,

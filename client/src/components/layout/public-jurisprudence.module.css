@@ -1,0 +1,15 @@
+.shell { min-height: 100vh; min-height: 100dvh; color: #243b53; background: #f6f8fb; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 70px; padding: 12px clamp(18px, 4vw, 56px); border-bottom: 1px solid #dbe4ec; background: #fff; }
+.brand { display: grid; gap: 3px; color: #173b56; text-decoration: none; }
+.brand strong { font-size: 1rem; line-height: 1.2; }
+.brand span { color: #647789; font-size: .8rem; line-height: 1.35; }
+.internalAccess { flex: 0 0 auto; padding: .45rem .65rem; border-radius: 5px; color: #526579; font-size: .8rem; font-weight: 600; text-decoration: none; }
+.internalAccess:hover, .internalAccess:focus-visible { color: #173b56; background: #edf3f7; }
+.internalAccess:focus-visible { outline: 2px solid #4e83a6; outline-offset: 2px; }
+
+@media (max-width: 480px) {
+  .header { min-height: 64px; padding-inline: 14px; }
+  .brand strong { font-size: .92rem; }
+  .brand span { max-width: 24ch; font-size: .72rem; }
+  .internalAccess { padding-inline: .35rem; font-size: .75rem; }
+}

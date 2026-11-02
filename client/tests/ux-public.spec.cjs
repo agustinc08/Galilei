@@ -3,7 +3,7 @@
 const { expect } = require('@playwright/test');
 const { test } = require('../ux-qa/fixtures-playwright.cjs');
 const viewports = require('../ux-qa/viewports.cjs');
-const { captureScenario, exerciseDialog, accessibleButtonNames } = require('../ux-qa/helpers.cjs');
+const { captureScenario, accessibleButtonNames } = require('../ux-qa/helpers.cjs');
 
 async function captureAndCheck(page, testInfo, scenario) {
   const record = await captureScenario(page, testInfo, scenario);
@@ -25,10 +25,16 @@ test.describe('public entry routes @public @responsive', () => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const homeResponse = await page.goto('/');
       expect(homeResponse?.status()).toBe(200);
-      await expect(page.getByRole('heading', { name: '¿Qué querés consultar?' })).toBeVisible();
-      await expect(page.getByRole('link', { name: /Jurisprudencia.*Buscar fallos publicados/u })).toHaveAttribute('href', '/consulta');
-      await expect(page.getByRole('link', { name: /Mi Sala \/ Juzgado.*Documentos compartidos/u })).toHaveAttribute('href', '/spaces');
-      await expect(page.getByRole('link', { name: /Mis documentos.*Tus archivos privados/u })).toHaveAttribute('href', '/personal');
+      await expect(page).toHaveTitle(/Jurisprudencia Civil/u);
+      await expect(page.getByRole('heading', { name: 'Jurisprudencia Civil', exact: true })).toBeVisible();
+      await expect(page.locator('header').getByText('Cámara Nacional de Apelaciones en lo Civil', { exact: true })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Buscar jurisprudencia', exact: true })).toHaveAttribute('href', '/consulta');
+      await expect(page.getByRole('link', { name: 'Acceso interno', exact: true })).toHaveAttribute('href', '/login');
+      await expect(page.getByRole('link', { name: 'Mi Sala / Juzgado' })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Mis documentos' })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Revisión de OCR' })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Registros' })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Usuarios' })).toHaveCount(0);
       await expect(page.getByRole('main')).toBeVisible();
       await captureAndCheck(page, testInfo, { id: 'home', route: '/' });
 
@@ -60,6 +66,37 @@ test.describe('public entry routes @public @responsive', () => {
       await captureAndCheck(page, testInfo, { id: 'login', route: '/login', durationMs: Date.now() - started, notes: [`Tab / Shift+Tab focus: ${JSON.stringify(focused)}`] });
     });
   }
+
+  test('anonymous direct links to Galilei-only routes return to login @auth', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+    const protectedRoutes = [
+      '/galilei',
+      '/busqueda-avanzada',
+      '/jurisprudencia/ingreso',
+      '/sentencias',
+      '/sumarios',
+      '/revision',
+      '/citas-pendientes',
+      '/admin/jurisprudencia/ocr',
+      '/admin/usuarios',
+      '/admin/logs',
+      '/spaces',
+      '/spaces/manage',
+      '/personal',
+      '/colecciones',
+      '/corpus',
+    ];
+
+    for (const route of protectedRoutes) {
+      await page.goto(route);
+      await expect(page).toHaveURL(/\/login$/u);
+      await expect(page.getByRole('heading', { name: 'Ingresar', exact: true })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toHaveCount(0);
+    }
+  });
 });
 
 test.describe('public Search and Viewer journey @public @responsive @search @viewer @accessibility', () => {
@@ -69,10 +106,16 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const response = await page.goto('/consulta');
       expect(response?.status()).toBe(200);
+      await expect(page).toHaveTitle(/Jurisprudencia Civil/u);
+      expect(await page.title()).not.toContain('Galilei');
       const searchInput = page.getByLabel('Buscar jurisprudencia');
       await expect(searchInput).toBeVisible();
       await expect(page.getByText('4 resultados', { exact: true })).toBeVisible();
       await expect(page.getByRole('main')).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Galilei' })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Mi Sala / Juzgado' })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Mis documentos' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Guardar búsqueda' })).toHaveCount(0);
       expect(await accessibleButtonNames(page)).toEqual([]);
       if (viewport.width <= 430) {
         const firstResult = page.locator('article[class*="resultCard"]').first();
@@ -93,7 +136,7 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await page.getByLabel('Frase exacta').fill('daños');
       await page.locator('select:has(option[value="Sala A"])').selectOption('Sala A');
       await page.getByRole('button', { name: 'Buscar', exact: true }).click();
-      await expect(page).toHaveURL(/sala=Sala(?:\+|%20)A/u);
+      await expect(page).toHaveURL(/sala=A(?:&|$)/u);
       await captureAndCheck(page, testInfo, { id: 'search-filters', route: '/consulta' });
 
       const multipleSummaries = page.getByRole('link', { name: 'Ver 4 sumarios', exact: true }).first();
@@ -117,12 +160,12 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await expect(openPdf).toHaveAttribute('target', '_blank');
       const returnUrl = new URL(page.url()).searchParams.get('returnTo') ?? '';
       expect(returnUrl).toContain('/consulta?q=responsabilidad');
-      expect(returnUrl).toContain('sala=Sala');
+      expect(returnUrl).toContain('sala=A');
       await captureAndCheck(page, testInfo, { id: 'sumario-detail-multiple', route: '/consulta/sentencia/ux-qa-001' });
       await page.getByRole('link', { name: 'Volver a resultados', exact: true }).click();
       await expect(page).toHaveURL(/\/consulta\?/u);
       await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('responsabilidad civil');
-      await expect(page).toHaveURL(/sala=Sala(?:\+|%20)A/u);
+      await expect(page).toHaveURL(/sala=A(?:&|$)/u);
 
       const noPdfCard = page.locator('article').nth(1);
       await expect(noPdfCard.getByText('Sin PDF', { exact: true })).toBeVisible();
@@ -140,14 +183,22 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await page.getByRole('link', { name: 'Volver a resultados', exact: true }).click();
       await expect(page).toHaveURL(/\/consulta\?/u);
       await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('responsabilidad civil');
-      await expect(page).toHaveURL(/sala=Sala(?:\+|%20)A/u);
+      await expect(page).toHaveURL(/sala=A(?:&|$)/u);
 
       if (viewport.width <= 600) await page.locator('[class*="mobileSearchActions"] summary').click();
       const helpButton = page.getByRole('button', { name: 'Consejos de búsqueda', exact: true });
-      const dialogResult = await exerciseDialog(page, helpButton, 'Ayuda de búsqueda', async () => {
-        await captureAndCheck(page, testInfo, { id: 'search-help', route: '/consulta' });
-      });
-      expect(dialogResult).toEqual({ exists: true, role: 'dialog', ariaModal: 'true', focusEnters: true, escapeCloses: true, focusReturns: true });
+      await expect(helpButton).toHaveAttribute('aria-expanded', 'false');
+      await helpButton.click();
+      const helpPanel = page.locator('#search-help-panel');
+      await expect(helpButton).toHaveAttribute('aria-expanded', 'true');
+      await expect(helpPanel).toBeVisible();
+      await expect(helpPanel).not.toHaveAttribute('role', 'dialog');
+      await captureAndCheck(page, testInfo, { id: 'search-help', route: '/consulta' });
+      await helpPanel.getByRole('button', { name: 'Cerrar', exact: true }).focus();
+      await page.keyboard.press('Escape');
+      await expect(helpButton).toHaveAttribute('aria-expanded', 'false');
+      await expect(helpPanel).toBeHidden();
+      await expect(helpButton).toBeFocused();
 
       await page.getByRole('button', { name: 'Limpiar filtros', exact: true }).first().click();
       await expect(page).toHaveURL(/\/consulta$/u);
@@ -167,8 +218,16 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await selectedResult.focus();
       await page.keyboard.press('Space');
 
+      const pdfResponsePromise = page.waitForResponse((response) =>
+        new URL(response.url()).pathname.endsWith('/api/public/sentencias/ux-qa-001/pdf'),
+      );
       await page.getByRole('link', { name: 'Ver fallo', exact: true }).first().click();
       await expect(page).toHaveURL(/\/fallos\/ux-qa-001(?:\?|$)/u);
+      await expect(page).toHaveTitle(/Jurisprudencia Civil/u);
+      const pdfResponse = await pdfResponsePromise;
+      expect(pdfResponse.status()).toBe(200);
+      expect(pdfResponse.headers()['content-type']).toContain('application/pdf');
+      expect(await pdfResponse.request().headerValue('authorization')).toBeNull();
       await expect(page.getByRole('heading', { name: 'Pérez c/ Gutiérrez s/ daños', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Ocultar panel', exact: true })).toBeVisible();
       await expect(page.getByLabel('Página')).toBeVisible();
@@ -189,20 +248,22 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
         pdfRenderStatus: 'DEFERRED_BROWSER_LIMITATION',
         notes: ['Viewer shell and local passage citation are mandatory; PDF.js/native embedded rendering is reported separately.'],
       });
+      await page.reload();
+      await expect(page.getByRole('heading', { name: 'Pérez c/ Gutiérrez s/ daños', exact: true })).toBeVisible();
 
       if (viewport.width <= 430) {
-        const controls = await page.evaluate(() => {
-          const pageInput = document.querySelector('input[type="number"]');
-          const zoom = document.querySelector('select[aria-label="Zoom"], label:has(select) select');
-          if (!pageInput || !zoom) return null;
-          const pageBox = pageInput.parentElement.getBoundingClientRect();
-          const zoomBox = zoom.parentElement.getBoundingClientRect();
-          return {
-            page: { x: pageBox.x, y: pageBox.y, right: pageBox.right, bottom: pageBox.bottom },
-            zoom: { x: zoomBox.x, y: zoomBox.y, right: zoomBox.right, bottom: zoomBox.bottom },
-          };
-        });
-        expect(controls).not.toBeNull();
+        const controls = {
+          page: await page.getByLabel('Página').evaluate((input) => {
+            const box = input.parentElement?.getBoundingClientRect();
+            return box ? { x: box.x, y: box.y, right: box.right, bottom: box.bottom } : null;
+          }),
+          zoom: await page.getByLabel('Zoom').evaluate((select) => {
+            const box = select.parentElement?.getBoundingClientRect();
+            return box ? { x: box.x, y: box.y, right: box.right, bottom: box.bottom } : null;
+          }),
+        };
+        expect(controls.page).not.toBeNull();
+        expect(controls.zoom).not.toBeNull();
         expect(Math.abs(controls.page.y - controls.zoom.y)).toBeLessThanOrEqual(2);
         expect(controls.page.right).toBeLessThanOrEqual(controls.zoom.x + 2);
         expect(controls.zoom.right).toBeLessThanOrEqual(viewport.width + 2);
@@ -298,5 +359,16 @@ test.describe('Search user-facing states @public @state', () => {
     await expect(serviceError).toContainText('No pudimos completar la búsqueda. Intentá nuevamente.');
     await expect(page.getByText(/OpenSearchException|internal fixture diagnostic/u)).toHaveCount(0);
     await captureAndCheck(page, testInfo, { id: 'search-service-unavailable', route: '/consulta?q=UX_QA_SERVICE_UNAVAILABLE' });
+  });
+
+  test('manually requested extreme page shows a controlled error and clears loading', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const response = await page.goto('/consulta?page=999999');
+    expect(response?.status()).toBe(200);
+    const error = page.locator('[role="alert"]').filter({ hasText: 'No se pudo completar la consulta' });
+    await expect(error).toContainText('No pudimos completar la búsqueda. Intentá nuevamente.');
+    await expect(page.getByText('Buscando fallos…')).toHaveCount(0);
+    await expect(page.getByText(/SEARCH_PAGE_WINDOW_EXCEEDED|OpenSearchException|internal fixture diagnostic/u)).toHaveCount(0);
+    await captureAndCheck(page, testInfo, { id: 'search-extreme-page', route: '/consulta?page=999999' });
   });
 });

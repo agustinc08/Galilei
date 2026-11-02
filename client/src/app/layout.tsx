@@ -1,5 +1,4 @@
 import { AuthProvider } from '@/hooks/use-auth';
-import { AuthenticatedAppShell } from '@/components/layout/AuthenticatedAppShell';
 import { ComparisonSelectionProvider } from '@/components/comparison/ComparisonSelection';
 import { EvolutionSelectionProvider } from '@/components/evolution/EvolutionSelection';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -15,7 +14,7 @@ export default function RootLayout({
     <AuthProvider>
       <ComparisonSelectionProvider>
         <EvolutionSelectionProvider>
-          <AuthenticatedAppShell>{children}</AuthenticatedAppShell>
+          {children}
         </EvolutionSelectionProvider>
       </ComparisonSelectionProvider>
     </AuthProvider>

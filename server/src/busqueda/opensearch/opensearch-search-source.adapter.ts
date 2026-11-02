@@ -8,6 +8,7 @@ import type {
   SearchSourceAdapter,
 } from '../adapters/search-source.adapter';
 import type { SearchQueryAst } from '../utils/search-ast';
+import { SEARCH_MAX_RESULT_WINDOW } from './search-window.constants';
 import { searchObservability } from '../search-observability';
 import { buildSearchQueryDsl } from './search-dsl';
 import {
@@ -280,7 +281,9 @@ export class OpenSearchSearchSourceAdapter implements SearchSourceAdapter {
     }
 
     const from = (page - 1) * pageSize;
-    if (from + pageSize > 30000) throw new Error('SEARCH_PAGE_WINDOW_EXCEEDED');
+    if (from + pageSize > SEARCH_MAX_RESULT_WINDOW) {
+      throw new Error('SEARCH_PAGE_WINDOW_EXCEEDED');
+    }
     const documentScope = context.documentScope;
     if (
       this.source === 'CORPUS' &&

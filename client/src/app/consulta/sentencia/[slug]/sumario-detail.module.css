@@ -1,7 +1,7 @@
 .page {
   display: grid;
   gap: 18px;
-  width: min(100%, 1180px);
+  width: min(100%, 1520px);
   min-width: 0;
   margin: 0 auto;
   padding: clamp(14px, 2vw, 28px);
@@ -35,7 +35,7 @@
 .panelHeading h2 { margin: 0; color: #24465d; font-size: 18px; line-height: 1.3; }
 .panelHeading span { flex: 0 0 auto; color: #718496; font-size: 12px; }
 .summaryList { display: grid; gap: 13px; }
-.summaryCard { min-width: 0; padding: clamp(15px, 2vw, 22px); border: 1px solid #e0e8ee; border-radius: 9px; background: #fbfcfd; }
+.summaryCard { min-width: 0; padding: clamp(15px, 2vw, 22px); border: 0; border-top: 1px solid #e0e8ee; border-radius: 0; background: transparent; }
 .summaryCard + .summaryCard { margin-top: 0; }
 .summaryTopic { margin: 0 0 10px; color: #45677c; font-size: 13px; font-weight: 750; line-height: 1.4; }
 .summaryText { max-width: 78ch; margin: 0; color: #293e50; font-size: clamp(16px, 1.25vw, 18px); line-height: 1.78; overflow-wrap: anywhere; white-space: pre-wrap; }

@@ -546,7 +546,9 @@ test('public search state is canonical and a copied deep link preserves query, f
   await explanation.locator('summary').click();
   await expect(explanation).toContainText('desde el inicio de cada palabra');
   await page.getByRole('button', { name: 'Consejos de búsqueda' }).click();
-  await expect(page.getByRole('dialog', { name: 'Ayuda de búsqueda' })).toContainText('se considera distinta de n');
+  const searchHelp = page.getByRole('region', { name: 'Consejos de búsqueda' });
+  await expect(searchHelp).toContainText('se considera distinta de n');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'Cerrar' }).click();
   await page.getByRole('button', { name: 'Copiar enlace de búsqueda' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Enlace de búsqueda copiado' })).toBeVisible();
@@ -632,20 +634,21 @@ test('authorized researcher can favorite results, copy an authoritative citation
   expect(calls.filter((call) => call.path === '/favoritos/77' && call.method === 'POST')).toHaveLength(2);
 
   await page.getByRole('button', { name: 'Copiar cita' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Cita y enlace de Galilei copiados' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Cita y enlace de Jurisprudencia Civil copiados' })).toBeVisible();
   const citation = await page.evaluate(() => (window as Window & { __researchClipboard?: string }).__researchClipboard);
   expect(citation).toContain('María Núñez c/ Peña, Sala C');
-  expect(citation).toContain(`Fuente Galilei: ${new URL(page.url()).origin}/consulta/sentencia/fallo-demo-ninez`);
+  expect(citation).toContain(`Fuente: Jurisprudencia Civil — ${new URL(page.url()).origin}/consulta/sentencia/fallo-demo-ninez`);
 
   const saveTrigger = page.getByRole('button', { name: 'Guardar búsqueda', exact: true });
   await saveTrigger.click();
   await expect(page.getByLabel('Nombre de la búsqueda')).toBeFocused();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'Guardar búsqueda pública' })).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Guardar búsqueda' })).toHaveCount(0);
   await expect(saveTrigger).toBeFocused();
   await saveTrigger.click();
   await page.getByLabel('Nombre de la búsqueda').fill('Daño civil');
-  await page.getByRole('button', { name: 'Guardar búsqueda' }).last().click();
+  await expect(page.getByRole('button', { name: 'Cancelar' })).toBeVisible();
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Búsqueda guardada en tu cuenta' })).toBeVisible();
   const saveCall = calls.find((call) => call.path === '/busquedas-guardadas' && call.method === 'POST');
   expect(saveCall?.body).toMatchObject({

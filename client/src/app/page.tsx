@@ -1,34 +1,15 @@
 import { Link } from "@/lib/router-compat";
-import { Button } from '@/components/ui/Button';
-import { LineIcon } from '@/components/ui/LineIcon';
-import styles from './home.module.css';
-
-const destinations = [
-  { href: '/consulta', icon: 'scales', title: 'Jurisprudencia', text: 'Buscar fallos publicados.' },
-  { href: '/spaces', icon: 'institution', title: 'Mi Sala / Juzgado', text: 'Documentos compartidos de tu dependencia.' },
-  { href: '/personal', icon: 'lock', title: 'Mis documentos', text: 'Tus archivos privados.' },
-] as const;
+import styles from './public-home.module.css';
 
 export default function HomePage() {
   return (
     <main className={styles.page}>
-      <section className={styles.hero}>
-        <header className={styles.brandBlock}>
-          <span className={styles.kicker}>Galilei</span>
-          <h1>¿Qué querés consultar?</h1>
-          <p>Jurisprudencia, documentos compartidos de tu dependencia y tus archivos privados.</p>
-        </header>
-        <nav className={styles.cards} aria-label="Secciones de Galilei">
-          {destinations.map((destination) => (
-            <Link className={styles.card} href={destination.href} key={destination.href}>
-              <LineIcon name={destination.icon} className={styles.destinationIcon} />
-              <strong>{destination.title}</strong>
-              <p>{destination.text}</p>
-            </Link>
-          ))}
-        </nav>
+      <section className={styles.hero} aria-labelledby="public-home-title">
+        <p className={styles.eyebrow}>Cámara Nacional de Apelaciones en lo Civil</p>
+        <h1 id="public-home-title">Jurisprudencia Civil</h1>
+        <p className={styles.description}>Consultá fallos y sumarios publicados por la Cámara.</p>
         <div className={styles.actions}>
-          <Link href="/login"><Button>Iniciar sesión</Button></Link>
+          <Link className={styles.searchLink} href="/consulta">Buscar jurisprudencia</Link>
         </div>
       </section>
     </main>

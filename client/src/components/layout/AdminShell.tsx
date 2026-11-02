@@ -10,7 +10,7 @@ import { LineIcon } from '../ui/LineIcon';
 import styles from './layout.module.css';
 
 const mainDestinations = [
-  { href: '/consulta', label: 'Jurisprudencia', key: 'jurisprudencia', icon: 'research' },
+  { href: '/busqueda-avanzada', label: 'Jurisprudencia', key: 'jurisprudencia', icon: 'research' },
   { href: '/spaces', label: 'Mi Sala / Juzgado', key: 'spaces', icon: 'workspace' },
   { href: '/personal', label: 'Mis documentos', key: 'personal', icon: 'personal' },
   { href: '/colecciones', label: 'Mis colecciones', key: 'collections', icon: 'collections' },
@@ -21,6 +21,7 @@ function activeDestination(pathname: string) {
   if (pathname.startsWith('/personal')) return 'personal';
   if (pathname.startsWith('/colecciones')) return 'collections';
   if (
+    pathname === '/busqueda' || pathname === '/busqueda-avanzada' ||
     pathname.startsWith('/consulta') ||
     pathname.startsWith('/fallos') ||
     pathname.startsWith('/jurisprudencia') ||
@@ -113,12 +114,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           {user?.rol.nombre === 'ADMIN' || ['OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user?.rol.nombre ?? '') ? (
             <nav className={styles.managementNav} aria-label="Gestión">
               <p className={styles.footerSectionLabel}>GESTIÓN</p>
-              {user?.rol.nombre === 'ADMIN' ? <>
+              {user?.rol.nombre === 'ADMIN' || user?.rol.nombre === 'OPERADOR' ? <>
                 <Link className={styles.footerLink} href="/dashboard" onClick={() => setMenuOpen(false)}>Panel técnico</Link>
+              </> : null}
+              {user?.rol.nombre === 'ADMIN' ? <>
                 <Link className={styles.footerLink} href="/admin/logs" onClick={() => setMenuOpen(false)}>Registros</Link>
                 <Link className={styles.footerLink} href="/admin/usuarios" onClick={() => setMenuOpen(false)}>Usuarios</Link>
               </> : null}
-              <Link className={styles.footerLink} href="/jurisprudencia/ingreso" onClick={() => setMenuOpen(false)}>Ingreso de jurisprudencia</Link>
+              {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user?.rol.nombre ?? '') ? (
+                <Link className={styles.footerLink} href="/jurisprudencia/ingreso" onClick={() => setMenuOpen(false)}>Ingreso de jurisprudencia</Link>
+              ) : null}
               <Link className={styles.footerLink} href="/citas-pendientes" onClick={() => setMenuOpen(false)}>Revisión de citas</Link>
               <Link className={styles.footerLink} href="/admin/jurisprudencia/ocr" onClick={() => setMenuOpen(false)}>Revisión de OCR</Link>
             </nav>

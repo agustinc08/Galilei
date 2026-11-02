@@ -9,6 +9,8 @@ import { downloadBlob } from "@/lib/utils";
 import { clampPdfPage, parsePdfPageParam } from "@/lib/pdf-page";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import type { PdfMatch } from "@/app/(admin)/corpus/[id]/CorpusPdfViewer";
 import styles from "../../../copernic-search.module.css";
 
@@ -261,20 +263,20 @@ export default function WorkspaceDocumentViewer() {
         </Card>
       )}
       <Card>
-        <form
+        <form className={styles.workspaceViewerSearch}
           onSubmit={(event) => {
             event.preventDefault();
             void findMatches();
           }}
         >
-          <input
-            aria-label="Buscar en el documento"
+          <Input
+            label="Buscar en el documento"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={document?.status === "OCR_REQUIRED" ? "El texto todavía no está disponible" : "Buscar y resaltar en el documento"}
             disabled={document?.status === "OCR_REQUIRED"}
           />
-          <button disabled={document?.status === "OCR_REQUIRED"}>Buscar</button>
+          <Button type="submit" disabled={document?.status === "OCR_REQUIRED"}>Buscar</Button>
         </form>
         {matches && (
           <p>
@@ -284,8 +286,8 @@ export default function WorkspaceDocumentViewer() {
           </p>
         )}
         {matches?.matches.length ? (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button
+          <div className={styles.workspaceMatchToolbar}>
+            <Button variant="secondary"
               onClick={() => {
                 const next =
                   (active + matches.matches.length - 1) %
@@ -295,8 +297,8 @@ export default function WorkspaceDocumentViewer() {
               }}
             >
               Anterior
-            </button>
-            <button
+            </Button>
+            <Button variant="secondary"
               onClick={() => {
                 const next = (active + 1) % matches.matches.length;
                 setActive(next);
@@ -304,26 +306,19 @@ export default function WorkspaceDocumentViewer() {
               }}
             >
               Siguiente
-            </button>
+            </Button>
             <span>{current?.context}</span>
           </div>
         ) : null}
       </Card>
       <Card>
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            marginBottom: 12,
-          }}
-        >
-          {isPdf && document?.status !== "OCR_REQUIRED" && (<button
+        <div className={styles.workspaceViewerToolbar} aria-label="Controles del visor">
+          {isPdf && document?.status !== "OCR_REQUIRED" && (<Button variant="secondary"
             disabled={page <= 1}
             onClick={() => setPage((value) => Math.max(1, value - 1))}
           >
             Página anterior
-          </button>)}
+          </Button>)}
           <span>
             {isPdf && document?.status === "OCR_REQUIRED"
               ? "PDF original · navegación del visor"
@@ -331,15 +326,15 @@ export default function WorkspaceDocumentViewer() {
                 ? "Página " + page + " de " + (effectivePageCount || "?")
                 : "Texto extraído"}
           </span>
-          {isPdf && document?.status !== "OCR_REQUIRED" && (<button
+          {isPdf && document?.status !== "OCR_REQUIRED" && (<Button variant="secondary"
             disabled={!!effectivePageCount && page >= effectivePageCount}
             onClick={() => setPage((value) => value + 1)}
           >
             Página siguiente
-          </button>)}
-          <button onClick={() => void downloadPdf()}>
+          </Button>)}
+          <Button variant="secondary" onClick={() => void downloadPdf()}>
             Descargar {fileTypeLabel(document?.file?.mimeType)}
-          </button>
+          </Button>
         </div>
         {document?.file && !isPdf ? (
           <pre className={styles.textPreview} aria-label="Texto extraído del documento">

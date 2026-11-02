@@ -6,7 +6,6 @@ import {
   ParseIntPipe,
   Patch,
   Post,
-  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ROLES } from '../auth/constants';
@@ -24,24 +23,22 @@ export class CatalogosController {
   @Get('salas')
   @Public()
   @ApiOperation({ summary: 'Lista salas de catalogo' })
-  getSalas(@Query('includeInactive') includeInactive?: string) {
-    return this.catalogosService.getSalas(includeInactive === 'true');
+  getSalas() {
+    return this.catalogosService.getSalas();
   }
 
   @Get('tipos-fallo')
   @Public()
   @ApiOperation({ summary: 'Lista tipos de fallo de catalogo' })
-  getTiposFallo(@Query('includeInactive') includeInactive?: string) {
-    return this.catalogosService.getTiposFallo(includeInactive === 'true');
+  getTiposFallo() {
+    return this.catalogosService.getTiposFallo();
   }
 
   @Get('tribunales-origen')
   @Public()
   @ApiOperation({ summary: 'Lista tribunales de origen de catalogo' })
-  getTribunales(@Query('includeInactive') includeInactive?: string) {
-    return this.catalogosService.getTribunalesOrigen(
-      includeInactive === 'true',
-    );
+  getTribunales() {
+    return this.catalogosService.getTribunalesOrigen();
   }
 
   @Post('salas')

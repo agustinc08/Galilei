@@ -11,6 +11,7 @@ type Props = {
   backHref: string;
   backLabel?: string;
   viewportOffset?: number;
+  productBrand?: string;
   sidePanel: React.ReactNode;
   viewer: React.ReactNode;
 };
@@ -21,6 +22,7 @@ export function DocumentoViewerLayout({
   backHref,
   backLabel = 'Volver',
   viewportOffset = 0,
+  productBrand,
   sidePanel,
   viewer,
 }: Props) {
@@ -33,6 +35,7 @@ export function DocumentoViewerLayout({
     >
       <header className={styles.topbar}>
         <div className={styles.topbarTitle}>
+          {productBrand ? <span className={styles.productBrand}>{productBrand}</span> : null}
           <h1>{title}</h1>
           {subtitle ? <p>{subtitle}</p> : null}
         </div>

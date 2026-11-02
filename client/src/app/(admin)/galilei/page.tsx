@@ -4,7 +4,7 @@ import styles from './galilei.module.css';
 
 const destinations = [
   {
-    href: '/consulta',
+    href: '/busqueda-avanzada',
     icon: 'scales',
     title: 'Jurisprudencia',
     description: 'Buscar fallos publicados.',

@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
 import styles from './consulta.module.css';
 import { Button } from '@/components/ui/Button';
+import { useEffect } from 'react';
 
 type Props = {
   open: boolean;
@@ -10,66 +10,32 @@ type Props = {
 };
 
 export function SearchHelpModal({ open, onClose }: Props) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const returnFocusRef = useRef<HTMLElement | null>(null);
-
   useEffect(() => {
     if (!open) return;
 
-    returnFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialogRef.current
-      ?.querySelector<HTMLElement>('button:not([disabled]), [href], input:not([disabled])')
-      ?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
 
-    return () => returnFocusRef.current?.focus();
-  }, [open]);
-
-  if (!open) {
-    return null;
-  }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, open]);
 
   return (
-    <dialog
-      open
-      ref={dialogRef}
-      className={styles.modalOverlay}
-      aria-modal="true"
+    <section
+      id="search-help-panel"
+      className={styles.searchHelpPanel}
+      hidden={!open}
       aria-labelledby="search-help-title"
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.stopPropagation();
-          onClose();
-          return;
-        }
-
-        if (event.key !== 'Tab') return;
-
-        const focusable = Array.from(
-          dialogRef.current?.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-          ) ?? [],
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last?.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first?.focus();
-        }
-      }}
     >
-      <div className={styles.modal}>
-        <div className={styles.toolbar}>
-          <strong id="search-help-title">Ayuda de búsqueda</strong>
-          <Button variant="secondary" onClick={onClose}>
-            Cerrar
-          </Button>
-        </div>
-          <div className={`${styles.listGrid} ${styles.searchHelpList}`}>
+      <div className={styles.searchHelpHeader}>
+        <strong id="search-help-title">Consejos de búsqueda</strong>
+        <Button variant="secondary" onClick={onClose}>Cerrar</Button>
+      </div>
+      <div className={`${styles.listGrid} ${styles.searchHelpList}`}>
           <details className={styles.listItem}>
             <summary>Términos sin comillas</summary>
             <span className={styles.mutedText}>responsabilidad civil — busca desde el inicio de cada palabra; por defecto deben coincidir todos los términos.</span>
@@ -106,8 +72,7 @@ export function SearchHelpModal({ open, onClose }: Props) {
             <summary>Filtros</summary>
             <span className={styles.mutedText}>Combiná texto con Sala, fecha, tribunal, expediente, carátula, tipo de fallo, PDF y otros campos disponibles en el formulario.</span>
           </details>
-        </div>
       </div>
-    </dialog>
+    </section>
   );
 }

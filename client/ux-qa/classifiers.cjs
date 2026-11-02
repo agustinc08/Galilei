@@ -18,6 +18,17 @@ function classifyRequestFailure(url, errorText) {
 }
 
 function isExpectedNetworkStatus(url, status) {
+  if (Number(status) === 400) {
+    try {
+      const parsed = new URL(String(url));
+      if (
+        parsed.pathname.endsWith('/api/public/busqueda') &&
+        Number(parsed.searchParams.get('page')) === 999999
+      ) return true;
+    } catch {
+      // The request URL can be malformed in synthetic browser failures.
+    }
+  }
   if (Number(status) === 503) {
     try {
       const parsed = new URL(String(url));
