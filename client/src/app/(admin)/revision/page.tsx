@@ -6,7 +6,7 @@ import { useSearchParams } from '@/lib/router-compat';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { api } from '@/lib/api';
-import { confidenceLabel, evidenceLabel, reviewStatusLabel } from '@/lib/review-presentation';
+import { confidenceLabel, documentReviewStatusLabel, evidenceLabel, reviewStatusLabel } from '@/lib/review-presentation';
 import styles from './revision.module.css';
 
 type ReviewKind = 'classification' | 'candidate' | 'ocr' | 'sourceMissing' | 'failed' | 'metadata';
@@ -82,7 +82,7 @@ export default function RevisionPage() {
       </article>)}</div> : <p>No hay asociaciones pendientes en esta página.</p>}
     </Card> : <Card>
       <p>{queue?.total.toLocaleString('es-AR') ?? '—'} documentos en esta cola.</p>
-      {queue?.results.length ? <div className={styles.list}>{queue.results.map((item) => <article key={item.id} className={styles.row}><span><strong>{item.title}</strong><small>Estado: {item.status}{item.locations?.length ? ' · fuente faltante' : ''}</small><small>{item.caseNumber ?? 'Sin expediente'}</small><Link href={`/corpus/${encodeURIComponent(item.id)}`}>Abrir documento</Link></span></article>)}</div> : <p>No hay documentos para revisar en esta página.</p>}
+      {queue?.results.length ? <div className={styles.list}>{queue.results.map((item) => <article key={item.id} className={styles.row}><span><strong>{item.title}</strong><small>Estado: {documentReviewStatusLabel(item.status)}{item.locations?.length ? ' · fuente faltante' : ''}</small><small>{item.caseNumber ?? 'Sin expediente'}</small><Link href={`/corpus/${encodeURIComponent(item.id)}`}>Abrir documento</Link></span></article>)}</div> : <p>No hay documentos para revisar en esta página.</p>}
     </Card>}
     {queue && queue.total > queue.pageSize ? <div className={styles.pager}><button type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Anterior</button><span>Página {queue.page} de {Math.ceil(queue.total / queue.pageSize)} · {queue.total.toLocaleString('es-AR')} documentos</span><button type="button" disabled={page * queue.pageSize >= queue.total} onClick={() => setPage((value) => value + 1)}>Siguiente</button></div> : null}
   </main>;

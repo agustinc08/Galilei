@@ -30,3 +30,19 @@ export function reviewStatusLabel(value: string) {
   if (value === 'REJECTED') return 'Rechazado';
   return 'Revisión humana requerida';
 }
+
+const DOCUMENT_STATUS_LABELS: Record<string, string> = {
+  OCR_REQUIRED: 'Requiere reconocimiento de texto',
+  OCR_PROCESSING: 'Procesando texto',
+  OCR_FAILED: 'No se pudo reconocer el texto',
+  INDEXED: 'Listo para buscar',
+  TEXT_EXTRACTED: 'Texto extraído',
+  REVIEW_REQUIRED: 'Requiere revisión',
+  FAILED: 'No se pudo procesar',
+  ERROR: 'Error de procesamiento',
+  PENDING: 'Pendiente de procesamiento',
+};
+
+export function documentReviewStatusLabel(value: string) {
+  return DOCUMENT_STATUS_LABELS[value] ?? 'Pendiente de revisión';
+}
