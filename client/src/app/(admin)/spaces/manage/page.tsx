@@ -1424,7 +1424,8 @@ export default function PrivateSpacesPage() {
               </div>
               {canEdit && (
                 <form
-                  className={styles.inlineForm}
+                  className={`${styles.inlineForm} ${styles.folderCreateForm}`}
+                  data-testid="workspace-folder-create-form"
                   onSubmit={(event) => {
                     event.preventDefault();
                     void addFolder();
@@ -1500,9 +1501,13 @@ export default function PrivateSpacesPage() {
               )}
             </div>
             {childFolders.length > 0 ? (
-              <div className={styles.folderGrid}>
+              <div className={styles.folderGrid} data-testid="workspace-folder-grid">
                 {childFolders.map((folder) => (
-                  <div className={styles.folderRow} key={folder.id}>
+                  <div
+                    className={styles.folderRow}
+                    data-testid="workspace-folder-card"
+                    key={folder.id}
+                  >
                     {renamingFolderId === folder.id ? (
                       <form
                         className={styles.folderRename}
@@ -1535,6 +1540,7 @@ export default function PrivateSpacesPage() {
                       <>
                         <button
                           className={styles.folderOpen}
+                          data-testid="workspace-folder-open"
                           onClick={() => {
                             setFolderId(folder.id);
                             clearSearch();
@@ -1545,69 +1551,74 @@ export default function PrivateSpacesPage() {
                           {folder.visibilityLabel}{folder.effectiveVisibilityScope === "RESTRICTED" && folder.authorizedCount !== undefined ? ` · ${folder.authorizedCount} personas elegidas; creador y administradores también acceden` : ""} · {folder._count.documents} documentos · {folder._count.children} subcarpetas
                           </small>
                         </button>
-                        {folder.effectiveVisibilityScope === "RESTRICTED" && folder.canManageAccess ? (
-                          <button aria-label={`Administrar quién puede ver ${folder.name}`} onClick={() => void openFolderAccess(folder)}>
-                            Personas autorizadas
-                          </button>
-                        ) : null}
-                        {canEdit && (
-                          <button
-                            aria-label={`Renombrar ${folder.name}`}
-                            onClick={() => {
-                              setRenamingFolderId(folder.id);
-                              setRenamedFolder(folder.name);
-                            }}
-                          >
-                            Renombrar
-                          </button>
-                        )}
-                        {canEdit && (
-                          <details className={styles.folderDelete}>
-                            <summary>Eliminar carpeta</summary>
-                            <form
-                              onSubmit={(event) => {
-                                event.preventDefault();
-                                void deleteFolder(folder);
+                        <div
+                          className={styles.folderActions}
+                          data-testid="workspace-folder-actions"
+                        >
+                          {folder.effectiveVisibilityScope === "RESTRICTED" && folder.canManageAccess ? (
+                            <button aria-label={`Administrar quién puede ver ${folder.name}`} onClick={() => void openFolderAccess(folder)}>
+                              Personas autorizadas
+                            </button>
+                          ) : null}
+                          {canEdit && (
+                            <button
+                              aria-label={`Renombrar ${folder.name}`}
+                              onClick={() => {
+                                setRenamingFolderId(folder.id);
+                                setRenamedFolder(folder.name);
                               }}
                             >
-                              <label htmlFor={`folder-delete-reason-${folder.id}`}>
-                                Motivo de eliminación
-                              </label>
-                              <input
-                                id={`folder-delete-reason-${folder.id}`}
-                                value={deletingFolderId === folder.id ? folderDeleteReason : ""}
-                                onFocus={() => {
-                                  if (deletingFolderId !== folder.id) {
-                                    setDeletingFolderId(folder.id);
-                                    setFolderDeleteReason("");
-                                  }
+                              Renombrar
+                            </button>
+                          )}
+                          {canEdit && (
+                            <details className={styles.folderDelete}>
+                              <summary>Eliminar carpeta</summary>
+                              <form
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  void deleteFolder(folder);
                                 }}
-                                onChange={(event) => {
-                                  setDeletingFolderId(folder.id);
-                                  setFolderDeleteReason(event.target.value);
-                                }}
-                                maxLength={500}
-                                minLength={5}
-                                required
-                              />
-                              <button
-                                type="submit"
-                                disabled={
-                                  busy ||
-                                  deletingFolderId !== folder.id ||
-                                  folderDeleteReason.trim().length < 5 ||
-                                  folder._count.documents > 0 ||
-                                  folder._count.children > 0
-                                }
                               >
-                                Eliminar carpeta vacía
-                              </button>
-                              {folder._count.documents > 0 || folder._count.children > 0 ? (
-                                <small>Primero mové los documentos y subcarpetas.</small>
-                              ) : null}
-                            </form>
-                          </details>
-                        )}
+                                <label htmlFor={`folder-delete-reason-${folder.id}`}>
+                                  Motivo de eliminación
+                                </label>
+                                <input
+                                  id={`folder-delete-reason-${folder.id}`}
+                                  value={deletingFolderId === folder.id ? folderDeleteReason : ""}
+                                  onFocus={() => {
+                                    if (deletingFolderId !== folder.id) {
+                                      setDeletingFolderId(folder.id);
+                                      setFolderDeleteReason("");
+                                    }
+                                  }}
+                                  onChange={(event) => {
+                                    setDeletingFolderId(folder.id);
+                                    setFolderDeleteReason(event.target.value);
+                                  }}
+                                  maxLength={500}
+                                  minLength={5}
+                                  required
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={
+                                    busy ||
+                                    deletingFolderId !== folder.id ||
+                                    folderDeleteReason.trim().length < 5 ||
+                                    folder._count.documents > 0 ||
+                                    folder._count.children > 0
+                                  }
+                                >
+                                  Eliminar carpeta vacía
+                                </button>
+                                {folder._count.documents > 0 || folder._count.children > 0 ? (
+                                  <small>Primero mové los documentos y subcarpetas.</small>
+                                ) : null}
+                              </form>
+                            </details>
+                          )}
+                        </div>
                       </>
                     )}
                   </div>
