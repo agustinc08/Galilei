@@ -43,6 +43,8 @@ test('folder cards wrap, stay readable, and retain folder actions across breakpo
     folder('qa-ten', 'QA carpeta diez'),
     folder('qa-parent-child', 'QA subcarpeta existente', { parentId: 'qa-parent' }),
   ];
+  const fixtureRootFolders = folders.filter((item) => item.parentId === null);
+  const fixtureSubfolders = folders.filter((item) => item.parentId !== null);
   const createdFolders = [];
   const renamedFolders = [];
   const deletedFolders = [];
@@ -211,9 +213,46 @@ test('folder cards wrap, stay readable, and retain folder actions across breakpo
   expect(desktopColumns).toBeGreaterThanOrEqual(2);
   expect(desktopColumns).toBeLessThanOrEqual(4);
 
+  for (const count of [1, 3, 6, 10]) {
+    folders = [...fixtureRootFolders.slice(0, count), ...fixtureSubfolders];
+    await page.reload();
+    await expect(cards).toHaveCount(count);
+    const countLayout = await page.evaluate(() => {
+      const gridElement = document.querySelector('[data-testid="workspace-folder-grid"]');
+      const gridRect = gridElement?.getBoundingClientRect();
+      const cardElements = Array.from(gridElement?.querySelectorAll('[data-testid="workspace-folder-card"]') ?? []);
+      const cards = cardElements.map((card) => ({
+        width: card.getBoundingClientRect().width,
+        y: Math.round(card.getBoundingClientRect().y),
+        scrollWidth: card.scrollWidth,
+        clientWidth: card.clientWidth,
+      }));
+      return {
+        documentWidth: document.documentElement.scrollWidth,
+        gridWidth: gridElement?.clientWidth ?? 0,
+        gridScrollWidth: gridElement?.scrollWidth ?? 0,
+        gridRight: gridRect?.right ?? 0,
+        rowCount: new Set(cards.map((card) => card.y)).size,
+        cards,
+      };
+    });
+    expect(countLayout.documentWidth, `horizontal overflow with ${count} folders`).toBeLessThanOrEqual(1920);
+    expect(countLayout.gridRight, `grid extends beyond viewport with ${count} folders`).toBeLessThanOrEqual(1921);
+    expect(countLayout.gridScrollWidth, `grid overflows with ${count} folders`).toBeLessThanOrEqual(countLayout.gridWidth);
+    expect(countLayout.cards.every((card) => card.width >= Math.min(280, countLayout.gridWidth - 1)), `card too narrow with ${count} folders`).toBe(true);
+    expect(countLayout.cards.every((card) => card.scrollWidth <= card.clientWidth + 1), `card content overflows with ${count} folders`).toBe(true);
+    if (count >= 6) expect(countLayout.rowCount, `folders did not wrap with ${count} folders`).toBeGreaterThan(1);
+  }
+
   const folderForm = page.getByTestId('workspace-folder-create-form');
   const parentCard = cards.filter({ hasText: 'QA carpeta con subcarpetas' });
-  await parentCard.getByTestId('workspace-folder-open').press('Enter');
+  const parentOpen = parentCard.getByTestId('workspace-folder-open');
+  const parentRename = parentCard.getByRole('button', { name: 'Renombrar QA carpeta con subcarpetas' });
+  await parentOpen.focus();
+  await page.keyboard.press('Tab');
+  await expect(parentRename).toBeFocused();
+  expect(await parentRename.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
+  await parentOpen.press('Enter');
   await expect(cards).toHaveCount(1);
   await expect(cards.first()).toContainText('QA subcarpeta existente');
   await expect(page.getByPlaceholder('Nombre de subcarpeta')).toBeVisible();
