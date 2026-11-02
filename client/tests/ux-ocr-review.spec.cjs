@@ -45,6 +45,36 @@ function makeReview() {
   };
 }
 
+function makeSevenPagePdfBuffer() {
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    null,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  const pageRefs = [];
+  for (let page = 1; page <= 7; page += 1) {
+    const pageObject = objects.length + 1;
+    const contentObject = pageObject + 1;
+    pageRefs.push(`${pageObject} 0 R`);
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObject} 0 R >>`);
+    const content = `q 0.2 0.45 0.75 rg 54 600 210 72 re f Q BT /F1 20 Tf 54 750 Td (OCR VIEWER PAGE ${page}) Tj ET`;
+    objects.push(`<< /Length ${Buffer.byteLength(content, 'ascii')} >>\nstream\n${content}\nendstream`);
+  }
+  objects[1] = `<< /Type /Pages /Kids [${pageRefs.join(' ')}] /Count 7 >>`;
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(pdf, 'ascii'));
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = Buffer.byteLength(pdf, 'ascii');
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(pdf, 'ascii');
+}
+
 async function colorContrastSamples(page) {
   return page.evaluate(() => {
     function rgb(value) {
@@ -232,4 +262,148 @@ test('OCR review is usable at required widths and exposes keyboard, labels, and 
     contrastByViewport,
     saveStatus: 'Corrección guardada con historial y checksum.',
   }, null, 2)}\n`, 'utf8');
+});
+
+test('OCR original PDF stays visible while paging and keeps OCR text synchronized @ocr-review', async ({ browser, baseURL }) => {
+  const review = makeReview();
+  const sourcePdfPath = process.env.UX_OCR_REVIEW_DIAGNOSTIC_PDF;
+  const externalDiagnosticPdf = Boolean(sourcePdfPath);
+  const sourcePdf = sourcePdfPath ? fs.readFileSync(sourcePdfPath) : makeSevenPagePdfBuffer();
+  const requestedActions = [];
+  const failedApiResponses = [];
+  const pageErrors = [];
+  const wasmResponses = [];
+  const pdfResponses = [];
+  const renderedPages = [];
+  review.file.pageCount = 7;
+  review.activeRun.pageCount = 7;
+  review.activeRun.pages = Array.from({ length: 7 }, (_, index) => ({
+    ...PAGE,
+    id: `ocr-review-page-${index + 1}`,
+    pageNumber: index + 1,
+    ocrText: `TEXTO OCR ORIGINAL PÁGINA ${index + 1}`,
+    correctedText: `TEXTO CORREGIDO PÁGINA ${index + 1}`,
+  }));
+  review.sourcePages = Array.from({ length: 7 }, (_, index) => ({
+    pageNumber: index + 1,
+    text: `TEXTO FUENTE OCR PÁGINA ${index + 1}`,
+    textKind: 'OCR',
+    processingStatus: 'OCR_REQUIRED',
+  }));
+
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+  await context.addInitScript((user) => {
+    localStorage.setItem('jurisprudencia_token', 'synthetic-ocr-viewer-token');
+    localStorage.setItem('jurisprudencia_user', JSON.stringify(user));
+  }, QA_USER);
+  await context.route('**/api/auth/me', (route) => route.fulfill({ json: QA_USER }));
+  await context.route('**/api/ocr-human-review/**', async (route) => {
+    const request = route.request();
+    const endpoint = new URL(request.url()).pathname.replace(/^\/api/u, '');
+    if (request.method() === 'GET' && endpoint === '/ocr-human-review/queue') {
+      return route.fulfill({ json: {
+        page: 1, pageSize: 25, total: 1, pageCount: 1,
+        counts: { total: 1, unreviewed: 1, mine: 1, ready: 0 },
+        results: [{
+          documentId: review.document.id, title: review.document.title,
+          court: review.document.court, chamber: review.document.chamber,
+          caseNumber: review.document.caseNumber, fileId: review.file.id,
+          filename: review.file.filename, fileSha256: review.file.sha256,
+          pageCount: 7, reviewId: review.id, status: 'IN_REVIEW',
+          assignedToId: QA_USER.id, hasApprovedVersion: false, approvedPages: 0,
+          ocrRun: { status: 'COMPLETE', generatedPageCount: 7, pageCount: 7 },
+        }],
+      } });
+    }
+    if (request.method() === 'POST' && endpoint.endsWith('/documents/' + review.document.id + '/open')) {
+      requestedActions.push('open');
+      return route.fulfill({ json: review });
+    }
+    if (request.method() === 'POST' && endpoint === '/ocr-human-review/' + review.id + '/assign') {
+      requestedActions.push('assign');
+      return route.fulfill({ json: review });
+    }
+    if (request.method() === 'GET' && endpoint === '/ocr-human-review/' + review.id + '/file') {
+      return route.fulfill({ status: 200, contentType: 'application/pdf', body: sourcePdf });
+    }
+    if (request.method() === 'GET' && endpoint === '/ocr-human-review/' + review.id) {
+      return route.fulfill({ json: review });
+    }
+    return route.fulfill({ status: 404, json: { message: 'Unexpected synthetic OCR viewer request.' } });
+  });
+  const page = await context.newPage();
+  page.on('pageerror', () => pageErrors.push('pageerror'));
+  page.on('console', (message) => {
+    if (message.type() === 'error') pageErrors.push('console-error');
+  });
+  page.on('response', (response) => {
+    const pathname = new URL(response.url()).pathname;
+    if (pathname.startsWith('/pdfjs/wasm/')) wasmResponses.push({ status: response.status(), asset: path.basename(pathname) });
+    if (pathname.endsWith('/ocr-human-review/' + review.id + '/file')) {
+      pdfResponses.push({ status: response.status(), contentType: response.headers()['content-type'] });
+    }
+    if (pathname.startsWith('/api/') && response.status() >= 400) {
+      failedApiResponses.push(response.status());
+    }
+  });
+
+  try {
+    const wasmAsset = await page.request.get(new URL('/pdfjs/wasm/jbig2.wasm', baseURL).toString());
+    expect(wasmAsset.status()).toBe(200);
+    await page.goto(new URL('/admin/jurisprudencia/ocr', baseURL).toString());
+    const queueItem = page.getByRole('button', { name: /Caso sintético para revisión OCR/ });
+    await expect(queueItem).toBeVisible();
+    await queueItem.click();
+    const reviewArea = page.getByRole('region', { name: 'Espacio de revisión' });
+
+    const assertRenderedPage = async (pageNumber) => {
+      await expect(page.getByTestId('pdf-viewer-ready')).toHaveText(`Documento cargado · página ${pageNumber}`);
+      const metrics = await page.locator('.react-pdf__Page canvas').evaluate((canvas) => {
+        const rect = canvas.getBoundingClientRect();
+        const pixels = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height).data;
+        let nonWhiteSamples = 0;
+        for (let index = 0; index < pixels.length; index += 4 * 16) {
+          if (pixels[index] < 242 || pixels[index + 1] < 242 || pixels[index + 2] < 242) nonWhiteSamples += 1;
+        }
+        const style = getComputedStyle(canvas);
+        return {
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          nonWhiteSamples,
+          visible: style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0,
+        };
+      });
+      expect(metrics.width).toBeGreaterThan(100);
+      expect(metrics.height).toBeGreaterThan(100);
+      expect(metrics.nonWhiteSamples).toBeGreaterThan(0);
+      expect(metrics.visible).toBe(true);
+      renderedPages.push({ page: pageNumber, ...metrics });
+      await expect(page.locator('[class*="textSource"] pre')).toHaveText(`TEXTO OCR ORIGINAL PÁGINA ${pageNumber}`);
+      await expect(page.getByLabel('Texto corregido')).toHaveValue(`TEXTO CORREGIDO PÁGINA ${pageNumber}`);
+    };
+
+    await assertRenderedPage(1);
+    await reviewArea.getByRole('button', { name: 'Siguiente', exact: true }).click();
+    await assertRenderedPage(2);
+    await reviewArea.getByRole('button', { name: 'Anterior', exact: true }).click();
+    await assertRenderedPage(1);
+    await page.getByLabel('Ir a página').fill('7');
+    await assertRenderedPage(7);
+
+    await page.reload();
+    await page.getByRole('button', { name: /Caso sintético para revisión OCR/ }).click();
+    await assertRenderedPage(1);
+
+    expect(requestedActions).toEqual(['open', 'assign', 'open', 'assign']);
+    expect(failedApiResponses).toEqual([]);
+    expect(pageErrors).toEqual([]);
+    if (externalDiagnosticPdf) {
+      expect(wasmResponses.some((response) => response.asset === 'jbig2.wasm' && response.status === 200)).toBe(true);
+    }
+    expect(pdfResponses.length).toBeGreaterThanOrEqual(2);
+    expect(pdfResponses.every((response) => response.status === 200 && response.contentType?.startsWith('application/pdf'))).toBe(true);
+    console.log('OCR_VIEWER_PDF_EVIDENCE=' + JSON.stringify({ renderedPages, pdfResponses, wasmResponses }));
+  } finally {
+    await context.close();
+  }
 });

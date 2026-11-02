@@ -15,6 +15,8 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString();
 
+const PDF_OPTIONS = { wasmUrl: '/pdfjs/wasm/' };
+
 export type PdfMatch = {
   page: number;
   textKind?: 'NATIVE' | 'OCR';
@@ -172,7 +174,7 @@ export function CorpusPdfViewer({ file, page, sourceText, matches, activeMatch, 
       Encontramos la coincidencia en el texto del documento, pero no pudimos señalarla en la página. Podés continuar desde la lista de coincidencias.
       {(active.context || active.text) && <span> Contexto: {active.context || active.text}</span>}
     </p>}
-    <Document file={file} loading={<p role="status" aria-label="Cargando PDF">Cargando PDF…</p>} error={<p role="alert">No se pudo mostrar el PDF. Podés descargarlo y consultar la información del documento.</p>} onLoadSuccess={({ numPages }) => {
+    <Document file={file} options={PDF_OPTIONS} loading={<p role="status" aria-label="Cargando PDF">Cargando PDF…</p>} error={<p role="alert">No se pudo mostrar el PDF. Podés descargarlo y consultar la información del documento.</p>} onLoadSuccess={({ numPages }) => {
       setRenderState(null);
       setPageCountState({ file, count: numPages });
       onLoadSuccess(numPages);
