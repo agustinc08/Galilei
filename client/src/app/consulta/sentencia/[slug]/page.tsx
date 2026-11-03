@@ -115,7 +115,7 @@ export default function ConsultaSentenciaPublicaPage() {
             </Button>
           ) : null}
           {data.slugPublico ? <EvolutionAddButton slug={data.slugPublico} title={title || data.numeroSentencia || data.expediente || `Sentencia ${data.id}`} /> : null}
-          <ShareLinkButton url={currentUrl} label="Copiar enlace" sentenciaId={data.id} />
+          <ShareLinkButton url={currentUrl} label="Copiar enlace" sentenciaId={data.id} publicOnly />
           <PrintButton onPrint={() => window.open(`/consulta/sentencia/${params.slug}/ficha`, '_blank', 'noopener')} />
         </div>
       </header>

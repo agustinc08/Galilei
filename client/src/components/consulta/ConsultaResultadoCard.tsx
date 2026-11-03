@@ -140,7 +140,7 @@ export function ConsultaResultadoCard({
             </Link>
           ) : null}
           {documentHref && hasPdf ? (
-            <Link href={documentHref} onClick={() => void trackEvento({ tipoEvento: 'view_documento', metadata: { origen: 'consulta', slug: publicIdentifier } })}>
+            <Link href={documentHref} onClick={() => void trackEvento({ tipoEvento: 'view_documento', metadata: { origen: 'consulta', slug: publicIdentifier } }, { publicOnly: true })}>
               <Button>Ver fallo</Button>
             </Link>
           ) : null}

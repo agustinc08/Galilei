@@ -103,7 +103,7 @@ export function SearchAutocomplete({
         tipo: suggestion.tipo,
         origen: endpoint,
       },
-    });
+    }, { publicOnly: skipAuth });
     onSelect?.(suggestion.value, suggestion);
   };
 

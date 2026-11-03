@@ -10,6 +10,7 @@ type Props = {
   currentUrl: string;
   publicUrl?: string | null;
   cita?: CitaSentencia | null;
+  publicOnly?: boolean;
 };
 
 export function DocumentoShareSection({
@@ -17,6 +18,7 @@ export function DocumentoShareSection({
   currentUrl,
   publicUrl,
   cita,
+  publicOnly = false,
 }: Props) {
   return (
     <div className={styles.actions}>
@@ -24,12 +26,14 @@ export function DocumentoShareSection({
         url={currentUrl}
         sentenciaId={sentenciaId}
         label="Copiar enlace actual"
+        publicOnly={publicOnly}
       />
       {publicUrl ? (
         <ShareLinkButton
           url={publicUrl}
           sentenciaId={sentenciaId}
           label="Copiar enlace público"
+          publicOnly={publicOnly}
         />
       ) : null}
       {cita?.citaCopiable ? (

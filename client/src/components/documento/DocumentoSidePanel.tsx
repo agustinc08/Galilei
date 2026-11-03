@@ -127,6 +127,7 @@ export function DocumentoSidePanel({
           currentUrl={currentUrl}
           publicUrl={publicUrl}
           cita={data.cita}
+          publicOnly={publicView}
         />
       </DocumentoAccordion>
     </>

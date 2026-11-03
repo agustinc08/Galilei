@@ -9,12 +9,14 @@ type Props = {
   url: string;
   label?: string;
   sentenciaId?: number;
+  publicOnly?: boolean;
 };
 
 export function ShareLinkButton({
   url,
   label = 'Copiar enlace',
   sentenciaId,
+  publicOnly = false,
 }: Props) {
   const [status, setStatus] = useState<'copied' | 'failed' | null>(null);
 
@@ -28,7 +30,7 @@ export function ShareLinkButton({
             tipoEvento: 'share_link',
             sentenciaId,
             metadata: { origen: 'ficha-publica' },
-          });
+          }, { publicOnly });
         }
         setStatus(copied ? 'copied' : 'failed');
         window.setTimeout(() => setStatus(null), 2000);

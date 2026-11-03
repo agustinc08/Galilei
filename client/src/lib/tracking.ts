@@ -8,7 +8,23 @@ type TrackEventoInput = {
   metadata?: Record<string, unknown>;
 };
 
-export async function trackEvento(input: TrackEventoInput) {
+type TrackEventoOptions = {
+  publicOnly?: boolean;
+};
+
+export async function trackEvento(
+  input: TrackEventoInput,
+  options: TrackEventoOptions = {},
+) {
+  if (options.publicOnly) {
+    try {
+      await api.post('/public/eventos', input, { skipAuth: true });
+    } catch {
+      return;
+    }
+    return;
+  }
+
   try {
     await api.post('/estadisticas/eventos', input);
   } catch {

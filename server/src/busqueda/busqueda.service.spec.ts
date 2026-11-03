@@ -67,3 +67,60 @@ describe('BusquedaService search query workload', () => {
     expect(result.meta.total).toBe(12);
   });
 });
+
+describe('BusquedaService public autocomplete suggestions', () => {
+  it('uses only active, published public fields and excludes internal suggestion types', async () => {
+    const prisma = {
+      $queryRaw: jest.fn(),
+      sentencia: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([{ sala: 'Sala Civil' }])
+          .mockResolvedValueOnce([{ tipoFallo: 'Fallo civil' }]),
+      },
+      sumario: {
+        findMany: jest.fn().mockResolvedValue([{ tema: 'Responsabilidad civil' }]),
+      },
+    };
+    const service = new BusquedaService(
+      prisma as never,
+      { trackSafe: jest.fn() } as never,
+      { buscarFallosSimilares: jest.fn().mockResolvedValue([]) } as never,
+      { expandTerms: jest.fn().mockResolvedValue([]) } as never,
+    );
+
+    const result = await service.sugerenciasPublicas('civil');
+
+    expect(new Set(result.data.map((item) => item.tipo))).toEqual(
+      new Set(['tema', 'sala', 'tipoFallo']),
+    );
+    expect(prisma.sumario.findMany).toHaveBeenCalledWith({
+      where: {
+        tema: { not: null, contains: 'civil', mode: 'insensitive' },
+        publicado: true,
+        activo: true,
+        sentencia: { publicado: true, activo: true },
+      },
+      select: { tema: true },
+      take: 150,
+    });
+    expect(prisma.sentencia.findMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        sala: { not: null, contains: 'civil', mode: 'insensitive' },
+        publicado: true,
+        activo: true,
+      },
+      select: { sala: true },
+      take: 150,
+    });
+    expect(prisma.sentencia.findMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        tipoFallo: { not: null, contains: 'civil', mode: 'insensitive' },
+        publicado: true,
+        activo: true,
+      },
+      select: { tipoFallo: true },
+      take: 150,
+    });
+  });
+});

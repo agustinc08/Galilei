@@ -408,7 +408,7 @@ function ConsultaPublicaScreenContent() {
         cantidadResultados: payload.length,
         query: filters.q ?? '',
       },
-    });
+    }, { publicOnly: true });
     window.open('/consulta/imprimir', '_blank', 'noopener');
   };
 

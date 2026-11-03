@@ -395,6 +395,176 @@ test.describe('Search user-facing states @public @state', () => {
     }
   });
 
+  test('anonymous autocomplete selection stays public and never calls protected telemetry', async ({ page }) => {
+    const eventRequests = [];
+    const suggestionQueries = [];
+    const suggestionsByQuery = [
+      { match: 'acc', value: 'ACCIDENTE DE TRANSITO. DAÑOS. Incapacidad sobreviniente.' },
+      { match: 'daños', value: 'Daños y perjuicios' },
+      { match: 'niñez', value: 'Derechos de niños y niñas' },
+      { match: 'lesión', value: 'Lesión corporal' },
+    ];
+
+    await page.addInitScript(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+      window.__authStorageWasClean = localStorage.length === 0 && sessionStorage.length === 0;
+      window.__authUnauthorizedCount = 0;
+      window.addEventListener('auth:unauthorized', () => {
+        window.__authUnauthorizedCount += 1;
+      });
+    });
+    page.on('request', (request) => {
+      const pathname = new URL(request.url()).pathname;
+      if (pathname.endsWith('/estadisticas/eventos') || pathname.endsWith('/public/eventos')) {
+        eventRequests.push(`${request.method()} ${pathname}`);
+      }
+    });
+    await page.route('**/api/estadisticas/eventos', (route) => route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Unauthorized' }),
+    }));
+    await page.route('**/api/public/eventos', (route) => route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: { tracked: true } }),
+    }));
+    await page.route('**/api/public/busqueda/sugerencias**', async (route) => {
+      const query = new URL(route.request().url()).searchParams.get('q')?.toLocaleLowerCase('es-AR') ?? '';
+      suggestionQueries.push(query);
+      const suggestion = suggestionsByQuery.find((item) => query.includes(item.match));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify({
+          data: suggestion ? [{ value: suggestion.value, tipo: 'tema', total: 3 }] : [],
+        }),
+      });
+    });
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1366, height: 768 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/consulta');
+      const input = page.getByLabel('Buscar jurisprudencia');
+      await input.fill(viewport.width === 768 ? 'ACC' : 'acc');
+      const suggestion = page.getByRole('button').filter({ hasText: /ACCIDENTE DE TRANSITO\. DAÑOS\./u }).first();
+      await expect(suggestion).toBeVisible();
+      await suggestion.click();
+
+      await expect(page).toHaveURL((url) => url.pathname === '/consulta' && url.searchParams.get('q') === suggestionsByQuery[0].value);
+      await expect(page.getByText('4 resultados', { exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Jurisprudencia', exact: true })).toBeVisible();
+      await expect(page.getByText('Sesión expirada. Iniciá sesión nuevamente.', { exact: true })).toHaveCount(0);
+      expect(await page.evaluate(() => ({
+        token: localStorage.getItem('jurisprudencia_token'),
+        user: localStorage.getItem('jurisprudencia_user'),
+        startedClean: window.__authStorageWasClean,
+        unauthorizedEvents: window.__authUnauthorizedCount,
+      }))).toEqual({ token: null, user: null, startedClean: true, unauthorizedEvents: 0 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+
+    expect(eventRequests.filter((request) => request.endsWith('/estadisticas/eventos'))).toEqual([]);
+    expect(eventRequests.filter((request) => request.endsWith('/public/eventos'))).toHaveLength(3);
+    expect(suggestionQueries.filter((query) => query === 'acc')).toHaveLength(3);
+    expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+    expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
+  });
+
+  test('public autocomplete keyboard selection, Unicode, race, refresh and history stay in the public shell', async ({ page }) => {
+    const suggestionQueries = [];
+    await page.addInitScript(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+    await page.route('**/api/estadisticas/eventos', (route) => route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Unauthorized' }),
+    }));
+    await page.route('**/api/public/busqueda/sugerencias**', async (route) => {
+      const query = new URL(route.request().url()).searchParams.get('q')?.toLocaleLowerCase('es-AR') ?? '';
+      suggestionQueries.push(query);
+      const match = [
+        { term: 'acc', value: 'ACCIDENTE DE TRANSITO. DAÑOS. Incapacidad sobreviniente' },
+        { term: 'daños', value: 'Daños y perjuicios' },
+        { term: 'niñez', value: 'Derechos de niños y niñas' },
+        { term: 'lesión', value: 'Lesión corporal' },
+      ].find((item) => query.includes(item.term));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify({ data: match ? [{ value: match.value, tipo: 'tema', total: 2 }] : [] }),
+      });
+    });
+
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/consulta');
+    const input = page.getByLabel('Buscar jurisprudencia');
+    await input.fill('daños');
+    const danos = page.getByRole('button').filter({ hasText: 'Daños y perjuicios' }).first();
+    await expect(danos).toBeVisible();
+    await input.press('ArrowDown');
+    await input.press('ArrowUp');
+    await input.press('ArrowDown');
+    await input.press('Enter');
+    await expect(page).toHaveURL((url) => url.pathname === '/consulta' && url.searchParams.get('q') === 'Daños y perjuicios');
+    await expect(page.getByText('4 resultados', { exact: true })).toBeVisible();
+
+    await page.reload();
+    await expect(page).toHaveURL((url) => url.pathname === '/consulta' && url.searchParams.get('q') === 'Daños y perjuicios');
+    await expect(input).toHaveValue('Daños y perjuicios');
+    await page.goBack();
+    await expect(page).toHaveURL((url) => url.pathname === '/consulta' && !url.searchParams.has('q'));
+    await page.goForward();
+    await expect(page).toHaveURL((url) => url.pathname === '/consulta' && url.searchParams.get('q') === 'Daños y perjuicios');
+
+    await input.fill('niñez');
+    const ninez = page.getByRole('button').filter({ hasText: 'Derechos de niños y niñas' }).first();
+    await expect(ninez).toBeVisible();
+    await input.press('ArrowDown');
+    await input.press('Enter');
+    await expect(page).toHaveURL((url) => url.pathname === '/consulta' && url.searchParams.get('q') === 'Derechos de niños y niñas');
+
+    await input.fill('lesión');
+    await expect(page.getByRole('button').filter({ hasText: 'Lesión corporal' }).first()).toBeVisible();
+    await input.press('Escape');
+    await expect(page.getByRole('button').filter({ hasText: 'Lesión corporal' })).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe('/consulta');
+
+    await page.getByRole('button', { name: 'Limpiar filtros', exact: true }).first().click();
+    await expect(page).toHaveURL((url) => url.pathname === '/consulta' && !url.searchParams.has('q'));
+    await expect(input).toHaveValue('');
+    await input.fill('lesión');
+    await page.getByRole('button').filter({ hasText: 'Lesión corporal' }).first().click();
+    await expect(page).toHaveURL((url) => url.pathname === '/consulta' && url.searchParams.get('q') === 'Lesión corporal');
+
+    await page.getByRole('button', { name: 'Limpiar filtros', exact: true }).first().click();
+    await expect(page).toHaveURL((url) => url.pathname === '/consulta' && !url.searchParams.has('q'));
+    suggestionQueries.length = 0;
+    await input.fill('a');
+    await input.fill('ac');
+    await input.fill('acc');
+    await expect.poll(() => suggestionQueries).toEqual(['acc']);
+    const raceSuggestion = page.getByRole('button').filter({ hasText: /ACCIDENTE DE TRANSITO/iu }).first();
+    await expect(raceSuggestion).toBeVisible();
+    await raceSuggestion.click();
+    await expect(page).toHaveURL((url) => url.pathname === '/consulta' && url.searchParams.get('q') === 'ACCIDENTE DE TRANSITO. DAÑOS. Incapacidad sobreviniente');
+
+    await input.fill('sin coincidencias');
+    await expect.poll(() => suggestionQueries.at(-1)).toBe('sin coincidencias');
+    await expect(page.getByRole('button').filter({ hasText: /sin coincidencias/iu })).toHaveCount(0);
+    await expect(page).toHaveURL((url) => url.pathname === '/consulta');
+    await expect(page.getByText('Sesión expirada. Iniciá sesión nuevamente.', { exact: true })).toHaveCount(0);
+    expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+    expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
+  });
+
   test('loading and zero-results states remain clear and recoverable', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/consulta?q=UX_QA_LOADING');
