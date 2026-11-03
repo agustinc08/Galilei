@@ -737,3 +737,12 @@ La matriz, evidencia por dimensión, limitations y plan de UAT están en `_recov
 | Citas verificadas para fallos abiertos por slug o ID | **FIXED / Office validado** | Resolver público compartido con filtros de publicación; tests sintéticos con y sin citas y negativos; smoke de Office con un slug y el ID público `41865`, ambos HTTP 200 incluso tras refresh. Lista vacía confirmada como respuesta válida; errores de endpoint tienen estado visible propio. |
 
 Sin cambios de datos, esquema, índices, Search ni reglas de publicación. Migraciones 39/39; `origin/main` intacta.
+
+## BETA-011 a BETA-027 — consolidación de oficina (checkpoint pre-deploy, 2026-11-03)
+
+BETA-011 y BETA-012 están incluidos en el baseline de Office 7a55cdf51b5e80fdbcdc9b0812c3dc075fb4ecd9. El candidate local conserva el trabajo autorizado BETA-013 a BETA-027. Su regresión local pasó: UX sintético 87/87; cliente 52/52; servidor dirigido 42/42 y búsqueda 3/3; PostgreSQL QA aislado 2/2. Typecheck, ESLint, builds de cliente/backend y Prisma generate PASS con Node local.
+
+BETA-026 quedó validado en PostgreSQL QA aislado, loopback 55435 y 39 migraciones: OCR del PDF escaneado, búsqueda Admin/Viewer dentro de la dependencia, aislamiento frente a otra dependencia y búsquedas generales/públicas, Viewer sin permiso para iniciar, SHA del PDF original preservado y limpieza de fixtures/storage completa. El clúster QA quedó detenido. BETA-027 pasó los tests de preview y está incluido en la UX completa 87/87. Sin migraciones ni cambios al Corpus público.
+
+**Estado: CANDIDATE LOCAL PASS / OFFICE PENDING.** Falta crear commit y actualizar sólo la rama temporal, ejecutar una vez el updater oficial desde `D:\proyecto triple` y validar en Office preview/OCR/ACL, perfiles, membresías, carpetas, Mis documentos, Colecciones y UX. No marcar los BETA-013 a BETA-027 como FIXED global hasta validar ese SHA servido. `origin/main` no se modifica.
+

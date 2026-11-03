@@ -193,8 +193,12 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       await expect(helpButton).toHaveAttribute('aria-expanded', 'true');
       await expect(helpPanel).toBeVisible();
       await expect(helpPanel).not.toHaveAttribute('role', 'dialog');
+      for (const title of ['Términos sin comillas', 'Una palabra exacta', 'Frase exacta', 'Exclusión', 'Operadores', 'Campos', 'Comodín %', 'Tildes y ñ', 'Filtros']) {
+        await expect(helpPanel.getByText(title, { exact: true })).toBeVisible();
+      }
+      await expect(helpPanel.locator('details')).toHaveCount(0);
+      await expect(helpPanel.getByText('Acentos y ñ', { exact: true })).toHaveCount(0);
       await captureAndCheck(page, testInfo, { id: 'search-help', route: '/consulta' });
-      await helpPanel.getByRole('button', { name: 'Cerrar', exact: true }).focus();
       await page.keyboard.press('Escape');
       await expect(helpButton).toHaveAttribute('aria-expanded', 'false');
       await expect(helpPanel).toBeHidden();

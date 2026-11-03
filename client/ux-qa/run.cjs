@@ -7,9 +7,9 @@ const { createMockServer } = require('./mock-server.cjs');
 
 const frontDir = path.resolve(__dirname, '..');
 const mode = process.argv[2] || 'public';
-const grepByMode = { public: '@public', responsive: '@responsive', viewer: '@viewer', auth: '@auth', 'folder-upload': '@folder-upload', 'workspace-list': '@workspace-list', sidebar: '@sidebar', 'ocr-review': '@ocr-review' };
+const grepByMode = { public: '@public', responsive: '@responsive', viewer: '@viewer', auth: '@auth', 'folder-upload': '@folder-upload', 'workspace-list': '@workspace-list', sidebar: '@sidebar', 'ocr-review': '@ocr-review', 'workspace-ocr': '@workspace-ocr', 'workspace-preview': '@workspace-preview' };
 if (!grepByMode[mode]) {
-  process.stderr.write('Usage: node ux-qa/run.cjs public|responsive|viewer|auth|folder-upload|workspace-list|sidebar|ocr-review\n');
+  process.stderr.write('Usage: node ux-qa/run.cjs public|responsive|viewer|auth|folder-upload|workspace-list|sidebar|ocr-review|workspace-ocr|workspace-preview\n');
   process.exit(2);
 }
 

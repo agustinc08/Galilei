@@ -78,22 +78,50 @@ describe('Corpus document access in workspaces', () => {
     const corpusWhere = (
       corpusArgs as {
         where?: {
+          AND?: Array<{
+            OR?: Array<{
+              documentScope?: string;
+              visibility?: { in?: string[] };
+              status?: { in?: string[] };
+            }>;
+          }>;
           OR?: Array<{
             documentScope?: string;
             visibility?: { in?: string[] };
+            status?: { in?: string[] };
           }>;
           workspaceDocuments?: unknown;
           visibility?: { in?: string[] };
         };
       }
     ).where;
-    expect(corpusWhere?.OR?.map((branch) => branch.documentScope)).toEqual(
+    const scopeFilter = corpusWhere?.AND?.find((branch) =>
+      branch.OR?.some((item) => item.documentScope !== undefined),
+    );
+    expect(scopeFilter?.OR?.map((branch) => branch.documentScope)).toEqual(
       expect.arrayContaining(['PRIVATE_WORKSPACE', 'GENERAL']),
     );
     expect(
-      corpusWhere?.OR?.find((branch) => branch.documentScope === 'GENERAL')
+      scopeFilter?.OR?.find((branch) => branch.documentScope === 'GENERAL')
         ?.visibility?.in,
     ).toEqual(['PUBLIC', 'INTERNAL']);
+    const statusFilter = corpusWhere?.AND?.find((branch) =>
+      branch.OR?.some((item) => item.status !== undefined),
+    );
+    expect(statusFilter?.OR).toEqual(
+      expect.arrayContaining([
+        {
+          documentScope: 'PRIVATE_WORKSPACE',
+          status: {
+            in: ['INDEXED', 'OCR_REQUIRED', 'OCR_PROCESSING', 'OCR_FAILED'],
+          },
+        },
+        {
+          documentScope: 'GENERAL',
+          status: { in: ['INDEXED', 'OCR_REQUIRED'] },
+        },
+      ]),
+    );
     expect(corpusWhere?.workspaceDocuments).toEqual({
       some: { workspaceId: 'workspace-1' },
     });

@@ -187,10 +187,10 @@ test('perfiles sintéticos de DEV completan los flujos privados principales desd
   const editorRole = page.getByLabel(`Permiso de ${credentials.accounts.operator.email}`);
   await expect(editorRole).toHaveValue('EDITOR');
   const editorActions = editorRole.locator('xpath=../..');
-  await editorActions.getByRole('button', { name: 'Desactivar acceso' }).click();
+  await editorActions.getByRole('button', { name: 'Quitar de esta dependencia' }).click();
   const memberConfirmation = page.getByRole('alertdialog');
   await expect(memberConfirmation).toBeVisible();
-  await memberConfirmation.getByRole('button', { name: 'Desactivar', exact: true }).click();
+  await memberConfirmation.getByRole('button', { name: 'Quitar de esta dependencia', exact: true }).click();
   await expect(page.getByText('Acceso desactivado', { exact: false })).toBeVisible();
   await editorActions.getByRole('button', { name: 'Reactivar', exact: true }).click();
   await expect(editorRole).toHaveValue('EDITOR');

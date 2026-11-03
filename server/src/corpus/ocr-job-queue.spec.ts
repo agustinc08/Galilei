@@ -26,9 +26,10 @@ function transaction(overrides: Record<string, unknown> = {}) {
   const create = jest
     .fn()
     .mockResolvedValue({ id: 'job-1', status: 'PENDING' });
+  const updateMany = jest.fn().mockResolvedValue({ count: 1 });
   const lock = jest.fn().mockResolvedValue([]);
   const tx = {
-    corpusOcrJob: { findUnique, count, create },
+    corpusOcrJob: { findUnique, count, create, updateMany },
     $queryRaw: lock,
     ...overrides,
   };
@@ -37,6 +38,7 @@ function transaction(overrides: Record<string, unknown> = {}) {
     findUnique,
     count,
     create,
+    updateMany,
     lock,
   };
 }
@@ -60,24 +62,42 @@ describe('durable local OCR job enqueue', () => {
 
   it('reuses the same fingerprint before taking a lock', async () => {
     const db = transaction();
-    db.findUnique.mockResolvedValueOnce({ id: 'existing', status: 'COMPLETE' });
+    db.findUnique.mockResolvedValueOnce({
+      id: 'existing',
+      status: 'COMPLETE',
+      errorCode: null,
+    });
 
     await expect(
       enqueueLocalOcrJob(db.tx, processor(), input),
-    ).resolves.toEqual({ id: 'existing', status: 'COMPLETE' });
+    ).resolves.toEqual({
+      id: 'existing',
+      status: 'COMPLETE',
+      errorCode: null,
+      created: false,
+      retried: false,
+    });
     expect(db.lock).not.toHaveBeenCalled();
     expect(db.create).not.toHaveBeenCalled();
   });
 
   it('checks for a concurrent duplicate after the advisory lock', async () => {
     const db = transaction();
-    db.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'concurrent', status: 'PENDING' });
+    db.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      id: 'concurrent',
+      status: 'PENDING',
+      errorCode: null,
+    });
 
     await expect(
       enqueueLocalOcrJob(db.tx, processor(), input),
-    ).resolves.toEqual({ id: 'concurrent', status: 'PENDING' });
+    ).resolves.toEqual({
+      id: 'concurrent',
+      status: 'PENDING',
+      errorCode: null,
+      created: false,
+      retried: false,
+    });
     expect(db.lock).toHaveBeenCalledTimes(1);
     expect(db.create).not.toHaveBeenCalled();
   });
@@ -91,7 +111,12 @@ describe('durable local OCR job enqueue', () => {
         ...input,
         fileSha256: changedSha,
       }),
-    ).resolves.toEqual({ id: 'job-1', status: 'PENDING' });
+    ).resolves.toMatchObject({
+      id: 'job-1',
+      status: 'PENDING',
+      created: true,
+      retried: false,
+    });
     expect(db.create).toHaveBeenCalledWith(
       partial({
         data: partial({
@@ -113,7 +138,12 @@ describe('durable local OCR job enqueue', () => {
     const available = transaction();
     await expect(
       enqueueLocalOcrJob(available.tx, processor(), input),
-    ).resolves.toEqual({ id: 'job-1', status: 'PENDING' });
+    ).resolves.toMatchObject({
+      id: 'job-1',
+      status: 'PENDING',
+      created: true,
+      retried: false,
+    });
     expect(available.create).toHaveBeenCalledWith(
       partial({
         data: partial({
@@ -124,5 +154,57 @@ describe('durable local OCR job enqueue', () => {
         }),
       }),
     );
+  });
+
+  it('retries a recoverable failed job in place instead of creating a duplicate', async () => {
+    const db = transaction();
+    db.findUnique
+      .mockResolvedValueOnce({
+        id: 'failed-job',
+        status: 'FAILED',
+        errorCode: 'OCR_TIMEOUT',
+      })
+      .mockResolvedValueOnce({
+        id: 'failed-job',
+        status: 'FAILED',
+        errorCode: 'OCR_TIMEOUT',
+      });
+
+    await expect(
+      enqueueLocalOcrJob(db.tx, processor(), input, { retryFailed: true }),
+    ).resolves.toEqual({
+      id: 'failed-job',
+      status: 'PENDING',
+      created: false,
+      retried: true,
+    });
+    expect(db.updateMany).toHaveBeenCalledWith(
+      partial({
+        where: { id: 'failed-job', status: 'FAILED' },
+        data: partial({ status: 'PENDING', attemptCount: 0, maxAttempts: 2 }),
+      }),
+    );
+    expect(db.create).not.toHaveBeenCalled();
+  });
+
+  it('does not retry non-recoverable OCR failures', async () => {
+    const db = transaction();
+    db.findUnique.mockResolvedValueOnce({
+      id: 'invalid-job',
+      status: 'FAILED',
+      errorCode: 'FILE_INVALID',
+    });
+
+    await expect(
+      enqueueLocalOcrJob(db.tx, processor(), input, { retryFailed: true }),
+    ).resolves.toEqual({
+      id: 'invalid-job',
+      status: 'FAILED',
+      errorCode: 'FILE_INVALID',
+      created: false,
+      retried: false,
+    });
+    expect(db.lock).not.toHaveBeenCalled();
+    expect(db.updateMany).not.toHaveBeenCalled();
   });
 });

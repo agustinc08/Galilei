@@ -83,6 +83,16 @@ test('sube una carpeta con estructura, omite formatos ajenos y aísla un archivo
   await page.goto('/personal');
   await expect(page.getByRole('heading', { name: 'Mis documentos', exact: true })).toBeVisible();
   await expect(page.locator('svg[class*="privateIcon"]')).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.getByText('Al elegir una carpeta vas a ver acá el destino y la cantidad de archivos válidos.')).toBeVisible();
+  const inputMetrics = await page.evaluate(() => ['personal-folder-name', 'personal-search'].map((id) => {
+    const input = document.getElementById(id);
+    if (!(input instanceof HTMLInputElement)) return null;
+    const style = getComputedStyle(input);
+    return { radius: style.borderRadius, height: input.getBoundingClientRect().height };
+  }));
+  expect(inputMetrics[0]?.radius).toBe(inputMetrics[1]?.radius);
+  expect(inputMetrics[0]?.height).toBeGreaterThanOrEqual(44);
+  expect(inputMetrics[1]?.height).toBeGreaterThanOrEqual(44);
   const input = page.locator('#personal-folder-upload');
   await expect(input).toBeEnabled();
   const fixtureDirectory = ensureFolderUploadFixture(
@@ -90,10 +100,15 @@ test('sube una carpeta con estructura, omite formatos ajenos y aísla un archivo
   );
   await input.setInputFiles(fixtureDirectory);
 
+  const selectionLabel = page.locator('label[for="personal-folder-upload"]');
+  await expect(selectionLabel).toContainText('Lote legal');
+  await expect(selectionLabel).toContainText('5 válidos');
+  await expect(page.getByText('Antes de subir, revisá el resumen detectado.', { exact: false })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: '5 documento(s) listos; 3 omitidos y 0 con error previo.' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Incorporar documentos válidos' })).toBeEnabled();
   await page.getByRole('button', { name: 'Incorporar documentos válidos' }).click();
   await expect(page.getByRole('status').filter({ hasText: '4 documento(s) incorporado(s); 0 ya estaban guardados; 3 omitidos; 1 con error.' })).toBeVisible();
+  await expect(page.getByText('Carpeta procesada.', { exact: false })).toBeVisible();
   expect(uploadedNames).toContain('ilegible.pdf');
   expect(uploadedNames).toContain('informe.docx');
   expect(uploadedNames).toContain('contrato.doc');

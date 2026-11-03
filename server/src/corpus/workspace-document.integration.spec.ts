@@ -1,4 +1,5 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
@@ -51,6 +52,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
   let adminA: AuthenticatedUser;
   let adminB: AuthenticatedUser;
   let viewer: AuthenticatedUser;
+  let editor: AuthenticatedUser;
 
   beforeAll(async () => {
     if (!enabled) return;
@@ -109,11 +111,23 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         rolId: lectRole.id,
       },
     });
-    userIds.push(a.id, b.id, c.id);
+    const d = await prisma.usuario.create({
+      data: {
+        nombre: 'Synthetic Workspace Editor',
+        email: `sprint15-editor-${suffix}@example.invalid`,
+        passwordHash: 'synthetic-only',
+        rolId: lectRole.id,
+      },
+    });
+    userIds.push(a.id, b.id, c.id, d.id);
     adminA = makeUser(a.id, a.email);
     adminB = makeUser(b.id, b.email);
     viewer = {
       ...makeUser(c.id, c.email),
+      rol: { id: lectRole.id, nombre: 'LECTOR', descripcion: null },
+    };
+    editor = {
+      ...makeUser(d.id, d.email),
       rol: { id: lectRole.id, nombre: 'LECTOR', descripcion: null },
     };
   });
@@ -167,6 +181,11 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         type: 'DEPENDENCIA',
       });
       workspaceIds.push(workspace.id);
+      const dependency = await prisma.documentDependency.findUniqueOrThrow({
+        where: { code: workspace.code },
+        select: { id: true },
+      });
+      dependencyIds.push(dependency.id);
       const assigned = await service.manageMember(workspace.id, adminB, {
         userId: viewer.id,
         role: 'EDITOR',
@@ -237,6 +256,10 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       await service.manageMember(workspaceA.id, adminA, {
         userId: viewer.id,
         role: 'VIEWER',
+      });
+      await service.manageMember(workspaceA.id, adminA, {
+        userId: editor.id,
+        role: 'EDITOR',
       });
       const folder = await service.createFolder(workspaceA.id, adminA, {
         name: 'Presentaciones',
@@ -498,12 +521,45 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       );
       const scannedDocumentId = scannedUpload.results[0].documentId;
       documentIds.push(scannedDocumentId);
-      expect(scannedUpload.results[0].status).toBe('OCR_PROCESSING');
+      expect(scannedUpload.results[0].status).toBe('OCR_REQUIRED');
+      expect(
+        await prisma.corpusOcrJob.count({
+          where: { documentId: scannedDocumentId },
+        }),
+      ).toBe(0);
+      expect(
+        await service.metadata(workspaceA.id, scannedDocumentId, adminA),
+      ).toMatchObject({
+        workspaceOcr: { state: 'NEEDS_OCR', canStart: true, canRetry: false },
+      });
+      await expect(
+        service.startWorkspaceOcr(workspaceB.id, scannedDocumentId, adminB),
+      ).rejects.toMatchObject({ status: 404 });
+      await expect(
+        service.startWorkspaceOcr(workspaceA.id, scannedDocumentId, viewer),
+      ).rejects.toMatchObject({ status: 403 });
+      const startResult = await service.startWorkspaceOcr(
+        workspaceA.id,
+        scannedDocumentId,
+        adminA,
+      );
+      expect(startResult.state).toBe('PENDING');
+      const duplicateStart = await service.startWorkspaceOcr(
+        workspaceA.id,
+        scannedDocumentId,
+        editor,
+      );
+      expect(duplicateStart.state).toBe('PENDING');
       const queuedJob = await prisma.corpusOcrJob.findFirstOrThrow({
         where: { documentId: scannedDocumentId },
         select: { id: true, pageNumbers: true, fingerprint: true },
       });
       expect(queuedJob.pageNumbers).toEqual([1]);
+      expect(
+        await prisma.corpusOcrJob.count({
+          where: { documentId: scannedDocumentId },
+        }),
+      ).toBe(1);
       const worker = new CorpusOcrWorkerService(
         prisma,
         new LocalPdfOcrProcessor(),
@@ -519,11 +575,20 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         pageNumbers: [1],
         languages: ['spa'],
         dpi: 250,
+        workspaceOcr: {
+          workspaceId: workspaceA.id,
+          requestedByUserId: adminA.id,
+        },
       });
       const ocrDocument = await prisma.corpusDocument.findUniqueOrThrow({
         where: { id: scannedDocumentId },
         include: {
           latestExtraction: { include: { pages: true } },
+          files: {
+            orderBy: { version: 'desc' },
+            take: 1,
+            select: { sha256: true },
+          },
         },
       });
       expect(ocrDocument.status).toBe('INDEXED');
@@ -532,6 +597,10 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         textKind: 'OCR',
         processingStatus: 'OCR_COMPLETE',
       });
+      const originalSha256 = createHash('sha256')
+        .update(scannedPdf)
+        .digest('hex');
+      expect(ocrDocument.files[0].sha256).toBe(originalSha256);
       const ocrSearch = await service.searchWorkspace(
         workspaceA.id,
         adminA,
@@ -544,24 +613,58 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       expect(ocrSearch.results.map((row) => row.sourceId)).toContain(
         scannedDocumentId,
       );
+      const viewerOcrSearch = await service.searchWorkspace(
+        workspaceA.id,
+        viewer,
+        'OCRTESTTOKENXYZ',
+        1,
+        20,
+        folder.id,
+      );
+      if (!viewerOcrSearch) throw new Error('EXPECTED_VIEWER_PRIVATE_SEARCH');
+      expect(viewerOcrSearch.results.map((row) => row.sourceId)).toContain(
+        scannedDocumentId,
+      );
+      const crossWorkspaceOcrSearch = await service.searchWorkspace(
+        workspaceB.id,
+        adminB,
+        'OCRTESTTOKENXYZ',
+        1,
+        20,
+      );
+      if (!crossWorkspaceOcrSearch)
+        throw new Error('EXPECTED_CROSS_WORKSPACE_SEARCH_RESULT');
+      expect(crossWorkspaceOcrSearch.total).toBe(0);
+      expect(crossWorkspaceOcrSearch.results).toHaveLength(0);
       const ocrMatches = await service.matches(
         workspaceA.id,
         scannedDocumentId,
         viewer,
         'OCRTESTTOKENXYZ',
       );
-      // OCR_COMPLETE is searchable inside the authorized private workspace,
-      // but it is not exposed as a page pinpoint until a human approves it.
-      expect(ocrMatches.matches).toHaveLength(0);
+      expect(ocrMatches.matches.length).toBeGreaterThan(0);
+      expect(ocrMatches.matches[0].text).toContain('OCRTESTTOKENXYZ');
       const ocrMetadata = await service.metadata(
         workspaceA.id,
         scannedDocumentId,
         adminA,
       );
-      expect(ocrMetadata.selectedPage).toBeUndefined();
-      await expect(
-        service.metadata(workspaceA.id, scannedDocumentId, adminA, 1),
-      ).rejects.toMatchObject({ status: 400 });
+      expect(ocrMetadata.workspaceOcr).toMatchObject({
+        state: 'COMPLETED',
+        canStart: false,
+        canRetry: false,
+      });
+      const ocrPage = await service.metadata(
+        workspaceA.id,
+        scannedDocumentId,
+        viewer,
+        1,
+      );
+      expect(ocrPage.selectedPage).toMatchObject({
+        pageNumber: 1,
+        textKind: 'OCR',
+      });
+      expect(ocrPage.selectedPage?.text).toContain('OCRTESTTOKENXYZ');
       const ocrFile = await prisma.corpusDocumentFile.findFirstOrThrow({
         where: { documentId: scannedDocumentId },
         select: { sha256: true },
@@ -569,6 +672,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       expect(
         (await service.file(workspaceA.id, scannedDocumentId, viewer)).sha256,
       ).toBe(ocrFile.sha256);
+      expect(ocrFile.sha256).toBe(originalSha256);
       await expect(
         service.file(workspaceB.id, scannedDocumentId, adminB),
       ).rejects.toMatchObject({ status: 404 });
@@ -587,6 +691,29 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           (row) => row.sourceId === scannedDocumentId,
         ),
       ).toBe(false);
+      const publicOcrSearch = await source.search(
+        parseSearchQuery('OCRTESTTOKENXYZ'),
+        {
+          visibility: 'PUBLIC',
+          dialect: 'modern',
+          publicationPolicy: 'published-active-only',
+          page: 1,
+          pageSize: 20,
+          sourceSystems: ['CORPUS'],
+        },
+      );
+      expect(
+        publicOcrSearch.results.some(
+          (row) => row.sourceId === scannedDocumentId,
+        ),
+      ).toBe(false);
+      const ocrActivity = await service.activity(workspaceA.id, adminA);
+      expect(ocrActivity.map((item) => item.accion)).toEqual(
+        expect.arrayContaining([
+          'WORKSPACE_OCR_START',
+          'WORKSPACE_OCR_COMPLETE',
+        ]),
+      );
 
       await prisma.corpusDocument.updateMany({
         where: { id: { in: [idA, idText] } },

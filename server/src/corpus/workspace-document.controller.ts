@@ -410,6 +410,18 @@ export class WorkspaceDocumentController {
     );
   }
 
+  @Post(':workspaceId/documents/:id/ocr')
+  @ApiOperation({
+    summary: 'Inicia OCR local sobre un PDF privado de la dependencia',
+  })
+  startDocumentOcr(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workspaces.startWorkspaceOcr(workspaceId, id, user);
+  }
+
   @Get(':workspaceId/documents/:id/structure')
   @ApiOperation({ summary: 'Detecta secciones con ACL del espacio documental' })
   structure(

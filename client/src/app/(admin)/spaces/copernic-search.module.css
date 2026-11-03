@@ -224,13 +224,24 @@
 .error { border: 1px solid #e7bdb9; color: #8b3932; background: #fff5f4; }
 
 .previewContent { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; }
-.previewDocumentHeader { padding: .75rem .8rem .55rem; border-bottom: 1px solid #e1e7ed; background: #fff; }
-.previewDocumentHeader h2 { margin: .2rem 0 .25rem; overflow: hidden; color: #233e53; font-size: .88rem; text-overflow: ellipsis; white-space: nowrap; }
-.previewDocumentHeader > p:not(.previewType) { margin: .15rem 0 .5rem; color: #6b7e90; font-size: .75rem; }
+.previewDocumentHeader { padding: .55rem .7rem .4rem; border-bottom: 1px solid #e1e7ed; background: #fff; }
+.previewDocumentHeader h2 { margin: .15rem 0 .2rem; overflow: hidden; color: #233e53; font-size: .88rem; text-overflow: ellipsis; white-space: nowrap; }
+.previewDocumentHeader > p:not(.previewType) { margin: .1rem 0 .35rem; color: #6b7e90; font-size: .75rem; }
 .previewActions { gap: .4rem; }
 .openButton { min-height: 1.9rem; padding: .35rem .5rem; font-size: .75rem; }
 .downloadButton { min-height: 1.9rem; }
 .missingSourceNote { margin: .45rem .65rem; padding: .4rem .5rem; border-left: 2px solid #c4923c; color: #705725; background: #fff8ea; font-size: .75rem; line-height: 1.4; }
+.workspaceOcrPanel { display: grid; gap: .25rem; margin: .35rem .55rem; padding: .4rem .55rem; border: 1px solid #d4e0e8; border-radius: 7px; color: #425c70; background: #f7fafc; font-size: .74rem; line-height: 1.4; }
+.workspaceOcrPanel p { margin: 0; }
+.workspaceOcrButton,.workspaceOcrCancel { min-height: 1.9rem; padding: .3rem .6rem; border: 1px solid #2f6686; border-radius: 5px; color: #fff; background: #315f7b; font: inherit; font-weight: 700; cursor: pointer; }
+.workspaceOcrButton:disabled,.workspaceOcrCancel:disabled { opacity: .58; cursor: not-allowed; }
+.workspaceOcrCancel { border-color: #c5d0da; color: #38566c; background: #fff; }
+.workspaceOcrConfirm { display: grid; gap: .4rem; margin-top: .15rem; padding: .6rem; border: 1px solid #d4e0e8; border-radius: 6px; background: #fff; }
+.workspaceOcrConfirm strong { color: #2a465b; }
+.workspaceOcrConfirm > div { display: flex; flex-wrap: wrap; gap: .4rem; }
+.workspaceOcrStatus { color: #5e6772; }
+.workspaceOcrComplete { color: #2f644b; }
+.workspaceOcrError { color: #8b3932; }
 .previewLoading,.previewEmpty,.previewError { display: grid; justify-items: center; align-content: center; gap: .4rem; flex: 1 0 12rem; padding: 1rem; color: #63778a; text-align: center; font-size: .78rem; }
 .previewLoading p,.previewError p,.previewEmpty p { margin: 0; }
 .previewLoading small,.previewEmpty small,.previewError small { color: #8291a0; font-size: .75rem; line-height: 1.4; }
@@ -238,12 +249,12 @@
 .previewEmpty > span { color: #62839c; font-size: 2rem; }
 .previewError a { color: #245c82; font-size: .75rem; font-weight: 700; }
 .viewerError { margin: 1rem 0; padding: .85rem 1rem; border: 1px solid #efc4bf; border-radius: .55rem; color: #8f302a; background: #fff6f4; font-size: .9rem; line-height: 1.5; }
-.previewToolbar { justify-content: space-between; gap: .5rem; padding: .45rem .65rem; color: #536c80; background: #f0f4f7; font-size: .75rem; }
+.previewToolbar { justify-content: space-between; gap: .5rem; padding: .32rem .55rem; color: #536c80; background: #f0f4f7; font-size: .75rem; }
 .pageControls { gap: .25rem; }
 .pageControls[hidden] { display: none; }
 .pageControls button { min-width: 1.9rem; font-size: 1rem; line-height: 1; }
-.pdfPreview { flex: 1 0 15rem; min-height: 15rem; overflow: auto; background: #e7ebef; }
-.pdfPreview :global(.pdfDocument) { min-height: 15rem; padding: .45rem; }
+.pdfPreview { flex: 0 0 auto; min-width: 0; min-height: 0; overflow: visible; background: #e7ebef; }
+.pdfPreview :global([class*="pdfDocument"]) { width: 100%; height: auto; min-height: 0; overflow: visible; overscroll-behavior: auto; padding: .35rem; }
 .pdfPreview :global(.react-pdf__Page) { max-width: 100%; }
 .pdfPreview :global(.react-pdf__Page__canvas) { max-width: 100%; height: auto !important; }
 .pdfPreview :global(.bjc-pdf-match) { background: #ffe082; color: #263646; }
@@ -276,6 +287,8 @@
   .previewBackButton,
   .previewActions .openButton,
   .previewActions .downloadButton,
+  .workspaceOcrButton,
+  .workspaceOcrCancel,
   .matchNavigator button,
   .pageControls button {
     min-height: 2.75rem;
@@ -292,7 +305,8 @@
   .folderDisclosurePlaceholder { flex-basis: 2.75rem; }
   .pageControls button { min-width: 2.75rem; }
   .syntaxHelp summary { display: inline-flex; align-items: center; }
-  .workspacePdfNativeViewer { height: min(62vh, 620px); min-height: min(380px, 48vh); }
+  .workspaceOcrPanel { gap: .2rem; margin: .3rem .5rem; padding: .35rem .45rem; }
+  .previewDocumentHeader { padding: .45rem .55rem .35rem; }
 }
 
 .leftCollapsed { grid-template-columns: 2.7rem minmax(20rem, 1fr) minmax(18rem, 32%); }
@@ -352,8 +366,7 @@
   .centerPanel { grid-row: auto; min-height: 24rem; border-right: 0; }
   .previewPanel { position: static; width: auto; grid-column: auto; min-height: 0; overflow: visible; border: 0; border-top: 1px solid var(--copernic-line); box-shadow: none; }
   .previewContent { flex: 0 0 auto; min-height: 0; overflow: visible; overscroll-behavior: auto; }
-  .pdfPreview { flex: 0 0 auto; height: min(48vh, 24rem); min-height: 15rem; }
-  .workspacePdfNativeViewer { height: min(48vh, 24rem); min-height: 15rem; }
+  .pdfPreview { flex: 0 0 auto; height: auto; min-height: 0; overflow: visible; }
   .previewOpen .previewPanel { display: flex; }
   .previewOpen .leftPanel,
   .previewOpen .centerPanel { display: none; }

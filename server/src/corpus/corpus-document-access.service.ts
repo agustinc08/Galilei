@@ -78,7 +78,13 @@ export class CorpusDocumentAccessService {
           pageCount !== undefined &&
           pageNumber > pageCount) ||
         !page ||
-        !isUsablePage(latestExtraction?.status, page)
+        !isUsablePage(
+          latestExtraction?.status,
+          page,
+          Boolean(
+            workspaceId && document.documentScope === 'PRIVATE_WORKSPACE',
+          ),
+        )
       ) {
         throw new BadRequestException(
           'La página solicitada no está disponible.',
@@ -286,7 +292,15 @@ export class CorpusDocumentAccessService {
       return typeof value === 'string' ? value : null;
     };
     const pages = (extraction?.pages ?? [])
-      .filter((page) => isUsablePage(extraction?.status, page))
+      .filter((page) =>
+        isUsablePage(
+          extraction?.status,
+          page,
+          Boolean(
+            workspaceId && document.documentScope === 'PRIVATE_WORKSPACE',
+          ),
+        ),
+      )
       .map((page) => ({
         ...page,
         textKind:
@@ -675,10 +689,29 @@ export class CorpusDocumentAccessService {
           ],
         }
       : { documentScope: userId ? 'PRIVATE_WORKSPACE' : 'GENERAL' };
+    const statusFilter: Prisma.CorpusDocumentWhereInput = workspaceId
+      ? {
+          OR: [
+            {
+              documentScope: 'PRIVATE_WORKSPACE',
+              status: {
+                in: ['INDEXED', 'OCR_REQUIRED', 'OCR_PROCESSING', 'OCR_FAILED'],
+              },
+            },
+            {
+              documentScope: 'GENERAL',
+              status: { in: ['INDEXED', 'OCR_REQUIRED'] },
+            },
+          ],
+        }
+      : { status: { in: ['INDEXED', 'OCR_REQUIRED'] } };
+    const accessFilter = workspaceId
+      ? { AND: [scopeFilter, statusFilter] }
+      : { ...scopeFilter, ...statusFilter };
     const document = await this.prisma.corpusDocument.findFirst({
       where: {
         id: documentId,
-        ...scopeFilter,
+        ...accessFilter,
         ...(workspaceId
           ? { workspaceDocuments: { some: { workspaceId } } }
           : userId
@@ -689,7 +722,6 @@ export class CorpusDocumentAccessService {
               }
             : {}),
         visibility: { in: allowed },
-        status: { in: ['INDEXED', 'OCR_REQUIRED'] },
       },
       include: {
         files: { orderBy: { version: 'desc' }, take: 1 },
@@ -747,12 +779,16 @@ export class CorpusDocumentAccessService {
 function isUsablePage(
   extractionStatus: string | null | undefined,
   page: { textKind?: string | null; processingStatus?: string | null },
+  allowPrivateWorkspaceOcr = false,
 ) {
   if (page.textKind === 'NATIVE') return true;
   return (
     page.textKind === 'OCR' &&
-    extractionStatus === 'OCR_HUMAN_APPROVED' &&
-    page.processingStatus === 'OCR_HUMAN_APPROVED'
+    ((extractionStatus === 'OCR_HUMAN_APPROVED' &&
+      page.processingStatus === 'OCR_HUMAN_APPROVED') ||
+      (allowPrivateWorkspaceOcr &&
+        extractionStatus === 'OCR_COMPLETE' &&
+        page.processingStatus === 'OCR_COMPLETE'))
   );
 }
 

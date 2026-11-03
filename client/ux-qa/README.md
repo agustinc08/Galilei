@@ -34,6 +34,8 @@ pnpm --filter front qa:ux
 - `pnpm --filter front qa:ux:self` — quick helper and fixture checks without a browser or running preview.
 - `pnpm --filter front lint:ux` — lint only the harness and its specs.
 - `pnpm --filter front qa:ux:auth` — opt-in suite requiring environment-only test credentials.
+- `pnpm --filter front qa:ux:workspace-ocr` — synthetic preview flow for dependency OCR roles, persisted status, and internal-search refresh.
+- `pnpm --filter front qa:ux:workspace-preview` — real one-page PDF rendering, navigation, fit width, download/open actions, and responsive Workspace preview checks.
 
 The existing `test:e2e` command retains its separate DB-backed configuration and is not used by this harness. No CI workflow is changed.
 

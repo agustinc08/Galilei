@@ -79,7 +79,9 @@ describe('BusquedaService public autocomplete suggestions', () => {
           .mockResolvedValueOnce([{ tipoFallo: 'Fallo civil' }]),
       },
       sumario: {
-        findMany: jest.fn().mockResolvedValue([{ tema: 'Responsabilidad civil' }]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ tema: 'Responsabilidad civil' }]),
       },
     };
     const service = new BusquedaService(

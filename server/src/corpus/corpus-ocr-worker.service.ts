@@ -428,12 +428,14 @@ export class CorpusOcrWorkerService implements OnModuleInit, OnModuleDestroy {
           errorCode: null,
           errorDetail: null,
           provenance: {
+            ...(isJsonObject(job.provenance) ? job.provenance : {}),
             ...provenance,
             sourceExtractionId,
             resultExtractionId: newExtraction.id,
           },
         },
       });
+      await writeWorkspaceOcrAudit(tx, job, 'COMPLETE');
     });
   }
 
@@ -497,6 +499,7 @@ export class CorpusOcrWorkerService implements OnModuleInit, OnModuleDestroy {
             retryable: true,
           },
         });
+        await writeWorkspaceOcrAudit(tx, job, 'FAILED');
       }
     });
     if (!retry) this.logger.warn(`OCR job ${job.id} failed: ${errorCode}`);
@@ -517,6 +520,78 @@ function isJsonObject(
   value: Prisma.JsonValue | null | undefined,
 ): value is Prisma.JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+async function writeWorkspaceOcrAudit(
+  tx: Prisma.TransactionClient,
+  job: OcrJobWithDocument,
+  outcome: 'COMPLETE' | 'FAILED',
+) {
+  const provenance = isJsonObject(job.provenance) ? job.provenance : null;
+  const workspaceOcr = provenance?.workspaceOcr;
+  if (!isJsonObject(workspaceOcr)) return;
+  const workspaceId = workspaceOcr.workspaceId;
+  const userId = workspaceOcr.requestedByUserId;
+  if (
+    typeof workspaceId !== 'string' ||
+    typeof userId !== 'number' ||
+    !Number.isSafeInteger(userId) ||
+    userId <= 0
+  )
+    return;
+  const link = await tx.workspaceDocument.findFirst({
+    where: {
+      workspaceId,
+      documentId: job.documentId,
+      ownerUserId: null,
+      document: { documentScope: 'PRIVATE_WORKSPACE' },
+    },
+    select: {
+      workspace: { select: { dependency: { select: { name: true } } } },
+    },
+  });
+  const actor = await tx.usuario.findUnique({
+    where: { id: userId },
+    select: { nombre: true, apellido: true },
+  });
+  if (!link || !actor) return;
+  const filename =
+    Array.from(job.file.originalFilename, (character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f)
+        ? ' '
+        : character;
+    })
+      .join('')
+      .replace(/\s+/gu, ' ')
+      .trim()
+      .slice(0, 180) || 'documento.pdf';
+  const dependencyName = link.workspace?.dependency.name ?? 'su dependencia';
+  const description =
+    outcome === 'COMPLETE'
+      ? `OCR completado para “${filename}” en ${dependencyName}.`
+      : `No se pudo completar el OCR de “${filename}” en ${dependencyName}.`;
+  await tx.accionLog.create({
+    data: {
+      usuarioId: userId,
+      entidad: 'WorkspaceDocument',
+      entidadId: null,
+      accion:
+        outcome === 'COMPLETE'
+          ? 'WORKSPACE_OCR_COMPLETE'
+          : 'WORKSPACE_OCR_FAILED',
+      descripcion:
+        `${actor.nombre} ${actor.apellido ?? ''}`.trim() + ` · ${description}`,
+      datosDespues: {
+        workspaceId,
+        documentId: job.documentId,
+        jobId: job.id,
+        filename,
+        sourceFileSha256: job.fileSha256,
+        status: outcome,
+      },
+    },
+  });
 }
 
 function safeErrorCode(error: unknown) {

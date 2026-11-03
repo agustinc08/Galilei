@@ -24,6 +24,8 @@
     "qa:ux:workspace-list": "node ux-qa/run.cjs workspace-list",
     "qa:ux:sidebar": "node ux-qa/run.cjs sidebar",
     "qa:ux:ocr-review": "node ux-qa/run.cjs ocr-review",
+    "qa:ux:workspace-ocr": "node ux-qa/run.cjs workspace-ocr",
+    "qa:ux:workspace-preview": "node ux-qa/run.cjs workspace-preview",
     "preprod:env:check": "node scripts/preprod-build-env.mjs",
     "preprod:env:test": "node --test scripts/preprod-build-env.test.mjs"
   },

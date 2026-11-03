@@ -137,8 +137,20 @@ type DocumentInfo = {
     mimeType: string;
   } | null;
   extraction: { status: string; pageCount: number } | null;
+  workspaceOcr?: {
+    state: WorkspaceOcrState;
+    canStart: boolean;
+    canRetry: boolean;
+  };
   selectedPage?: { pageNumber: number; text: string; textKind?: 'NATIVE' | 'OCR' };
 };
+type WorkspaceOcrState =
+  | "NOT_REQUIRED"
+  | "NEEDS_OCR"
+  | "PENDING"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "ERROR";
 type DocumentMatches = {
   total: number;
   returned: number;
@@ -476,6 +488,10 @@ export function CopernicWorkspaceSearch() {
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
+  const [ocrConfirming, setOcrConfirming] = useState(false);
+  const [ocrSubmitting, setOcrSubmitting] = useState(false);
+  const [ocrActionError, setOcrActionError] = useState("");
+  const [workspaceSearchRefresh, setWorkspaceSearchRefresh] = useState(0);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [resultsAnnouncement, setResultsAnnouncement] = useState("");
@@ -780,6 +796,7 @@ export function CopernicWorkspaceSearch() {
     activeDateTo,
     dateFilterError,
     showWorkspaceListing,
+    workspaceSearchRefresh,
     navigate,
   ]);
 
@@ -798,6 +815,8 @@ export function CopernicWorkspaceSearch() {
     // Clear the old PDF before loading the selected document.
     setPreview(null);
     setPreviewError("");
+    setOcrConfirming(false);
+    setOcrActionError("");
     setPreviewLoading(true);
     setPreviewPage(selectedPage);
     setPreviewPageCount(0);
@@ -843,6 +862,49 @@ export function CopernicWorkspaceSearch() {
       if (fileUrl) URL.revokeObjectURL(fileUrl);
     };
   }, [workspaceId, selectedDocumentId, selectedPage, committedQuery]);
+
+  useEffect(() => {
+    const documentId = preview?.document.id;
+    const state = preview?.document.workspaceOcr?.state;
+    if (
+      !workspaceId ||
+      !documentId ||
+      (state !== "PENDING" && state !== "PROCESSING")
+    ) return;
+
+    let live = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const refreshStatus = async () => {
+      try {
+        const document = await api.get<DocumentInfo>(
+          `/workspaces/${workspaceId}/documents/${documentId}`,
+          { query: { pageNumber: previewPage } },
+        );
+        if (!live) return;
+        const nextState = document.workspaceOcr?.state;
+        setPreview((current) => {
+          if (!current || current.document.id !== documentId) return current;
+          if (
+            current.document.workspaceOcr?.state === nextState &&
+            current.document.status === document.status &&
+            current.document.extraction?.status === document.extraction?.status
+          ) return current;
+          return { ...current, document };
+        });
+        if (nextState === "COMPLETED") {
+          setWorkspaceSearchRefresh((value) => value + 1);
+        }
+      } catch {
+        // Keep polling the persisted job state through transient network errors.
+      }
+      if (live) timer = setTimeout(() => void refreshStatus(), 1500);
+    };
+    timer = setTimeout(() => void refreshStatus(), 1500);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [workspaceId, preview?.document.id, preview?.document.workspaceOcr?.state, previewPage]);
 
   const setSelection = useCallback(
     (documentId: string | null, matchOrdinal?: number) => {
@@ -1074,6 +1136,56 @@ export function CopernicWorkspaceSearch() {
       downloadBlob(blob, preview?.document.file?.filename ?? selectedHit.filename);
     } catch (cause) {
       setPreviewError(safeError(cause));
+    }
+  }
+
+  async function startSelectedWorkspaceOcr() {
+    if (
+      !workspaceId ||
+      !selectedHit ||
+      !preview?.document.workspaceOcr?.canStart ||
+      (workspace?.role !== "ADMIN" && workspace?.role !== "EDITOR") ||
+      ocrSubmitting
+    ) return;
+    setOcrSubmitting(true);
+    setOcrActionError("");
+    try {
+      const result = await api.post<{
+        state: WorkspaceOcrState;
+        canRetry: boolean;
+      }>(`/workspaces/${workspaceId}/documents/${selectedHit.documentId}/ocr`, {});
+      setOcrConfirming(false);
+      setPreview((current) => current?.document.id === selectedHit.documentId
+        ? {
+            ...current,
+            document: {
+              ...current.document,
+              status: result.state === "PENDING" || result.state === "PROCESSING"
+                ? "OCR_PROCESSING"
+                : current.document.status,
+              workspaceOcr: {
+                state: result.state,
+                canStart: false,
+                canRetry: result.canRetry,
+              },
+            },
+          }
+        : current);
+    } catch (cause) {
+      const status = cause instanceof ApiError ? cause.status : 0;
+      setOcrActionError(
+        status === 403
+          ? "Tu perfil no puede iniciar el reconocimiento de este documento."
+          : status === 404
+            ? "El documento ya no está disponible en esta dependencia."
+            : status === 429
+              ? "La cola de reconocimiento está ocupada. Probá más tarde."
+              : status === 503
+                ? "El reconocimiento no está disponible en este momento. El PDF original sigue disponible."
+                : "No se pudo iniciar el reconocimiento. Probá nuevamente más tarde.",
+      );
+    } finally {
+      setOcrSubmitting(false);
     }
   }
 
@@ -1666,13 +1778,82 @@ export function CopernicWorkspaceSearch() {
                   )}
                   {preview && !previewLoading && (
                     <>
-                      {preview.document.status === "OCR_PROCESSING" && (
+                      {preview.document.workspaceOcr &&
+                        preview.document.workspaceOcr.state !== "NOT_REQUIRED" && (
+                        <section className={styles.workspaceOcrPanel} aria-label="Reconocimiento de texto del documento">
+                          {preview.document.workspaceOcr.state === "NEEDS_OCR" && (
+                            <>
+                              <p>Este PDF necesita OCR para poder buscar dentro de su contenido.</p>
+                              {workspace?.role === "ADMIN" || workspace?.role === "EDITOR" ? (
+                                <>
+                                  {!ocrConfirming ? (
+                                    <button
+                                      type="button"
+                                      className={styles.workspaceOcrButton}
+                                      disabled={!preview.document.workspaceOcr.canStart || ocrSubmitting}
+                                      onClick={() => setOcrConfirming(true)}
+                                    >
+                                      Reconocer texto (OCR)
+                                    </button>
+                                  ) : (
+                                    <div className={styles.workspaceOcrConfirm} role="group" aria-label="Confirmar reconocimiento de texto">
+                                      <strong>Reconocer texto</strong>
+                                      <p>Galilei analizará este PDF para permitir búsquedas dentro de esta dependencia. El archivo original no será modificado.</p>
+                                      <div>
+                                        <button type="button" className={styles.workspaceOcrCancel} disabled={ocrSubmitting} onClick={() => setOcrConfirming(false)}>Cancelar</button>
+                                        <button type="button" className={styles.workspaceOcrButton} disabled={ocrSubmitting} onClick={() => void startSelectedWorkspaceOcr()}>
+                                          {ocrSubmitting ? "Iniciando OCR…" : "Iniciar OCR"}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <p>Un editor o administrador de la dependencia puede iniciar el reconocimiento.</p>
+                              )}
+                            </>
+                          )}
+                          {preview.document.workspaceOcr.state === "PENDING" && (
+                            <p className={styles.workspaceOcrStatus} role="status">OCR pendiente. El estado se actualizará automáticamente.</p>
+                          )}
+                          {preview.document.workspaceOcr.state === "PROCESSING" && (
+                            <p className={styles.workspaceOcrStatus} role="status">Reconociendo texto…</p>
+                          )}
+                          {preview.document.workspaceOcr.state === "COMPLETED" && (
+                            <p className={styles.workspaceOcrComplete} role="status">Texto reconocido. Ahora podés buscar dentro de este documento.</p>
+                          )}
+                          {preview.document.workspaceOcr.state === "ERROR" && (
+                            <>
+                              <p className={styles.workspaceOcrError} role="status">No se pudo reconocer el texto.</p>
+                              {preview.document.workspaceOcr.canRetry &&
+                                (workspace?.role === "ADMIN" || workspace?.role === "EDITOR") && (
+                                <>
+                                  {!ocrConfirming ? (
+                                    <button type="button" className={styles.workspaceOcrButton} onClick={() => setOcrConfirming(true)}>Reintentar OCR</button>
+                                  ) : (
+                                    <div className={styles.workspaceOcrConfirm} role="group" aria-label="Confirmar reintento de reconocimiento">
+                                      <strong>Reintentar reconocimiento</strong>
+                                      <p>Galilei volverá a analizar el PDF original, que permanecerá intacto.</p>
+                                      <div>
+                                        <button type="button" className={styles.workspaceOcrCancel} disabled={ocrSubmitting} onClick={() => setOcrConfirming(false)}>Cancelar</button>
+                                        <button type="button" className={styles.workspaceOcrButton} disabled={ocrSubmitting} onClick={() => void startSelectedWorkspaceOcr()}>{ocrSubmitting ? "Iniciando OCR…" : "Iniciar OCR"}</button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </>
+                          )}
+                          {ocrActionError && <p className={styles.workspaceOcrError} role="alert">{ocrActionError}</p>}
+                        </section>
+                      )}
+                      {!preview.document.workspaceOcr && preview.document.status === "OCR_PROCESSING" && (
                         <p className={styles.missingSourceNote}>Procesando documento… La búsqueda se actualizará cuando termine.</p>
                       )}
-                      {preview.document.status === "OCR_REQUIRED" && (
+                      {!preview.document.workspaceOcr && preview.document.status === "OCR_REQUIRED" && (
                         <p className={styles.missingSourceNote}>Todavía no se puede buscar dentro de este PDF porque requiere reconocimiento de texto (OCR). El original sigue disponible para leerlo.</p>
                       )}
-                      {preview.document.status === "OCR_FAILED" && (
+                      {!preview.document.workspaceOcr && preview.document.status === "OCR_FAILED" && (
                         <p className={styles.missingSourceNote}>No pudimos extraer el texto de este archivo.</p>
                       )}
                       {preview.document.selectedPage?.textKind === "OCR" && (
@@ -1681,12 +1862,10 @@ export function CopernicWorkspaceSearch() {
                       <div className={styles.previewToolbar}>
                         <span>
                           {preview.document.file?.mimeType === "application/pdf"
-                            ? preview.document.status === "OCR_REQUIRED"
-                              ? "PDF original · navegación del visor"
-                              : "Página " + previewPage + " de " + (previewPageCount || preview.document.file?.pageCount || preview.document.extraction?.pageCount || "?")
+                            ? "Página " + previewPage + " de " + (previewPageCount || preview.document.file?.pageCount || preview.document.extraction?.pageCount || "?")
                             : "Texto extraído"}
                         </span>
-                        <div className={styles.pageControls} hidden={preview.document.file?.mimeType !== "application/pdf" || preview.document.status === "OCR_REQUIRED"}>
+                        <div className={styles.pageControls} hidden={preview.document.file?.mimeType !== "application/pdf"}>
                           <button
                             type="button"
                             aria-label="Página anterior"
@@ -1707,23 +1886,14 @@ export function CopernicWorkspaceSearch() {
                       </div>
                       {preview.document.file?.mimeType === "application/pdf" ? (
                         <div className={styles.pdfPreview}>
-                          {preview.document.status === "OCR_REQUIRED" ? (
-                            <iframe
-                              className={styles.workspacePdfNativeViewer}
-                              title={`PDF original: ${preview.document.file?.filename ?? preview.document.title}`}
-                              src={preview.fileUrl}
-                            />
-                          ) : (
-                            <CorpusPdfViewer
-                              file={preview.fileUrl}
-                              page={previewPage}
-                              matches={preview.matches.matches}
-                              activeMatch={selectedMatchIndex}
-                              onLoadSuccess={setPreviewPageCount}
-                              structurePath={`/workspaces/${workspaceId}/documents/${preview.document.id}/structure`}
-                              onGoToPage={setPreviewPage}
-                            />
-                          )}
+                          <CorpusPdfViewer
+                            file={preview.fileUrl}
+                            page={previewPage}
+                            matches={preview.matches.matches}
+                            activeMatch={selectedMatchIndex}
+                            onLoadSuccess={setPreviewPageCount}
+                            onGoToPage={setPreviewPage}
+                          />
                         </div>
                       ) : preview.document.file ? (
                         <pre className={styles.textPreview} aria-label="Vista previa del texto extraído">
@@ -1739,7 +1909,8 @@ export function CopernicWorkspaceSearch() {
                           <p>{selectedHit.snippet ?? "Podés abrir o descargar el documento."}</p>
                         </div>
                       )}
-                      {preview.document.status !== "OCR_REQUIRED" && <div className={styles.matchNavigator}>
+                      {preview.document.status !== "OCR_REQUIRED" &&
+                        (preview.document.file?.mimeType !== "application/pdf" || preview.matches.matches.length > 0) && <div className={styles.matchNavigator}>
                         <span aria-live="polite">
                           {preview.matches.matches.length
                             ? `Coincidencia ${Math.min(selectedMatchIndex + 1, preview.matches.matches.length)} de ${preview.matches.total}${preview.matches.truncated ? "+" : ""}`

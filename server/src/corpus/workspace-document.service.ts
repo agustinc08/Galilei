@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Inject,
   NotFoundException,
@@ -38,6 +40,10 @@ import { CorpusDocumentAccessService } from './corpus-document-access.service';
 import { normalizeRelativePath } from './document-source-scanner';
 import { LocalPdfOcrProcessor } from './document-local-processors';
 import { enqueueLocalOcrJob } from './ocr-job-queue';
+import {
+  isRetryableWorkspaceOcrError,
+  workspaceOcrState,
+} from './workspace-ocr-status';
 import { personalFolderUploadIssue } from './personal-folder-upload-policy';
 import { obtenerPdfsReales } from '../archivos/pdf-real.util';
 import {
@@ -66,6 +72,21 @@ function folderUploadCount(value: unknown) {
     throw new BadRequestException('El resumen de carga no es válido.');
   return value;
 }
+
+function auditFilename(value: string) {
+  const safe = Array.from(value, (character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f)
+      ? ' '
+      : character;
+  })
+    .join('')
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .slice(0, 180);
+  return safe || 'documento.pdf';
+}
+
 export const WORKSPACE_STORAGE_ADAPTER = 'WORKSPACE_STORAGE_ADAPTER';
 
 type WorkspaceDocumentListItem = {
@@ -3127,13 +3148,253 @@ export class WorkspaceDocumentService {
     page?: number,
   ) {
     await this.requireMembership(workspaceId, user);
-    return this.documents.metadata(
+    const metadata = await this.documents.metadata(
       id,
       'RESTRICTED',
       page,
       workspaceId,
       user.id,
     );
+    const document = await this.prisma.corpusDocument.findFirst({
+      where: {
+        id,
+        documentScope: 'PRIVATE_WORKSPACE',
+        workspaceDocuments: {
+          some: { workspaceId, ownerUserId: null },
+        },
+      },
+      select: {
+        status: true,
+        latestExtraction: {
+          select: {
+            id: true,
+            fileId: true,
+            status: true,
+            pages: { select: { processingStatus: true } },
+          },
+        },
+        files: {
+          orderBy: { version: 'desc' },
+          take: 1,
+          select: { id: true, mimeType: true },
+        },
+        ocrJobs: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { fileId: true, status: true, errorCode: true },
+        },
+      },
+    });
+    const currentFile = document?.files[0];
+    if (
+      !document ||
+      currentFile?.mimeType.split(';', 1)[0]?.trim().toLowerCase() !==
+        'application/pdf'
+    ) {
+      return {
+        ...metadata,
+        workspaceOcr: {
+          state: 'NOT_REQUIRED' as const,
+          canStart: false,
+          canRetry: false,
+        },
+      };
+    }
+    const job = document.ocrJobs.find((item) => item.fileId === currentFile.id);
+    const latestExtraction =
+      document.latestExtraction?.fileId === currentFile.id
+        ? document.latestExtraction
+        : null;
+    const canRetry =
+      job?.status === 'FAILED' && isRetryableWorkspaceOcrError(job.errorCode);
+    const state = workspaceOcrState({
+      documentStatus: document.status,
+      extractionStatus: latestExtraction?.status,
+      jobStatus: job?.status,
+    });
+    return {
+      ...metadata,
+      workspaceOcr: {
+        state,
+        canStart: state === 'NEEDS_OCR' || (state === 'ERROR' && canRetry),
+        canRetry,
+      },
+    };
+  }
+
+  async startWorkspaceOcr(
+    workspaceId: string,
+    documentId: string,
+    user: AuthenticatedUser,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const membership = await tx.workspaceMembership.findFirst({
+        where: {
+          workspaceId,
+          userId: user.id,
+          active: true,
+          workspace: { active: true },
+        },
+        select: { role: true },
+      });
+      if (!membership) throw new NotFoundException('Espacio no encontrado.');
+      this.requireRole(membership.role, [
+        WorkspaceRole.ADMIN,
+        WorkspaceRole.EDITOR,
+      ]);
+      if (
+        !(await canReadWorkspaceDocument(tx, documentId, {
+          kind: 'WORKSPACE',
+          workspaceId,
+          userId: user.id,
+        }))
+      )
+        throw new NotFoundException('Documento no encontrado.');
+
+      const document = await tx.corpusDocument.findFirst({
+        where: {
+          id: documentId,
+          documentScope: 'PRIVATE_WORKSPACE',
+          workspaceDocuments: {
+            some: { workspaceId, ownerUserId: null },
+          },
+        },
+        select: {
+          id: true,
+          status: true,
+          latestExtraction: {
+            select: {
+              id: true,
+              fileId: true,
+              status: true,
+              pages: {
+                orderBy: { pageNumber: 'asc' },
+                select: {
+                  pageNumber: true,
+                  processingStatus: true,
+                },
+              },
+            },
+          },
+          files: {
+            orderBy: { version: 'desc' },
+            take: 1,
+            select: {
+              id: true,
+              mimeType: true,
+              originalFilename: true,
+              sha256: true,
+            },
+          },
+        },
+      });
+      if (!document) throw new NotFoundException('Documento no encontrado.');
+      const file = document.files[0];
+      if (
+        !file ||
+        file.mimeType.split(';', 1)[0]?.trim().toLowerCase() !==
+          'application/pdf' ||
+        !document.latestExtraction ||
+        document.latestExtraction.fileId !== file.id
+      )
+        throw new ConflictException('Este PDF no está disponible para OCR.');
+
+      const pages = document.latestExtraction.pages
+        .filter((item) => item.processingStatus === 'OCR_REQUIRED')
+        .map((item) => item.pageNumber);
+      if (!pages.length) {
+        if (document.latestExtraction.status === 'OCR_COMPLETE') {
+          return { state: 'COMPLETED' as const, canRetry: false };
+        }
+        throw new ConflictException('Este documento no requiere OCR.');
+      }
+      if (
+        !this.ocrProcessor.config.enabled ||
+        !this.ocrProcessor.capabilities.ocrAvailable
+      )
+        throw new ServiceUnavailableException(
+          'El reconocimiento de texto no está disponible en este momento. El PDF original sigue disponible.',
+        );
+
+      const job = await enqueueLocalOcrJob(
+        tx,
+        this.ocrProcessor,
+        {
+          documentId,
+          fileId: file.id,
+          fileSha256: file.sha256,
+          pageNumbers: pages,
+          workspaceAudit: { workspaceId, requestedByUserId: user.id },
+        },
+        { retryFailed: true },
+      );
+      if (!job)
+        throw new HttpException(
+          'La cola de reconocimiento está ocupada. Volvé a intentarlo más tarde.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+
+      if (job.status === 'PENDING' || job.status === 'RUNNING') {
+        await tx.corpusDocument.updateMany({
+          where: {
+            id: documentId,
+            latestExtractionId: document.latestExtraction.id,
+          },
+          data: { status: 'OCR_PROCESSING' },
+        });
+        await tx.corpusIngestionRecord.updateMany({
+          where: { documentId, fileId: file.id },
+          data: {
+            status: 'OCR_PROCESSING',
+            errorStage: null,
+            errorMessage: null,
+            retryable: false,
+          },
+        });
+        if (job.created || job.retried) {
+          const workspace = await tx.documentWorkspace.findUnique({
+            where: { id: workspaceId },
+            select: { dependency: { select: { name: true } } },
+          });
+          const actorName = [user.nombre, user.apellido]
+            .filter(Boolean)
+            .join(' ');
+          const filename = auditFilename(file.originalFilename);
+          await tx.accionLog.create({
+            data: {
+              usuarioId: user.id,
+              entidad: 'WorkspaceDocument',
+              entidadId: null,
+              accion: job.retried
+                ? 'WORKSPACE_OCR_RETRY'
+                : 'WORKSPACE_OCR_START',
+              descripcion: `${actorName} inició reconocimiento OCR de “${filename}” en ${workspace?.dependency.name ?? 'su dependencia'}.`,
+              datosDespues: {
+                workspaceId,
+                documentId,
+                jobId: job.id,
+                filename,
+                sourceFileSha256: file.sha256,
+                pageCount: pages.length,
+                state: 'PENDING',
+              },
+            },
+          });
+        }
+      }
+      const state = workspaceOcrState({
+        documentStatus:
+          job.status === 'FAILED' ? 'OCR_FAILED' : 'OCR_PROCESSING',
+        extractionStatus: document.latestExtraction.status,
+        jobStatus: job.status,
+      });
+      return {
+        state,
+        canRetry:
+          job.status === 'FAILED' &&
+          isRetryableWorkspaceOcrError(job.errorCode),
+      };
+    });
   }
   async matches(
     workspaceId: string,
@@ -3438,14 +3699,18 @@ export class WorkspaceDocumentService {
       }
       const ocrPages =
         extraction.formatDetected === 'PDF' ? extraction.ocrRequiredPages : [];
-      const job = ocrPages.length
-        ? await enqueueLocalOcrJob(tx, this.ocrProcessor, {
-            documentId: doc.id,
-            fileId: storedFile.id,
-            fileSha256: stored.sha256,
-            pageNumbers: ocrPages,
-          })
-        : null;
+      // Workspace scans stay OCR_REQUIRED until a dependency Editor/Admin
+      // starts OCR from the document preview. Personal uploads keep the
+      // existing automatic local OCR behavior.
+      const job =
+        !workspaceId && ocrPages.length
+          ? await enqueueLocalOcrJob(tx, this.ocrProcessor, {
+              documentId: doc.id,
+              fileId: storedFile.id,
+              fileSha256: stored.sha256,
+              pageNumbers: ocrPages,
+            })
+          : null;
       const finalStatus =
         extraction.status === 'OCR_REQUIRED'
           ? job

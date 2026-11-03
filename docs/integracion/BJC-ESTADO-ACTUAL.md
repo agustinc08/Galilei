@@ -869,3 +869,16 @@ El chequeo de solo lectura sobre el PostgreSQL DEV principal confirmó identidad
 Las regresiones unitarias cubren slug/ID con y sin relaciones, identificador inexistente y registro no público; el resolvedor confirma sus filtros de acceso. Playwright sintético cubre carga, resultado, vacío y fallo de endpoint. En Office se probaron en navegador un fallo público con slug y el caso público sin slug `41865`, incluidos refresh: detalle y endpoints `documento`/`relaciones-verificadas` respondieron 200; ambos devolvieron una lista de citas vacía válida. No hubo 4xx/5xx de API, errores JS ni errores de consola. El SHA funcional `9dd1be07fb23c55cdf38da7e25e125548a93d72d` pasó el updater oficial con DB 39/39, Search GREEN y backend/frontend UP.
 
 No se modificaron datos jurídicos, reglas de publicación, esquema, índices ni configuración de Search; no se aplicaron migraciones ni se reindexó. `origin/main` se mantuvo intacta.
+
+## GALILEI beta — consolidación BETA-011 a BETA-027 (checkpoint pre-deploy, 2026-11-03)
+
+El runtime de Office verificado antes de esta consolidación continúa en 7a55cdf51b5e80fdbcdc9b0812c3dc075fb4ecd9. El WIP autorizado BETA-013 a BETA-027 permanece en el checkout candidato; aún no se declara desplegado. El worktree histórico dev/office-ux-functional-sprint se conserva intacto.
+
+Regresión local completa: Playwright sintético 87/87; cliente Node 52/52; servidor dirigido 42/42 más `busqueda.service.spec.ts` 3/3; PostgreSQL aislado 2/2. Typecheck, ESLint y build cliente/backend pasaron con Node 24 local. Prisma generó cliente y el build Vite conserva sólo el aviso no bloqueante de chunks PDF.js mayores a 500 kB. No se agregaron migraciones. La auditoría read-only de nombres existentes encontró señales de mojibake; no se modificó ningún registro.
+
+BETA-026 pasó también la integración funcional con PostgreSQL 16 QA aislado en loopback `127.0.0.1:55435`, DB de prueba con las 39 migraciones: el PDF escaneado llegó a OCR_COMPLETE/INDEXED; Admin y Viewer de la misma dependencia encontraron el texto; otra dependencia obtuvo cero resultados; Viewer no pudo iniciar OCR; las búsquedas generales y públicas no expusieron el documento. Se verificó intacto el SHA del PDF fuente. La prueba dejó cero Workspace, dependencias, documentos y usuarios sintéticos, y eliminó su storage temporal; el clúster quedó detenido. No se usó Office ni DEV para esta prueba. Sin migración.
+
+BETA-027 pasó las regresiones focales previas y forma parte de la suite 87/87: PDF multipágina ajustado al ancho, navegación y cambio de documento, responsive y scroll contenido en la preview. El PDF escaneado se renderiza con React-PDF en vez de iframe en esta columna.
+
+El despliegue oficial y la validación visual/funcional en Office siguen pendientes. Hasta cerrar ese gate, el resultado es **PASS LOCAL / OFFICE PENDING** y ningún BETA-013 a BETA-027 se marca como FIXED global. Próximo paso: commit candidate, publicación sólo en la rama temporal autorizada, updater oficial una vez y validación del mismo SHA en Office. `origin/main` permanece intacta.
+

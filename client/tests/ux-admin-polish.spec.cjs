@@ -168,8 +168,11 @@ test('audit detail failure leaves the list usable and retries only the detail @p
   expect(listRequests).toBe(1);
 
   await drawer.getByRole('button', { name: 'Reintentar' }).click();
-  await expect(drawer.getByText('Datos anteriores')).toBeVisible();
-  await expect(drawer.getByText('Datos posteriores')).toBeVisible();
+  const technicalDetails = drawer.locator('details').filter({ hasText: 'Detalles técnicos' });
+  await expect(technicalDetails).toBeVisible();
+  await technicalDetails.locator('summary').click();
+  await expect(technicalDetails.getByRole('heading', { name: 'Datos anteriores' })).toBeVisible();
+  await expect(technicalDetails.getByRole('heading', { name: 'Datos posteriores' })).toBeVisible();
   expect(listRequests).toBe(1);
   expect(detailRequests).toBe(2);
   await drawer.getByRole('button', { name: 'Cerrar' }).click();
@@ -275,8 +278,12 @@ test('audit presents new entity and action names in Spanish and can filter them 
   await expect(personalRow.getByText('Documento personal', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Ver detalle del registro 29' }).click();
   const drawer = page.getByRole('dialog', { name: 'Detalle de auditoría' });
-  await expect(drawer.getByText('Entidad: Documento compartido #document-29')).toBeVisible();
+  await expect(drawer.getByText('Entidad: Documento compartido', { exact: true })).toBeVisible();
   await expect(drawer.getByText('Acción: Subir documento al espacio')).toBeVisible();
+  const technicalDetails = drawer.locator('details').filter({ hasText: 'Detalles técnicos' });
+  await expect(technicalDetails).toBeVisible();
+  await technicalDetails.locator('summary').click();
+  await expect(technicalDetails.getByText('Identificador de entidad: document-29')).toBeVisible();
   await drawer.getByRole('button', { name: 'Cerrar' }).click();
 
   await page.getByLabel('Entidad').selectOption('WorkspaceDocument');
@@ -316,7 +323,7 @@ test('editorial review presents evidence in human language and keeps raw keys hi
   await expect(page.getByText(/Todas requieren revisión humana/u)).toBeVisible();
 });
 
-test('workspace preview uses a full-width tablet detail view and a sequential mobile view @product-polish @workspace', async ({ page }) => {
+test('workspace preview uses a full-width tablet detail view and a sequential mobile view @product-polish @workspace @workspace-preview', async ({ page }) => {
   const reader = {
     id: 8902, nombre: 'Cuenta', apellido: 'Sala QA', email: 'reader-product-polish@example.invalid',
     activo: true, rol: { id: 6, nombre: 'LECTOR' },
@@ -527,7 +534,7 @@ test('institutional PDF picker is localized and selecting a file does not upload
   expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);
 });
 
-test('workspace shows OCR-required originals in the native PDF viewer @product-polish @workspace @ocr', async ({ page }) => {
+test('workspace shows OCR-required originals in the single-page preview @product-polish @workspace @ocr @workspace-preview', async ({ page }) => {
   const reader = {
     id: 8903, nombre: 'Cuenta', apellido: 'Sala QA', email: 'ocr-reader-product-polish@example.invalid',
     activo: true, rol: { id: 6, nombre: 'LECTOR' },
@@ -552,6 +559,7 @@ test('workspace shows OCR-required originals in the native PDF viewer @product-p
       id: documentId, title: 'Sentencia escaneada', status: 'OCR_REQUIRED',
       file: { filename: 'sentencia-sin-texto.pdf', mimeType: 'application/pdf', pageCount: 1 },
       extraction: { status: 'REVIEW_REQUIRED', pageCount: 1 },
+      workspaceOcr: { state: 'NEEDS_OCR', canStart: false, canRetry: false },
       selectedPage: { pageNumber: 1, text: '', textKind: null },
     });
     if (pathname.startsWith(`/api/workspaces/${workspaceId}/documents`)) return json(route, {
@@ -568,13 +576,13 @@ test('workspace shows OCR-required originals in the native PDF viewer @product-p
   await page.goto(`/spaces?workspaceId=${workspaceId}`);
   await page.getByRole('button', { name: 'Vista previa de sentencia-sin-texto.pdf' }).click();
   const preview = page.getByRole('complementary', { name: 'Vista previa del documento' });
-  const nativePdf = preview.getByTitle('PDF original: sentencia-sin-texto.pdf');
-  await expect(nativePdf).toBeVisible();
-  expect(await nativePdf.evaluate((frame) => frame.getBoundingClientRect().height)).toBeGreaterThan(300);
-  await expect(preview.getByText('PDF original · navegación del visor')).toBeVisible();
-  await expect(preview.getByRole('button', { name: 'Página siguiente' })).toBeHidden();
-  await expect(preview.locator('canvas')).toHaveCount(0);
-  await expect(preview.getByText('Todavía no se puede buscar dentro de este PDF porque requiere reconocimiento de texto (OCR). El original sigue disponible para leerlo.')).toBeVisible();
+  await expect(preview.locator('[data-testid="pdf-viewer-ready"]')).toContainText('página 1');
+  await expect(preview.getByText('Página 1 de 1')).toBeVisible();
+  await expect(preview.getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
+  await expect(preview.locator('canvas')).toHaveCount(1);
+  await expect(preview.getByText('Este PDF necesita OCR para poder buscar dentro de su contenido.')).toBeVisible();
+  await expect(preview.getByText('Un editor o administrador de la dependencia puede iniciar el reconocimiento.')).toBeVisible();
+  await expect(preview.getByRole('button', { name: 'Reconocer texto (OCR)' })).toHaveCount(0);
   expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);
@@ -681,9 +689,9 @@ test('mobile navigation moves focus into the drawer and restores it after Escape
     return json(route, { data: [], meta: { page: 1, pageCount: 1, total: 0, pageSize: 25 } });
   });
 
-  await page.goto('/consulta');
+  await page.goto('/busqueda');
   const trigger = page.locator('button[aria-controls="galilei-primary-navigation"]');
-  await expect(trigger.locator('svg[class*="menuIcon"]')).toHaveAttribute('aria-hidden', 'true');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await trigger.click();
   const primaryNavigation = page.getByRole('navigation', { name: 'Navegación principal' });
   await expect(primaryNavigation.locator('svg')).toHaveCount(4);
@@ -710,6 +718,7 @@ test('search dates display dd/mm/yyyy and submit ISO query values @product-polis
 
   await page.goto('/consulta');
   await expect(page.getByText('No encontramos fallos con estos criterios.')).toBeVisible();
+  await page.getByRole('button', { name: 'Más filtros', exact: true }).click();
   const from = page.getByLabel('Fecha desde (dd/mm/aaaa)');
   const to = page.getByLabel('Fecha hasta (dd/mm/aaaa)');
   await expect(from).toHaveAttribute('placeholder', 'dd/mm/aaaa');
