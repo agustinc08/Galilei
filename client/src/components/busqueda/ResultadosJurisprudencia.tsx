@@ -23,6 +23,7 @@ type AdminProps = {
   modo: 'admin';
   data: BusquedaResultado[];
   query?: string;
+  returnTo?: string;
 };
 
 type Props = PublicProps | AdminProps;
@@ -46,5 +47,5 @@ export function ResultadosJurisprudencia(props: Props) {
     );
   }
 
-  return <BusquedaResultados data={props.data} internal query={props.query} />;
+  return <BusquedaResultados data={props.data} internal query={props.query} returnTo={props.returnTo} />;
 }

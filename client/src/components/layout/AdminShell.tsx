@@ -1,7 +1,7 @@
 'use client';
 
 import { Link } from "@/lib/router-compat";
-import { usePathname } from '@/lib/router-compat';
+import { usePathname, useSearchParams } from '@/lib/router-compat';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
@@ -53,17 +53,26 @@ function NavigationIcon({ name }: { name: (typeof mainDestinations)[number]['ico
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? '';
+  const searchParams = useSearchParams();
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const active = activeDestination(pathname);
   const breadcrumb = breadcrumbLabel(active);
-  const roleDestinations = mainDestinations.map((item) =>
-    item.key === 'jurisprudencia'
-      ? { ...item, href: jurisprudenceSearchPathForRole(user?.rol.nombre) }
-      : item,
-  );
+  const hasWorkContext = ['spaces', 'personal', 'collections'].includes(active ?? '');
+  const currentQuery = searchParams.toString();
+  const contextualReturn = hasWorkContext
+    ? `${pathname}${currentQuery ? `?${currentQuery}` : ''}`
+    : null;
+  const roleDestinations = mainDestinations.map((item) => {
+    if (item.key !== 'jurisprudencia') return item;
+    const searchPath = jurisprudenceSearchPathForRole(user?.rol.nombre);
+    const href = contextualReturn
+      ? `${searchPath}${searchPath.includes('?') ? '&' : '?'}returnTo=${encodeURIComponent(contextualReturn)}`
+      : searchPath;
+    return { ...item, href };
+  });
 
   useEffect(() => {
     const closeAfterHistoryNavigation = () => setMenuOpen(false);

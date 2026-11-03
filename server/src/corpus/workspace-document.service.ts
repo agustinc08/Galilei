@@ -49,6 +49,23 @@ import {
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const extractor = new BasicDocumentTextExtractor();
+
+function normalizeFolderImportId(value?: string) {
+  return typeof value === 'string' && /^[a-z0-9_-]{8,80}$/iu.test(value)
+    ? value
+    : undefined;
+}
+
+function folderUploadCount(value: unknown) {
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value < 0 ||
+    value > 100_000
+  )
+    throw new BadRequestException('El resumen de carga no es válido.');
+  return value;
+}
 export const WORKSPACE_STORAGE_ADAPTER = 'WORKSPACE_STORAGE_ADAPTER';
 
 type WorkspaceDocumentListItem = {
@@ -323,6 +340,7 @@ export class WorkspaceDocumentService {
       parentId?: string | null;
       visibilityScope?: WorkspaceVisibilityScope;
       userIds?: number[];
+      folderImportId?: string;
     },
   ) {
     const membership = await this.requireMembership(workspaceId, user);
@@ -331,7 +349,19 @@ export class WorkspaceDocumentService {
       WorkspaceRole.EDITOR,
     ]);
     const name = input.name.trim();
-    if (!name || name.length > 100 || /[\\/]/u.test(name))
+    const folderImportId = normalizeFolderImportId(input.folderImportId);
+    const hasControlCharacters = Array.from(name).some((character) => {
+      const code = character.charCodeAt(0);
+      return code < 0x20 || code === 0x7f;
+    });
+    if (
+      !name ||
+      name.length > 100 ||
+      name === '.' ||
+      name === '..' ||
+      /[\\/]/u.test(name) ||
+      hasControlCharacters
+    )
       throw new BadRequestException('Nombre de carpeta inválido.');
     const parentId = input.parentId || null;
     const readableIds = await readableFolderIds(this.prisma, {
@@ -417,6 +447,7 @@ export class WorkspaceDocumentService {
             parentId,
             visibilityScope,
             authorizedMembershipIds: selectedMemberships,
+            ...(folderImportId ? { folderImportId } : {}),
           },
         },
       });
@@ -483,6 +514,102 @@ export class WorkspaceDocumentService {
       name,
     });
     return folder;
+  }
+
+  async recordFolderUploadSummary(
+    workspaceId: string,
+    user: AuthenticatedUser,
+    input: {
+      folderImportId: string;
+      rootFolderCount: number;
+      rootFolderNames?: string[];
+      folderCount: number;
+      totalFiles: number;
+      eligibleFiles: number;
+      omittedFiles: number;
+      preflightErrorFiles: number;
+      attemptedFiles: number;
+      addedFiles: number;
+      duplicateFiles: number;
+      failedFiles: number;
+      notSentFiles: number;
+    },
+  ) {
+    const membership = await this.requireMembership(workspaceId, user);
+    this.requireRole(membership.role, [
+      WorkspaceRole.ADMIN,
+      WorkspaceRole.EDITOR,
+    ]);
+    const folderImportId = normalizeFolderImportId(input.folderImportId);
+    if (!folderImportId)
+      throw new BadRequestException('El resumen de carga no es válido.');
+
+    const rootFolderCount = folderUploadCount(input.rootFolderCount);
+    const folderCount = folderUploadCount(input.folderCount);
+    const totalFiles = folderUploadCount(input.totalFiles);
+    const eligibleFiles = folderUploadCount(input.eligibleFiles);
+    const omittedFiles = folderUploadCount(input.omittedFiles);
+    const preflightErrorFiles = folderUploadCount(input.preflightErrorFiles);
+    const attemptedFiles = folderUploadCount(input.attemptedFiles);
+    const addedFiles = folderUploadCount(input.addedFiles);
+    const duplicateFiles = folderUploadCount(input.duplicateFiles);
+    const failedFiles = folderUploadCount(input.failedFiles);
+    const notSentFiles = folderUploadCount(input.notSentFiles);
+    if (
+      addedFiles + duplicateFiles + failedFiles !== attemptedFiles ||
+      attemptedFiles + notSentFiles > eligibleFiles ||
+      eligibleFiles + omittedFiles + preflightErrorFiles !== totalFiles
+    )
+      throw new BadRequestException('El resumen de carga no es válido.');
+
+    const rootFolderNames = (input.rootFolderNames ?? [])
+      .filter(
+        (name) =>
+          typeof name === 'string' &&
+          name.length > 0 &&
+          name.length <= 100 &&
+          name !== '.' &&
+          name !== '..' &&
+          !/[\\/]/u.test(name),
+      )
+      .slice(0, 10);
+    const displayedRoots = rootFolderNames.length
+      ? ` (${rootFolderNames.map((name) => `“${name}”`).join(', ')})`
+      : '';
+    const description =
+      `Carga de carpeta${displayedRoots}: ${totalFiles} archivos seleccionados; ` +
+      `${eligibleFiles} admitidos, ${omittedFiles} omitidos y ` +
+      `${preflightErrorFiles} con error previo; ` +
+      `${addedFiles} incorporados, ${duplicateFiles} duplicados omitidos, ` +
+      `${failedFiles} con error y ${notSentFiles} no enviados; ` +
+      `${folderCount} carpetas en la estructura.`;
+
+    await this.prisma.accionLog.create({
+      data: {
+        usuarioId: user.id,
+        entidad: 'DocumentWorkspace',
+        entidadId: null,
+        accion: 'FOLDER_UPLOAD_SUMMARY',
+        descripcion: description,
+        datosDespues: {
+          workspaceId,
+          folderImportId,
+          rootFolderCount,
+          rootFolderNames,
+          folderCount,
+          totalFiles,
+          eligibleFiles,
+          omittedFiles,
+          preflightErrorFiles,
+          attemptedFiles,
+          addedFiles,
+          duplicateFiles,
+          failedFiles,
+          notSentFiles,
+        },
+      },
+    });
+    return { recorded: true, folderImportId };
   }
 
   async deleteFolder(
@@ -2380,6 +2507,7 @@ export class WorkspaceDocumentService {
       size: number;
     }>,
     folderId?: string,
+    folderImportId?: string,
   ) {
     const membership = await this.requireMembership(workspaceId, user);
     this.requireRole(membership.role, [
@@ -2408,7 +2536,15 @@ export class WorkspaceDocumentService {
     for (const file of files) {
       try {
         results.push(
-          await this.ingestOne(workspaceId, user.id, file, folderId),
+          await this.ingestOne(
+            workspaceId,
+            user.id,
+            file,
+            folderId,
+            undefined,
+            false,
+            folderImportId,
+          ),
         );
       } catch (error) {
         results.push({
@@ -3025,13 +3161,11 @@ export class WorkspaceDocumentService {
       !Object.values(WorkspaceRole).includes(input.role)
     )
       throw new BadRequestException('Membresía inválida.');
-    if (
-      !(await this.prisma.usuario.findFirst({
-        where: { id: input.userId, activo: true },
-        select: { id: true },
-      }))
-    )
-      throw new NotFoundException('Usuario no encontrado.');
+    const targetUser = await this.prisma.usuario.findFirst({
+      where: { id: input.userId, activo: true },
+      select: { id: true, nombre: true, apellido: true },
+    });
+    if (!targetUser) throw new NotFoundException('Usuario no encontrado.');
     const existing = await this.prisma.workspaceMembership.findUnique({
       where: { workspaceId_userId: { workspaceId, userId: input.userId } },
       select: { role: true, active: true },
@@ -3049,6 +3183,11 @@ export class WorkspaceDocumentService {
           'El espacio debe conservar al menos un administrador activo.',
         );
     }
+    const workspace = await this.prisma.documentWorkspace.findFirst({
+      where: { id: workspaceId, active: true },
+      select: { dependency: { select: { name: true } } },
+    });
+    if (!workspace) throw new NotFoundException('Espacio no encontrado.');
     const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.workspaceMembership.upsert({
         where: { workspaceId_userId: { workspaceId, userId: input.userId } },
@@ -3066,11 +3205,42 @@ export class WorkspaceDocumentService {
         });
       return updated;
     });
-    await this.audit(user.id, workspaceId, 'MEMBER_UPSERT', {
-      memberUserId: input.userId,
-      role: result.role,
-      active: result.active,
-    });
+    const fullName = [targetUser.nombre, targetUser.apellido]
+      .filter(Boolean)
+      .join(' ');
+    const dependencyName = workspace.dependency.name;
+    const roleName = (role: WorkspaceRole) =>
+      ({
+        [WorkspaceRole.ADMIN]: 'Administrador',
+        [WorkspaceRole.EDITOR]: 'Editor',
+        [WorkspaceRole.VIEWER]: 'Consulta',
+      })[role];
+    const description = !existing
+      ? `${fullName} fue agregado como ${roleName(result.role)} a ${dependencyName}.`
+      : !existing.active && result.active
+        ? `${fullName} recuperó acceso a ${dependencyName} como ${roleName(result.role)}.`
+        : !result.active
+          ? `${fullName} perdió acceso a ${dependencyName}.`
+          : existing.role !== result.role
+            ? `${fullName} pasó de ${roleName(existing.role)} a ${roleName(result.role)} en ${dependencyName}.`
+            : `Se actualizó el permiso de ${fullName} en ${dependencyName}.`;
+    await this.audit(
+      user.id,
+      workspaceId,
+      'MEMBER_UPSERT',
+      { memberUserId: input.userId, role: result.role, active: result.active },
+      {
+        descripcion: description,
+        datosAntes: existing
+          ? {
+              workspaceId,
+              memberUserId: input.userId,
+              role: existing.role,
+              active: existing.active,
+            }
+          : undefined,
+      },
+    );
     return { userId: result.userId, role: result.role, active: result.active };
   }
 
@@ -3086,6 +3256,7 @@ export class WorkspaceDocumentService {
     folderId?: string,
     replaceDocumentId?: string,
     personalFolderUpload = false,
+    folderImportId?: string,
   ) {
     const name = path
       .basename(file.originalname)
@@ -3347,6 +3518,9 @@ export class WorkspaceDocumentService {
             sha256: stored.sha256,
             bytes: stored.sizeBytes,
             status: finalStatus,
+            ...(normalizeFolderImportId(folderImportId)
+              ? { folderImportId: normalizeFolderImportId(folderImportId) }
+              : {}),
           },
         },
       });
@@ -3407,12 +3581,18 @@ export class WorkspaceDocumentService {
     workspaceId: string,
     accion: string,
     details: Prisma.InputJsonObject,
+    metadata: {
+      descripcion?: string;
+      datosAntes?: Prisma.InputJsonObject;
+    } = {},
   ) {
     return this.prisma.accionLog.create({
       data: {
         usuarioId,
         entidad: 'DocumentWorkspace',
         accion,
+        ...(metadata.descripcion ? { descripcion: metadata.descripcion } : {}),
+        ...(metadata.datosAntes ? { datosAntes: metadata.datosAntes } : {}),
         datosDespues: { workspaceId, ...details },
       },
     });

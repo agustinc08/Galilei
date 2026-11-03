@@ -18,7 +18,9 @@ import { downloadBlob } from '@/lib/utils';
 import { highlightSearchSnippet } from '@/lib/search-snippet-highlight';
 import { useAuth } from '@/hooks/use-auth';
 import { canAccessAdvancedJurisprudenceSearch } from '@/lib/jurisprudence-search-access';
-import { Link } from "@/lib/router-compat";
+import { Link, useSearchParams } from '@/lib/router-compat';
+import { Button } from '@/components/ui/Button';
+import { safeContextualReturnTarget } from '@/lib/contextual-navigation';
 import type { PaginatedResponse } from '@/types/common';
 import type { BusquedaAvanzadaFilters, BusquedaResultado, FederatedSearchPage } from '@/types/busqueda';
 
@@ -102,6 +104,9 @@ function clearSearchHistoryState() {
 
 export default function BusquedaAvanzadaPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const contextualReturn = safeContextualReturnTarget(searchParams.get('returnTo'));
+  const advancedSearchReturnTo = `/busqueda-avanzada${searchParams.size ? `?${searchParams.toString()}` : ''}`;
   const [restoredFilters] = useState(() => readSearchHistoryState());
   const {
     salas: catalogoSalas,
@@ -183,6 +188,11 @@ export default function BusquedaAvanzadaPage() {
       <PageHeader
         title="Búsqueda avanzada"
         description="Consulta de jurisprudencia con filtros avanzados para el equipo de Jurisprudencia."
+        actions={contextualReturn ? (
+          <Link href={contextualReturn.href}>
+            <Button variant="ghost">← {contextualReturn.label}</Button>
+          </Link>
+        ) : null}
       />
 
       {feedback ? <StatusMessage variant="success" title="Operacion realizada" message={feedback} /> : null}
@@ -267,7 +277,7 @@ export default function BusquedaAvanzadaPage() {
               message="Una fuente de búsqueda no respondió. Los resultados visibles no incluyen necesariamente todos los documentos."
             />
           ) : null}
-          {!corpusOnlySearch ? <ResultadosJurisprudencia modo="admin" data={result.data} query={filters.q} /> : null}
+          {!corpusOnlySearch ? <ResultadosJurisprudencia modo="admin" data={result.data} query={filters.q} returnTo={advancedSearchReturnTo} /> : null}
           {corpusResults.length > 0 ? (
             <section className={styles.section} aria-label="Documentos del Corpus">
               <PageHeader title="Corpus documental" description={`${corpusResults.length} documentos Corpus en esta página de resultados federados.`} />

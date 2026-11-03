@@ -10,6 +10,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { parsePdfPageParam } from '@/lib/pdf-page';
+import { safeContextualReturnTarget } from '@/lib/contextual-navigation';
 import type { ApiResponse } from '@/types/common';
 import type { ArchivoPdf } from '@/types/archivo';
 import type { FichaSentencia } from '@/types/sentencia';
@@ -33,6 +34,7 @@ function buildTitle(data: FichaSentencia) {
 export default function SentenciaDocumentoPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
+  const contextualReturn = safeContextualReturnTarget(searchParams.get('returnTo'));
   const id = Number(params.id);
   const requestedPage = parsePdfPageParam(searchParams.get('page'));
   const [data, setData] = useState<FichaSentencia | null>(null);
@@ -111,7 +113,7 @@ export default function SentenciaDocumentoPage() {
     <DocumentoViewerLayout
       title={title}
       subtitle={subtitle}
-      backHref={`/sentencias/${id}`}
+      backHref={`/sentencias/${id}${contextualReturn ? `?returnTo=${encodeURIComponent(contextualReturn.href)}` : ''}`}
       viewportOffset={117}
       sidePanel={
         <DocumentoSidePanel

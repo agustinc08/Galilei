@@ -25,6 +25,9 @@
 }
 
 .workspaceHeader h2 { font-size: 23px; color: #102a43; }
+.workspaceIdentity { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.workspaceIdentity > div { min-width: 0; }
+.dependencyBadge { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border: 1px solid #b7d9e8; border-radius: 10px; color: #14536a; background: #eef9fc; font-size: 13px; font-weight: 800; }
 .muted { color: #667085; line-height: 1.5; }
 .eyebrow { color: #176b87; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .roleBadge, .statusBadge {
@@ -181,6 +184,19 @@
 .fileLine { justify-content: space-between; padding: 9px 11px; border-radius: 7px; background: #f6f8fa; }
 .fileName { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
 .fileStatus { color: #667085; font-size: 13px; }
+.folderUploadPanel { display: grid; gap: 12px; padding: 16px; border: 1px solid #d5e3ec; border-radius: 9px; background: #fbfdfe; }
+.folderUploadPanel h3 { color: #153e58; font-size: 17px; }
+.folderUploadSummary { padding: 12px; border-radius: 7px; color: #17445d; background: #eef7fa; line-height: 1.55; overflow-wrap: anywhere; }
+.folderUploadActions { display: flex; flex-wrap: wrap; gap: 9px; }
+.folderUploadActions button { min-height: 40px; padding: 8px 13px; border: 1px solid #9ab2c6; border-radius: 7px; color: #17445d; background: #fff; font-weight: 700; cursor: pointer; }
+.folderUploadActions button:hover { background: #eef6fa; }
+.folderUploadActions button:disabled { opacity: .55; cursor: not-allowed; }
+.folderUploadProgress { display: grid; gap: 6px; color: #475467; font-size: 13px; }
+.folderUploadProgress progress { width: 100%; min-height: 10px; accent-color: #126d8d; }
+.folderUploadDetails summary { color: #17445d; cursor: pointer; font-weight: 700; }
+.folderUploadDetails ul { display: grid; gap: 6px; max-height: 240px; margin-top: 8px; overflow: auto; list-style: none; }
+.folderUploadDetails li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 9px; border-radius: 6px; background: #f6f8fa; overflow-wrap: anywhere; }
+.folderUploadDetails small { color: #667085; }
 .inlineError { padding: 11px 13px; border: 1px solid #edc2bf; border-radius: 8px; color: #8c2821; background: #fff6f5; }
 .inlineSuccess { padding: 11px 13px; border: 1px solid #abd9bf; border-radius: 8px; color: #19633a; background: #f2fbf5; }
 .memberRow, .adminLine { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid #e6ecf1; }
@@ -221,6 +237,8 @@
 
 @media (max-width: 760px) {
   .card { padding: 16px; }
+  .workspaceIdentity { gap: 10px; }
+  .dependencyBadge { width: 40px; height: 40px; flex-basis: 40px; }
   .searchForm { grid-template-columns: 1fr; }
   .searchForm button { min-height: 46px; }
   .documentCard { grid-template-columns: 1fr; }
@@ -355,7 +373,8 @@
 
   .memberActions > *,
   .documentActions > *,
-  .modalActions > * {
+  .modalActions > *,
+  .folderUploadActions > * {
     flex: 1 1 140px;
   }
 

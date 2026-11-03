@@ -35,13 +35,20 @@ export function ConsultaFiltros({
   const [values, setValues] = useState<ConsultaPublicaFilters>(initialValues);
   const [showHelp, setShowHelp] = useState(false);
 
+  const closeSearchHelp = () => {
+    setShowHelp(false);
+    window.requestAnimationFrame(() => {
+      document.getElementById('search-help-toggle')?.focus();
+    });
+  };
+
   const setField = (field: keyof ConsultaPublicaFilters, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
   };
 
   return (
     <Card>
-      <div className={styles.filtersCard}>
+      <div className={`${styles.filtersCard} ${showHelp ? styles.filtersCardHelpOpen : ''}`}>
         <div className={styles.primarySearchRow}>
           <SearchAutocomplete
             label="Buscar jurisprudencia"
@@ -54,8 +61,14 @@ export function ConsultaFiltros({
             maxLength={SEARCH_QUERY_MAX_LENGTH}
           />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button variant="secondary" onClick={() => setShowHelp(true)}>
-              ?
+            <Button
+              id="search-help-toggle"
+              variant="secondary"
+              aria-expanded={showHelp}
+              aria-controls="search-help-panel"
+              onClick={() => setShowHelp((open) => !open)}
+            >
+              Consejos de búsqueda
             </Button>
             <Button onClick={() => onSearch(values)}>Buscar</Button>
           </div>
@@ -119,7 +132,7 @@ export function ConsultaFiltros({
           </Button>
         </div>
       </div>
-      <SearchHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+      <SearchHelpModal open={showHelp} onClose={closeSearchHelp} />
     </Card>
   );
 }

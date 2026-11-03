@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { LineIcon } from "@/components/ui/LineIcon";
 import { CorpusPdfViewer } from "../corpus/[id]/CorpusPdfViewer";
 import styles from "./personal.module.css";
@@ -89,6 +91,7 @@ export default function PersonalDocumentsPage() {
   const [folderSelection, setFolderSelection] = useState<PersonalFolderSelection>({ files: [], omitted: [], errors: [] });
   const [folderReport, setFolderReport] = useState<FolderUploadReport | null>(null);
   const [directoryPickerSupported, setDirectoryPickerSupported] = useState(false);
+  const [selectedFolderName, setSelectedFolderName] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -221,7 +224,10 @@ export default function PersonalDocumentsPage() {
   }
 
   function selectFolderFiles(event: React.ChangeEvent<HTMLInputElement>) {
-    const selected = inspectPersonalFolderFiles(Array.from(event.currentTarget.files ?? []));
+    const selectedFiles = Array.from(event.currentTarget.files ?? []);
+    const rootName = selectedFiles[0]?.webkitRelativePath.replaceAll("\\", "/").split("/")[0] ?? "";
+    setSelectedFolderName(rootName);
+    const selected = inspectPersonalFolderFiles(selectedFiles);
     setFolderSelection(selected);
     setFolderReport(null);
     setNotice("");
@@ -392,7 +398,7 @@ export default function PersonalDocumentsPage() {
     setPreviewPageCount(0);
     try {
       const blob = await api.download(`personal/documents/${documentId}/file`);
-      setPreviewType(blob.type);
+      setPreviewType(blob.type.split(";", 1)[0]?.trim().toLowerCase() ?? "");
       setPreviewUrl(URL.createObjectURL(blob));
     } catch (cause) {
       setPreviewUrl(null);
@@ -400,6 +406,14 @@ export default function PersonalDocumentsPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function closePreview() {
+    setPreviewUrl(null);
+    setPreviewId(null);
+    setPreviewTitle("");
+    setPreviewPage(1);
+    setPreviewPageCount(0);
   }
 
   async function downloadFile(documentId: string, filename: string) {
@@ -464,6 +478,83 @@ export default function PersonalDocumentsPage() {
       {error ? <p className={styles.error} role="alert">{error}</p> : null}
 
       <div className={styles.columns}>
+          <Card className={styles.folderUploadCard}>
+            <div className={styles.folderUploadHeader}>
+              <div>
+                <h2>Subir carpeta completa</h2>
+                <p>Elegí una carpeta de tu equipo. Galilei conserva las subcarpetas e incorpora sólo archivos PDF, DOC y DOCX válidos de hasta 20 MiB.</p>
+              </div>
+              <div className={styles.uploadPromise}>
+                <span><strong>Destino</strong>{folderId ? currentPath.join(" › ") : "Mis documentos"}</span>
+                <span><strong>Acceso</strong>Sólo vos</span>
+              </div>
+            </div>
+            <div className={styles.folderUpload}>
+              <input
+                ref={(element) => {
+                  element?.setAttribute("webkitdirectory", "");
+                }}
+                id="personal-folder-upload"
+                className={styles.filePickerInput}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx"
+                onChange={selectFolderFiles}
+                disabled={!directoryPickerSupported || busy}
+                aria-describedby="personal-folder-upload-help"
+                aria-label="Carpeta del equipo"
+              />
+              <label className={styles.filePicker} htmlFor="personal-folder-upload">
+                <span className={styles.filePickerButton}>Elegir carpeta</span>
+                <span className={styles.filePickerSummary} aria-live="polite">
+                  {selectedFolderName
+                    ? `${selectedFolderName} · ${folderSelection.files.length} válidos · ${folderSelection.omitted.length} omitidos`
+                    : "Elegí una carpeta de tu equipo"}
+                </span>
+              </label>
+              <p id="personal-folder-upload-help" className={styles.fieldHelp}>
+                Antes de subir, revisá el resumen detectado. Se omiten imágenes, archivos ocultos o temporales, ejecutables y archivos comprimidos.
+              </p>
+              {!directoryPickerSupported ? <p className={styles.fieldHelp}>Este navegador no permite elegir carpetas. Abrí Galilei en un navegador compatible para usar esta opción.</p> : null}
+              {folderSelection.files.length || folderSelection.omitted.length || folderSelection.errors.length ? (
+                <p className={styles.selectionSummary} role="status">
+                  {folderSelection.files.length} documento(s) listos; {folderSelection.omitted.length} omitidos y {folderSelection.errors.length} con error previo.
+                </p>
+              ) : <p className={styles.uploadEmptyState}>Al elegir una carpeta vas a ver acá el destino y la cantidad de archivos válidos.</p>}
+              {folderSelection.omitted.length ? (
+                <details className={styles.fileDetails}>
+                  <summary>Ver archivos omitidos ({folderSelection.omitted.length})</summary>
+                  <ul>{folderSelection.omitted.slice(0, 50).map((item, index) => <li key={`${item.name}-${index}`}><span>{item.name}</span><small>{item.reason}</small></li>)}</ul>
+                </details>
+              ) : null}
+              {folderSelection.errors.length ? (
+                <details className={styles.fileDetails}>
+                  <summary>Ver archivos con error antes de cargar ({folderSelection.errors.length})</summary>
+                  <ul>{folderSelection.errors.slice(0, 50).map((item, index) => <li key={`${item.name}-${index}`}><span>{item.name}</span><small>{item.reason}</small></li>)}</ul>
+                </details>
+              ) : null}
+              <div className={styles.uploadAction}>
+                <Button type="button" onClick={() => void uploadFolder()} disabled={busy || !folderSelection.files.length}>
+                  {busy && folderReport && !folderReport.done ? "Procesando carpeta…" : "Incorporar documentos válidos"}
+                </Button>
+              </div>
+              {folderReport ? (
+                <div className={styles.folderProgress}>
+                  <p role="status" aria-live="polite">
+                    {folderReport.done ? "Carpeta procesada." : "Analizando carpeta…"} {folderReport.processed} procesados, {Math.max(0, folderReport.total - folderReport.processed)} pendientes, {folderReport.omitted.length} omitidos y {folderReport.errors} con error.
+                  </p>
+                  <progress max={Math.max(1, folderReport.total)} value={folderReport.processed} aria-label="Progreso de carga de carpeta" />
+                  <p className={styles.fieldHelp}>{folderReport.added} incorporados · {folderReport.duplicates} ya estaban guardados</p>
+                  {folderReport.outcomes.length ? (
+                    <details className={styles.fileDetails}>
+                      <summary>Ver resultado por documento ({folderReport.outcomes.length})</summary>
+                      <ul>{folderReport.outcomes.slice(0, 100).map((item, index) => <li key={`${item.name}-${index}`}><span>{item.name}</span><small>{item.status === "ADDED" ? "Incorporado" : item.status === "DUPLICATE" ? "Ya estaba guardado" : item.message || "No se pudo procesar"}</small></li>)}</ul>
+                    </details>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </Card>
         <section className={styles.left} aria-label="Carpetas y documentos personales">
           <Card>
             <div className={styles.sectionHeader}>
@@ -489,84 +580,9 @@ export default function PersonalDocumentsPage() {
               {!loading && !loadError && !visibleFolders.length ? <li className={styles.empty}>Todavía no hay carpetas acá.</li> : null}
             </ul>
             <form className={styles.inlineForm} onSubmit={createFolder}>
-              <label htmlFor="personal-folder-name">Nueva carpeta</label>
-              <div><input id="personal-folder-name" value={newFolder} onChange={(event) => setNewFolder(event.target.value)} maxLength={100} />
-                <button className={styles.secondary} disabled={busy || !newFolder.trim()}>Crear</button></div>
+              <Input id="personal-folder-name" label="Nueva carpeta" value={newFolder} onChange={(event) => setNewFolder(event.target.value)} maxLength={100} />
+              <Button variant="secondary" disabled={busy || !newFolder.trim()}>Crear</Button>
             </form>
-          </Card>
-
-          <Card>
-            <h2>Subir carpeta completa</h2>
-            <p className={styles.folderHelp}>
-              Elegí una carpeta de tu equipo. Galilei conserva sus subcarpetas e incorpora únicamente PDF, DOC y DOCX válidos. Cada archivo puede pesar hasta 20 MiB.
-            </p>
-            <div className={styles.uploadPromise}>
-              <span><strong>Destino:</strong> {folderId ? currentPath.join(" › ") : "Mis documentos"}</span>
-              <span><strong>Acceso:</strong> Sólo vos</span>
-            </div>
-            <div className={styles.folderUpload}>
-              <input
-                ref={(element) => {
-                  element?.setAttribute("webkitdirectory", "");
-                }}
-                id="personal-folder-upload"
-                className={styles.filePickerInput}
-                type="file"
-                multiple
-                accept=".pdf,.doc,.docx"
-                onChange={selectFolderFiles}
-                disabled={!directoryPickerSupported || busy}
-                aria-describedby="personal-folder-upload-help"
-                aria-label="Carpeta del equipo"
-              />
-              <label className={styles.filePicker} htmlFor="personal-folder-upload">
-                <span className={styles.filePickerButton}>Elegir carpeta</span>
-                <span className={styles.filePickerSummary} aria-live="polite">
-                  {folderSelection.files.length
-                    ? `${folderSelection.files.length} documento(s) válidos · ${folderSelection.omitted.length} omitidos`
-                    : "Todavía no elegiste una carpeta"}
-                </span>
-              </label>
-              <p id="personal-folder-upload-help" className={styles.fieldHelp}>
-                Se omiten imágenes, archivos ocultos o temporales, ejecutables y archivos comprimidos. El contenido se valida antes de guardarlo.
-              </p>
-              {!directoryPickerSupported ? <p className={styles.fieldHelp}>Este navegador no permite elegir carpetas. Abrí Galilei en un navegador compatible para usar esta opción.</p> : null}
-              {folderSelection.files.length || folderSelection.omitted.length || folderSelection.errors.length ? (
-                <p className={styles.selectionSummary} role="status">
-                  {folderSelection.files.length} documento(s) listos; {folderSelection.omitted.length} omitidos y {folderSelection.errors.length} con error previo.
-                </p>
-              ) : null}
-              {folderSelection.omitted.length ? (
-                <details className={styles.fileDetails}>
-                  <summary>Ver archivos omitidos ({folderSelection.omitted.length})</summary>
-                  <ul>{folderSelection.omitted.slice(0, 50).map((item, index) => <li key={`${item.name}-${index}`}><span>{item.name}</span><small>{item.reason}</small></li>)}</ul>
-                </details>
-              ) : null}
-              {folderSelection.errors.length ? (
-                <details className={styles.fileDetails}>
-                  <summary>Ver archivos con error antes de cargar ({folderSelection.errors.length})</summary>
-                  <ul>{folderSelection.errors.slice(0, 50).map((item, index) => <li key={`${item.name}-${index}`}><span>{item.name}</span><small>{item.reason}</small></li>)}</ul>
-                </details>
-              ) : null}
-              <button className={styles.primary} type="button" onClick={() => void uploadFolder()} disabled={busy || !folderSelection.files.length}>
-                {busy && folderReport && !folderReport.done ? "Procesando carpeta…" : "Incorporar documentos válidos"}
-              </button>
-              {folderReport ? (
-                <div className={styles.folderProgress}>
-                  <p role="status" aria-live="polite">
-                    {folderReport.done ? "Carpeta procesada." : "Analizando carpeta…"} {folderReport.processed} procesados, {Math.max(0, folderReport.total - folderReport.processed)} pendientes, {folderReport.omitted.length} omitidos y {folderReport.errors} con error.
-                  </p>
-                  <progress max={Math.max(1, folderReport.total)} value={folderReport.processed} aria-label="Progreso de carga de carpeta" />
-                  <p className={styles.fieldHelp}>{folderReport.added} incorporados · {folderReport.duplicates} ya estaban guardados</p>
-                  {folderReport.outcomes.length ? (
-                    <details className={styles.fileDetails}>
-                      <summary>Ver resultado por documento ({folderReport.outcomes.length})</summary>
-                      <ul>{folderReport.outcomes.slice(0, 100).map((item, index) => <li key={`${item.name}-${index}`}><span>{item.name}</span><small>{item.status === "ADDED" ? "Incorporado" : item.status === "DUPLICATE" ? "Ya estaba guardado" : item.message || "No se pudo procesar"}</small></li>)}</ul>
-                    </details>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
           </Card>
 
           <Card>
@@ -591,9 +607,8 @@ export default function PersonalDocumentsPage() {
         <section className={styles.right} aria-label="Buscar y ver documentos personales">
           <Card>
             <form className={styles.searchForm} onSubmit={search}>
-              <label htmlFor="personal-search">Buscar en Mis documentos</label>
-              <div><input id="personal-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Palabra o frase" />
-                <button className={styles.primary} disabled={busy || !query.trim()}>Buscar</button></div>
+              <Input id="personal-search" label="Buscar en Mis documentos" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Palabra o frase" />
+              <Button disabled={busy || !query.trim()}>Buscar</Button>
             </form>
             <div className={styles.resultsHeader}>
               <h2>{searchResults ? `Resultados (${total})` : "Documentos"}</h2>
@@ -632,14 +647,20 @@ export default function PersonalDocumentsPage() {
           </Card>
 
           <Card>
-            <div className={styles.sectionHeader}><div><h2>Vista previa</h2><p>{previewTitle || "Elegí un documento para verlo."}</p></div></div>
+            <div className={styles.sectionHeader}>
+              <div><h2>Vista previa</h2><p>{previewTitle || "Elegí un documento para verlo."}</p></div>
+              {previewUrl ? <div className={styles.previewHeaderActions}>
+                <a className={styles.textButton} href={previewUrl} target="_blank" rel="noopener noreferrer">Abrir completo</a>
+                <Button type="button" variant="secondary" onClick={closePreview}>Cerrar</Button>
+              </div> : null}
+            </div>
             {previewUrl && previewType === "application/pdf" && previewId ? <>
               <div className={styles.previewControls}>
                 <button className={styles.secondary} type="button" disabled={previewPage <= 1} onClick={() => setPreviewPage((page) => Math.max(1, page - 1))}>Página anterior</button>
                 <span>{previewPageCount ? `Página ${previewPage} de ${previewPageCount}` : `Página ${previewPage}`}</span>
                 <button className={styles.secondary} type="button" disabled={!!previewPageCount && previewPage >= previewPageCount} onClick={() => setPreviewPage((page) => page + 1)}>Página siguiente</button>
               </div>
-              <div className={styles.pdfPreview}>
+              <div className={styles.pdfPreview} data-testid="personal-pdf-preview">
                 <CorpusPdfViewer
                   file={previewUrl}
                   page={previewPage}

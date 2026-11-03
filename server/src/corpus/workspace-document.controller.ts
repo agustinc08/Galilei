@@ -109,9 +109,34 @@ export class WorkspaceDocumentController {
       parentId?: string | null;
       visibilityScope?: WorkspaceVisibilityScope;
       userIds?: number[];
+      folderImportId?: string;
     },
   ) {
     return this.workspaces.createFolder(workspaceId, user, body);
+  }
+
+  @Post(':workspaceId/folder-uploads/summary')
+  recordFolderUploadSummary(
+    @Param('workspaceId') workspaceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body()
+    body: {
+      folderImportId: string;
+      rootFolderCount: number;
+      rootFolderNames?: string[];
+      folderCount: number;
+      totalFiles: number;
+      eligibleFiles: number;
+      omittedFiles: number;
+      preflightErrorFiles: number;
+      attemptedFiles: number;
+      addedFiles: number;
+      duplicateFiles: number;
+      failedFiles: number;
+      notSentFiles: number;
+    },
+  ) {
+    return this.workspaces.recordFolderUploadSummary(workspaceId, user, body);
   }
 
   @Patch(':workspaceId/folders/:folderId/access')
@@ -270,8 +295,15 @@ export class WorkspaceDocumentController {
       size: number;
     }>,
     @Query('folderId') folderId?: string,
+    @Body('folderImportId') folderImportId?: string,
   ) {
-    return this.workspaces.upload(workspaceId, user, files, folderId);
+    return this.workspaces.upload(
+      workspaceId,
+      user,
+      files,
+      folderId,
+      folderImportId,
+    );
   }
 
   @Get(':workspaceId/search')

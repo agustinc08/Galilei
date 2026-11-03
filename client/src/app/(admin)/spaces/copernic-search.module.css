@@ -60,6 +60,7 @@
   font-size: 1.2rem;
   font-weight: 800;
 }
+.dependencyBadge { display: grid; place-items: center; width: 2.35rem; height: 2.35rem; flex: 0 0 2.35rem; border: 1px solid #b7d9e8; border-radius: 8px; color: #14536a; background: #eef9fc; font-size: .82rem; font-weight: 800; }
 .eyebrow,
 .previewType,
 .treeLabel { margin: 0; color: #61768a; font-size: .72rem; font-weight: 800; letter-spacing: .08em; }

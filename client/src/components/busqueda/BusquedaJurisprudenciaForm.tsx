@@ -145,7 +145,7 @@ export function BusquedaJurisprudenciaForm({
   return (
     <Card>
       <form
-        className={consultaStyles.filtersCard}
+        className={`${consultaStyles.filtersCard} ${showHelp ? consultaStyles.filtersCardHelpOpen : ''}`}
         onSubmit={(event) => {
           event.preventDefault();
           submit();
@@ -236,8 +236,8 @@ export function BusquedaJurisprudenciaForm({
         <div className={`${sentenciaStyles.inlineActions} ${publicMode ? consultaStyles.publicSearchActionsDesktop : ''}`}>
           {secondaryActions}
         </div>
+        <SearchHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
       </form>
-      <SearchHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
     </Card>
   );
 }

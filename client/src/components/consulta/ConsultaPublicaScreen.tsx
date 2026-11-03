@@ -20,6 +20,7 @@ import { ApiError, api } from '@/lib/api';
 import { limpiarFiltrosBusqueda } from '@/lib/busqueda';
 import { trackEvento } from '@/lib/tracking';
 import { canonicalPublicSearchPath, publicSearchStateFromUrl } from '@/lib/research-continuity';
+import { safeContextualReturnTarget } from '@/lib/contextual-navigation';
 import { copyToClipboard } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types/common';
 import type {
@@ -80,6 +81,7 @@ function filtersFromSearchParams(searchParams: URLSearchParams): ConsultaPublica
 
 function ConsultaPublicaScreenContent() {
   const searchParams = useSearchParams();
+  const contextualReturn = safeContextualReturnTarget(searchParams.get('returnTo'));
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuth();
@@ -284,9 +286,13 @@ function ConsultaPublicaScreenContent() {
     : null;
 
   const updateRoute = (update: (current: ConsultaPublicaFilters) => ConsultaPublicaFilters) => {
-    const current = filtersFromSearchParams(new URLSearchParams(window.location.search));
+    const currentParams = new URLSearchParams(window.location.search);
+    const current = filtersFromSearchParams(currentParams);
     const next = update(current);
-    const queryString = buildQueryString(next);
+    const nextParams = new URLSearchParams(buildQueryString(next));
+    const returnTarget = safeContextualReturnTarget(currentParams.get('returnTo'));
+    if (returnTarget) nextParams.set('returnTo', returnTarget.href);
+    const queryString = nextParams.toString();
     router.push(queryString ? `${pathname}?${queryString}` : pathname);
   };
 
@@ -415,6 +421,11 @@ function ConsultaPublicaScreenContent() {
   return (
     <main className={styles.page}>
       <section className={styles.hero}>
+        {user && contextualReturn ? (
+          <Link className={styles.contextualReturnLink} href={contextualReturn.href}>
+            ← {contextualReturn.label}
+          </Link>
+        ) : null}
         <h1 className={styles.heroTitle}>Jurisprudencia</h1>
         <p className={styles.heroSubtitle}>
           Buscar fallos institucionales publicados · Cámara Nacional de Apelaciones en lo Civil

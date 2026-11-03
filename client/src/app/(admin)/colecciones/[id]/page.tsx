@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from '@/lib/router-compat';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -66,6 +66,12 @@ export default function ResearchCollectionDetailPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deletingCollection, setDeletingCollection] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null);
+  const deleteDialogRef = useRef<HTMLDialogElement>(null);
+  const deleteInFlightRef = useRef(false);
   const comparison = useComparisonSelection();
 
   useEffect(() => {
@@ -90,6 +96,19 @@ export default function ResearchCollectionDetailPage() {
   }, [id, page, reloadKey, searchQuery, validId]);
 
   const returnTo = useMemo(() => `/colecciones/${id}`, [id]);
+
+  useEffect(() => {
+    if (!confirmDeleteOpen) return;
+    const returnFocus = deleteTriggerRef.current;
+    const dialog = deleteDialogRef.current;
+    if (!dialog) return;
+    if (!dialog.open) dialog.showModal();
+    dialog.querySelector<HTMLButtonElement>('[data-safe-cancel]')?.focus();
+    return () => {
+      if (dialog.open) dialog.close();
+      returnFocus?.focus();
+    };
+  }, [confirmDeleteOpen]);
 
   const rename = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -139,12 +158,19 @@ export default function ResearchCollectionDetailPage() {
   };
 
   const removeCollection = async () => {
+    if (deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
     setError(null);
+    setDeleteError(null);
+    setDeletingCollection(true);
     try {
       await api.delete(`/research/collections/${id}`);
       window.location.assign('/colecciones');
     } catch {
-      setError('No se pudo eliminar la colección.');
+      setDeleteError('No se pudo eliminar la colección. Sigue disponible; intentá nuevamente.');
+    } finally {
+      deleteInFlightRef.current = false;
+      setDeletingCollection(false);
     }
   };
 
@@ -165,9 +191,9 @@ export default function ResearchCollectionDetailPage() {
       );
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      setMessage('Dossier descargado y listo para verificar con su manifest.json.');
+      setMessage('La colección se exportó correctamente.');
     } catch {
-      setError('No se pudo preparar el dossier. Revisá el acceso a la colección e intentá nuevamente.');
+      setError('No se pudo exportar la colección. Revisá el acceso e intentá nuevamente.');
     } finally {
       setExporting(false);
     }
@@ -188,7 +214,7 @@ export default function ResearchCollectionDetailPage() {
 
   return (
     <section className={styles.collectionPage}>
-      <Link href="/colecciones"><Button variant="ghost">Volver a mis colecciones</Button></Link>
+      <Link className={styles.collectionBackLink} href="/colecciones">← Mis colecciones</Link>
       <PageHeader title={collection.nombre} description="Colección privada. Los fallos se guardan como referencias; sus PDFs no se duplican." />
       {error ? <StatusMessage variant="error" title="No se pudo completar" message={error} /> : null}
       {message ? <StatusMessage variant="success" title="Listo" message={message} /> : null}
@@ -200,14 +226,57 @@ export default function ResearchCollectionDetailPage() {
           <Button type="submit" variant="secondary" disabled={!nameDraft.trim() || nameDraft.trim() === collection.nombre}>Renombrar</Button>
         </form>
         <Button variant="secondary" onClick={() => void exportCollection(collection)} disabled={exporting}>
-          {exporting ? 'Preparando dossier…' : 'Exportar dossier'}
+          {exporting ? 'Preparando exportación…' : 'Exportar colección'}
         </Button>
-        <details>
-          <summary>Eliminar colección</summary>
-          <p>Se quitarán sus referencias y notas privadas. Los fallos originales no se eliminan.</p>
-          <Button variant="danger" onClick={() => void removeCollection()}>Eliminar colección</Button>
-        </details>
+        <Button variant="danger" onClick={(event) => { deleteTriggerRef.current = event.currentTarget; setDeleteError(null); setConfirmDeleteOpen(true); }}>Eliminar colección</Button>
       </div>
+
+      {confirmDeleteOpen ? (
+        <dialog
+          ref={deleteDialogRef}
+          className={styles.collectionDeleteDialog}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="collection-delete-title"
+          aria-describedby="collection-delete-description"
+          onCancel={(event) => {
+            event.preventDefault();
+            if (!deletingCollection) setConfirmDeleteOpen(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && !deletingCollection) {
+              event.preventDefault();
+              event.stopPropagation();
+              setConfirmDeleteOpen(false);
+              return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = Array.from(deleteDialogRef.current?.querySelectorAll<HTMLElement>(
+              'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+            ) ?? []);
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first?.focus();
+            }
+          }}
+        >
+          <div className={styles.collectionDeleteContent}>
+            <h2 id="collection-delete-title">Eliminar colección</h2>
+            <p id="collection-delete-description">¿Eliminar la colección “{collection.nombre}”?</p>
+            <p>Se quitarán de tu cuenta las referencias y notas privadas guardadas en esta colección. Los fallos originales y sus documentos no se eliminarán.</p>
+            {deleteError ? <p className={styles.collectionDeleteError} role="alert">{deleteError}</p> : null}
+            <div className={styles.collectionDeleteActions}>
+              <Button data-safe-cancel type="button" variant="secondary" disabled={deletingCollection} onClick={() => setConfirmDeleteOpen(false)}>Cancelar</Button>
+              <Button type="button" variant="danger" disabled={deletingCollection} onClick={() => void removeCollection()}>{deletingCollection ? 'Eliminando…' : 'Eliminar colección'}</Button>
+            </div>
+          </div>
+        </dialog>
+      ) : null}
 
       <form className={styles.collectionSearch} onSubmit={(event) => applySearch(event)}>
         <label htmlFor="collection-search">Filtrar por datos del fallo o por el texto de tus notas</label>

@@ -22,6 +22,40 @@
   padding: 16px;
 }
 
+.collectionBackLink {
+  justify-self: start;
+  color: #175cd3;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.collectionBackLink:hover { text-decoration: underline; }
+.collectionBackLink:focus-visible { outline: 3px solid #82b6d5; outline-offset: 3px; border-radius: 3px; }
+
+.collectionDeleteDialog {
+  width: min(520px, calc(100vw - 28px));
+  max-width: none;
+  max-height: min(80vh, 680px);
+  padding: 0;
+  border: 1px solid #d0d5dd;
+  border-radius: 12px;
+  color: #101828;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(16, 24, 40, 0.25);
+}
+
+.collectionDeleteDialog::backdrop { background: rgba(16, 24, 40, 0.48); }
+
+.collectionDeleteContent { display: grid; gap: 12px; padding: 22px; }
+.collectionDeleteContent h2,
+.collectionDeleteContent p { margin: 0; }
+.collectionDeleteContent h2 { font-size: 20px; }
+.collectionDeleteContent p { color: #475467; line-height: 1.5; }
+.collectionDeleteContent .collectionDeleteError { color: #b42318; }
+.collectionDeleteActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+
 .dialogHeader {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;

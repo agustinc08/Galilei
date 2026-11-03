@@ -15,9 +15,18 @@ type Props = {
   data: BusquedaResultado[];
   internal?: boolean;
   query?: string;
+  returnTo?: string;
 };
 
-export function BusquedaResultados({ data, internal = false, query }: Props) {
+function internalResultHref(path: string, query?: string, returnTo?: string) {
+  const params = new URLSearchParams();
+  if (query) params.set('q', query);
+  if (returnTo) params.set('returnTo', returnTo);
+  const search = params.toString();
+  return `${path}${search ? `?${search}` : ''}`;
+}
+
+export function BusquedaResultados({ data, internal = false, query, returnTo }: Props) {
   if (data.length === 0) {
     return (
       <EmptyState
@@ -88,13 +97,11 @@ export function BusquedaResultados({ data, internal = false, query }: Props) {
                 </td>
                 <td>
                   <div className={styles.inlineActions}>
-                    <Link href={`/sentencias/${item.sentencia.id}`}>
+                    <Link href={internalResultHref(`/sentencias/${item.sentencia.id}`, undefined, returnTo)}>
                       <Button variant="secondary">Abrir</Button>
                     </Link>
                     <Link
-                      href={`/sentencias/${item.sentencia.id}/documento${
-                        query ? `?q=${encodeURIComponent(query)}` : ''
-                      }`}
+                      href={internalResultHref(`/sentencias/${item.sentencia.id}/documento`, query, returnTo)}
                       onClick={() =>
                         void trackEvento({
                           tipoEvento: 'view_documento',

@@ -115,6 +115,8 @@ export class PersonalDocumentController {
   @UseInterceptors(
     FilesInterceptor('files', 20, {
       limits: PERSONAL_DOCUMENT_UPLOAD_LIMITS,
+      // Match the single-file upload and workspace endpoints: multipart filenames from browsers are UTF-8.
+      defParamCharset: 'utf8',
     }),
   )
   @ApiOperation({

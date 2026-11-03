@@ -1,0 +1,44 @@
+.section { display: grid; gap: 18px; min-width: 0; }
+.profileGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 18px; }
+.identityCard,
+.membershipCard,
+.passwordCard { display: grid; gap: 18px; min-width: 0; }
+.identityHeader { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.identityHeader h2,
+.membershipHeader h2,
+.passwordForm h2 { margin: 0; color: #163a59; font-size: 19px; line-height: 1.3; }
+.identityHeader p,
+.membershipHeader p,
+.passwordForm > div p { margin: 4px 0 0; color: #526579; line-height: 1.45; overflow-wrap: anywhere; }
+.initialsAvatar { display: grid; width: 64px; height: 64px; flex: 0 0 64px; place-items: center; border: 1px solid #b9d6e5; border-radius: 50%; color: #174c70; background: #eaf4f9; font-size: 22px; font-weight: 750; }
+.identityDetails { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.identityDetails > div { display: grid; gap: 4px; min-width: 0; padding: 11px 12px; border: 1px solid #e1e8ee; border-radius: 8px; background: #fbfcfd; }
+.identityDetails dt { color: #62788a; font-size: 12px; font-weight: 650; }
+.identityDetails dd { margin: 0; color: #203b50; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.activeStatus { color: #067647; }
+.inactiveStatus { color: #b42318; }
+.profilePrivacy { margin: 0; padding-top: 12px; border-top: 1px solid #e6edf3; color: #62788a; font-size: 13px; line-height: 1.5; }
+.membershipHeader { display: grid; gap: 3px; }
+.membershipList { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.membershipList li { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px; border: 1px solid #e1e8ee; border-radius: 9px; background: #fbfcfd; }
+.dependencyBadge { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 10px; color: #224e6a; background: #eaf3f8; font-size: 13px; font-weight: 750; }
+.membershipList li > div { display: grid; gap: 4px; min-width: 0; }
+.membershipList li strong { color: #203b50; overflow-wrap: anywhere; }
+.membershipList li div span { color: #62788a; font-size: 13px; line-height: 1.4; }
+.noMemberships { margin: 0; padding: 14px; border: 1px dashed #cbd8e1; border-radius: 8px; color: #526579; background: #fbfcfd; line-height: 1.5; }
+.passwordCard { grid-column: 1 / -1; }
+.passwordForm { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 14px; }
+.passwordForm > div:first-child,
+.passwordForm > :global([class*='statusMessage']) { grid-column: 1 / -1; }
+.passwordForm > button { justify-self: start; }
+@media (max-width: 760px) {
+  .profileGrid { grid-template-columns: minmax(0, 1fr); }
+  .passwordCard { grid-column: auto; }
+  .passwordForm { grid-template-columns: minmax(0, 1fr); }
+  .passwordForm > div:first-child,
+  .passwordForm > :global([class*='statusMessage']) { grid-column: auto; }
+}
+@media (max-width: 480px) {
+  .identityDetails { grid-template-columns: minmax(0, 1fr); }
+  .identityHeader { align-items: flex-start; }
+}

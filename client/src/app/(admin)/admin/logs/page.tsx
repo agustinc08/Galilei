@@ -35,6 +35,7 @@ const accionOptions = [
   { label: 'Confirmar', value: 'CONFIRMAR' }, { label: 'Subir archivo', value: 'UPLOAD' },
   { label: 'Detectar', value: 'DETECTAR' }, { label: 'Subir documento personal', value: 'PERSONAL_UPLOAD' },
   { label: 'Subir carpeta a Mis documentos', value: 'PERSONAL_FOLDER_UPLOAD' },
+  { label: 'Importar carpeta a la dependencia', value: 'FOLDER_UPLOAD_SUMMARY' },
   { label: 'Eliminar documento personal', value: 'PERSONAL_DOCUMENT_DELETE' },
   { label: 'Subir documento al espacio', value: 'WORKSPACE_DOCUMENT_UPLOAD' },
   { label: 'Eliminar documento del espacio', value: 'WORKSPACE_DOCUMENT_DELETE' },

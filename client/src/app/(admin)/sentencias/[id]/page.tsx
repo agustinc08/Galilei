@@ -1,7 +1,7 @@
 'use client';
 
 import { Link } from "@/lib/router-compat";
-import { useParams } from '@/lib/router-compat';
+import { useParams, useSearchParams } from '@/lib/router-compat';
 import { useEffect, useMemo, useState } from 'react';
 import { ArchivosPanel } from '@/components/archivos/ArchivosPanel';
 import { AnonimizacionPanel } from '@/components/sentencias/AnonimizacionPanel';
@@ -32,6 +32,7 @@ import { API_ORIGIN } from '@/lib/env';
 import { trackEvento } from '@/lib/tracking';
 import { cn, formatDate, toDateInput } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
+import { safeContextualReturnTarget } from '@/lib/contextual-navigation';
 import type { ApiResponse } from '@/types/common';
 import type { Favorito } from '@/types/favorito';
 import type { AccionLog } from '@/types/logs';
@@ -58,6 +59,8 @@ type FalloSimilar = {
 
 export default function SentenciaDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const contextualReturn = safeContextualReturnTarget(searchParams.get('returnTo'));
   const id = Number(params.id);
   const { user } = useAuth();
   const { salas, tiposFallo, tribunalesOrigen } = useCatalogos();
@@ -568,7 +571,9 @@ export default function SentenciaDetailPage() {
               </>
             ) : <span>Fallo archivado</span>}
             {sentencia.publicado && sentencia.slugPublico ? <Link href={`/fallos/${sentencia.slugPublico}`}><Button variant="secondary">Ver publicación</Button></Link> : null}
-            <Link href="/sentencias"><Button variant="ghost">Volver a gestión</Button></Link>
+            <Link href={contextualReturn?.href ?? '/sentencias'}>
+              <Button variant="ghost">{contextualReturn ? `← ${contextualReturn.label}` : 'Volver a gestión'}</Button>
+            </Link>
             {isAdmin ? (
               <Button variant="secondary" onClick={() => void toggleDestacada()}>
                 {sentencia.destacada ? 'Quitar destacada' : 'Marcar destacada'}

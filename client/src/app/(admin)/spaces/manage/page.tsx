@@ -8,6 +8,11 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { LineIcon } from "@/components/ui/LineIcon";
 import styles from "../spaces.module.css";
+import {
+  inspectWorkspaceFolderFiles,
+  type WorkspaceFolderFile,
+  type WorkspaceFolderSelection,
+} from "../workspace-folder-upload";
 
 type WorkspaceRole = "ADMIN" | "EDITOR" | "VIEWER";
 type Workspace = {
@@ -142,6 +147,11 @@ type UploadRow = {
   status: string;
   message?: string;
 };
+type WorkspaceFolderUploadRow = WorkspaceFolderFile & {
+  id: string;
+  status: string;
+  message?: string;
+};
 type PendingConfirmation = {
   kind: "member" | "workspace";
   id: string;
@@ -219,6 +229,22 @@ function folderPath(folderId: string | null | undefined, folders: Folder[]) {
   }
   return parts.join(" / ") || "Todos los documentos";
 }
+
+function dependencyBadgeCode(workspace: Pick<Workspace, "code" | "type">) {
+  const code = workspace.code.toLocaleUpperCase("es-AR");
+  if (workspace.type === "SALA") {
+    const letter = code.match(/SALA[^A-Z0-9]*([A-Z0-9])/u)?.[1];
+    return `S${letter ?? "A"}`;
+  }
+  if (workspace.type === "JUZGADO") {
+    const number = code.match(/JUZGADO[^0-9]*([0-9]+)/u)?.[1] ?? code.match(/(?:^|[^A-Z])J([0-9]+)/u)?.[1];
+    return `J${number ?? "1"}`;
+  }
+  return code.replace(/[^A-Z0-9]/gu, "").slice(0, 2) || "DP";
+}
+function workspaceFolderLookupKey(parentId: string | null, name: string) {
+  return `${parentId ?? "ROOT"}\u0000${name}`;
+}
 function highlightedSnippet(snippet: string, query: string) {
   const terms = [...new Set(query.match(/[\p{L}\p{N}]{3,}/gu) ?? [])].sort(
     (a, b) => b.length - a.length,
@@ -267,6 +293,18 @@ export default function PrivateSpacesPage() {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [uploadRows, setUploadRows] = useState<UploadRow[]>([]);
+  const [directoryPickerSupported, setDirectoryPickerSupported] =
+    useState(false);
+  const [folderSelection, setFolderSelection] =
+    useState<WorkspaceFolderSelection | null>(null);
+  const [folderImportRows, setFolderImportRows] = useState<
+    WorkspaceFolderUploadRow[]
+  >([]);
+  const [folderImportRunning, setFolderImportRunning] = useState(false);
+  const [folderImportCancelPending, setFolderImportCancelPending] =
+    useState(false);
+  const [folderImportId, setFolderImportId] = useState("");
+  const folderImportCancelRef = useRef(false);
   const [newFolder, setNewFolder] = useState("");
   const [newFolderScope, setNewFolderScope] = useState<"INHERIT" | "DEPENDENCY_SHARED" | "RESTRICTED">("DEPENDENCY_SHARED");
   const [restrictedMemberQuery, setRestrictedMemberQuery] = useState("");
@@ -305,6 +343,10 @@ export default function PrivateSpacesPage() {
   >({});
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null);
+  const confirmationDialogRef = useRef<HTMLElement | null>(null);
+  const confirmationCancelRef = useRef<HTMLButtonElement | null>(null);
+  const confirmationReturnFocusRef = useRef<HTMLElement | null>(null);
+  const busyRef = useRef(false);
   const [pendingMoveConfirmation, setPendingMoveConfirmation] =
     useState<PendingMoveConfirmation | null>(null);
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
@@ -320,6 +362,56 @@ export default function PrivateSpacesPage() {
       ? "INHERIT"
       : newFolderScope;
   const folderForAccessModal = folders.find((folder) => folder.id === manageAccessFolderId);
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+  useEffect(() => {
+    if (!pendingConfirmation) return;
+    confirmationReturnFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    confirmationCancelRef.current?.focus();
+
+    const handleConfirmationKeys = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (!busyRef.current) setPendingConfirmation(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        confirmationDialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleConfirmationKeys);
+    return () => {
+      window.removeEventListener("keydown", handleConfirmationKeys);
+      const returnTarget = confirmationReturnFocusRef.current;
+      window.requestAnimationFrame(() => {
+        if (returnTarget?.isConnected) returnTarget.focus();
+      });
+    };
+  }, [pendingConfirmation]);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setDirectoryPickerSupported(
+        "webkitdirectory" in document.createElement("input"),
+      );
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
   useEffect(() => {
     if (!manageAccessFolderId) return;
     document.getElementById("folder-access-search")?.focus();
@@ -889,6 +981,254 @@ export default function PrivateSpacesPage() {
     );
   }
 
+  function selectWorkspaceFolder(files: File[]) {
+    const selection = inspectWorkspaceFolderFiles(files);
+    setFolderImportId(
+      `folder-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`,
+    );
+    setFolderSelection(selection);
+    setFolderImportRows(
+      selection.files.map((entry, index) => ({
+        ...entry,
+        id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+        status: "Pendiente de confirmación",
+      })),
+    );
+    setFolderImportCancelPending(false);
+    setNotice("");
+    setError("");
+  }
+
+  function updateFolderImportRow(
+    id: string,
+    patch: Partial<WorkspaceFolderUploadRow>,
+  ) {
+    setFolderImportRows((rows) =>
+      rows.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+    );
+  }
+
+  async function uploadWorkspaceFolderRows(
+    requestedRows: WorkspaceFolderUploadRow[],
+  ) {
+    if (!workspaceId || !canEdit || !requestedRows.length || uploading) return;
+
+    const rows = requestedRows.map((row) => ({
+      ...row,
+      status: "En espera",
+      message: undefined,
+    }));
+    const outcomes = new Map(folderImportRows.map((row) => [row.id, { ...row }]));
+    for (const row of rows) outcomes.set(row.id, { ...row });
+    const updateOutcome = (
+      id: string,
+      patch: Partial<WorkspaceFolderUploadRow>,
+    ) => {
+      const current = outcomes.get(id);
+      if (current) Object.assign(current, patch);
+      updateFolderImportRow(id, patch);
+    };
+
+    folderImportCancelRef.current = false;
+    setFolderImportCancelPending(false);
+    setFolderImportRunning(true);
+    setUploading(true);
+    setError("");
+    setNotice("");
+    setFolderImportRows((current) =>
+      current.map((row) =>
+        rows.some((requested) => requested.id === row.id)
+          ? { ...row, status: "En espera", message: undefined }
+          : row,
+      ),
+    );
+
+    const folderIds = new Map<string, string>();
+    for (const folder of folders) {
+      folderIds.set(
+        workspaceFolderLookupKey(folder.parentId, folder.name),
+        folder.id,
+      );
+    }
+    const folderRequests = new Map<string, Promise<string>>();
+    const ensureFolder = (parentId: string | null, name: string) => {
+      const key = workspaceFolderLookupKey(parentId, name);
+      const existing = folderIds.get(key);
+      if (existing) return Promise.resolve(existing);
+      const pending = folderRequests.get(key);
+      if (pending) return pending;
+
+      const request = api
+        .post<{ id: string }>(`/workspaces/${workspaceId}/folders`, {
+          name,
+          parentId,
+          folderImportId,
+        })
+        .then((created) => {
+          folderIds.set(key, created.id);
+          return created.id;
+        });
+      folderRequests.set(key, request);
+      return request;
+    };
+
+    let nextIndex = 0;
+    const worker = async () => {
+      while (!folderImportCancelRef.current) {
+        const index = nextIndex;
+        nextIndex += 1;
+        if (index >= rows.length) return;
+        const row = rows[index];
+        updateOutcome(row.id, { status: "Preparando carpeta…" });
+
+        try {
+          let destinationFolderId: string | null = folderId || null;
+          for (const segment of row.folderSegments) {
+            if (folderImportCancelRef.current) {
+              updateOutcome(row.id, {
+                status: "No enviado",
+                message: "Se canceló antes de enviar el archivo.",
+              });
+              break;
+            }
+            destinationFolderId = await ensureFolder(
+              destinationFolderId,
+              segment,
+            );
+          }
+          if (folderImportCancelRef.current) {
+            const outcome = outcomes.get(row.id);
+            if (outcome?.status !== "No enviado")
+              updateOutcome(row.id, {
+                status: "No enviado",
+                message: "Se canceló antes de enviar el archivo.",
+              });
+            continue;
+          }
+
+          updateOutcome(row.id, { status: "Subiendo y procesando…" });
+          const form = new FormData();
+          form.append("files", row.file, row.file.name);
+          form.append("folderImportId", folderImportId);
+          const endpoint = `/workspaces/${workspaceId}/documents/upload${destinationFolderId ? `?folderId=${encodeURIComponent(destinationFolderId)}` : ""}`;
+          const response = await api.post<{
+            results: Array<{
+              status: string;
+              duplicate: boolean;
+              message?: string;
+            }>;
+          }>(endpoint, form);
+          const result = response.results[0];
+          if (!result || result.status === "ERROR") {
+            updateOutcome(row.id, {
+              status: "Error",
+              message: result?.message || "El documento no pudo procesarse.",
+            });
+          } else if (result.duplicate) {
+            updateOutcome(row.id, {
+              status: "Ya estaba cargado",
+              message:
+                "El mismo contenido ya existe en esta dependencia; no se movió ni reemplazó.",
+            });
+          } else {
+            updateOutcome(row.id, {
+              status: "Completado",
+              message:
+                result.status === "OCR_PROCESSING" ||
+                result.status === "OCR_REQUIRED"
+                  ? "El documento quedó guardado y sigue el procesamiento habitual."
+                  : "Documento incorporado.",
+            });
+          }
+        } catch (cause) {
+          updateOutcome(row.id, {
+            status: "Error",
+            message: friendlyError(
+              cause,
+              "No se pudo preparar o procesar este archivo. Podés reintentar sólo los fallidos.",
+            ),
+          });
+        }
+      }
+    };
+
+    try {
+      await Promise.all(
+        Array.from({ length: Math.min(3, rows.length) }, () => worker()),
+      );
+      if (folderImportCancelRef.current) {
+        for (const row of rows) {
+          if (outcomes.get(row.id)?.status === "En espera")
+            updateOutcome(row.id, {
+              status: "No enviado",
+              message: "Se canceló antes de enviar el archivo.",
+            });
+        }
+      }
+      await refresh(workspaceId, folderId);
+    } catch (cause) {
+      setError(
+        friendlyError(cause, "La carpeta se procesó, pero no se pudo actualizar la vista."),
+      );
+    } finally {
+      setFolderImportRunning(false);
+      setFolderImportCancelPending(false);
+    }
+
+    const finalRows = Array.from(outcomes.values()).filter((row) =>
+      folderImportRows.some((selected) => selected.id === row.id),
+    );
+    const completed = finalRows.filter(
+      (row) => row.status === "Completado" || row.status === "Ya estaba cargado",
+    ).length;
+    const failures = finalRows.filter((row) => row.status === "Error").length;
+    const notSent = finalRows.filter((row) => row.status === "No enviado").length;
+    const duplicates = finalRows.filter(
+      (row) => row.status === "Ya estaba cargado",
+    ).length;
+    const runRows = rows
+      .map((row) => outcomes.get(row.id))
+      .filter((row): row is WorkspaceFolderUploadRow => Boolean(row));
+    const attemptedFiles = runRows.filter((row) =>
+      ["Completado", "Ya estaba cargado", "Error"].includes(row.status),
+    ).length;
+    try {
+      await api.post(`/workspaces/${workspaceId}/folder-uploads/summary`, {
+        folderImportId,
+        rootFolderCount: folderSelection?.rootFolders.length ?? 0,
+        rootFolderNames: folderSelection?.rootFolders ?? [],
+        folderCount: folderSelection?.folderCount ?? 0,
+        totalFiles: folderSelection
+          ? folderSelection.files.length +
+            folderSelection.omitted.length +
+            folderSelection.errors.length
+          : folderImportRows.length,
+        eligibleFiles: folderSelection?.files.length ?? folderImportRows.length,
+        omittedFiles: folderSelection?.omitted.length ?? 0,
+        preflightErrorFiles: folderSelection?.errors.length ?? 0,
+        attemptedFiles,
+        addedFiles: runRows.filter((row) => row.status === "Completado").length,
+        duplicateFiles: runRows.filter((row) => row.status === "Ya estaba cargado")
+          .length,
+        failedFiles: runRows.filter((row) => row.status === "Error").length,
+        notSentFiles: runRows.filter((row) => row.status === "No enviado").length,
+      });
+    } catch {
+      setError(
+        "No pudimos guardar el resumen de auditoría. La actividad individual que ya se completó sigue registrada; avisá a la administración para revisar el resumen.",
+      );
+    }
+    setUploading(false);
+    setNotice(
+      `${completed} archivo(s) incorporado(s); ${duplicates} duplicado(s) omitido(s); ${failures} con error${notSent ? `; ${notSent} no enviados` : ""}.`,
+    );
+  }
+
+  function cancelRemainingFolderUploads() {
+    folderImportCancelRef.current = true;
+    setFolderImportCancelPending(true);
+  }
+
   const runSearch = useCallback(
     async (nextPage = 1) => {
       if (!query.trim() || !workspaceId) return;
@@ -1096,14 +1436,21 @@ export default function PrivateSpacesPage() {
         <>
           <Card>
             <div className={styles.workspaceHeader}>
-              <div>
-                <p className={styles.eyebrow}>Documentos de la dependencia</p>
-                <h2>{selectedWorkspace?.name ?? "Cargando espacio…"}</h2>
-                <p className={styles.muted}>
-                  {selectedWorkspace
-                    ? `${typeLabel(selectedWorkspace.type)} · Documentos compartidos con las personas autorizadas.`
-                    : "Los documentos compartidos se muestran según el acceso de tu cuenta."}
-                </p>
+              <div className={styles.workspaceIdentity}>
+                {selectedWorkspace ? (
+                  <span className={styles.dependencyBadge} aria-hidden="true">
+                    {dependencyBadgeCode(selectedWorkspace)}
+                  </span>
+                ) : null}
+                <div>
+                  <p className={styles.eyebrow}>Documentos de la dependencia</p>
+                  <h2>{selectedWorkspace?.name ?? "Cargando espacio…"}</h2>
+                  <p className={styles.muted}>
+                    {selectedWorkspace
+                      ? `${typeLabel(selectedWorkspace.type)} · Documentos compartidos con las personas autorizadas.`
+                      : "Los documentos compartidos se muestran según el acceso de tu cuenta."}
+                  </p>
+                </div>
               </div>
               {selectedWorkspace && (
                 <span className={styles.roleBadge}>
@@ -1393,6 +1740,224 @@ export default function PrivateSpacesPage() {
                     }}
                   />
                 </label>
+              </div>
+              <div className={styles.folderUploadPanel}>
+                <div>
+                  <h3>Subir carpeta completa</h3>
+                  <p className={styles.muted}>
+                    Elegí una carpeta para conservar sus subcarpetas dentro de
+                    esta dependencia. Primero vas a revisar el contenido; la
+                    carga no empieza hasta que la confirmes.
+                  </p>
+                </div>
+                <label className={styles.uploadLabel}>
+                  Seleccionar carpeta
+                  <input
+                    ref={(element) => {
+                      element?.setAttribute("webkitdirectory", "");
+                    }}
+                    className={styles.uploadInput}
+                    type="file"
+                    multiple
+                    disabled={uploading || !directoryPickerSupported}
+                    aria-label="Seleccionar una carpeta de la dependencia"
+                    onChange={(event) => {
+                      selectWorkspaceFolder(
+                        Array.from(event.currentTarget.files ?? []),
+                      );
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                {!directoryPickerSupported ? (
+                  <p className={styles.inlineError} role="status">
+                    Este navegador no permite seleccionar carpetas. Podés seguir
+                    usando la carga de archivos individuales.
+                  </p>
+                ) : null}
+                {folderSelection ? (
+                  <>
+                    <p className={styles.folderUploadSummary} role="status">
+                      <strong>
+                        {folderSelection.rootFolders.length === 1
+                          ? `Carpeta: ${folderSelection.rootFolders[0]}`
+                          : `${folderSelection.rootFolders.length} carpetas raíz`}
+                      </strong>
+                      <br />
+                      {folderSelection.folderCount} carpetas ·{" "}
+                      {folderSelection.files.length} archivos admitidos ·{" "}
+                      {folderSelection.omitted.length} omitidos ·{" "}
+                      {folderSelection.errors.length} con error previo ·{" "}
+                      {formatBytes(folderSelection.totalBytes)}
+                    </p>
+                    <p className={styles.muted}>
+                      Las carpetas existentes se reutilizan. Si un archivo con
+                      el mismo contenido ya está en esta dependencia, se omite
+                      sin moverlo ni reemplazarlo. Cada carpeta y documento
+                      conserva la auditoría habitual.
+                    </p>
+                    {folderSelection.omitted.length ? (
+                      <details className={styles.folderUploadDetails}>
+                        <summary>
+                          Ver omitidos ({folderSelection.omitted.length})
+                        </summary>
+                        <ul>
+                          {folderSelection.omitted.slice(0, 50).map((item, index) => (
+                            <li key={`${item.name}-${index}`}>
+                              <span>{item.name}</span>
+                              <small>{item.reason}</small>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+                    {folderSelection.errors.length ? (
+                      <details className={styles.folderUploadDetails}>
+                        <summary>
+                          Ver archivos que requieren atención ({folderSelection.errors.length})
+                        </summary>
+                        <ul>
+                          {folderSelection.errors.slice(0, 50).map((item, index) => (
+                            <li key={`${item.name}-${index}`}>
+                              <span>{item.name}</span>
+                              <small>{item.reason}</small>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+                    {folderImportRows.length ? (
+                      <div className={styles.folderUploadActions}>
+                        {folderImportRunning ? (
+                          <button
+                            type="button"
+                            className={styles.dangerButton}
+                            onClick={cancelRemainingFolderUploads}
+                            disabled={folderImportCancelPending}
+                          >
+                            {folderImportCancelPending
+                              ? "Cancelando archivos pendientes…"
+                              : "Cancelar archivos pendientes"}
+                          </button>
+                        ) : folderImportRows.every(
+                            (row) => row.status === "Pendiente de confirmación",
+                          ) ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFolderSelection(null);
+                                setFolderImportRows([]);
+                                setNotice("");
+                              }}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.primaryButton}
+                              disabled={!folderImportRows.length || uploading}
+                              onClick={() =>
+                                void uploadWorkspaceFolderRows(folderImportRows)
+                              }
+                            >
+                              Subir carpeta
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {folderImportRows.some((row) => row.status === "Error") ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void uploadWorkspaceFolderRows(
+                                    folderImportRows.filter(
+                                      (row) => row.status === "Error",
+                                    ),
+                                  )
+                                }
+                                disabled={uploading}
+                              >
+                                Reintentar sólo fallidos
+                              </button>
+                            ) : null}
+                            {folderImportRows.some(
+                              (row) => row.status === "No enviado",
+                            ) ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void uploadWorkspaceFolderRows(
+                                    folderImportRows.filter(
+                                      (row) => row.status === "No enviado",
+                                    ),
+                                  )
+                                }
+                                disabled={uploading}
+                              >
+                                Reanudar no enviados
+                              </button>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+                    ) : null}
+                    {folderImportRows.some(
+                      (row) => row.status !== "Pendiente de confirmación",
+                    ) ? (
+                      <div className={styles.folderUploadProgress} aria-live="polite">
+                        {(() => {
+                          const processed = folderImportRows.filter((row) =>
+                            [
+                              "Completado",
+                              "Ya estaba cargado",
+                              "Error",
+                            ].includes(row.status),
+                          ).length;
+                          const failed = folderImportRows.filter(
+                            (row) => row.status === "Error",
+                          ).length;
+                          return (
+                            <>
+                              <progress
+                                max={Math.max(1, folderImportRows.length)}
+                                value={processed}
+                                aria-label="Progreso de carga de carpeta"
+                              />
+                              <span>
+                                {processed} de {folderImportRows.length} archivos
+                                procesados · {failed} fallidos
+                              </span>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    ) : null}
+                    {folderImportRows.length ? (
+                      <div className={styles.uploadQueue} aria-live="polite">
+                        {folderImportRows.slice(0, 100).map((row) => (
+                          <div className={styles.fileLine} key={row.id}>
+                            <div>
+                              <span className={styles.fileName}>
+                                {row.displayPath}
+                              </span>
+                              <div className={styles.fileStatus}>
+                                {formatBytes(row.file.size)} · {row.status}
+                                {row.message ? ` · ${row.message}` : ""}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {folderImportRows.length > 100 ? (
+                          <p className={styles.muted}>
+                            Se muestran los primeros 100 archivos; el resumen
+                            incluye el total completo.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
               </div>
               {uploadRows.length > 0 && (
                 <div className={styles.uploadQueue} aria-live="polite">
@@ -1974,7 +2539,7 @@ export default function PrivateSpacesPage() {
                             })
                           }
                         >
-                          Desactivar acceso
+                          Quitar de esta dependencia
                         </button>
                       ) : (
                         <button
@@ -2246,6 +2811,7 @@ export default function PrivateSpacesPage() {
       {pendingConfirmation && (
         <div className={styles.modalBackdrop} role="presentation">
           <section
+            ref={confirmationDialogRef}
             className={styles.modal}
             role="alertdialog"
             aria-modal="true"
@@ -2254,20 +2820,24 @@ export default function PrivateSpacesPage() {
           >
             <h2 id="confirm-title">
               {pendingConfirmation.kind === "member"
-                ? "Desactivar acceso"
+                ? "Quitar de esta dependencia"
                 : pendingConfirmation.active
                   ? "Reactivar espacio"
                   : "Desactivar espacio"}
             </h2>
             <p id="confirm-description">
               {pendingConfirmation.kind === "member"
-                ? `${pendingConfirmation.label} dejará de ingresar a este espacio. La membresía queda registrada para poder reactivarla.`
+                ? `${pendingConfirmation.label} perderá acceso a ${selectedWorkspace?.name ?? "esta dependencia"}. Su cuenta seguirá existiendo en Galilei y el acceso podrá reactivarse después.`
                 : pendingConfirmation.active
                   ? `${pendingConfirmation.label} volverá a estar disponible para sus miembros activos.`
                   : `${pendingConfirmation.label} y sus documentos dejarán de estar disponibles para todos sus miembros.`}
             </p>
             <div className={styles.modalActions}>
-              <button onClick={() => setPendingConfirmation(null)}>
+              <button
+                ref={confirmationCancelRef}
+                disabled={busy}
+                onClick={() => setPendingConfirmation(null)}
+              >
                 Cancelar
               </button>
               <button
@@ -2292,7 +2862,11 @@ export default function PrivateSpacesPage() {
                   }
                 }}
               >
-                {pendingConfirmation.active ? "Reactivar" : "Desactivar"}
+                {pendingConfirmation.kind === "member"
+                  ? "Quitar de esta dependencia"
+                  : pendingConfirmation.active
+                    ? "Reactivar"
+                    : "Desactivar"}
               </button>
             </div>
           </section>

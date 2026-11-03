@@ -4,6 +4,10 @@
 .privateNotice div { display: grid; gap: 3px; }
 .privateNotice div span { font-size: 14px; line-height: 1.45; }
 .columns { display: grid; grid-template-columns: minmax(270px, .8fr) minmax(440px, 1.5fr); align-items: start; gap: 18px; }
+.folderUploadCard { grid-column: 1 / -1; display: grid; gap: 16px; }
+.folderUploadHeader { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(220px, .7fr); align-items: center; gap: 20px; }
+.folderUploadHeader h2 { margin: 0; font-size: 19px; }
+.folderUploadHeader > div:first-child p { max-width: 72ch; margin: 7px 0 0; color: #486581; font-size: 14px; line-height: 1.55; }
 .left, .right { display: grid; gap: 16px; min-width: 0; }
 .sectionHeader, .resultsHeader { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
 .sectionHeader h2, .resultsHeader h2 { margin: 0; font-size: 17px; }
@@ -17,25 +21,26 @@
 .folderButton:hover { background: #f4f8fb; }
 .folderButton small { color: #627d98; }
 .empty { padding: 12px 4px; color: #627d98; font-size: 14px; }
-.inlineForm { display: grid; gap: 6px; border-top: 1px solid #e6edf3; padding-top: 14px; margin-top: 5px; }
+.inlineForm { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; border-top: 1px solid #e6edf3; padding-top: 16px; margin-top: 6px; }
 .inlineForm label, .uploadForm label, .searchForm label { font-weight: 600; font-size: 13px; }
-.inlineForm > div, .searchForm > div { display: flex; gap: 8px; }
-.inlineForm input, .searchForm input { flex: 1; min-width: 0; }
-.uploadPromise { display: grid; gap: 6px; margin: 12px 0; padding: 10px 12px; border-radius: 7px; background: #f4f8fb; color: #334e68; font-size: 13px; }
+.inlineForm input, .searchForm input { min-width: 0; }
+.uploadPromise { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 0; padding: 13px 15px; border: 1px solid #d9e5ed; border-radius: 9px; background: #f6fafc; color: #334e68; font-size: 13px; }
+.uploadPromise span { display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 8px; overflow-wrap: anywhere; }
+.uploadPromise strong { color: #243b53; }
 .uploadForm { display: grid; gap: 10px; }
 .filePickerInput { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); border: 0; }
-.filePicker { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: fit-content; max-width: 100%; cursor: pointer; }
+.filePicker { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; width: 100%; max-width: 100%; min-height: 76px; padding: 14px 16px; border: 1px dashed #9bb8cb; border-radius: 10px; background: #f8fbfd; cursor: pointer; transition: border-color 140ms ease, background-color 140ms ease; }
+.filePicker:hover { border-color: #377ea8; background: #f1f8fc; }
 .filePickerInput:focus-visible + .filePicker .filePickerButton { outline: 3px solid #79b8e3; outline-offset: 2px; }
 .filePickerInput:disabled + .filePicker { cursor: not-allowed; opacity: .62; }
-.filePickerButton { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; padding: 7px 12px; border: 1px solid #bcccdc; border-radius: 7px; color: #243b53; background: #fff; font-size: 13px; font-weight: 650; }
-.filePicker:hover .filePickerButton { background: #f4f8fb; }
-.filePickerSummary { color: #627d98; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
-.folderHelp { margin: 8px 0; color: #486581; font-size: 13px; line-height: 1.5; }
-.folderUpload { display: grid; gap: 9px; min-width: 0; }
+.filePickerButton { display: inline-flex; min-height: 42px; flex: 0 0 auto; align-items: center; justify-content: center; padding: 0 15px; border: 1px solid #c5d3df; border-radius: var(--radius-control); color: #233547; background: #fff; box-shadow: 0 1px 2px rgba(16, 24, 40, .06); font-size: 14px; font-weight: 650; }
+.filePickerSummary { color: #334e68; font-size: 14px; font-weight: 550; line-height: 1.45; overflow-wrap: anywhere; }
+.folderUpload { display: grid; gap: 13px; min-width: 0; }
 .folderUpload > label { font-size: 13px; font-weight: 600; }
-.folderUpload { gap: 9px; }
+.uploadEmptyState { margin: 0; padding: 11px 13px; border-left: 3px solid #b8d7e7; border-radius: 0 6px 6px 0; color: #526b7d; background: #f6fafc; font-size: 13px; line-height: 1.45; }
+.uploadAction { display: flex; justify-content: flex-end; }
 .fieldHelp { margin: 0; color: #627d98; font-size: 12px; line-height: 1.45; }
-.selectionSummary { margin: 0; color: #164c37; font-size: 13px; font-weight: 650; }
+.selectionSummary { margin: 0; padding: 10px 12px; border: 1px solid #c1e3d1; border-radius: 8px; color: #164c37; background: #f2faf5; font-size: 13px; font-weight: 650; }
 .folderProgress { display: grid; gap: 7px; padding: 10px; border: 1px solid #d8e4ec; border-radius: 7px; background: #f8fbfd; }
 .folderProgress > p { margin: 0; color: #334e68; font-size: 13px; line-height: 1.45; }
 .folderProgress progress { width: 100%; height: 9px; accent-color: #1667a8; }
@@ -50,7 +55,7 @@
 .primary:disabled, .secondary:disabled { cursor: not-allowed; opacity: .55; }
 .secondary { border: 1px solid #bcccdc; color: #243b53; background: #fff; }
 .textButton { white-space: nowrap; font-size: 13px; }
-.searchForm { display: grid; gap: 8px; }
+.searchForm { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; }
 .resultsHeader { align-items: center; margin: 18px 0 6px; }
 .documentList li { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid #e6edf3; }
 .documentList li > div:first-child { display: grid; gap: 4px; min-width: 0; }
@@ -61,6 +66,7 @@
 .rowActions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .preview { display: block; width: 100%; height: min(70vh, 740px); border: 0; border-radius: 6px; background: #eef2f6; }
 .previewControls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 8px 0; }
+.previewHeaderActions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .pdfPreview { height: min(70vh, 740px); min-height: 360px; overflow: hidden; border-radius: 6px; background: #eef2f6; }
 .pdfPreview > div { height: 100%; }
 .previewEmpty, .filePreview { display: grid; min-height: 130px; place-content: center; gap: 12px; color: #627d98; text-align: center; }
@@ -78,13 +84,18 @@
 
 @media (max-width: 900px) {
   .columns { grid-template-columns: minmax(0, 1fr); }
+  .folderUploadCard { grid-column: auto; }
+  .folderUploadHeader { grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 14px; }
   .preview { height: 62vh; }
 }
 
 @media (max-width: 560px) {
   .documentList li { align-items: flex-start; flex-direction: column; }
   .rowActions { flex-wrap: wrap; }
-  .inlineForm > div, .searchForm > div { align-items: stretch; flex-direction: column; }
+  .inlineForm, .searchForm { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  .uploadAction { justify-content: stretch; }
+  .uploadAction > button { width: 100%; }
+  .filePicker { align-items: flex-start; flex-direction: column; }
   .modal { padding: 18px; }
   .modalActions { flex-wrap: wrap; }
 }

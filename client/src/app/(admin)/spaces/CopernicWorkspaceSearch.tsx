@@ -263,6 +263,18 @@ function dependencyKindLabel(type: string) {
   return "MI DEPENDENCIA";
 }
 
+function dependencyBadgeCode(workspace: Workspace) {
+  const code = workspace.code.toLocaleUpperCase("es-AR");
+  if (workspace.type === "SALA") {
+    return `S${code.match(/SALA[^A-Z0-9]*([A-Z0-9])/u)?.[1] ?? "A"}`;
+  }
+  if (workspace.type === "JUZGADO") {
+    const number = code.match(/JUZGADO[^0-9]*([0-9]+)/u)?.[1] ?? code.match(/(?:^|[^A-Z])J([0-9]+)/u)?.[1];
+    return `J${number ?? "1"}`;
+  }
+  return code.replace(/[^A-Z0-9]/gu, "").slice(0, 2) || "DP";
+}
+
 function fileTypeFromMime(mimeType: string | null): SearchHit["fileType"] {
   if (mimeType === "application/pdf") return "PDF";
   if (mimeType === "text/plain") return "TXT";
@@ -1093,7 +1105,13 @@ export function CopernicWorkspaceSearch() {
     <section className={`${styles.shell} ${showWorkspaceChooser ? styles.chooserShell : ""}`} aria-label={`Documentos de ${workspace?.name ?? "la dependencia"}`}>
       <header className={styles.shellHeader}>
         <div className={styles.productTitle}>
-          <span className={styles.productMark} aria-hidden="true">G</span>
+          {workspace ? (
+            <span className={styles.dependencyBadge} aria-hidden="true">
+              {dependencyBadgeCode(workspace)}
+            </span>
+          ) : (
+            <span className={styles.productMark} aria-hidden="true">G</span>
+          )}
           <div>
             <p className={styles.eyebrow}>{workspace ? dependencyKindLabel(workspace.type) : "GALILEI · DOCUMENTOS"}</p>
             <h1 title={workspace?.name}>{workspace?.name ?? "Buscar documentos"}</h1>
