@@ -27,11 +27,11 @@ test('the public landing page opens each destination or requests sign-in', async
   await expect(page).toHaveURL(/\/login(?:\?.*)?$/u);
 });
 
-test('Galilei keeps its three destinations visible across authenticated routes', async ({ page }) => {
+test('Galilei keeps role-aware destinations visible across authenticated routes', async ({ page }) => {
   const screenshotDir = getE2eArtifactPath('galilei-navigation');
   mkdirSync(screenshotDir, { recursive: true });
   const responsiveViewports = [
-    [390, 844], [1366, 768], [1440, 900], [1536, 864], [1600, 900],
+    [390, 844], [768, 1024], [1366, 768], [1440, 900], [1536, 864], [1600, 900],
     [1920, 1080], [1920, 1200], [2560, 1440],
   ] as const;
   async function captureResponsive(routeName: string) {
@@ -60,11 +60,13 @@ test('Galilei keeps its three destinations visible across authenticated routes',
   await expect(page.getByRole('heading', { name: '¿Qué querés consultar?' })).toBeVisible();
   await captureResponsive('galilei-home');
 
-  const navigation = page.getByRole('navigation', { name: 'Secciones principales' });
-  await expect(navigation.getByRole('link')).toHaveCount(3);
+  const navigation = page.getByRole('navigation', { name: 'Navegación principal' });
+  await expect(navigation.getByRole('link')).toHaveCount(4);
   await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toBeVisible();
+  await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('href', '/consulta');
   await expect(navigation.getByRole('link', { name: /Mi Sala \/ Juzgado/u })).toBeVisible();
   await expect(navigation.getByRole('link', { name: /Mis documentos/u })).toBeVisible();
+  await expect(navigation.getByRole('link', { name: /Mis colecciones/u })).toBeVisible();
   await expect(navigation.getByRole('link', { name: /Copernic|Workspace/u })).toHaveCount(0);
 
   await page.goto('/consulta?q=responsabilidad%20civil');
@@ -90,6 +92,11 @@ test('Galilei keeps its three destinations visible across authenticated routes',
     );
   }
   await captureResponsive('jurisprudencia');
+
+  await page.goto('/busqueda-avanzada?q=consulta-interna');
+  await expect(page).toHaveURL(/\/consulta$/u);
+  await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toHaveCount(0);
+  await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();
 
   await page.goto('/spaces');
   await expect(navigation.getByRole('link', { name: /Mi Sala \/ Juzgado/u })).toHaveAttribute('aria-current', 'page');
@@ -119,7 +126,73 @@ test('the technical dashboard exposes one quick link per destination', async ({ 
   const destinations = await quickLinks.evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).pathname));
   expect(destinations.length).toBeGreaterThan(0);
   expect(new Set(destinations).size).toBe(destinations.length);
-  await expect(page.getByRole('link', { name: 'Búsqueda avanzada' })).toHaveCount(1);
+  await expect(page.getByRole('link', { name: 'Búsqueda avanzada' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Consulta pública' })).toHaveCount(1);
+  await page.goto('/busqueda-avanzada');
+  await expect(page).toHaveURL(/\/consulta$/u);
+  await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toHaveCount(0);
+});
+
+test('Jurisprudencia retains advanced search and role navigation', async ({ page }) => {
+  const jurisprudencia = credentials.accounts.jurisprudencia;
+  await page.goto('/login');
+  await page.getByLabel('Correo electrónico').fill(jurisprudencia.email);
+  await page.getByLabel('Contraseña').fill(jurisprudencia.password);
+  await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+  await page.waitForURL(/\/galilei$/u);
+
+  const navigation = page.getByRole('navigation', { name: 'Navegación principal' });
+  await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('href', '/busqueda-avanzada');
+  await navigation.getByRole('link', { name: /Jurisprudencia/u }).click();
+  await expect(page).toHaveURL(/\/busqueda-avanzada$/u);
+  await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toBeVisible();
+  await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();
+
+  for (const [width, height] of [[390, 844], [768, 1024], [1366, 768]]) {
+    await page.setViewportSize({ width, height });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      `no horizontal overflow at ${width}x${height}`,
+    ).toBe(true);
+    await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toBeVisible();
+  }
+});
+
+test('advanced search state and navigation do not survive a Jurisprudencia-to-Sala session change', async ({ page }) => {
+  const jurisprudencia = credentials.accounts.jurisprudencia;
+  const sala = credentials.accounts.reader;
+
+  await page.goto('/login');
+  await page.getByLabel('Correo electrónico').fill(jurisprudencia.email);
+  await page.getByLabel('Contraseña').fill(jurisprudencia.password);
+  await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+  await page.waitForURL(/\/galilei$/u);
+  await page.goto('/busqueda-avanzada');
+  await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toBeVisible();
+  await page.evaluate(() => {
+    window.history.replaceState(
+      { ...(window.history.state ?? {}), __bjcAdvancedSearchFilters: { q: 'estado temporal' } },
+      '',
+      window.location.href,
+    );
+  });
+
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await expect(page).toHaveURL(/\/login$/u);
+  await page.getByLabel('Correo electrónico').fill(sala.email);
+  await page.getByLabel('Contraseña').fill(sala.password);
+  await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+  await page.waitForURL(/\/galilei$/u);
+
+  const navigation = page.getByRole('navigation', { name: 'Navegación principal' });
+  await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('href', '/consulta');
+  expect(
+    await page.evaluate(() => Boolean((window.history.state as Record<string, unknown> | null)?.__bjcAdvancedSearchFilters)),
+  ).toBe(false);
+  await page.goto('/busqueda-avanzada?q=estado-temporal');
+  await expect(page).toHaveURL(/\/consulta$/u);
+  await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toHaveCount(0);
+  await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();
 });
 
 test('unknown routes and role-restricted deep links show controlled states', async ({ page }) => {
@@ -137,6 +210,21 @@ test('unknown routes and role-restricted deep links show controlled states', asy
   await page.goto('/dashboard');
   await expect(page.getByRole('alert').getByText('No autorizado', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Panel institucional' })).toHaveCount(0);
+
+  await page.addInitScript(() => {
+    const marker = window as Window & { __advancedSearchHeadingSeen?: boolean };
+    const check = () => {
+      if (document.querySelector('h1')?.textContent?.trim() === 'Búsqueda avanzada') {
+        marker.__advancedSearchHeadingSeen = true;
+      }
+    };
+    new MutationObserver(check).observe(document, { subtree: true, childList: true, characterData: true });
+    window.addEventListener('DOMContentLoaded', check);
+  });
+  await page.goto('/busqueda-avanzada?q=deep-link');
+  await expect(page).toHaveURL(/\/consulta$/u);
+  await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toHaveCount(0);
+  expect(await page.evaluate(() => Boolean((window as Window & { __advancedSearchHeadingSeen?: boolean }).__advancedSearchHeadingSeen))).toBe(false);
 });
 
 test('missing corpus documents end their loading states with a privacy-safe message', async ({ page }) => {

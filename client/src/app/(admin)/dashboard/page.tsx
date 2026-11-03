@@ -29,11 +29,6 @@ const quickLinks = [
     text: 'Carga guiada con metadatos, PDF, sumarios, reseña, referencias y publicación.',
   },
   {
-    href: '/busqueda-avanzada',
-    title: 'Búsqueda avanzada',
-    text: 'Consulta interna con filtros finos, guardado de búsquedas y exportación.',
-  },
-  {
     href: '/estadisticas',
     title: 'Estadísticas',
     text: 'Indicadores de contenido, uso público, calidad documental e informe anual.',

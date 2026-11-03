@@ -15,6 +15,7 @@ import { StatusMessage } from '@/components/ui/StatusMessage';
 import { Textarea } from '@/components/ui/Textarea';
 import { useCatalogos } from '@/hooks/use-catalogos';
 import { useAuth } from '@/hooks/use-auth';
+import { jurisprudenceSearchPathForRole } from '@/lib/jurisprudence-search-access';
 import { api } from '@/lib/api';
 import { formatDate, toDateInput } from '@/lib/utils';
 import type { ApiResponse } from '@/types/common';
@@ -83,6 +84,10 @@ function buildObservacionesLink(currentLink: string) {
 
 export default function CargaRapidaPage() {
   const { user } = useAuth();
+  const searchPath = jurisprudenceSearchPathForRole(user?.rol.nombre);
+  const searchLabel = user?.rol.nombre === 'JURISPRUDENCIA'
+    ? 'Búsqueda avanzada'
+    : 'Consulta común';
   const { salas, tiposFallo, tribunalesOrigen, isLoading: isLoadingCatalogos } = useCatalogos();
   const [tab, setTab] = useState<TabKey>('sumarios');
   const [searchNumero, setSearchNumero] = useState('');
@@ -326,7 +331,7 @@ export default function CargaRapidaPage() {
         actions={
           <div className={styles.inlineActions}>
             <Link href="/sentencias/nueva-completa"><Button variant="secondary">Carga completa</Button></Link>
-            <Link href="/busqueda-avanzada"><Button variant="secondary">Búsqueda avanzada</Button></Link>
+            <Link href={searchPath}><Button variant="secondary">{searchLabel}</Button></Link>
           </div>
         }
       />
@@ -353,7 +358,7 @@ export default function CargaRapidaPage() {
             <div className={styles.inlineActions}>
               <Link href="/sentencias"><Button variant="secondary">Listado de sentencias</Button></Link>
               <Link href="/sumarios"><Button variant="secondary">Listado de sumarios</Button></Link>
-              <Link href="/busqueda-avanzada"><Button variant="secondary">Búsqueda avanzada</Button></Link>
+              <Link href={searchPath}><Button variant="secondary">{searchLabel}</Button></Link>
             </div>
           </div>
         </Card>

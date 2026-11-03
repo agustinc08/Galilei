@@ -1,6 +1,6 @@
 # Galilei y Jurisprudencia Civil — arquitectura pública e interna
 
-Fecha de revisión del código: 2 de noviembre de 2026. Este documento describe el contrato que implementa el candidate actual. Los tests automáticos locales verifican rutas, permisos declarados y la allowlist pública; la prueba con una cuenta beta real y la validación del runtime quedan registradas separadamente en el cierre de la misión.
+Fecha de revisión del código: 3 de noviembre de 2026. Este documento describe el contrato de acceso del candidate BETA-011 basado en `861106c20ee784f9b6506601414ece2562931cf4`. La validación automatizada del guard y la comprobación del runtime de Office se registran en el cierre de la misión.
 
 ## Producto público
 
@@ -12,11 +12,19 @@ El backend público consulta la misma base, Search y storage. Para sentencias ap
 
 ## Galilei interno
 
-Galilei requiere sesión. `/login` es el acceso interno; después del login la aplicación lleva a `/galilei`. El shell interno contiene la sesión, la navegación de trabajo y las herramientas habilitadas por rol. La búsqueda interna usa `/busqueda-avanzada`, los componentes compartidos `BusquedaJurisprudenciaForm` y `ResultadosJurisprudencia`, y el endpoint autenticado `/api/busqueda/avanzada`; no mantiene una segunda implementación de Search.
+Galilei requiere sesión. `/login` es el acceso interno; después del login la aplicación lleva a `/galilei`. El shell interno contiene la sesión, la navegación de trabajo y las herramientas habilitadas por rol. La búsqueda común permanece en `/consulta` y usa la API pública con los filtros publicados. La búsqueda avanzada interna usa `/busqueda-avanzada`, los componentes compartidos `BusquedaJurisprudenciaForm` y `ResultadosJurisprudencia`, y endpoints autenticados; el guard de ruta y los guards de API la reservan al rol global exacto `JURISPRUDENCIA`.
 
 Las rutas internas fuera del grupo `(admin)` —por ejemplo `/evolucion/guardada/:id`— también se montan bajo el shell interno. La pantalla `/jurisprudencia/ingreso` conserva su circuito separado de ingreso. La navegación del shell oculta Panel para roles ajenos a Administración/Operación, Registros y Usuarios para roles no ADMIN, e Ingreso para roles que no pueden escribir en el flujo.
 
 No se crean bases, índices, corpus ni copias de PDF separados. Tampoco se cambia el esquema ni se ejecutan migraciones para separar los productos.
+
+### Capacidades de búsqueda
+
+`COMMON_SEARCH_CAPABILITIES` está disponible para público anónimo y cualquier perfil autenticado: `GET /api/public/busqueda`, interpretación, sugerencias y filtros públicos; rutas `/consulta`, Fallo, Sumario y PDF público. Estas consultas mantienen los filtros `publicado=true` y `activo=true`.
+
+`ADVANCED_SEARCH_CAPABILITIES = JURISPRUDENCIA_MEMBERS_ONLY`: pantalla `/busqueda-avanzada`; `GET /api/busqueda/avanzada`, `/interpretar`, `/simple`, `/avanzada/exportar`; sugerencias y catálogos internos bajo `/api/busqueda/{sugerencias*,temas,salas,tipos-fallo}`. URL directa de un rol no autorizado redirige a `/consulta` antes de montar el formulario. La navegación interna apunta a consulta común para otros roles y a avanzada sólo para Jurisprudencia.
+
+`GET /api/busqueda/cita` conserva su ACL vigente como operación de búsqueda por cita para Revisor y los otros roles internos permitidos; no concede la pantalla ni la búsqueda avanzada. Los endpoints públicos de búsqueda común no se restringen.
 
 ## Roles reales
 
@@ -42,7 +50,8 @@ Los nombres de rol global que existen en `server/src/auth/constants.ts` son:
 | `/`, `/consulta`, `/fallos/:slug`, `/consulta/sentencia/:slug`, PDF público | ALLOW | ALLOW | ALLOW | ALLOW | ALLOW | ALLOW |
 | `/login` | ALLOW | REDIRECT_LOGIN si ya inició sesión | REDIRECT_LOGIN si ya inició sesión | REDIRECT_LOGIN si ya inició sesión | REDIRECT_LOGIN si ya inició sesión | REDIRECT_LOGIN si ya inició sesión |
 | `/galilei` | REDIRECT_LOGIN | ALLOW | ALLOW | ALLOW | CONDITIONAL: requiere sesión | CONDITIONAL: requiere sesión |
-| `/busqueda-avanzada` | REDIRECT_LOGIN | ALLOW | ALLOW | ALLOW | CONDITIONAL: requiere sesión | CONDITIONAL: requiere sesión |
+| `/consulta` (búsqueda común autenticada o anónima) | ALLOW | ALLOW | ALLOW | ALLOW | ALLOW | ALLOW |
+| `/busqueda-avanzada` | REDIRECT_LOGIN | DENY* | ALLOW | DENY | DENY por rol global | DENY por rol global |
 | `/sentencias`, `/sumarios` y detalle interno | REDIRECT_LOGIN | ALLOW | ALLOW | DENY | DENY por rol global | DENY por rol global |
 | `/jurisprudencia/ingreso` | REDIRECT_LOGIN | ALLOW | ALLOW | CONDITIONAL: consulta/lectura; escritura denegada | DENY por rol global | DENY por rol global |
 | `/revision`, `/citas-pendientes` | REDIRECT_LOGIN | ALLOW | ALLOW | ALLOW | DENY por rol global | DENY por rol global |
@@ -56,7 +65,7 @@ Los nombres de rol global que existen en `server/src/auth/constants.ts` son:
 | `/admin/usuarios`, `/admin/logs` | REDIRECT_LOGIN | ALLOW | DENY | DENY | DENY por rol global | DENY por rol global |
 | `/archivos`, `/favoritos`, `/busquedas-guardadas`, `/institutos-juridicos`, `/normas` | REDIRECT_LOGIN | ALLOW | DENY | DENY | DENY por rol global | DENY por rol global |
 
-El alias `/jurisprudencia` lleva a la búsqueda interna; no reemplaza `/consulta`. La ruta pública `/comparar` y el resolvedor público de evolución muestran sólo fallos públicos. Guardar o abrir material propio requiere sesión.
+Los alias `/busqueda` y `/jurisprudencia` llevan a avanzada sólo con rol `JURISPRUDENCIA`; para los demás perfiles llevan a `/consulta`. `*` El modelo `Usuario` contiene un único `rolId` y no tiene membresía global secundaria de Jurisprudencia: hoy no puede representar una cuenta `ADMIN` combinada con pertenencia Jurisprudencia. Por eso `ADMIN` sin ese rol queda denegado; habilitar combinaciones requeriría una decisión y un cambio estructural aparte. La ruta pública `/comparar` y el resolvedor público de evolución muestran sólo fallos públicos. Guardar o abrir material propio requiere sesión.
 
 ### Matriz de capacidades editoriales reales
 
@@ -135,7 +144,8 @@ El resto de las operaciones de escritura sobre jurisprudencia, archivos, usuario
 
 ## API interna y datos compartidos
 
-- `GET /api/busqueda/avanzada` acepta los seis roles globales. `ADMIN` busca con visibilidad `ADMIN`; los otros perfiles autenticados usan `INTERNAL`. La política interna admite registros activos no publicados que corresponden a trabajo editorial; no equivale a publicación pública.
+- `GET /api/busqueda/avanzada`, su exportación, interpretación, búsqueda simple interna y catálogos/sugerencias internos requieren exclusivamente `JURISPRUDENCIA`. Una URL directa de otro perfil redirige a `/consulta`; las llamadas API manuales reciben denegación del `RolesGuard` antes de ejecutar Search.
+- La búsqueda común usa `/api/public/busqueda` incluso con sesión: es lectura de material publicado y activo; conserva filtros, resultados, Fallo, Sumario y PDF público para todos los perfiles. La búsqueda por cita (`/api/busqueda/cita`) es un permiso separado y mantiene el acceso actual de Revisor.
 - `/api/sentencias*` y `/api/sumarios*` restringen CRUD al conjunto de roles indicado en la matriz. Las acciones de publicación son endpoints separados.
 - `/api/corpus/institutional-ingestions/*` permite lectura a ADMIN/OPERADOR/REVISOR/JURISPRUDENCIA; metadata, vínculo, creación de borrador, cancelación y retry sólo a ADMIN/OPERADOR/JURISPRUDENCIA.
 - `/api/corpus/curation/*` separa lectura, revisión de asociaciones/clasificaciones, acciones de selección jurisprudencial y acciones Digesto con roles distintos.
@@ -157,4 +167,5 @@ Para autenticación institucional futura, evaluar primero SSO OIDC/SAML respalda
 - `PUBLIC_API_ALLOWLIST_TEST`: debe mantener sólo las cuatro operaciones públicas no-GET explícitas.
 - Pruebas de UX anónima: portada, filtros, Sumario/Fallo/PDF, rutas directas/refresh, errores controlados y ausencia de navegación interna.
 - Pruebas de URL privada anónima: cada ruta devuelve al login; acceso de API interno sigue bajo el guard JWT global.
+- `client/tests/jurisprudence-search-access.test.mjs` cubre público, Sala/Juzgado Viewer/Editor, Revisor, Jurisprudencia y Admin sin Jurisprudencia; `server/src/busqueda/busqueda-advanced-acl.spec.ts` ejecuta la `RolesGuard` contra cada operación avanzada y verifica que Search común y cita no se recorten.
 - La matriz de cuentas beta reales y el runtime final deben verificarse en el cierre de deploy; este documento no afirma una aceptación UAT institucional.

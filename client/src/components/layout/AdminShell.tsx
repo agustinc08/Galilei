@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '../ui/Button';
 import { LineIcon } from '../ui/LineIcon';
 import styles from './layout.module.css';
+import { jurisprudenceSearchPathForRole } from '@/lib/jurisprudence-search-access';
 
 const mainDestinations = [
   { href: '/busqueda-avanzada', label: 'Jurisprudencia', key: 'jurisprudencia', icon: 'research' },
@@ -58,6 +59,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const sidebarRef = useRef<HTMLElement>(null);
   const active = activeDestination(pathname);
   const breadcrumb = breadcrumbLabel(active);
+  const roleDestinations = mainDestinations.map((item) =>
+    item.key === 'jurisprudencia'
+      ? { ...item, href: jurisprudenceSearchPathForRole(user?.rol.nombre) }
+      : item,
+  );
 
   useEffect(() => {
     const closeAfterHistoryNavigation = () => setMenuOpen(false);
@@ -93,11 +99,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
         <nav id="galilei-primary-navigation" className={styles.nav} aria-label="Navegación principal">
           <p className={styles.navSectionLabel}>TRABAJO</p>
-          {mainDestinations.map((item) => {
+          {roleDestinations.map((item) => {
             const isActive = active === item.key;
             return (
               <Link
-                key={item.href}
+                key={item.key}
                 href={item.href}
                 onClick={() => setMenuOpen(false)}
                 aria-current={isActive ? 'page' : undefined}

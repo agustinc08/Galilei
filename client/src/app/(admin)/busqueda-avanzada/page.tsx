@@ -17,6 +17,7 @@ import { trackEvento } from '@/lib/tracking';
 import { downloadBlob } from '@/lib/utils';
 import { highlightSearchSnippet } from '@/lib/search-snippet-highlight';
 import { useAuth } from '@/hooks/use-auth';
+import { canAccessAdvancedJurisprudenceSearch } from '@/lib/jurisprudence-search-access';
 import { Link } from "@/lib/router-compat";
 import type { PaginatedResponse } from '@/types/common';
 import type { BusquedaAvanzadaFilters, BusquedaResultado, FederatedSearchPage } from '@/types/busqueda';
@@ -117,6 +118,7 @@ export default function BusquedaAvanzadaPage() {
   const [tags, setTags] = useState<TaxonomyOption[]>([]);
   const restoreSearchOnMount = useRef(Boolean(restoredFilters?.q?.trim()));
   const canAdministerSearch = ['ADMIN', 'OPERADOR'].includes(user?.rol.nombre ?? '');
+  const canExportAdvancedSearch = canAccessAdvancedJurisprudenceSearch(user?.rol.nombre);
   useEffect(() => {
     void api.get<CollectionOption[]>('/corpus/curation/digesto/collections').then(setCollections).catch(() => setCollections([]));
     void api.get<TaxonomyOption[]>('/corpus/curation/digesto/topics').then(setTopics).catch(() => setTopics([]));
@@ -180,7 +182,7 @@ export default function BusquedaAvanzadaPage() {
     <div className={styles.section}>
       <PageHeader
         title="Búsqueda avanzada"
-        description="Herramienta interna de consulta fina para operadores y cargadores."
+        description="Consulta de jurisprudencia con filtros avanzados para el equipo de Jurisprudencia."
       />
 
       {feedback ? <StatusMessage variant="success" title="Operacion realizada" message={feedback} /> : null}
@@ -204,9 +206,9 @@ export default function BusquedaAvanzadaPage() {
           setResult(null);
         }}
         onGuardarBusqueda={canAdministerSearch ? () => void saveSearch() : undefined}
-        onExportar={canAdministerSearch ? exportResults : undefined}
+        onExportar={canExportAdvancedSearch ? exportResults : undefined}
         mostrarFiltrosInternos
-        mostrarExportar={canAdministerSearch}
+        mostrarExportar={canExportAdvancedSearch}
         mostrarGuardarBusqueda={canAdministerSearch}
       />
 

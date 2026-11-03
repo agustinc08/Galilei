@@ -37,6 +37,7 @@ export class BusquedaController {
   constructor(private readonly busquedaService: BusquedaService) {}
 
   @Get('avanzada')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Búsqueda avanzada interna' })
   async avanzada(
     @Query() query: BusquedaAvanzadaQueryDto,
@@ -112,6 +113,7 @@ export class BusquedaController {
   }
 
   @Get('interpretar')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({
     summary: 'Explica la gramática de búsqueda en entornos no productivos',
   })
@@ -123,7 +125,7 @@ export class BusquedaController {
   }
 
   @Get('avanzada/exportar')
-  @Roles(ROLES.ADMIN, ROLES.OPERADOR)
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Exporta resultados de la busqueda administrativa' })
   async exportar(
     @Query() query: ExportarBusquedaQueryDto,
@@ -225,6 +227,7 @@ export class BusquedaController {
   }
 
   @Get('simple')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Busqueda simple interna' })
   async simple(
     @Query('query') query: string,
@@ -248,60 +251,70 @@ export class BusquedaController {
   }
 
   @Get('sugerencias')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Sugerencias de búsqueda' })
   sugerencias(@Query() query: SugerenciasQueryDto) {
     return this.busquedaService.sugerencias(query.q);
   }
 
   @Get('sugerencias/temas')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Sugerencias de temas' })
   sugerenciasTemas(@Query() query: SugerenciasQueryDto) {
     return this.busquedaService.sugerenciasTemas(query.q);
   }
 
   @Get('sugerencias/magistrados')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Sugerencias de magistrados' })
   sugerenciasMagistrados(@Query() query: SugerenciasQueryDto) {
     return this.busquedaService.sugerenciasMagistrados(query.q);
   }
 
   @Get('sugerencias/salas')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Sugerencias de salas' })
   sugerenciasSalas(@Query() query: SugerenciasQueryDto) {
     return this.busquedaService.sugerenciasSalas(query.q);
   }
 
   @Get('sugerencias/tipos-fallo')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Sugerencias de tipos de fallo' })
   sugerenciasTipos(@Query() query: SugerenciasQueryDto) {
     return this.busquedaService.sugerenciasTiposFallo(query.q);
   }
 
   @Get('sugerencias/expedientes')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Sugerencias de expedientes' })
   sugerenciasExpedientes(@Query() query: SugerenciasQueryDto) {
     return this.busquedaService.sugerenciasExpedientes(query.q);
   }
 
   @Get('sugerencias/caratulas')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Sugerencias de caratulas' })
   sugerenciasCaratulas(@Query() query: SugerenciasQueryDto) {
     return this.busquedaService.sugerenciasCaratulas(query.q);
   }
 
   @Get('temas')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Temas disponibles para filtros' })
   temas() {
     return this.busquedaService.temas();
   }
 
   @Get('salas')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Salas disponibles para filtros' })
   salas() {
     return this.busquedaService.salas();
   }
 
   @Get('tipos-fallo')
+  @Roles(ROLES.JURISPRUDENCIA)
   @ApiOperation({ summary: 'Tipos de fallo disponibles para filtros' })
   tiposFallo() {
     return this.busquedaService.tiposFallo();
