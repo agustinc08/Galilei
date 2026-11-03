@@ -25,6 +25,10 @@ function isExpectedNetworkStatus(url, status) {
         parsed.pathname.endsWith('/api/public/busqueda') &&
         Number(parsed.searchParams.get('page')) === 999999
       ) return true;
+      if (
+        parsed.pathname.endsWith('/api/public/busqueda') &&
+        (parsed.searchParams.get('q') || '').length > 512
+      ) return true;
     } catch {
       // The request URL can be malformed in synthetic browser failures.
     }

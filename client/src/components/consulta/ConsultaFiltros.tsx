@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { SearchAutocomplete } from '@/components/ui/SearchAutocomplete';
+import { SEARCH_QUERY_MAX_LENGTH } from '../../../../server/src/busqueda/search-query-constraints';
 import { Select } from '@/components/ui/Select';
 import type { ConsultaPublicaFilters } from '@/types/busqueda';
 import { SearchHelpModal } from './SearchHelpModal';
@@ -50,6 +51,7 @@ export function ConsultaFiltros({
             endpoint="/public/busqueda/sugerencias"
             skipAuth
             placeholder={'Buscar (ej: accidente moto, "daño moral", accidente -penal)'}
+            maxLength={SEARCH_QUERY_MAX_LENGTH}
           />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Button variant="secondary" onClick={() => setShowHelp(true)}>

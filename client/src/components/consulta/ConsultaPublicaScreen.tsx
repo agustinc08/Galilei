@@ -16,7 +16,7 @@ import { StatusMessage } from '@/components/ui/StatusMessage';
 import { SavePublicSearchDialog } from './SavePublicSearchDialog';
 import { useAuth } from '@/hooks/use-auth';
 import { useCatalogos } from '@/hooks/use-catalogos';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { limpiarFiltrosBusqueda } from '@/lib/busqueda';
 import { trackEvento } from '@/lib/tracking';
 import { canonicalPublicSearchPath, publicSearchStateFromUrl } from '@/lib/research-continuity';
@@ -26,6 +26,7 @@ import type {
   ConsultaPublicaFilters,
   ConsultaPublicaResultado,
 } from '@/types/busqueda';
+import { SEARCH_QUERY_TOO_LONG_MESSAGE } from '../../../../server/src/busqueda/search-query-constraints';
 
 const PRINT_STORAGE_KEY = 'consulta-print-payload';
 
@@ -89,9 +90,11 @@ function ConsultaPublicaScreenContent() {
   } = useCatalogos(true);
   const [result, setResult] =
     useState<PaginatedResponse<ConsultaPublicaResultado> | null>(null);
+  const [resultForSearchKey, setResultForSearchKey] = useState<string | null>(null);
   const [showResultFacets, setShowResultFacets] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorForSearchKey, setErrorForSearchKey] = useState<string | null>(null);
   const [pdfMessage, setPdfMessage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [temas, setTemas] = useState<string[]>([]);
@@ -116,6 +119,10 @@ function ConsultaPublicaScreenContent() {
   const filters = useMemo<ConsultaPublicaFilters>(
     () => filtersFromSearchParams(new URLSearchParams(searchParams.toString())),
     [searchParams],
+  );
+  const searchKey = useMemo(
+    () => buildQueryString(limpiarFiltrosBusqueda(filters)),
+    [filters],
   );
 
   useEffect(() => {
@@ -156,8 +163,13 @@ function ConsultaPublicaScreenContent() {
     let active = true;
 
     const load = async () => {
+      const requestKey = buildQueryString(limpiarFiltrosBusqueda(filters));
       setIsLoading(true);
       setError(null);
+      setErrorForSearchKey(null);
+      setResult(null);
+      setResultForSearchKey(null);
+      setSelectedIds([]);
 
       try {
         const response = await api.get<PaginatedResponse<ConsultaPublicaResultado>>(
@@ -170,9 +182,17 @@ function ConsultaPublicaScreenContent() {
 
         if (!active) return;
         setResult(response);
-      } catch {
+        setResultForSearchKey(requestKey);
+      } catch (caught) {
         if (!active) return;
-        setError('No pudimos completar la búsqueda. Intentá nuevamente.');
+        setErrorForSearchKey(requestKey);
+        setError(
+          caught instanceof ApiError &&
+            caught.status === 400 &&
+            caught.message === SEARCH_QUERY_TOO_LONG_MESSAGE
+            ? caught.message
+            : 'No pudimos completar la búsqueda. Intentá nuevamente.',
+        );
       } finally {
         if (active) {
           setIsLoading(false);
@@ -223,7 +243,9 @@ function ConsultaPublicaScreenContent() {
     return () => { active = false; };
   }, [canManagePersonalResearch, user?.id]);
 
-  const currentData = result?.data ?? [];
+  const currentResult = resultForSearchKey === searchKey ? result : null;
+  const currentError = errorForSearchKey === searchKey ? error : null;
+  const currentData = currentResult?.data ?? [];
   const selectedItems = currentData.filter((item) => selectedIds.includes(item.id));
   const selectedSalaFacet = (values: string[]) => {
     const selected = [...new Set(filters.salas ?? [])].sort();
@@ -231,7 +253,7 @@ function ConsultaPublicaScreenContent() {
     return selected.length === candidate.length && selected.every((value, index) => value === candidate[index]);
   };
   const salaFilterLabel = filters.salas?.length
-    ? result?.meta.facets?.salas.find((facet) => selectedSalaFacet(facet.filterValues))?.value ?? filters.salas.join(' / ')
+    ? currentResult?.meta.facets?.salas.find((facet) => selectedSalaFacet(facet.filterValues))?.value ?? filters.salas.join(' / ')
     : filters.sala
       ? (filters.sala.toLowerCase().startsWith('sala') ? filters.sala : `Sala ${filters.sala}`)
       : '';
@@ -467,8 +489,8 @@ function ConsultaPublicaScreenContent() {
           <strong>
             {isLoading
               ? 'Buscando…'
-              : result
-                ? `${result.meta.total.toLocaleString('es-AR')} ${result.meta.total === 1 ? 'resultado' : 'resultados'}`
+              : currentResult
+                ? `${currentResult.meta.total.toLocaleString('es-AR')} ${currentResult.meta.total === 1 ? 'resultado' : 'resultados'}`
               : 'Consulta pública de sumarios y fallos publicados'}
           </strong>
         </div>
@@ -493,7 +515,7 @@ function ConsultaPublicaScreenContent() {
         </div>
       </div>
 
-      {result && result.data.length > 0 && result.meta.facets ? (
+      {currentResult && currentResult.data.length > 0 && currentResult.meta.facets ? (
         <Card className={styles.facetCard}>
           <section aria-labelledby="search-facets-heading" className={styles.facetSection}>
             <div className={styles.facetHeader}>
@@ -502,15 +524,15 @@ function ConsultaPublicaScreenContent() {
                 {showResultFacets ? <p>Los conteos corresponden a la consulta y a los filtros activos.</p> : null}
               </div>
               <Button type="button" variant="secondary" aria-expanded={showResultFacets} aria-controls="search-result-facets" onClick={() => setShowResultFacets((current) => !current)}>
-                {showResultFacets ? 'Ocultar filtros' : 'Mostrar filtros'} · {result.meta.facets.salas.length + result.meta.facets.years.length}
+                {showResultFacets ? 'Ocultar filtros' : 'Mostrar filtros'} · {currentResult.meta.facets.salas.length + currentResult.meta.facets.years.length}
               </Button>
             </div>
             <div id="search-result-facets" className={styles.facetBody} hidden={!showResultFacets}>
-              {result.meta.facets.salas.length ? (
+              {currentResult.meta.facets.salas.length ? (
                 <div>
                   <h3>Salas</h3>
                   <div className={styles.facetList}>
-                    {result.meta.facets.salas.map((facet) => (
+                    {currentResult.meta.facets.salas.map((facet) => (
                       <Button key={facet.value} variant={selectedSalaFacet(facet.filterValues) ? 'primary' : 'secondary'} onClick={() => { setShowResultFacets(true); updateRoute((current) => ({ ...current, sala: '', salas: selectedSalaFacet(facet.filterValues) ? [] : facet.filterValues, page: 1 })); }}>
                         {facet.value} ({facet.count.toLocaleString('es-AR')})
                       </Button>
@@ -518,11 +540,11 @@ function ConsultaPublicaScreenContent() {
                   </div>
                 </div>
               ) : null}
-              {result.meta.facets.years.length ? (
+              {currentResult.meta.facets.years.length ? (
                 <div>
                   <h3>Años de decisión</h3>
                   <div className={styles.facetList}>
-                    {result.meta.facets.years.map((facet) => (
+                    {currentResult.meta.facets.years.map((facet) => (
                       <Button key={facet.value} variant={filters.anio === String(facet.value) ? 'primary' : 'secondary'} onClick={() => { setShowResultFacets(true); updateRoute((current) => ({ ...current, anio: current.anio === String(facet.value) ? '' : String(facet.value), page: 1 })); }}>
                         {facet.value} ({facet.count.toLocaleString('es-AR')})
                       </Button>
@@ -549,15 +571,15 @@ function ConsultaPublicaScreenContent() {
 
       {isLoading ? (
         <LoadingSpinner label="Buscando fallos…" />
-      ) : error ? (
+      ) : currentError ? (
         <StatusMessage
           variant="error"
           title="No se pudo completar la consulta"
-          message={error}
+          message={currentError}
         />
-      ) : !result ? (
+      ) : !currentResult ? (
         <div className={styles.emptyState} role="status"><strong>No hay resultados para mostrar.</strong></div>
-      ) : result.data.length === 0 ? (
+      ) : currentResult.data.length === 0 ? (
         <div className={styles.emptyState} role="status">
           <strong>No encontramos fallos con estos criterios.</strong>
           <span>Modificá la búsqueda o quitá los filtros para probar de nuevo.</span>
@@ -569,7 +591,7 @@ function ConsultaPublicaScreenContent() {
         <>
           <ResultadosJurisprudencia
             modo="publico"
-            data={result.data}
+            data={currentResult.data}
             selectedIds={selectedIds}
             onToggle={handleToggleSelected}
             onMissingPdf={() =>
@@ -585,10 +607,10 @@ function ConsultaPublicaScreenContent() {
           />
           <Card>
             <ConsultaPaginacion
-              page={result.meta.page}
-              pageCount={result.meta.pageCount}
-              total={result.meta.total}
-              pageSize={result.meta.pageSize}
+              page={currentResult.meta.page}
+              pageCount={currentResult.meta.pageCount}
+              total={currentResult.meta.total}
+              pageSize={currentResult.meta.pageSize}
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
             />

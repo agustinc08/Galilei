@@ -145,6 +145,9 @@ function fixtureForRequest(request) {
   if (method === 'GET' && pathname === '/public/busqueda/sugerencias') return json(200, { data: [{ value: 'responsabilidad civil', tipo: 'tema', total: 4 }] });
   if (method === 'GET' && pathname === '/public/busqueda') {
     const query = url.searchParams.get('q') || '';
+    if (query.length > 512) {
+      return json(400, { message: 'La búsqueda es demasiado larga. Reducí el texto e intentá nuevamente.' });
+    }
     if (Number(url.searchParams.get('page') || 1) === 999999) {
       return json(400, { message: 'La página solicitada excede el límite disponible para esta búsqueda.' });
     }
@@ -158,6 +161,16 @@ function fixtureForRequest(request) {
       });
     }
     const page = Math.min(2, Math.max(1, Number(url.searchParams.get('page') || 1)));
+    if (query === 'UX_QA_QUERY_A' || query === 'UX_QA_QUERY_C') {
+      const label = query === 'UX_QA_QUERY_A' ? 'Consulta A' : 'Consulta C';
+      return json(200, {
+        data: pages[page - 1].map((item, index) => ({
+          ...item,
+          caratula: `${label} — resultado ${index + 1}`,
+        })),
+        meta: { total: 4, page, pageSize: 2, pageCount: 2, totalExact: true, hasMore: page < 2, sortUsed: 'fixture', tiempoMs: 1 },
+      });
+    }
     return json(200, {
       data: pages[page - 1],
       meta: { total: 4, page, pageSize: 2, pageCount: 2, totalExact: true, hasMore: page < 2, sortUsed: 'fixture', tiempoMs: 1 },

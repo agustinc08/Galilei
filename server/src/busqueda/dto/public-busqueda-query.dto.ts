@@ -13,6 +13,10 @@ import {
   Min,
 } from 'class-validator';
 import { BooleanQuery } from '../../common/dto/pagination-query.dto';
+import {
+  SEARCH_QUERY_MAX_LENGTH,
+  SEARCH_QUERY_TOO_LONG_MESSAGE,
+} from '../search-query-constraints';
 
 function toStringArray(value: unknown): string[] | undefined {
   if (value === undefined || value === null || value === '') {
@@ -83,9 +87,15 @@ export class PublicBusquedaQueryDto {
   @Max(300)
   pageSize?: number = 25;
 
-  @ApiPropertyOptional({ example: 'danio moral' })
+  @ApiPropertyOptional({
+    example: 'danio moral',
+    maxLength: SEARCH_QUERY_MAX_LENGTH,
+  })
   @IsOptional()
   @IsString()
+  @MaxLength(SEARCH_QUERY_MAX_LENGTH, {
+    message: SEARCH_QUERY_TOO_LONG_MESSAGE,
+  })
   q?: string;
 
   @ApiPropertyOptional({ example: 'danio moral' })

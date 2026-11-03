@@ -6,7 +6,7 @@ const { classifyConsoleMessage, classifyRequestFailure, isExpectedNetworkStatus 
 
 const test = base.extend({
   page: async ({ page }, use) => {
-    const diagnostics = { console: [], pageErrors: [], networkErrors: [], fixtureMisses: [], expectedInvalidSearchPageConsoleErrors: 0 };
+    const diagnostics = { console: [], pageErrors: [], networkErrors: [], fixtureMisses: [], expectedInvalidSearchPageConsoleErrors: 0, expectedLongSearchConsoleErrors: 0 };
     page.__uxQaDiagnostics = diagnostics;
     page.on('console', (message) => {
       const text = message.text();
@@ -19,6 +19,14 @@ const test = base.extend({
         diagnostics.expectedInvalidSearchPageConsoleErrors -= 1;
         classification = 'EXPECTED_INVALID_SEARCH_PAGE';
       }
+      if (
+        message.type() === 'error' &&
+        diagnostics.expectedLongSearchConsoleErrors > 0 &&
+        /status of 400 \(Bad Request\)/iu.test(text)
+      ) {
+        diagnostics.expectedLongSearchConsoleErrors -= 1;
+        classification = 'EXPECTED_LONG_SEARCH_REJECTION';
+      }
       diagnostics.console.push({ type: message.type(), text, classification });
     });
     page.on('pageerror', (error) => diagnostics.pageErrors.push({ text: error.message }));
@@ -27,6 +35,9 @@ const test = base.extend({
         const url = new URL(response.url());
         if (url.pathname.endsWith('/api/public/busqueda') && Number(url.searchParams.get('page')) === 999999) {
           diagnostics.expectedInvalidSearchPageConsoleErrors += 1;
+        }
+        if (url.pathname.endsWith('/api/public/busqueda') && (url.searchParams.get('q') || '').length > 512) {
+          diagnostics.expectedLongSearchConsoleErrors += 1;
         }
       }
       if (response.status() >= 400 && !isExpectedNetworkStatus(response.url(), response.status())) {

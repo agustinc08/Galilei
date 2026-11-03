@@ -13,6 +13,7 @@ type Props = {
   value: string;
   endpoint: string;
   placeholder?: string;
+  maxLength?: number;
   skipAuth?: boolean;
   onChange: (value: string) => void;
   onSelect?: (value: string, suggestion: SearchSuggestion) => void;
@@ -31,6 +32,7 @@ export function SearchAutocomplete({
   value,
   endpoint,
   placeholder,
+  maxLength,
   skipAuth = false,
   onChange,
   onSelect,
@@ -45,7 +47,10 @@ export function SearchAutocomplete({
   const visibleSuggestions = trimmedValue.length < 3 ? [] : suggestions;
 
   useEffect(() => {
-    if (trimmedValue.length < 3) {
+    if (
+      trimmedValue.length < 3 ||
+      (maxLength !== undefined && trimmedValue.length > maxLength)
+    ) {
       return;
     }
 
@@ -86,7 +91,7 @@ export function SearchAutocomplete({
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [endpoint, skipAuth, trimmedValue]);
+  }, [endpoint, maxLength, skipAuth, trimmedValue]);
 
   const applySuggestion = (suggestion: SearchSuggestion) => {
     onChange(suggestion.value);
@@ -110,6 +115,7 @@ export function SearchAutocomplete({
         className={styles.input}
         value={value}
         placeholder={placeholder}
+        maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
         onFocus={() => {
           if (suggestions.length) {

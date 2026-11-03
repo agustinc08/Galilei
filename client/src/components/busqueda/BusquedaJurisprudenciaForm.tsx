@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { ExportMenu } from '@/components/ui/ExportMenu';
 import { Input } from '@/components/ui/Input';
 import { SearchAutocomplete } from '@/components/ui/SearchAutocomplete';
+import { SEARCH_QUERY_MAX_LENGTH } from '../../../../server/src/busqueda/search-query-constraints';
 import { Select } from '@/components/ui/Select';
 import { formatDateInput, maskDateInput, parseDateInput } from '@/lib/utils';
 import type { BusquedaAvanzadaFilters, ConsultaPublicaFilters } from '@/types/busqueda';
@@ -159,6 +160,7 @@ export function BusquedaJurisprudenciaForm({
             endpoint={`${suggestionBase}/sugerencias`}
             skipAuth={autocompleteSkipAuth}
             placeholder="Tema, palabras, carátula o expediente"
+            maxLength={SEARCH_QUERY_MAX_LENGTH}
           />
           <div className={sentenciaStyles.inlineActions}>
             {publicMode ? (

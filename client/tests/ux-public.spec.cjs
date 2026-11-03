@@ -371,4 +371,51 @@ test.describe('Search user-facing states @public @state', () => {
     await expect(page.getByText(/SEARCH_PAGE_WINDOW_EXCEEDED|OpenSearchException|internal fixture diagnostic/u)).toHaveCount(0);
     await captureAndCheck(page, testInfo, { id: 'search-extreme-page', route: '/consulta?page=999999' });
   });
+
+  test('a rejected long query clears prior results and a new query recovers', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const searchResponses = [];
+    page.on('response', (response) => {
+      const url = new URL(response.url());
+      if (url.pathname.endsWith('/api/public/busqueda')) {
+        searchResponses.push({ query: url.searchParams.get('q') || '', status: response.status() });
+      }
+    });
+
+    await page.goto('/consulta?q=UX_QA_QUERY_A');
+    const input = page.getByLabel('Buscar jurisprudencia');
+    await expect(input).toHaveAttribute('maxlength', '512');
+    await expect(page.getByRole('heading', { name: 'Consulta A — resultado 1', exact: true })).toBeVisible();
+    await expect(page.getByText('4 resultados', { exact: true })).toBeVisible();
+
+    const tooLongQuery = 'x'.repeat(513);
+    await page.evaluate((query) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('q', query);
+      url.searchParams.delete('page');
+      window.history.pushState({}, '', url);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }, tooLongQuery);
+
+    const longQueryError = page.locator('[role="alert"]').filter({ hasText: 'No se pudo completar la consulta' });
+    await expect(longQueryError).toContainText('La búsqueda es demasiado larga. Reducí el texto e intentá nuevamente.');
+    await expect(page.getByRole('heading', { name: 'Consulta A — resultado 1', exact: true })).toHaveCount(0);
+    await expect(page.getByText('4 resultados', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Buscando fallos…')).toHaveCount(0);
+
+    await input.fill('UX_QA_QUERY_C');
+    await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Consulta C — resultado 1', exact: true })).toBeVisible();
+    await expect(page.getByText('4 resultados', { exact: true })).toBeVisible();
+    await expect(longQueryError).toHaveCount(0);
+
+    expect(searchResponses).toEqual(expect.arrayContaining([
+      { query: 'UX_QA_QUERY_A', status: 200 },
+      { query: tooLongQuery, status: 400 },
+      { query: 'UX_QA_QUERY_C', status: 200 },
+    ]));
+    expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+    expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
+    expect(page.__uxQaDiagnostics.fixtureMisses).toEqual([]);
+  });
 });
