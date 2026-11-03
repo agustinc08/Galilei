@@ -730,3 +730,10 @@ La implementación conserva schema 39 y el contrato Search; no agrega migración
 La matriz, evidencia por dimensión, limitations y plan de UAT están en `_recovery-work/galilei-page-aware-ocr-research-suite9/evidence/`. `PENDING_HUMAN_GOLD` y `PENDING_HUMAN_UAT` se mantienen visibles. Advertencia no bloqueante: chunk PDF.js >500 kB. Próxima dirección de producto recomendada tras cerrar estos gates: alertas de seguimiento para consultas guardadas, sin inferencia doctrinal.
 
 
+## BETA-010 — cierre (2026-11-03)
+
+| Hallazgo | Estado | Evidencia |
+|---|---|---|
+| Citas verificadas para fallos abiertos por slug o ID | **FIXED / Office validado** | Resolver público compartido con filtros de publicación; tests sintéticos con y sin citas y negativos; smoke de Office con un slug y el ID público `41865`, ambos HTTP 200 incluso tras refresh. Lista vacía confirmada como respuesta válida; errores de endpoint tienen estado visible propio. |
+
+Sin cambios de datos, esquema, índices, Search ni reglas de publicación. Migraciones 39/39; `origin/main` intacta.
