@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { findLinkedCorpusTextSource } from '../sentencias/linked-corpus-source';
+import { SentenciasService } from '../sentencias/sentencias.service';
 import {
   extractIdentifiedCitations,
   type CitationSourceIdentity,
@@ -43,7 +44,10 @@ const CITATION_PARSER_V2_VERSION = 'argentine-citation-parser-v2';
 
 @Injectable()
 export class ResearchRelationshipsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sentenciasService: SentenciasService,
+  ) {}
 
   async extractForSentence(sourceSentenceId: number) {
     const source = await this.prisma.sentencia.findUnique({
@@ -315,13 +319,8 @@ export class ResearchRelationshipsService {
     };
   }
 
-  async findPublicVerifiedRelationships(slug: string) {
-    const current = await this.prisma.sentencia.findFirst({
-      where: { slugPublico: slug, publicado: true, activo: true },
-      select: { id: true },
-    });
-    if (!current)
-      throw new NotFoundException('Sentencia pública no encontrada');
+  async findPublicVerifiedRelationships(identifier: string) {
+    const current = await this.sentenciasService.getPublicIdentity(identifier);
     const data = await this.prisma.sentenciaRelationshipCandidate.findMany({
       where: {
         status: 'VERIFIED',

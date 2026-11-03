@@ -229,6 +229,7 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       expect(pdfResponse.headers()['content-type']).toContain('application/pdf');
       expect(await pdfResponse.request().headerValue('authorization')).toBeNull();
       await expect(page.getByRole('heading', { name: 'Pérez c/ Gutiérrez s/ daños', exact: true })).toBeVisible();
+      await expect(page.getByText('No hay citas verificadas entre fallos publicados para mostrar.', { exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Ocultar panel', exact: true })).toBeVisible();
       await expect(page.getByLabel('Página')).toBeVisible();
       await expect(page.getByLabel('Zoom')).toBeVisible();
@@ -287,6 +288,64 @@ test.describe('public Search and Viewer journey @public @responsive @search @vie
       expect(diagnostics.console.filter((item) => item.classification === 'REACT_WARNING')).toEqual([]);
     });
   }
+});
+
+test.describe('verified citations in the public judgment viewer @public @state', () => {
+  test('shows loading and then verified citations without blocking the judgment', async ({ page }) => {
+    let releaseResponse;
+    const waitForRelease = new Promise((resolve) => {
+      releaseResponse = resolve;
+    });
+    await page.route('**/api/public/sentencias/ux-qa-001/relaciones-verificadas', async (route) => {
+      await waitForRelease;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: [{
+            type: 'CITES',
+            status: 'VERIFIED',
+            rawCitation: 'Cámara Civil, Sala I, 3/2020',
+            page: 4,
+            judgment: {
+              id: 42,
+              slugPublico: null,
+              caratula: 'Fallo sintético citado',
+              numeroSentencia: '3/2020',
+              expediente: 'CIV 3/2020',
+              sala: 'I',
+              fecha: null,
+            },
+          }],
+        }),
+      });
+    });
+
+    await page.goto('/fallos/ux-qa-001');
+    await expect(page.getByRole('heading', { name: 'Pérez c/ Gutiérrez s/ daños', exact: true })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Cargando citas verificadas...' })).toBeVisible();
+    releaseResponse();
+    await expect(page.getByText('Este fallo cita a: Fallo sintético citado', { exact: true })).toBeVisible();
+    await expect(page.getByText('No hay citas verificadas entre fallos publicados para mostrar.', { exact: true })).toHaveCount(0);
+    expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+  });
+
+  test('shows a controlled error when the citation endpoint fails', async ({ page }) => {
+    await page.route('**/api/public/sentencias/ux-qa-001/relaciones-verificadas', async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'internal OpenSearch details' }),
+      });
+    });
+
+    await page.goto('/fallos/ux-qa-001');
+    await expect(page.getByRole('heading', { name: 'Pérez c/ Gutiérrez s/ daños', exact: true })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'No se pudieron cargar las citas verificadas.' })).toBeVisible();
+    await expect(page.getByText('No hay citas verificadas entre fallos publicados para mostrar.', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('internal OpenSearch details', { exact: true })).toHaveCount(0);
+    expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+  });
 });
 
 test.describe('Search user-facing states @public @state', () => {

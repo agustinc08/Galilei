@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { SentenciasService } from '../sentencias/sentencias.service';
 import { ResearchRelationshipsService } from './research-relationships.service';
 
 function serviceWith(overrides: Record<string, unknown> = {}) {
@@ -23,11 +24,22 @@ function serviceWith(overrides: Record<string, unknown> = {}) {
     corpusDocumentLink: { findMany: jest.fn().mockResolvedValue([]) },
     ...overrides,
   };
+  const sentenciasService = {
+    getPublicIdentity: jest
+      .fn<
+        (
+          ...args: [string]
+        ) => Promise<{ id: number; slugPublico: string | null }>
+      >()
+      .mockResolvedValue({ id: 10, slugPublico: 'public-slug' }),
+  };
   return {
     service: new ResearchRelationshipsService(
       prisma as unknown as PrismaService,
+      sentenciasService as unknown as SentenciasService,
     ),
     prisma,
+    sentenciasService,
   };
 }
 
@@ -192,19 +204,83 @@ describe('ResearchRelationshipsService', () => {
     }
   });
 
-  it('requires both ends of a public relationship to be published and active', async () => {
-    const { service, prisma } = serviceWith();
-    prisma.sentencia.findFirst.mockResolvedValue({ id: 10 });
-    prisma.sentenciaRelationshipCandidate.findMany.mockResolvedValue([]);
+  it.each([
+    { identifier: 'public-slug', publicSlug: 'public-slug' },
+    { identifier: '10', publicSlug: null },
+  ])(
+    'returns verified citations for public identifier $identifier',
+    async ({ identifier, publicSlug }) => {
+      const { service, prisma, sentenciasService } = serviceWith();
+      sentenciasService.getPublicIdentity.mockResolvedValue({
+        id: 10,
+        slugPublico: publicSlug,
+      });
+      prisma.sentenciaRelationshipCandidate.findMany.mockResolvedValue([
+        {
+          sourceSentenceId: 3,
+          targetSentenceId: 10,
+          rawCitation: 'Cámara Civil, Sala I, 3/2020',
+          page: 4,
+          sourceSentence: { id: 3, slugPublico: 'source', caratula: 'Origen' },
+          targetSentence: { id: 10, slugPublico: null, caratula: 'Destino' },
+        },
+      ]);
 
-    await service.findPublicVerifiedRelationships('public-slug');
+      const result = await service.findPublicVerifiedRelationships(identifier);
 
-    const call = prisma.sentenciaRelationshipCandidate.findMany.mock
-      .calls[0] as unknown as [{ where: Record<string, unknown> }];
-    expect(call[0].where).toMatchObject({
-      status: 'VERIFIED',
-      sourceSentence: { is: { publicado: true, activo: true } },
-      targetSentence: { is: { publicado: true, activo: true } },
-    });
-  });
+      expect(sentenciasService.getPublicIdentity).toHaveBeenCalledWith(
+        identifier,
+      );
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]?.type).toBe('CITED_BY');
+      expect(result.data[0]?.status).toBe('VERIFIED');
+      expect(result.data[0]?.rawCitation).toBe('Cámara Civil, Sala I, 3/2020');
+      expect(result.data[0]?.judgment).toMatchObject({
+        id: 3,
+        caratula: 'Origen',
+      });
+      const call = prisma.sentenciaRelationshipCandidate.findMany.mock
+        .calls[0] as unknown as [{ where: Record<string, unknown> }];
+      expect(call[0].where).toMatchObject({
+        status: 'VERIFIED',
+        OR: [{ sourceSentenceId: 10 }, { targetSentenceId: 10 }],
+        sourceSentence: { is: { publicado: true, activo: true } },
+        targetSentence: { is: { publicado: true, activo: true } },
+      });
+    },
+  );
+
+  it.each(['public-slug', '10'])(
+    'returns a valid empty list for public identifier %s with no citations',
+    async (identifier) => {
+      const { service, prisma } = serviceWith();
+      prisma.sentenciaRelationshipCandidate.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.findPublicVerifiedRelationships(identifier),
+      ).resolves.toEqual({
+        data: [],
+      });
+    },
+  );
+
+  it.each([
+    ['nonexistent', '999999'],
+    ['unpublished', 'private-slug'],
+  ])(
+    'does not query relationships for a %s judgment',
+    async (_case, identifier) => {
+      const { service, prisma, sentenciasService } = serviceWith();
+      sentenciasService.getPublicIdentity.mockRejectedValue(
+        new NotFoundException('Sentencia pública no encontrada'),
+      );
+
+      await expect(
+        service.findPublicVerifiedRelationships(identifier),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(
+        prisma.sentenciaRelationshipCandidate.findMany,
+      ).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -66,6 +66,11 @@ type SameExpedienteResponse = {
   hasMore: boolean;
 };
 
+type VerifiedRelationshipsState =
+  | { status: 'LOADING' }
+  | { status: 'SUCCESS'; data: VerifiedCitationRelationship[] }
+  | { status: 'ERROR' };
+
 function buildTitle(data: FichaSentencia) {
   const sentencia = data.sentencia;
   return (
@@ -111,7 +116,7 @@ export function FalloPublicoViewer({ identifier }: Props) {
   const backHref = requestedReturn.startsWith('/consulta') ? requestedReturn : `/consulta${highlightQuery ? `?q=${encodeURIComponent(highlightQuery)}` : ''}`;
   const [data, setData] = useState<FichaSentencia | null>(null);
   const [relacionados, setRelacionados] = useState<FalloRelacionadoPublico[]>([]);
-  const [verifiedRelationships, setVerifiedRelationships] = useState<VerifiedCitationRelationship[]>([]);
+  const [verifiedRelationshipsState, setVerifiedRelationshipsState] = useState<VerifiedRelationshipsState>({ status: 'LOADING' });
   const [sameExpediente, setSameExpediente] = useState<SameExpedienteResponse | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set());
   const [relationshipMessage, setRelationshipMessage] = useState<string | null>(null);
@@ -148,9 +153,17 @@ export function FalloPublicoViewer({ identifier }: Props) {
     const load = async () => {
       setIsLoading(true);
       setError(null);
+      setVerifiedRelationshipsState({ status: 'LOADING' });
 
       try {
-        const [documentoResponse, relacionadosResponse, relationshipsResponse, sameExpedienteResponse] = await Promise.all([
+        const relationshipsPromise = api
+          .get<ApiResponse<VerifiedCitationRelationship[]>>(
+            `/public/sentencias/${identifier}/relaciones-verificadas`,
+            { skipAuth: true },
+          )
+          .then((response) => ({ status: 'SUCCESS' as const, data: response.data }))
+          .catch(() => ({ status: 'ERROR' as const }));
+        const [documentoResponse, relacionadosResponse, sameExpedienteResponse] = await Promise.all([
           api.get<ApiResponse<FichaSentencia>>(
             `/public/sentencias/${identifier}/documento`,
             { skipAuth: true },
@@ -158,12 +171,6 @@ export function FalloPublicoViewer({ identifier }: Props) {
           api
             .get<ApiResponse<FalloRelacionadoPublico[]>>(
               `/public/sentencias/${identifier}/relacionados`,
-              { skipAuth: true },
-            )
-            .catch(() => ({ data: [] })),
-          api
-            .get<ApiResponse<VerifiedCitationRelationship[]>>(
-              `/public/sentencias/${identifier}/relaciones-verificadas`,
               { skipAuth: true },
             )
             .catch(() => ({ data: [] })),
@@ -178,8 +185,10 @@ export function FalloPublicoViewer({ identifier }: Props) {
         if (!active) return;
         setData(documentoResponse.data);
         setRelacionados(relacionadosResponse.data);
-        setVerifiedRelationships(relationshipsResponse.data);
         setSameExpediente(sameExpedienteResponse);
+        void relationshipsPromise.then((relationshipsResponse) => {
+          if (active) setVerifiedRelationshipsState(relationshipsResponse);
+        });
       } catch (loadError) {
         if (!active) return;
         setError(
@@ -314,9 +323,13 @@ export function FalloPublicoViewer({ identifier }: Props) {
 
           {relationshipMessage ? <p role="status">{relationshipMessage}</p> : null}
           <DocumentoAccordion title="Citas verificadas" defaultOpen>
-            {verifiedRelationships.length ? (
+            {verifiedRelationshipsState.status === 'LOADING' ? (
+              <div role="status" className={styles.emptyBox}>Cargando citas verificadas...</div>
+            ) : verifiedRelationshipsState.status === 'ERROR' ? (
+              <div role="alert" className={styles.emptyBox}>No se pudieron cargar las citas verificadas.</div>
+            ) : verifiedRelationshipsState.data.length ? (
               <div className={styles.relatedList}>
-                {verifiedRelationships.map((relationship, index) => (
+                {verifiedRelationshipsState.data.map((relationship, index) => (
                   <article key={`${relationship.type}-${relationship.judgment.id}-${index}`} className={styles.relatedItem}>
                     <Link href={`/fallos/${relationship.judgment.slugPublico ?? relationship.judgment.id}`}>
                       <strong>{relationship.type === 'CITES' ? 'Este fallo cita a' : 'Citado por'}: {relationship.judgment.caratula ?? relationship.judgment.numeroSentencia ?? `Fallo ${relationship.judgment.id}`}</strong>
