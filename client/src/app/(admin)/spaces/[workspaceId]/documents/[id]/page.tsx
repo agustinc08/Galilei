@@ -32,6 +32,11 @@ type DocumentInfo = {
     mimeType: string;
   } | null;
   extraction: { status: string; pageCount: number } | null;
+  workspaceOcr?: {
+    state: "NOT_REQUIRED" | "NEEDS_OCR" | "PENDING" | "PROCESSING" | "COMPLETED" | "ERROR";
+    canStart: boolean;
+    canRetry: boolean;
+  };
   selectedPage?: { pageNumber: number; text: string; textKind?: 'NATIVE' | 'OCR' };
 };
 type Matches = {
@@ -97,6 +102,18 @@ function viewerError(cause: unknown, fallback: string) {
   return fallback;
 }
 
+function workspaceOcrError(cause: unknown) {
+  if (cause instanceof ApiError) {
+    if (cause.status === 403)
+      return "Solo un editor o administrador de la dependencia puede iniciar el OCR.";
+    if (cause.status === 404 || cause.status === 409)
+      return "Este documento no está disponible para reconocimiento de texto.";
+    if (cause.status === 429)
+      return "La cola de reconocimiento está ocupada. Volvé a intentarlo más tarde.";
+  }
+  return "No pudimos iniciar el reconocimiento. El PDF original sigue disponible.";
+}
+
 export default function WorkspaceDocumentViewer() {
   const params = useParams<{ workspaceId: string; id: string }>();
   const searchParams = useSearchParams();
@@ -131,9 +148,14 @@ export default function WorkspaceDocumentViewer() {
   const [pageCount, setPageCount] = useState(0);
   const [active, setActive] = useState(0);
   const [error, setError] = useState("");
+  const [ocrConfirming, setOcrConfirming] = useState(false);
+  const [ocrSubmitting, setOcrSubmitting] = useState(false);
+  const [ocrActionError, setOcrActionError] = useState("");
   const effectivePageCount =
     pageCount || document?.extraction?.pageCount || document?.file?.pageCount || 0;
   const isPdf = document?.file?.mimeType === "application/pdf";
+  const ocrDocumentId = document?.id;
+  const ocrState = document?.workspaceOcr?.state;
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -162,6 +184,33 @@ export default function WorkspaceDocumentViewer() {
       alive = false;
     };
   }, [params.workspaceId, params.id, page]);
+
+  useEffect(() => {
+    if (
+      !ocrDocumentId ||
+      (ocrState !== "PENDING" && ocrState !== "PROCESSING")
+    ) return;
+
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const refreshStatus = async () => {
+      try {
+        const next = await api.get<DocumentInfo>(
+          `/workspaces/${params.workspaceId}/documents/${params.id}`,
+          { query: { pageNumber: page } },
+        );
+        if (alive) setDocument(next);
+      } catch {
+        // Keep polling through transient network errors.
+      }
+      if (alive) timer = setTimeout(() => void refreshStatus(), 1500);
+    };
+    timer = setTimeout(() => void refreshStatus(), 1500);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [ocrDocumentId, ocrState, params.workspaceId, params.id, page]);
 
   useEffect(() => {
     let alive = true;
@@ -217,6 +266,34 @@ export default function WorkspaceDocumentViewer() {
       setError(viewerError(cause, "No se pudo descargar este documento."));
     }
   }
+
+  async function startWorkspaceOcr() {
+    if (!document?.workspaceOcr?.canStart || ocrSubmitting) return;
+    setOcrSubmitting(true);
+    setOcrActionError("");
+    try {
+      const result = await api.post<{
+        state: NonNullable<DocumentInfo["workspaceOcr"]>["state"];
+        canRetry: boolean;
+      }>(`/workspaces/${params.workspaceId}/documents/${params.id}/ocr`, {});
+      setDocument((current) => current ? {
+        ...current,
+        status: result.state === "PENDING" || result.state === "PROCESSING"
+          ? "OCR_PROCESSING"
+          : current.status,
+        workspaceOcr: {
+          state: result.state,
+          canStart: false,
+          canRetry: result.canRetry,
+        },
+      } : current);
+      setOcrConfirming(false);
+    } catch (cause) {
+      setOcrActionError(workspaceOcrError(cause));
+    } finally {
+      setOcrSubmitting(false);
+    }
+  }
   useEffect(() => {
     if (!initialQuery) return;
     // Search the opened document for a query supplied in its URL.
@@ -245,21 +322,82 @@ export default function WorkspaceDocumentViewer() {
         <p className={styles.viewerError} role="alert">{error}</p>
       ) : (
         <>
-      {document?.status === "OCR_PROCESSING" && (
+      {document?.status === "OCR_PROCESSING" && !document.workspaceOcr && (
         <Card>
           <p>Procesando documento… La búsqueda se actualizará cuando termine.</p>
         </Card>
       )}
-      {document?.status === "OCR_REQUIRED" && (
+      {document?.status === "OCR_REQUIRED" && !document.workspaceOcr && (
         <Card>
           <p role="status">
-            El PDF original está disponible. Todavía no hay texto para buscar; puede requerir OCR y revisión.
+            El PDF original está disponible. Todavía no hay texto para buscar.
           </p>
         </Card>
       )}
-      {document?.status === "OCR_FAILED" && (
+      {document?.status === "OCR_FAILED" && !document.workspaceOcr && (
         <Card>
           <p>No pudimos extraer el texto de este archivo.</p>
+        </Card>
+      )}
+      {document?.workspaceOcr && document.workspaceOcr.state !== "NOT_REQUIRED" && (
+        <Card>
+          <section className={styles.workspaceOcrPanel} aria-label="Reconocimiento de texto del documento">
+            {document.workspaceOcr.state === "NEEDS_OCR" && (
+              <>
+                <p role="status">El PDF original está disponible, pero todavía no hay texto para buscar dentro de él.</p>
+                {document.workspaceOcr.canStart ? (
+                  ocrConfirming ? (
+                    <div className={styles.workspaceOcrConfirm} role="group" aria-label="Confirmar reconocimiento de texto">
+                      <strong>Reconocer texto</strong>
+                      <p>Galilei analizará este PDF para permitir búsquedas dentro de esta dependencia. El archivo original no será modificado.</p>
+                      <div>
+                        <button type="button" className={styles.workspaceOcrCancel} disabled={ocrSubmitting} onClick={() => setOcrConfirming(false)}>Cancelar</button>
+                        <button type="button" className={styles.workspaceOcrButton} disabled={ocrSubmitting} onClick={() => void startWorkspaceOcr()}>
+                          {ocrSubmitting ? "Iniciando OCR…" : "Iniciar OCR"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="button" className={styles.workspaceOcrButton} onClick={() => { setOcrActionError(""); setOcrConfirming(true); }}>
+                      Reconocer texto (OCR)
+                    </button>
+                  )
+                ) : (
+                  <p>Un editor o administrador de la dependencia puede iniciar el reconocimiento.</p>
+                )}
+              </>
+            )}
+            {(document.workspaceOcr.state === "PENDING" || document.workspaceOcr.state === "PROCESSING") && (
+              <p className={styles.workspaceOcrStatus} role="status">
+                {document.workspaceOcr.state === "PENDING" ? "OCR pendiente. El estado se actualizará automáticamente." : "Reconociendo texto…"}
+              </p>
+            )}
+            {document.workspaceOcr.state === "COMPLETED" && (
+              <p className={styles.workspaceOcrComplete} role="status">Texto reconocido. Listo para buscar dentro de este documento.</p>
+            )}
+            {document.workspaceOcr.state === "ERROR" && (
+              <>
+                <p className={styles.workspaceOcrError} role="status">No se pudo reconocer el texto. El PDF original sigue disponible.</p>
+                {document.workspaceOcr.canStart && (
+                  ocrConfirming ? (
+                    <div className={styles.workspaceOcrConfirm} role="group" aria-label="Confirmar reintento de reconocimiento">
+                      <strong>Reintentar reconocimiento</strong>
+                      <p>Galilei volverá a analizar el PDF original, que permanecerá intacto.</p>
+                      <div>
+                        <button type="button" className={styles.workspaceOcrCancel} disabled={ocrSubmitting} onClick={() => setOcrConfirming(false)}>Cancelar</button>
+                        <button type="button" className={styles.workspaceOcrButton} disabled={ocrSubmitting} onClick={() => void startWorkspaceOcr()}>
+                          {ocrSubmitting ? "Iniciando OCR…" : "Iniciar OCR"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="button" className={styles.workspaceOcrButton} onClick={() => { setOcrActionError(""); setOcrConfirming(true); }}>Reintentar OCR</button>
+                  )
+                )}
+              </>
+            )}
+            {ocrActionError && <p className={styles.workspaceOcrError} role="alert">{ocrActionError}</p>}
+          </section>
         </Card>
       )}
       <Card>

@@ -15,7 +15,7 @@ function json(route, body, status = 200) {
   });
 }
 
-async function mountWorkspaceOcr(page, role) {
+async function mountWorkspaceOcr(page, role, options = {}) {
   const workspaceId = `workspace-ocr-${role.toLowerCase()}`;
   const documentId = 'synthetic-private-scan';
   const workspace = {
@@ -34,7 +34,8 @@ async function mountWorkspaceOcr(page, role) {
     rol: { id: 13, nombre: 'JURISPRUDENCIA', descripcion: null },
   };
   const state = {
-    ocr: 'NEEDS_OCR',
+    ocr: options.initialOcr ?? 'NEEDS_OCR',
+    canRetry: options.canRetry ?? false,
     startCalls: 0,
     metadataReadsAfterStart: 0,
     workspaceListCalls: 0,
@@ -74,13 +75,13 @@ async function mountWorkspaceOcr(page, role) {
       return json(route, {
         id: documentId,
         title: 'PDF escaneado de prueba',
-        status: completed ? 'INDEXED' : state.ocr === 'PENDING' ? 'OCR_PROCESSING' : 'OCR_REQUIRED',
+        status: completed ? 'INDEXED' : state.ocr === 'PENDING' || state.ocr === 'PROCESSING' ? 'OCR_PROCESSING' : state.ocr === 'ERROR' ? 'OCR_FAILED' : 'OCR_REQUIRED',
         file: { filename: 'contrato-escaneado.pdf', mimeType: 'application/pdf', pageCount: 1 },
         extraction: { status: completed ? 'OCR_COMPLETE' : 'OCR_REQUIRED', pageCount: 1 },
         workspaceOcr: {
           state: state.ocr,
-          canStart: state.ocr === 'NEEDS_OCR',
-          canRetry: false,
+          canStart: role !== 'VIEWER' && (state.ocr === 'NEEDS_OCR' || (state.ocr === 'ERROR' && state.canRetry)),
+          canRetry: state.canRetry,
         },
         selectedPage: completed
           ? { pageNumber: 1, text: 'Frase OCR QA exclusiva de la Sala', textKind: 'OCR' }
@@ -142,9 +143,14 @@ async function mountWorkspaceOcr(page, role) {
   });
 
   await page.setViewportSize({ width: 1366, height: 768 });
-  await page.goto(`/spaces?workspaceId=${workspaceId}`);
-  await page.getByRole('button', { name: 'Vista previa de contrato-escaneado.pdf' }).click();
-  await expect(page.locator('[data-testid="pdf-viewer-ready"]')).toContainText('página 1');
+  if (options.fullViewer) {
+    await page.goto(`/spaces/${workspaceId}/documents/${documentId}?workspaceId=${workspaceId}&workspaceName=${encodeURIComponent(workspace.name)}`);
+    await expect(page.getByRole('heading', { name: 'PDF escaneado de prueba' })).toBeVisible();
+  } else {
+    await page.goto(`/spaces?workspaceId=${workspaceId}`);
+    await page.getByRole('button', { name: 'Vista previa de contrato-escaneado.pdf' }).click();
+    await expect(page.locator('[data-testid="pdf-viewer-ready"]')).toContainText('página 1');
+  }
   return state;
 }
 
@@ -191,4 +197,46 @@ test('dependency Viewer sees Workspace OCR status but has no action to start it 
   expect(viewerState.publicCalls).toEqual([]);
   expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
   expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
+});
+
+test('existing shared PDF exposes OCR from its full viewer to an Editor without starting a job @workspace-ocr @workspace', async ({ page }) => {
+  const state = await mountWorkspaceOcr(page, 'EDITOR', { fullViewer: true });
+  await expect(page.getByRole('status').filter({ hasText: 'todavía no hay texto para buscar' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reconocer texto (OCR)' })).toBeVisible();
+  expect(state.startCalls).toBe(0);
+  expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+  expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
+});
+
+test('existing shared PDF exposes OCR from its full viewer to an Admin without starting a job @workspace-ocr @workspace', async ({ page }) => {
+  const state = await mountWorkspaceOcr(page, 'ADMIN', { fullViewer: true });
+  await expect(page.getByRole('button', { name: 'Reconocer texto (OCR)' })).toBeVisible();
+  expect(state.startCalls).toBe(0);
+  expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+  expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
+});
+
+test('full viewer keeps OCR unavailable to a Viewer @workspace-ocr @workspace', async ({ page }) => {
+  const state = await mountWorkspaceOcr(page, 'VIEWER', { fullViewer: true });
+  await expect(page.getByText('Un editor o administrador de la dependencia puede iniciar el reconocimiento.')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Reconocer texto|Iniciar OCR|Reintentar OCR/u })).toHaveCount(0);
+  expect(state.startCalls).toBe(0);
+  expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+  expect(page.__uxQaDiagnostics.networkErrors).toEqual([]);
+});
+
+test('full viewer offers retry only for retryable OCR errors and eligible roles @workspace-ocr @workspace', async ({ page }) => {
+  const state = await mountWorkspaceOcr(page, 'EDITOR', { fullViewer: true, initialOcr: 'ERROR', canRetry: true });
+  await expect(page.getByRole('button', { name: 'Reintentar OCR' })).toBeVisible();
+  await page.getByRole('button', { name: 'Reintentar OCR' }).click();
+  const confirm = page.getByRole('group', { name: 'Confirmar reintento de reconocimiento' });
+  await expect(confirm).toContainText('PDF original');
+  await confirm.getByRole('button', { name: 'Cancelar' }).click();
+  expect(state.startCalls).toBe(0);
+});
+
+test('full viewer does not offer OCR again after recognition completes @workspace-ocr @workspace', async ({ page }) => {
+  await mountWorkspaceOcr(page, 'EDITOR', { fullViewer: true, initialOcr: 'COMPLETED' });
+  await expect(page.getByRole('status').filter({ hasText: 'Listo para buscar dentro de este documento' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Reconocer texto|Iniciar OCR|Reintentar OCR/u })).toHaveCount(0);
 });

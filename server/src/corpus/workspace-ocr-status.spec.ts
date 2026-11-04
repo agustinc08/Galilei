@@ -1,4 +1,5 @@
 import {
+  canStartWorkspaceOcr,
   isRetryableWorkspaceOcrError,
   workspaceOcrState,
 } from './workspace-ocr-status';
@@ -27,4 +28,20 @@ describe('Workspace OCR status', () => {
     expect(isRetryableWorkspaceOcrError('OCR_LOW_QUALITY')).toBe(false);
     expect(isRetryableWorkspaceOcrError(null)).toBe(false);
   });
+
+  it.each([
+    ['EDITOR', 'NEEDS_OCR', false, true],
+    ['ADMIN', 'NEEDS_OCR', false, true],
+    ['VIEWER', 'NEEDS_OCR', false, false],
+    ['EDITOR', 'ERROR', true, true],
+    ['VIEWER', 'ERROR', true, false],
+    ['EDITOR', 'ERROR', false, false],
+    ['EDITOR', 'COMPLETED', false, false],
+    ['ADMIN', 'NOT_REQUIRED', false, false],
+  ] as const)(
+    'allows %s to start state %s (retry=%s): %s',
+    (role, state, canRetry, expected) => {
+      expect(canStartWorkspaceOcr({ role, state, canRetry })).toBe(expected);
+    },
+  );
 });

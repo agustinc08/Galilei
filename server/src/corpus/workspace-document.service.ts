@@ -41,6 +41,7 @@ import { normalizeRelativePath } from './document-source-scanner';
 import { LocalPdfOcrProcessor } from './document-local-processors';
 import { enqueueLocalOcrJob } from './ocr-job-queue';
 import {
+  canStartWorkspaceOcr,
   isRetryableWorkspaceOcrError,
   workspaceOcrState,
 } from './workspace-ocr-status';
@@ -3147,7 +3148,7 @@ export class WorkspaceDocumentService {
     user: AuthenticatedUser,
     page?: number,
   ) {
-    await this.requireMembership(workspaceId, user);
+    const membership = await this.requireMembership(workspaceId, user);
     const metadata = await this.documents.metadata(
       id,
       'RESTRICTED',
@@ -3216,7 +3217,11 @@ export class WorkspaceDocumentService {
       ...metadata,
       workspaceOcr: {
         state,
-        canStart: state === 'NEEDS_OCR' || (state === 'ERROR' && canRetry),
+        canStart: canStartWorkspaceOcr({
+          state,
+          role: membership.role,
+          canRetry,
+        }),
         canRetry,
       },
     };

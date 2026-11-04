@@ -22,6 +22,17 @@ export function isRetryableWorkspaceOcrError(
   return Boolean(errorCode && !NON_RETRYABLE_ERRORS.has(errorCode));
 }
 
+export function canStartWorkspaceOcr(input: {
+  state: WorkspaceOcrState;
+  role: string;
+  canRetry: boolean;
+}) {
+  if (input.role !== 'ADMIN' && input.role !== 'EDITOR') return false;
+  return (
+    input.state === 'NEEDS_OCR' || (input.state === 'ERROR' && input.canRetry)
+  );
+}
+
 export function workspaceOcrState(input: {
   documentStatus: string;
   extractionStatus?: string | null;
