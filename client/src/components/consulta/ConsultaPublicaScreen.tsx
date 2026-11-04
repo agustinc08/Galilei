@@ -21,6 +21,7 @@ import { limpiarFiltrosBusqueda } from '@/lib/busqueda';
 import { trackEvento } from '@/lib/tracking';
 import { canonicalPublicSearchPath, publicSearchStateFromUrl } from '@/lib/research-continuity';
 import { safeContextualReturnTarget } from '@/lib/contextual-navigation';
+import { ADVANCED_JURISPRUDENCE_SEARCH_PATH, canAccessAdvancedJurisprudenceSearch } from '@/lib/jurisprudence-search-access';
 import { copyToClipboard } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types/common';
 import type {
@@ -117,6 +118,9 @@ function ConsultaPublicaScreenContent() {
     operador?: string;
   } | null>(null);
   const canManagePersonalResearch = ['ADMIN', 'OPERADOR'].includes(user?.rol.nombre ?? '');
+  const showAdvancedSearchLink = pathname === '/busqueda' && canAccessAdvancedJurisprudenceSearch(user?.rol.nombre);
+  const advancedSearchReturnTo = `${pathname}${searchParams.size ? `?${searchParams.toString()}` : ''}`;
+  const advancedSearchHref = `${ADVANCED_JURISPRUDENCE_SEARCH_PATH}?returnTo=${encodeURIComponent(advancedSearchReturnTo)}`;
 
   const filters = useMemo<ConsultaPublicaFilters>(
     () => filtersFromSearchParams(new URLSearchParams(searchParams.toString())),
@@ -433,6 +437,7 @@ function ConsultaPublicaScreenContent() {
         {user && ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user.rol.nombre) ? (
           <div className={styles.publicHeader}>
             <div className={styles.desktopManagementActions}>
+              {showAdvancedSearchLink ? <Link href={advancedSearchHref}><Button variant="secondary">Búsqueda avanzada</Button></Link> : null}
               {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user.rol.nombre) ? (
                 <>
                   <Link href="/sentencias"><Button variant="secondary">Gestión y borradores</Button></Link>
@@ -444,6 +449,7 @@ function ConsultaPublicaScreenContent() {
             <details className={styles.mobileManagementActions}>
               <summary>Acciones de gestión</summary>
               <div>
+                {showAdvancedSearchLink ? <Link href={advancedSearchHref}><Button variant="secondary">Búsqueda avanzada</Button></Link> : null}
                 {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user.rol.nombre) ? (
                   <>
                     <Link href="/sentencias"><Button variant="secondary">Gestión y borradores</Button></Link>

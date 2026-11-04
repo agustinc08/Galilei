@@ -8,10 +8,9 @@ import { cn } from '@/lib/utils';
 import { Button } from '../ui/Button';
 import { LineIcon } from '../ui/LineIcon';
 import styles from './layout.module.css';
-import { jurisprudenceSearchPathForRole } from '@/lib/jurisprudence-search-access';
 
 const mainDestinations = [
-  { href: '/busqueda-avanzada', label: 'Jurisprudencia', key: 'jurisprudencia', icon: 'research' },
+  { href: '/busqueda', label: 'Jurisprudencia', key: 'jurisprudencia', icon: 'research' },
   { href: '/spaces', label: 'Mi Sala / Juzgado', key: 'spaces', icon: 'workspace' },
   { href: '/personal', label: 'Mis documentos', key: 'personal', icon: 'personal' },
   { href: '/colecciones', label: 'Mis colecciones', key: 'collections', icon: 'collections' },
@@ -22,7 +21,7 @@ function activeDestination(pathname: string) {
   if (pathname.startsWith('/personal')) return 'personal';
   if (pathname.startsWith('/colecciones')) return 'collections';
   if (
-    pathname === '/busqueda' || pathname === '/busqueda-avanzada' ||
+    pathname === '/busqueda' || pathname.startsWith('/busqueda/') || pathname === '/busqueda-avanzada' ||
     pathname.startsWith('/consulta') ||
     pathname.startsWith('/fallos') ||
     pathname.startsWith('/jurisprudencia') ||
@@ -38,6 +37,15 @@ function activeDestination(pathname: string) {
 
 function breadcrumbLabel(key: string | null) {
   return mainDestinations.find((item) => item.key === key)?.label ?? null;
+}
+
+function accountInitials(name: string, surname?: string | null) {
+  const first = name.trim().split(/\s+/u).filter(Boolean)[0] ?? '';
+  const last = surname?.trim().split(/\s+/u).filter(Boolean).at(-1) ?? '';
+  const letters = last
+    ? `${first[0] ?? ''}${last[0] ?? ''}`
+    : Array.from(first).slice(0, 2).join('');
+  return letters.toLocaleUpperCase('es-AR') || 'U';
 }
 
 function NavigationIcon({ name }: { name: (typeof mainDestinations)[number]['icon'] }) {
@@ -67,7 +75,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     : null;
   const roleDestinations = mainDestinations.map((item) => {
     if (item.key !== 'jurisprudencia') return item;
-    const searchPath = jurisprudenceSearchPathForRole(user?.rol.nombre);
+    const searchPath = item.href;
     const href = contextualReturn
       ? `${searchPath}${searchPath.includes('?') ? '&' : '?'}returnTo=${encodeURIComponent(contextualReturn)}`
       : searchPath;
@@ -145,7 +153,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           ) : null}
           <div className={styles.accountGroup}>
             <p className={styles.footerSectionLabel}>CUENTA</p>
-            <strong className={styles.accountName}>{user ? `${user.nombre} ${user.apellido ?? ''}`.trim() : 'Sesión activa'}</strong>
+            <div className={styles.accountIdentity}>
+              {user ? <span className={styles.accountAvatar} aria-hidden="true">{accountInitials(user.nombre, user.apellido)}</span> : null}
+              <strong className={styles.accountName}>{user ? `${user.nombre} ${user.apellido ?? ''}`.trim() : 'Sesión activa'}</strong>
+            </div>
+            <Link className={styles.footerLink} href="/perfil" onClick={() => setMenuOpen(false)}>Mi perfil</Link>
             <Button variant="secondary" onClick={() => { setMenuOpen(false); logout(); }}>Cerrar sesión</Button>
           </div>
         </div>

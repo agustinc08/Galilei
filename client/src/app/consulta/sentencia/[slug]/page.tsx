@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from '@/lib/router-compat';
-import { useSearchParams } from '@/lib/router-compat';
+import { usePathname, useSearchParams } from '@/lib/router-compat';
 import { Link } from "@/lib/router-compat";
 import { useEffect, useState } from 'react';
 import styles from './sumario-detail.module.css';
@@ -21,14 +21,17 @@ import type { PublicSentencia } from '@/types/sentencia';
 import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
 import { EvolutionAddButton } from '@/components/evolution/EvolutionAddButton';
 import { htmlToPlainText } from '@/lib/html-to-plain-text';
+import { safeContextualReturnTarget } from '@/lib/contextual-navigation';
 
 export default function ConsultaSentenciaPublicaPage() {
   const params = useParams<{ slug: string }>();
   const routeSlug = typeof params.slug === 'string' ? params.slug : '';
+  const pathname = usePathname() ?? '/consulta';
   const searchParams = useSearchParams();
   const requestedReturn = searchParams.get('returnTo') ?? '';
+  const safeReturn = safeContextualReturnTarget(requestedReturn);
   const comparison = useComparisonSelection();
-  const backHref = requestedReturn.startsWith('/consulta') ? requestedReturn : '/consulta';
+  const backHref = safeReturn?.href ?? (pathname.startsWith('/busqueda/') ? '/busqueda' : '/consulta');
   const [data, setData] = useState<PublicSentencia | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

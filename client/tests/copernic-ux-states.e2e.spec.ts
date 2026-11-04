@@ -28,7 +28,7 @@ test('Galilei presenta entradas directas y separadas para cada destino', async (
   await capture(page, 'home-desktop-1366x768.png');
   await page.setViewportSize({ width: 390, height: 844 });
   await capture(page, 'home-mobile-390x844.png');
-  await expect(destinations.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('href', '/consulta');
+  await expect(destinations.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('href', '/busqueda');
   await expect(destinations.getByRole('link', { name: /Mi Sala \/ Juzgado/u })).toHaveAttribute('href', '/spaces');
   await expect(destinations.getByRole('link', { name: /Mis documentos/u })).toHaveAttribute('href', '/personal');
   await expect(page.getByRole('link', { name: /Mi espacio|Workspace|Copernic/u })).toHaveCount(0);

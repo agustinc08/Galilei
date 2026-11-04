@@ -1,4 +1,5 @@
 export const COMMON_JURISPRUDENCE_SEARCH_PATH = '/consulta';
+export const INTERNAL_JURISPRUDENCE_SEARCH_PATH = '/busqueda';
 export const ADVANCED_JURISPRUDENCE_SEARCH_PATH = '/busqueda-avanzada';
 
 /**
@@ -14,7 +15,6 @@ export function canAccessAdvancedJurisprudenceSearch(
 export function jurisprudenceSearchPathForRole(
   roleName: string | null | undefined,
 ) {
-  return canAccessAdvancedJurisprudenceSearch(roleName)
-    ? ADVANCED_JURISPRUDENCE_SEARCH_PATH
-    : COMMON_JURISPRUDENCE_SEARCH_PATH;
+  if (canAccessAdvancedJurisprudenceSearch(roleName)) return ADVANCED_JURISPRUDENCE_SEARCH_PATH;
+  return roleName ? INTERNAL_JURISPRUDENCE_SEARCH_PATH : COMMON_JURISPRUDENCE_SEARCH_PATH;
 }

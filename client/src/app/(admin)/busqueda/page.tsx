@@ -1,8 +1,5 @@
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/use-auth';
-import { jurisprudenceSearchPathForRole } from '@/lib/jurisprudence-search-access';
+import { ConsultaPublicaScreen } from '@/components/consulta/ConsultaPublicaScreen';
 
 export default function BusquedaPage() {
-  const { user } = useAuth();
-  return <Navigate to={jurisprudenceSearchPathForRole(user?.rol.nombre)} replace />;
+  return <ConsultaPublicaScreen />;
 }

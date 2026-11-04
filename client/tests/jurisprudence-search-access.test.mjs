@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   ADVANCED_JURISPRUDENCE_SEARCH_PATH,
   COMMON_JURISPRUDENCE_SEARCH_PATH,
+  INTERNAL_JURISPRUDENCE_SEARCH_PATH,
   canAccessAdvancedJurisprudenceSearch,
   jurisprudenceSearchPathForRole,
 } from '../src/lib/jurisprudence-search-access.ts';
@@ -26,7 +27,9 @@ for (const profile of profiles) {
       jurisprudenceSearchPathForRole(profile.role),
       profile.advanced
         ? ADVANCED_JURISPRUDENCE_SEARCH_PATH
-        : COMMON_JURISPRUDENCE_SEARCH_PATH,
+        : profile.role
+          ? INTERNAL_JURISPRUDENCE_SEARCH_PATH
+          : COMMON_JURISPRUDENCE_SEARCH_PATH,
     );
   });
 }

@@ -126,8 +126,8 @@ export default function PerfilPage() {
         description="Tu identidad, el acceso asignado y la seguridad de la cuenta."
         actions={
           <>
-            <Link href="/dashboard">
-              <Button variant="secondary">Volver al dashboard</Button>
+            <Link href="/galilei">
+              <Button variant="secondary">Volver a Galilei</Button>
             </Link>
             <Button variant="secondary" onClick={logout}>
               Cerrar sesión

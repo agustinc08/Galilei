@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Link } from "@/lib/router-compat";
-import { useSearchParams } from '@/lib/router-compat';
+import { usePathname, useSearchParams } from '@/lib/router-compat';
 import styles from './consulta.module.css';
 import { Button } from '@/components/ui/Button';
 import { HighlightText } from './HighlightText';
@@ -50,8 +50,11 @@ export function ConsultaResultadoCard({
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [copyingCitation, setCopyingCitation] = useState(false);
   const comparison = useComparisonSelection();
+  const pathname = usePathname() ?? '/consulta';
   const searchParams = useSearchParams();
-  const returnTo = `/consulta${searchParams.size ? `?${searchParams.toString()}` : ''}`;
+  const internalSearch = pathname === '/busqueda' || pathname.startsWith('/busqueda/');
+  const searchPath = internalSearch ? '/busqueda' : '/consulta';
+  const returnTo = `${searchPath}${searchParams.size ? `?${searchParams.toString()}` : ''}`;
   const detailQuery = new URLSearchParams({ returnTo });
   if (query) detailQuery.set('q', query);
   const publicIdentifier = item.slugPublico ?? String(item.sentenciaId ?? item.id);
@@ -59,7 +62,7 @@ export function ConsultaResultadoCard({
   const summaryCount = Math.max(1, Math.trunc(Number(item.cantidadSumarios ?? 1)));
   const inComparison = Boolean(item.slugPublico && comparison.items.some((candidate) => candidate.slug === item.slugPublico));
   const detailHref = publicIdentifier
-    ? `/consulta/sentencia/${publicIdentifier}?${detailQuery.toString()}#sumarios`
+    ? `${internalSearch ? '/busqueda/sentencia' : '/consulta/sentencia'}/${publicIdentifier}?${detailQuery.toString()}#sumarios`
     : null;
   const documentHref = publicIdentifier ? `/fallos/${publicIdentifier}?${detailQuery.toString()}` : null;
   const pdfHref = hasPdf

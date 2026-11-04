@@ -1,12 +1,10 @@
 import { Link } from "@/lib/router-compat";
 import { LineIcon } from "@/components/ui/LineIcon";
-import { useAuth } from '@/hooks/use-auth';
-import { jurisprudenceSearchPathForRole } from '@/lib/jurisprudence-search-access';
 import styles from './galilei.module.css';
 
 const destinations = [
   {
-    href: '/consulta',
+    href: '/busqueda',
     icon: 'scales',
     title: 'Jurisprudencia',
     description: 'Buscar fallos publicados.',
@@ -26,14 +24,6 @@ const destinations = [
 ] as const;
 
 export default function GalileiHomePage() {
-  const { user } = useAuth();
-  const searchPath = jurisprudenceSearchPathForRole(user?.rol.nombre);
-  const roleDestinations = destinations.map((destination) =>
-    destination.title === 'Jurisprudencia'
-      ? { ...destination, href: searchPath }
-      : destination,
-  );
-
   return (
     <section className={styles.page}>
       <header className={styles.heading}>
@@ -41,7 +31,7 @@ export default function GalileiHomePage() {
         <p>Elegí dónde buscar. Cada espacio conserva sus propios permisos.</p>
       </header>
       <nav className={styles.destinations} aria-label="Elegir dónde consultar">
-        {roleDestinations.map((destination) => (
+        {destinations.map((destination) => (
           <Link className={styles.destination} href={destination.href} key={destination.href}>
             <LineIcon name={destination.icon} className={styles.destinationIcon} />
             <strong>{destination.title}</strong>

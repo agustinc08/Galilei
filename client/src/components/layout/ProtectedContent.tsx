@@ -64,7 +64,7 @@ export function ProtectedContent({
   const effectiveRedirectTo =
     redirectTo ??
     (pathname === '/busqueda-avanzada' || pathname.startsWith('/busqueda-avanzada/')
-      ? '/consulta'
+      ? '/busqueda'
       : undefined);
   const isAllowed =
     !effectiveRoles?.length ||

@@ -157,11 +157,35 @@
 }
 
 .accountName {
-  padding: 0 8px 2px;
+  min-width: 0;
+  padding: 0;
   color: #fff;
   font-size: 12px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.accountIdentity {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 0 8px 2px;
+}
+
+.accountAvatar {
+  display: grid;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, .38);
+  border-radius: 50%;
+  color: #0f3d66;
+  background: #dcecf8;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .02em;
 }
 
 .accountGroup :global(button) {

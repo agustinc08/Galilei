@@ -2,6 +2,7 @@ const INTERNAL_RETURN_ROOTS = [
   { path: '/spaces', label: 'Mi Sala / Juzgado' },
   { path: '/personal', label: 'Mis documentos' },
   { path: '/colecciones', label: 'Mis colecciones' },
+  { path: '/busqueda', label: 'Jurisprudencia' },
   { path: '/busqueda-avanzada', label: 'Búsqueda avanzada' },
   { path: '/consulta', label: 'Jurisprudencia' },
 ] as const;

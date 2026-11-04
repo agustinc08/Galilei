@@ -13,6 +13,7 @@ test('the public landing page opens each destination or requests sign-in', async
   await destinations.getByRole('link', { name: /Jurisprudencia/u }).click();
   await expect(page).toHaveURL(/\/consulta$/u);
   await expect(page.getByRole('heading', { name: 'Jurisprudencia', exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toHaveCount(0);
 
   await page.goto('/');
   await destinations.getByRole('link', { name: /Mi Sala \/ Juzgado/u }).click();
@@ -63,13 +64,13 @@ test('Galilei keeps role-aware destinations visible across authenticated routes'
   const navigation = page.getByRole('navigation', { name: 'Navegación principal' });
   await expect(navigation.getByRole('link')).toHaveCount(4);
   await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toBeVisible();
-  await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('href', '/consulta');
+  await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('href', '/busqueda');
   await expect(navigation.getByRole('link', { name: /Mi Sala \/ Juzgado/u })).toBeVisible();
   await expect(navigation.getByRole('link', { name: /Mis documentos/u })).toBeVisible();
   await expect(navigation.getByRole('link', { name: /Mis colecciones/u })).toBeVisible();
   await expect(navigation.getByRole('link', { name: /Copernic|Workspace/u })).toHaveCount(0);
 
-  await page.goto('/consulta?q=responsabilidad%20civil');
+  await page.goto('/busqueda?q=responsabilidad%20civil');
   await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { name: 'Jurisprudencia', exact: true })).toBeVisible();
   const search = page.getByLabel('Buscar jurisprudencia');
@@ -88,14 +89,20 @@ test('Galilei keeps role-aware destinations visible across authenticated routes'
     await expect(realResult).toBeVisible();
     await expect(realResult.locator('h2 a')).toHaveAttribute(
       'href',
-      /^\/consulta\/sentencia\/(?!undefined(?:\?|$))[^/?]+(?:\?.*)?$/u,
+      /^\/busqueda\/sentencia\/(?!undefined(?:\?|$))[^/?]+(?:\?.*)?$/u,
     );
+    await realResult.getByRole('button', { name: /^(?:Ver sumario|Ver \d+ sumarios|Ver fallo)$/u }).first().click();
+    await expect(page).toHaveURL(/\/busqueda\/sentencia\/[^/?]+/u);
+    await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toBeVisible();
+    await page.getByRole('link', { name: 'Volver a resultados', exact: true }).click();
+    await expect(page).toHaveURL(/\/busqueda\?/u);
   }
   await captureResponsive('jurisprudencia');
 
   await page.goto('/busqueda-avanzada?q=consulta-interna');
-  await expect(page).toHaveURL(/\/consulta$/u);
+  await expect(page).toHaveURL(/\/busqueda$/u);
   await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Búsqueda avanzada', exact: true })).toHaveCount(0);
   await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();
 
   await page.goto('/spaces');
@@ -110,6 +117,28 @@ test('Galilei keeps role-aware destinations visible across authenticated routes'
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await page.goto('/spaces');
   await expect(page).toHaveURL(/\/login$/u);
+});
+
+test('an authenticated user can find Mi perfil, review access data and return to Galilei', async ({ page }) => {
+  const reader = credentials.accounts.reader;
+  await page.goto('/login');
+  await page.getByLabel('Correo electrónico').fill(reader.email);
+  await page.getByLabel('Contraseña').fill(reader.password);
+  await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+  await page.waitForURL(/\/galilei$/u);
+
+  const profileLink = page.getByRole('link', { name: 'Mi perfil', exact: true });
+  await expect(profileLink).toBeVisible();
+  await expect(page.locator('[class*="accountAvatar"]')).toBeVisible();
+  await profileLink.click();
+  await expect(page).toHaveURL(/\/perfil$/u);
+  await expect(page.getByRole('heading', { name: 'Mi perfil', exact: true })).toBeVisible();
+  await expect(page.getByText('Acceso general', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Mis dependencias', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Seguridad', exact: true })).toBeVisible();
+
+  await page.getByRole('link', { name: 'Volver a Galilei', exact: true }).click();
+  await expect(page).toHaveURL(/\/galilei$/u);
 });
 
 test('the technical dashboard exposes one quick link per destination', async ({ page }) => {
@@ -129,8 +158,9 @@ test('the technical dashboard exposes one quick link per destination', async ({ 
   await expect(page.getByRole('link', { name: 'Búsqueda avanzada' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Consulta pública' })).toHaveCount(1);
   await page.goto('/busqueda-avanzada');
-  await expect(page).toHaveURL(/\/consulta$/u);
+  await expect(page).toHaveURL(/\/busqueda$/u);
   await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Búsqueda avanzada', exact: true })).toHaveCount(0);
 });
 
 test('Jurisprudencia retains advanced search and role navigation', async ({ page }) => {
@@ -142,9 +172,14 @@ test('Jurisprudencia retains advanced search and role navigation', async ({ page
   await page.waitForURL(/\/galilei$/u);
 
   const navigation = page.getByRole('navigation', { name: 'Navegación principal' });
-  await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('href', '/busqueda-avanzada');
+  await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('href', '/busqueda');
   await navigation.getByRole('link', { name: /Jurisprudencia/u }).click();
-  await expect(page).toHaveURL(/\/busqueda-avanzada$/u);
+  await expect(page).toHaveURL(/\/busqueda$/u);
+  await expect(page.getByRole('heading', { name: 'Jurisprudencia', exact: true })).toBeVisible();
+  await expect(navigation.getByRole('link', { name: /Mi Sala \/ Juzgado/u })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Búsqueda avanzada', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Búsqueda avanzada', exact: true }).click();
+  await expect(page).toHaveURL(/\/busqueda-avanzada\?/u);
   await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toBeVisible();
   await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();
 
@@ -185,12 +220,12 @@ test('advanced search state and navigation do not survive a Jurisprudencia-to-Sa
   await page.waitForURL(/\/galilei$/u);
 
   const navigation = page.getByRole('navigation', { name: 'Navegación principal' });
-  await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('href', '/consulta');
+  await expect(navigation.getByRole('link', { name: /Jurisprudencia/u })).toHaveAttribute('href', '/busqueda');
   expect(
     await page.evaluate(() => Boolean((window.history.state as Record<string, unknown> | null)?.__bjcAdvancedSearchFilters)),
   ).toBe(false);
   await page.goto('/busqueda-avanzada?q=estado-temporal');
-  await expect(page).toHaveURL(/\/consulta$/u);
+  await expect(page).toHaveURL(/\/busqueda$/u);
   await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toHaveCount(0);
   await expect(page.getByLabel('Buscar jurisprudencia')).toBeVisible();
 });
@@ -222,7 +257,7 @@ test('unknown routes and role-restricted deep links show controlled states', asy
     window.addEventListener('DOMContentLoaded', check);
   });
   await page.goto('/busqueda-avanzada?q=deep-link');
-  await expect(page).toHaveURL(/\/consulta$/u);
+  await expect(page).toHaveURL(/\/busqueda$/u);
   await expect(page.getByRole('heading', { name: 'Búsqueda avanzada' })).toHaveCount(0);
   expect(await page.evaluate(() => Boolean((window as Window & { __advancedSearchHeadingSeen?: boolean }).__advancedSearchHeadingSeen))).toBe(false);
 });
