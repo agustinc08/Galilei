@@ -13,13 +13,21 @@ import { CorpusDocumentAccessService } from './corpus-document-access.service';
 import { CorpusSearchSourceAdapter } from './corpus-search.adapter';
 import { LocalDocumentStorageAdapter } from './document-storage.adapter';
 import { LocalPdfOcrProcessor } from './document-local-processors';
-import { CorpusOcrWorkerService } from './corpus-ocr-worker.service';
+import { BasicDocumentTextExtractor } from './document-text-extractor';
+import { WorkspaceOcrWorkerService } from './workspace-ocr-worker.service';
 
 const enabled = process.env.SPRINT15_POSTGRES_TEST === '1';
 const fixtureDir = path.dirname(fileURLToPath(import.meta.url));
+const qaRoot = process.env.BJC_QA_ROOT
+  ? path.resolve(process.env.BJC_QA_ROOT)
+  : null;
+const storageRoot =
+  qaRoot ?? path.resolve(process.cwd(), '../_dev-corpus-storage-test');
 const testStorage = path.resolve(
-  process.cwd(),
-  '../_dev-corpus-storage-test/sprint15-workspaces',
+  process.env.SPRINT15_TEST_STORAGE_ROOT ??
+    (qaRoot
+      ? path.join(qaRoot, 'storage', 'sprint15-workspaces')
+      : path.join(storageRoot, 'sprint15-workspaces')),
 );
 
 describe('Sprint 15 private workspace PostgreSQL isolation', () => {
@@ -37,6 +45,7 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
   const workspaceIds: string[] = [];
   const dependencyIds: string[] = [];
   const documentIds: string[] = [];
+  const sentenciaIds: number[] = [];
   const suffix =
     `${Date.now()}${Math.random().toString(16).slice(2, 6)}`.toUpperCase();
   const makeUser = (id: number, email: string): AuthenticatedUser => ({
@@ -56,6 +65,13 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
 
   beforeAll(async () => {
     if (!enabled) return;
+    const storageRelative = path.relative(storageRoot, testStorage);
+    if (
+      !storageRelative ||
+      storageRelative.startsWith('..') ||
+      path.isAbsolute(storageRelative)
+    )
+      throw new Error('SPRINT15_TEST_STORAGE_OUTSIDE_ISOLATED_ROOT');
     prisma = new PrismaService();
     process.env.BJC_CORPUS_STORAGE_PATH = testStorage;
     await prisma.$connect();
@@ -144,6 +160,10 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         await prisma.corpusDocument.deleteMany({
           where: { id: { in: documentIds } },
         });
+      if (sentenciaIds.length)
+        await prisma.sentencia.deleteMany({
+          where: { id: { in: sentenciaIds } },
+        });
       // Preserve deletion events so the official Search worker can remove the
       // fixtures from OpenSearch. Teardown must never erase outbox rows.
       if (dependencyIds.length)
@@ -158,13 +178,9 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       if (previousStoragePath === undefined)
         delete process.env.BJC_CORPUS_STORAGE_PATH;
       else process.env.BJC_CORPUS_STORAGE_PATH = previousStoragePath;
-      const safeRoot = path.resolve(
-        process.cwd(),
-        '../_dev-corpus-storage-test',
-      );
       if (
         databaseCleanupComplete &&
-        testStorage.startsWith(`${safeRoot}${path.sep}`)
+        testStorage.startsWith(`${storageRoot}${path.sep}`)
       ) {
         await rm(testStorage, { recursive: true, force: true });
       }
@@ -538,47 +554,40 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       await expect(
         service.startWorkspaceOcr(workspaceA.id, scannedDocumentId, viewer),
       ).rejects.toMatchObject({ status: 403 });
-      const startResult = await service.startWorkspaceOcr(
-        workspaceA.id,
-        scannedDocumentId,
-        adminA,
-      );
+      const [startResult, duplicateStart] = await Promise.all([
+        service.startWorkspaceOcr(workspaceA.id, scannedDocumentId, adminA),
+        service.startWorkspaceOcr(workspaceA.id, scannedDocumentId, editor),
+      ]);
       expect(startResult.state).toBe('PENDING');
-      const duplicateStart = await service.startWorkspaceOcr(
-        workspaceA.id,
-        scannedDocumentId,
-        editor,
-      );
       expect(duplicateStart.state).toBe('PENDING');
-      const queuedJob = await prisma.corpusOcrJob.findFirstOrThrow({
+      const queuedJob = await prisma.workspaceOcrJob.findFirstOrThrow({
         where: { documentId: scannedDocumentId },
         select: { id: true, pageNumbers: true, fingerprint: true },
       });
       expect(queuedJob.pageNumbers).toEqual([1]);
       expect(
-        await prisma.corpusOcrJob.count({
+        await prisma.workspaceOcrJob.count({
           where: { documentId: scannedDocumentId },
         }),
       ).toBe(1);
-      const worker = new CorpusOcrWorkerService(
+      expect(
+        await prisma.corpusOcrJob.count({
+          where: { documentId: scannedDocumentId },
+        }),
+      ).toBe(0);
+      const worker = new WorkspaceOcrWorkerService(
         prisma,
         new LocalPdfOcrProcessor(),
       );
       await expect(worker.processNextForTest(queuedJob.id)).resolves.toBe(true);
-      const completedJob = await prisma.corpusOcrJob.findUniqueOrThrow({
+      const completedJob = await prisma.workspaceOcrJob.findUniqueOrThrow({
         where: { id: queuedJob.id },
         select: { status: true, attemptCount: true, provenance: true },
       });
       expect(completedJob.status).toBe('COMPLETE');
       expect(completedJob.attemptCount).toBe(1);
       expect(completedJob.provenance).toMatchObject({
-        pageNumbers: [1],
-        languages: ['spa'],
-        dpi: 250,
-        workspaceOcr: {
-          workspaceId: workspaceA.id,
-          requestedByUserId: adminA.id,
-        },
+        workspaceId: workspaceA.id,
       });
       const ocrDocument = await prisma.corpusDocument.findUniqueOrThrow({
         where: { id: scannedDocumentId },
@@ -591,12 +600,19 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           },
         },
       });
-      expect(ocrDocument.status).toBe('INDEXED');
+      expect(ocrDocument.status).toBe('OCR_REQUIRED');
       expect(ocrDocument.latestExtraction?.pages[0]).toMatchObject({
         pageNumber: 1,
-        textKind: 'OCR',
-        processingStatus: 'OCR_COMPLETE',
+        textKind: 'NATIVE',
+        processingStatus: 'OCR_REQUIRED',
+        text: '',
       });
+      const ocrPages = await prisma.workspaceOcrPage.findMany({
+        where: { workspaceId: workspaceA.id, documentId: scannedDocumentId },
+        select: { text: true, pageNumber: true },
+      });
+      expect(ocrPages).toHaveLength(1);
+      expect(ocrPages[0].text).toContain('OCRTESTTOKENXYZ');
       const originalSha256 = createHash('sha256')
         .update(scannedPdf)
         .digest('hex');
@@ -714,6 +730,448 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
           'WORKSPACE_OCR_COMPLETE',
         ]),
       );
+
+      const legacyScannedPdf = await readFile(
+        path.join(fixtureDir, 'fixtures', 'sprint154a1-hybrid.pdf'),
+      );
+      const legacySha256 = createHash('sha256')
+        .update(legacyScannedPdf)
+        .digest('hex');
+      const extraction = await new BasicDocumentTextExtractor().extract(
+        'qa-legacy-workspace-scan.pdf',
+        'application/pdf',
+        legacyScannedPdf,
+      );
+      expect(extraction.pages).toHaveLength(4);
+      expect(extraction.ocrRequiredPages).toEqual([2, 4]);
+      const legacyBlob = await storage.put(
+        'qa-legacy-workspace-scan.pdf',
+        legacyScannedPdf,
+      );
+      const publishedFixture = await prisma.sentencia.create({
+        data: {
+          legacyId: `QA-LEGACY-WORKSPACE-${suffix}`,
+          caratula: 'QA sintético: documento legado compartido',
+          slugPublico: `qa-legacy-workspace-${suffix.toLowerCase()}`,
+          estadoCarga: 'PUBLICADA',
+          publicado: true,
+          publishedAt: new Date(),
+          activo: true,
+        },
+        select: { id: true },
+      });
+      sentenciaIds.push(publishedFixture.id);
+      const legacyDocument = await prisma.corpusDocument.create({
+        data: {
+          documentType: 'SENTENCIA',
+          title: 'QA sintético: escaneo legado compartido',
+          jurisdiction: 'CIVIL',
+          visibility: 'PUBLIC',
+          documentScope: 'GENERAL',
+          status: 'OCR_REQUIRED',
+          searchText: extraction.text,
+        },
+        select: { id: true },
+      });
+      const legacyDocumentId = legacyDocument.id;
+      documentIds.push(legacyDocumentId);
+      const legacyFile = await prisma.corpusDocumentFile.create({
+        data: {
+          documentId: legacyDocumentId,
+          storageKey: legacyBlob.storageKey,
+          originalFilename: 'qa-legacy-workspace-scan.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: BigInt(legacyBlob.sizeBytes),
+          sha256: legacySha256,
+          pageCount: extraction.pages.length,
+          version: 1,
+        },
+        select: { id: true },
+      });
+      const legacyExtraction = await prisma.corpusExtraction.create({
+        data: {
+          documentId: legacyDocumentId,
+          fileId: legacyFile.id,
+          extractor: extraction.extractor,
+          extractorVersion: extraction.extractorVersion,
+          status: extraction.status,
+          text: extraction.text,
+          pages: {
+            create: extraction.pages.map((page) => ({
+              pageNumber: page.pageNumber,
+              text:
+                page.pageNumber === 2 || page.pageNumber === 4 ? '' : page.text,
+              textKind: 'NATIVE',
+              processingStatus: 'TEXT_NATIVE',
+            })),
+          },
+        },
+        select: { id: true },
+      });
+      await prisma.corpusDocument.update({
+        where: { id: legacyDocumentId },
+        data: { latestExtractionId: legacyExtraction.id },
+      });
+      await prisma.corpusDocumentLink.create({
+        data: {
+          documentId: legacyDocumentId,
+          targetDomain: 'JURISPRUDENCIA',
+          targetType: 'SENTENCIA',
+          targetId: String(publishedFixture.id),
+          relationship: 'ASSOCIATED_WITH',
+        },
+      });
+      await prisma.workspaceDocument.createMany({
+        data: [
+          {
+            workspaceId: workspaceA.id,
+            documentId: legacyDocumentId,
+            folderId: folder.id,
+            uploadedById: adminA.id,
+          },
+          {
+            workspaceId: workspaceB.id,
+            documentId: legacyDocumentId,
+            folderId: foreignFolder.id,
+            uploadedById: adminB.id,
+          },
+        ],
+      });
+      const beforeLegacyProjection =
+        await prisma.corpusDocument.findUniqueOrThrow({
+          where: { id: legacyDocumentId },
+          select: {
+            status: true,
+            searchText: true,
+            latestExtractionId: true,
+            latestExtraction: {
+              select: {
+                status: true,
+                text: true,
+                pages: {
+                  orderBy: { pageNumber: 'asc' },
+                  select: {
+                    pageNumber: true,
+                    text: true,
+                    textKind: true,
+                    processingStatus: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      expect(beforeLegacyProjection.latestExtraction?.pages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            pageNumber: 2,
+            text: '',
+            textKind: 'NATIVE',
+            processingStatus: 'TEXT_NATIVE',
+          }),
+          expect.objectContaining({
+            pageNumber: 4,
+            text: '',
+            textKind: 'NATIVE',
+            processingStatus: 'TEXT_NATIVE',
+          }),
+        ]),
+      );
+      const legacyOcrQuery = 'FRASE TESTIGO 9876';
+      const legacyBeforeSearch = await service.searchWorkspace(
+        workspaceA.id,
+        adminA,
+        legacyOcrQuery,
+      );
+      if (!legacyBeforeSearch)
+        throw new Error('EXPECTED_LEGACY_WORKSPACE_SEARCH');
+      expect(
+        legacyBeforeSearch.results.map((row) => row.sourceId),
+      ).not.toContain(legacyDocumentId);
+      expect(
+        await service.metadata(workspaceA.id, legacyDocumentId, adminA),
+      ).toMatchObject({
+        workspaceOcr: { state: 'NEEDS_OCR', canStart: true, searchable: true },
+      });
+      const legacyStart = await service.startWorkspaceOcr(
+        workspaceA.id,
+        legacyDocumentId,
+        editor,
+      );
+      expect(legacyStart.state).toBe('PENDING');
+      const [duplicateLegacyStart, repeatedLegacyStart] = await Promise.all([
+        service.startWorkspaceOcr(workspaceA.id, legacyDocumentId, adminA),
+        service.startWorkspaceOcr(workspaceA.id, legacyDocumentId, editor),
+      ]);
+      expect(duplicateLegacyStart.state).toBe('PENDING');
+      expect(repeatedLegacyStart.state).toBe('PENDING');
+      const legacyJob = await prisma.workspaceOcrJob.findFirstOrThrow({
+        where: {
+          workspaceId: workspaceA.id,
+          documentId: legacyDocumentId,
+        },
+        select: { id: true, pageNumbers: true, requestedByUserId: true },
+      });
+      expect(legacyJob.pageNumbers).toEqual([2, 4]);
+      expect(legacyJob.requestedByUserId).toBe(editor.id);
+      expect(
+        await prisma.workspaceOcrJob.count({
+          where: { workspaceId: workspaceA.id, documentId: legacyDocumentId },
+        }),
+      ).toBe(1);
+      const legacyWorker = new WorkspaceOcrWorkerService(
+        prisma,
+        new LocalPdfOcrProcessor(),
+      );
+      await expect(legacyWorker.processNextForTest(legacyJob.id)).resolves.toBe(
+        true,
+      );
+      const legacyPagesA = await prisma.workspaceOcrPage.findMany({
+        where: { workspaceId: workspaceA.id, documentId: legacyDocumentId },
+        orderBy: { pageNumber: 'asc' },
+        select: { pageNumber: true, text: true },
+      });
+      expect(legacyPagesA.map((page) => page.pageNumber)).toEqual([2, 4]);
+      expect(legacyPagesA.some((page) => page.text.trim().length > 0)).toBe(
+        true,
+      );
+      expect(legacyPagesA.map((page) => page.text).join(' ')).toContain(
+        legacyOcrQuery,
+      );
+      const afterLegacyProjection =
+        await prisma.corpusDocument.findUniqueOrThrow({
+          where: { id: legacyDocumentId },
+          select: {
+            status: true,
+            searchText: true,
+            latestExtractionId: true,
+            latestExtraction: {
+              select: {
+                status: true,
+                text: true,
+                pages: {
+                  orderBy: { pageNumber: 'asc' },
+                  select: {
+                    pageNumber: true,
+                    text: true,
+                    textKind: true,
+                    processingStatus: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      expect(afterLegacyProjection).toEqual(beforeLegacyProjection);
+      expect(legacySha256).toBe(legacyBlob.sha256);
+      expect(
+        createHash('sha256')
+          .update(await storage.get(legacyBlob.storageKey))
+          .digest('hex'),
+      ).toBe(legacySha256);
+      const legacySearchA = await service.searchWorkspace(
+        workspaceA.id,
+        adminA,
+        legacyOcrQuery,
+      );
+      if (!legacySearchA) throw new Error('EXPECTED_LEGACY_WORKSPACE_SEARCH');
+      expect(legacySearchA.results.map((row) => row.sourceId)).toContain(
+        legacyDocumentId,
+      );
+      expect(
+        legacySearchA.results.find((row) => row.sourceId === legacyDocumentId)
+          ?.metadata.matchSource,
+      ).toBe('WORKSPACE_OCR');
+      const legacySearchViewer = await service.searchWorkspace(
+        workspaceA.id,
+        viewer,
+        legacyOcrQuery,
+      );
+      if (!legacySearchViewer)
+        throw new Error('EXPECTED_LEGACY_VIEWER_WORKSPACE_SEARCH');
+      expect(legacySearchViewer.results.map((row) => row.sourceId)).toContain(
+        legacyDocumentId,
+      );
+      const legacyMatches = await service.matches(
+        workspaceA.id,
+        legacyDocumentId,
+        viewer,
+        legacyOcrQuery,
+      );
+      expect(legacyMatches.matches.length).toBeGreaterThan(0);
+      const matchedOcrPageNumber = legacyMatches.matches[0].page;
+      expect([2, 4]).toContain(matchedOcrPageNumber);
+      const legacyPage = await service.metadata(
+        workspaceA.id,
+        legacyDocumentId,
+        viewer,
+        matchedOcrPageNumber,
+      );
+      expect(legacyPage.selectedPage?.text).toContain(legacyOcrQuery);
+      const otherWorkspaceSearch = await service.searchWorkspace(
+        workspaceB.id,
+        adminB,
+        legacyOcrQuery,
+      );
+      if (!otherWorkspaceSearch)
+        throw new Error('EXPECTED_OTHER_WORKSPACE_SEARCH');
+      expect(
+        otherWorkspaceSearch.results.map((row) => row.sourceId),
+      ).not.toContain(legacyDocumentId);
+      expect(
+        await service.metadata(workspaceB.id, legacyDocumentId, adminB),
+      ).toMatchObject({
+        workspaceOcr: { state: 'NEEDS_OCR', canStart: true },
+      });
+      expect(
+        await prisma.workspaceOcrPage.count({
+          where: { workspaceId: workspaceB.id, documentId: legacyDocumentId },
+        }),
+      ).toBe(0);
+      const publicLegacySearch = await source.search(
+        parseSearchQuery(legacyOcrQuery),
+        {
+          visibility: 'PUBLIC',
+          dialect: 'modern',
+          publicationPolicy: 'published-active-only',
+          page: 1,
+          pageSize: 20,
+          sourceSystems: ['CORPUS'],
+        },
+      );
+      expect(
+        publicLegacySearch.results.map((row) => row.sourceId),
+      ).not.toContain(legacyDocumentId);
+      await expect(
+        service.matches(
+          workspaceB.id,
+          legacyDocumentId,
+          adminB,
+          legacyOcrQuery,
+        ),
+      ).resolves.toMatchObject({ matches: [] });
+
+      const adminWorkspaceBOcr = await service.startWorkspaceOcr(
+        workspaceB.id,
+        legacyDocumentId,
+        adminB,
+      );
+      expect(adminWorkspaceBOcr.state).toBe('PENDING');
+      const adminWorkspaceBJob = await prisma.workspaceOcrJob.findFirstOrThrow({
+        where: {
+          workspaceId: workspaceB.id,
+          documentId: legacyDocumentId,
+        },
+        select: {
+          id: true,
+          pageNumbers: true,
+          requestedByUserId: true,
+          status: true,
+        },
+      });
+      expect(adminWorkspaceBJob.id).not.toBe(legacyJob.id);
+      expect(adminWorkspaceBJob.pageNumbers).toEqual([2, 4]);
+      expect(adminWorkspaceBJob.requestedByUserId).toBe(adminB.id);
+      const retryableAdminProcessor = new LocalPdfOcrProcessor();
+      const adminOcrAttempt = jest
+        .spyOn(retryableAdminProcessor, 'processPdf')
+        .mockRejectedValueOnce(new Error('SYNTHETIC_TRANSIENT_FAILURE'));
+      const adminWorkspaceBWorker = new WorkspaceOcrWorkerService(
+        prisma,
+        retryableAdminProcessor,
+      );
+      await expect(
+        adminWorkspaceBWorker.processNextForTest(adminWorkspaceBJob.id),
+      ).resolves.toBe(true);
+      const adminWorkspaceBRetry =
+        await prisma.workspaceOcrJob.findUniqueOrThrow({
+          where: { id: adminWorkspaceBJob.id },
+          select: { status: true, attemptCount: true, errorCode: true },
+        });
+      expect(adminWorkspaceBRetry).toMatchObject({
+        status: 'PENDING',
+        attemptCount: 1,
+        errorCode: 'OCR_FAILED',
+      });
+      await expect(
+        adminWorkspaceBWorker.processNextForTest(adminWorkspaceBJob.id),
+      ).resolves.toBe(true);
+      expect(adminOcrAttempt).toHaveBeenCalledTimes(2);
+      const adminWorkspaceBCompleted =
+        await prisma.workspaceOcrJob.findUniqueOrThrow({
+          where: { id: adminWorkspaceBJob.id },
+          select: { status: true, attemptCount: true },
+        });
+      expect(adminWorkspaceBCompleted).toEqual({
+        status: 'COMPLETE',
+        attemptCount: 2,
+      });
+      const legacyPagesB = await prisma.workspaceOcrPage.findMany({
+        where: { workspaceId: workspaceB.id, documentId: legacyDocumentId },
+        orderBy: { pageNumber: 'asc' },
+        select: { pageNumber: true, text: true, jobId: true },
+      });
+      expect(legacyPagesB.map((page) => page.pageNumber)).toEqual([2, 4]);
+      expect(legacyPagesB.map((page) => page.text).join(' ')).toContain(
+        legacyOcrQuery,
+      );
+      expect(
+        legacyPagesB.every((page) => page.jobId === adminWorkspaceBJob.id),
+      ).toBe(true);
+      const adminWorkspaceBSearch = await service.searchWorkspace(
+        workspaceB.id,
+        adminB,
+        legacyOcrQuery,
+      );
+      if (!adminWorkspaceBSearch)
+        throw new Error('EXPECTED_ADMIN_WORKSPACE_B_SEARCH');
+      expect(
+        adminWorkspaceBSearch.results.map((row) => row.sourceId),
+      ).toContain(legacyDocumentId);
+      expect(
+        adminWorkspaceBSearch.results.find(
+          (row) => row.sourceId === legacyDocumentId,
+        )?.metadata.matchSource,
+      ).toBe('WORKSPACE_OCR');
+      const afterAdminWorkspaceBProjection =
+        await prisma.corpusDocument.findUniqueOrThrow({
+          where: { id: legacyDocumentId },
+          select: {
+            status: true,
+            searchText: true,
+            latestExtractionId: true,
+            latestExtraction: {
+              select: {
+                status: true,
+                text: true,
+                pages: {
+                  orderBy: { pageNumber: 'asc' },
+                  select: {
+                    pageNumber: true,
+                    text: true,
+                    textKind: true,
+                    processingStatus: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      expect(afterAdminWorkspaceBProjection).toEqual(beforeLegacyProjection);
+      const publicLegacySearchAfterWorkspaceB = await source.search(
+        parseSearchQuery(legacyOcrQuery),
+        {
+          visibility: 'PUBLIC',
+          dialect: 'modern',
+          publicationPolicy: 'published-active-only',
+          page: 1,
+          pageSize: 20,
+          sourceSystems: ['CORPUS'],
+        },
+      );
+      expect(
+        publicLegacySearchAfterWorkspaceB.results.map((row) => row.sourceId),
+      ).not.toContain(legacyDocumentId);
 
       await prisma.corpusDocument.updateMany({
         where: { id: { in: [idA, idText] } },

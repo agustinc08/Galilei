@@ -123,7 +123,7 @@ type SearchHit = {
   sourceStatus: string | null;
   documentStatus: string | null;
   snippet: string | null;
-  matchSource: "PDF_TEXT" | "OCR_APPROVED" | null;
+  matchSource: "PDF_TEXT" | "OCR_APPROVED" | "WORKSPACE_OCR" | null;
   nameMatchedIn: Array<"FILENAME" | "TITLE">;
   kind: "CONTENIDO" | "NOMBRE" | "LIST";
 };
@@ -141,6 +141,7 @@ type DocumentInfo = {
     state: WorkspaceOcrState;
     canStart: boolean;
     canRetry: boolean;
+    searchable: boolean;
   };
   selectedPage?: { pageNumber: number; text: string; textKind?: 'NATIVE' | 'OCR' };
 };
@@ -357,7 +358,7 @@ function buildHitList(
       sourceStatus: typeof metadata.sourceStatus === "string" ? metadata.sourceStatus : null,
       documentStatus: typeof metadata.status === "string" ? metadata.status : null,
       snippet: result.snippet,
-      matchSource: metadata.matchSource === "PDF_TEXT" || metadata.matchSource === "OCR_APPROVED"
+      matchSource: metadata.matchSource === "PDF_TEXT" || metadata.matchSource === "OCR_APPROVED" || metadata.matchSource === "WORKSPACE_OCR"
         ? metadata.matchSource
         : null,
       nameMatchedIn: [],
@@ -423,6 +424,8 @@ function resultMatchLabel(hit: SearchHit) {
   }
   if (hit.matchSource === "OCR_APPROVED")
     return hit.page ? `OCR aprobado · pág. ${hit.page}` : "OCR aprobado · sin página";
+  if (hit.matchSource === "WORKSPACE_OCR")
+    return hit.page ? `OCR de la dependencia · pág. ${hit.page}` : "OCR de la dependencia · sin página";
   if (hit.matchSource === "PDF_TEXT")
     return hit.page ? `Texto nativo · pág. ${hit.page}` : "Texto nativo · sin página";
   if (hit.fileType === "PDF") return "Contenido PDF · página no identificada";
@@ -1167,6 +1170,7 @@ export function CopernicWorkspaceSearch() {
                 state: result.state,
                 canStart: false,
                 canRetry: result.canRetry,
+                searchable: current.document.workspaceOcr?.searchable ?? false,
               },
             },
           }
@@ -1778,9 +1782,11 @@ export function CopernicWorkspaceSearch() {
                   )}
                   {preview && !previewLoading && (
                     <>
-                      {preview.document.workspaceOcr &&
-                        preview.document.workspaceOcr.state !== "NOT_REQUIRED" && (
+                          {preview.document.workspaceOcr && (
                         <section className={styles.workspaceOcrPanel} aria-label="Reconocimiento de texto del documento">
+                          {preview.document.workspaceOcr.state === "NOT_REQUIRED" && (
+                            <p className={styles.workspaceOcrComplete} role="status">El documento tiene texto disponible. Listo para buscar.</p>
+                          )}
                           {preview.document.workspaceOcr.state === "NEEDS_OCR" && (
                             <>
                               <p>Este PDF necesita OCR para poder buscar dentro de su contenido.</p>
@@ -1909,7 +1915,8 @@ export function CopernicWorkspaceSearch() {
                           <p>{selectedHit.snippet ?? "Podés abrir o descargar el documento."}</p>
                         </div>
                       )}
-                      {preview.document.status !== "OCR_REQUIRED" &&
+                      {preview.document.workspaceOcr?.searchable !== false &&
+                        (preview.document.workspaceOcr || preview.document.status !== "OCR_REQUIRED") &&
                         (preview.document.file?.mimeType !== "application/pdf" || preview.matches.matches.length > 0) && <div className={styles.matchNavigator}>
                         <span aria-live="polite">
                           {preview.matches.matches.length

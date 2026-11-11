@@ -37,6 +37,7 @@ model Usuario {
   eventos                        EventoConsulta[]
   accionesLog                    AccionLog[]
   workspaceMemberships           WorkspaceMembership[]
+  workspaceOcrJobsRequested      WorkspaceOcrJob[]                @relation("WorkspaceOcrJobRequester")
   documentSourcesCreated         DocumentSource[]                 @relation("DocumentSourceCreator")
   institutionalIngestionsCreated InstitutionalIngestion[]         @relation("InstitutionalIngestionCreator")
   institutionalIngestionEvents   InstitutionalIngestionEvent[]    @relation("InstitutionalIngestionEventActor")
@@ -630,6 +631,8 @@ model CorpusDocument {
   ingestions              CorpusIngestionRecord[]
   extractions             CorpusExtraction[]
   ocrJobs                 CorpusOcrJob[]
+  workspaceOcrJobs        WorkspaceOcrJob[]
+  workspaceOcrPages       WorkspaceOcrPage[]
   links                   CorpusDocumentLink[]
   locations               CorpusDocumentLocation[]
   associations            CorpusDocumentAssociation[]
@@ -817,6 +820,8 @@ model DocumentWorkspace {
   members      WorkspaceMembership[]
   folders      WorkspaceFolder[]
   documents    WorkspaceDocument[]
+  ocrJobs      WorkspaceOcrJob[]
+  ocrPages     WorkspaceOcrPage[]
   sources      DocumentSource[]
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
@@ -1056,6 +1061,8 @@ model CorpusDocumentFile {
   document                CorpusDocument           @relation(fields: [documentId], references: [id], onDelete: Cascade)
   extractions             CorpusExtraction[]
   ocrJobs                 CorpusOcrJob[]
+  workspaceOcrJobs        WorkspaceOcrJob[]
+  workspaceOcrPages       WorkspaceOcrPage[]
   ingestions              CorpusIngestionRecord[]
   institutionalIngestions InstitutionalIngestion[]
   ocrReviews              OcrHumanReview[]
@@ -1356,6 +1363,68 @@ model CorpusOcrJob {
   @@index([queueName, status, createdAt])
   @@index([documentId, createdAt])
   @@index([fileId, fileSha256])
+}
+
+// OCR started from Workspace is stored per dependency and never mutates the
+// shared CorpusDocument extraction, status, or searchText.
+model WorkspaceOcrJob {
+  id                 String             @id @default(cuid())
+  queueName          String             @default("default")
+  workspaceId        String
+  documentId         String
+  fileId             String
+  fileSha256         String
+  latestExtractionId String
+  requestedByUserId  Int
+  fingerprint        String
+  processorVersion   String
+  languages          String
+  dpi                Int
+  pageNumbers        Json
+  status             String             @default("PENDING")
+  attemptCount       Int                @default(0)
+  maxAttempts        Int                @default(2)
+  timeoutMs          Int                @default(90000)
+  startedAt          DateTime?
+  completedAt        DateTime?
+  leaseExpiresAt     DateTime?
+  errorCode          String?
+  errorDetail        String?            @db.Text
+  provenance         Json?
+  workspace          DocumentWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document           CorpusDocument     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  file               CorpusDocumentFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  requestedBy        Usuario            @relation("WorkspaceOcrJobRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  pages              WorkspaceOcrPage[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([workspaceId, fileId, fingerprint])
+  @@index([queueName, status, createdAt])
+  @@index([workspaceId, documentId, status, createdAt])
+  @@index([fileId, fileSha256])
+}
+
+model WorkspaceOcrPage {
+  id           String             @id @default(cuid())
+  workspaceId  String
+  documentId   String
+  fileId       String
+  jobId        String
+  fileSha256   String
+  extractionId String
+  pageNumber   Int
+  text         String             @db.Text
+  confidence   Float?
+  workspace    DocumentWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document     CorpusDocument     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  file         CorpusDocumentFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  job          WorkspaceOcrJob    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt    DateTime           @default(now())
+
+  @@unique([workspaceId, documentId, fileId, extractionId, pageNumber])
+  @@index([workspaceId, documentId, fileId, extractionId])
+  @@index([jobId])
 }
 
 // Cross-domain reference only; ownership/curation remains in Jurisprudencia or Digesto.

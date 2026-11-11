@@ -15,6 +15,7 @@ const NON_RETRYABLE_ERRORS = new Set([
   'OCR_PROCESSOR_CHANGED',
   'SOURCE_REPLACED',
 ]);
+const MIN_WORKSPACE_SEARCH_TEXT_LENGTH = 8;
 
 export function isRetryableWorkspaceOcrError(
   errorCode: string | null | undefined,
@@ -37,6 +38,7 @@ export function workspaceOcrState(input: {
   documentStatus: string;
   extractionStatus?: string | null;
   jobStatus?: string | null;
+  requiresOcr?: boolean;
 }): WorkspaceOcrState {
   if (input.jobStatus === 'PENDING') return 'PENDING';
   if (input.jobStatus === 'RUNNING') return 'PROCESSING';
@@ -48,7 +50,46 @@ export function workspaceOcrState(input: {
   if (input.jobStatus === 'FAILED' || input.documentStatus === 'OCR_FAILED')
     return 'ERROR';
   if (input.jobStatus === 'CANCELLED') return 'NEEDS_OCR';
+  if (input.requiresOcr !== undefined)
+    return input.requiresOcr ? 'NEEDS_OCR' : 'NOT_REQUIRED';
   if (input.documentStatus === 'OCR_PROCESSING') return 'PROCESSING';
   if (input.documentStatus === 'OCR_REQUIRED') return 'NEEDS_OCR';
   return 'NOT_REQUIRED';
+}
+
+export function needsWorkspaceOcrPage(page: {
+  text: string;
+  textKind?: string | null;
+  processingStatus?: string | null;
+}) {
+  const usableLength = page.text.replace(/\s+/gu, '').trim().length;
+  if (
+    page.textKind === 'NATIVE' &&
+    usableLength >= MIN_WORKSPACE_SEARCH_TEXT_LENGTH
+  )
+    return false;
+  if (
+    (page.textKind === 'OCR' &&
+      (page.processingStatus === 'OCR_HUMAN_APPROVED' ||
+        page.processingStatus === 'OCR_COMPLETE') &&
+      usableLength > 0) ||
+    page.processingStatus === 'OCR_HUMAN_APPROVED'
+  )
+    return false;
+  return (
+    page.processingStatus === 'OCR_REQUIRED' ||
+    usableLength < MIN_WORKSPACE_SEARCH_TEXT_LENGTH
+  );
+}
+
+export function hasUsableWorkspaceNativeText(page: {
+  text: string;
+  textKind?: string | null;
+  processingStatus?: string | null;
+}) {
+  if (page.textKind !== 'NATIVE') return false;
+  return (
+    page.text.replace(/\s+/gu, '').trim().length >=
+    MIN_WORKSPACE_SEARCH_TEXT_LENGTH
+  );
 }

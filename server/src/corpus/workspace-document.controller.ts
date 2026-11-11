@@ -412,7 +412,7 @@ export class WorkspaceDocumentController {
 
   @Post(':workspaceId/documents/:id/ocr')
   @ApiOperation({
-    summary: 'Inicia OCR local sobre un PDF privado de la dependencia',
+    summary: 'Inicia OCR local aislado para el PDF de una dependencia',
   })
   startDocumentOcr(
     @Param('workspaceId') workspaceId: string,

@@ -36,6 +36,7 @@ type DocumentInfo = {
     state: "NOT_REQUIRED" | "NEEDS_OCR" | "PENDING" | "PROCESSING" | "COMPLETED" | "ERROR";
     canStart: boolean;
     canRetry: boolean;
+    searchable: boolean;
   };
   selectedPage?: { pageNumber: number; text: string; textKind?: 'NATIVE' | 'OCR' };
 };
@@ -154,6 +155,9 @@ export default function WorkspaceDocumentViewer() {
   const effectivePageCount =
     pageCount || document?.extraction?.pageCount || document?.file?.pageCount || 0;
   const isPdf = document?.file?.mimeType === "application/pdf";
+  const workspaceTextUnavailable = document?.workspaceOcr
+    ? !document.workspaceOcr.searchable
+    : document?.status === "OCR_REQUIRED";
   const ocrDocumentId = document?.id;
   const ocrState = document?.workspaceOcr?.state;
 
@@ -285,6 +289,7 @@ export default function WorkspaceDocumentViewer() {
           state: result.state,
           canStart: false,
           canRetry: result.canRetry,
+          searchable: current.workspaceOcr?.searchable ?? false,
         },
       } : current);
       setOcrConfirming(false);
@@ -339,9 +344,12 @@ export default function WorkspaceDocumentViewer() {
           <p>No pudimos extraer el texto de este archivo.</p>
         </Card>
       )}
-      {document?.workspaceOcr && document.workspaceOcr.state !== "NOT_REQUIRED" && (
+      {document?.workspaceOcr && (
         <Card>
           <section className={styles.workspaceOcrPanel} aria-label="Reconocimiento de texto del documento">
+            {document.workspaceOcr.state === "NOT_REQUIRED" && (
+              <p className={styles.workspaceOcrComplete} role="status">El documento tiene texto disponible. Listo para buscar.</p>
+            )}
             {document.workspaceOcr.state === "NEEDS_OCR" && (
               <>
                 <p role="status">El PDF original está disponible, pero todavía no hay texto para buscar dentro de él.</p>
@@ -411,10 +419,10 @@ export default function WorkspaceDocumentViewer() {
             label="Buscar en el documento"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={document?.status === "OCR_REQUIRED" ? "El texto todavía no está disponible" : "Buscar y resaltar en el documento"}
-            disabled={document?.status === "OCR_REQUIRED"}
+            placeholder={workspaceTextUnavailable ? "El texto todavía no está disponible" : "Buscar y resaltar en el documento"}
+            disabled={workspaceTextUnavailable}
           />
-          <Button type="submit" disabled={document?.status === "OCR_REQUIRED"}>Buscar</Button>
+          <Button type="submit" disabled={workspaceTextUnavailable}>Buscar</Button>
         </form>
         {matches && (
           <p>

@@ -40,8 +40,11 @@ import { CorpusDocumentAccessService } from './corpus-document-access.service';
 import { normalizeRelativePath } from './document-source-scanner';
 import { LocalPdfOcrProcessor } from './document-local-processors';
 import { enqueueLocalOcrJob } from './ocr-job-queue';
+import { enqueueWorkspaceOcrJob } from './workspace-ocr-job-queue';
 import {
   canStartWorkspaceOcr,
+  hasUsableWorkspaceNativeText,
+  needsWorkspaceOcrPage,
   isRetryableWorkspaceOcrError,
   workspaceOcrState,
 } from './workspace-ocr-status';
@@ -3159,30 +3162,34 @@ export class WorkspaceDocumentService {
     const document = await this.prisma.corpusDocument.findFirst({
       where: {
         id,
-        documentScope: 'PRIVATE_WORKSPACE',
         workspaceDocuments: {
           some: { workspaceId, ownerUserId: null },
         },
       },
       select: {
+        id: true,
         status: true,
+        documentScope: true,
+        searchText: true,
         latestExtraction: {
           select: {
             id: true,
             fileId: true,
             status: true,
-            pages: { select: { processingStatus: true } },
+            pages: {
+              select: {
+                pageNumber: true,
+                text: true,
+                textKind: true,
+                processingStatus: true,
+              },
+            },
           },
         },
         files: {
           orderBy: { version: 'desc' },
           take: 1,
-          select: { id: true, mimeType: true },
-        },
-        ocrJobs: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          select: { fileId: true, status: true, errorCode: true },
+          select: { id: true, mimeType: true, sha256: true },
         },
       },
     });
@@ -3198,21 +3205,61 @@ export class WorkspaceDocumentService {
           state: 'NOT_REQUIRED' as const,
           canStart: false,
           canRetry: false,
+          searchable: true,
         },
       };
     }
-    const job = document.ocrJobs.find((item) => item.fileId === currentFile.id);
     const latestExtraction =
-      document.latestExtraction?.fileId === currentFile.id
+      document.latestExtraction?.fileId === currentFile.id &&
+      document.latestExtraction.id
         ? document.latestExtraction
         : null;
+    const job = latestExtraction
+      ? await this.prisma.workspaceOcrJob.findFirst({
+          where: {
+            workspaceId,
+            documentId: id,
+            fileId: currentFile.id,
+            fileSha256: currentFile.sha256,
+            latestExtractionId: latestExtraction.id,
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, status: true, errorCode: true },
+        })
+      : null;
+    const pagesNeedingOcr = (latestExtraction?.pages ?? []).filter(
+      needsWorkspaceOcrPage,
+    );
     const canRetry =
       job?.status === 'FAILED' && isRetryableWorkspaceOcrError(job.errorCode);
     const state = workspaceOcrState({
-      documentStatus: document.status,
       extractionStatus: latestExtraction?.status,
       jobStatus: job?.status,
+      requiresOcr: pagesNeedingOcr.length > 0,
+      documentStatus: document.status,
     });
+    const completedPages =
+      job?.status === 'COMPLETE'
+        ? await this.prisma.workspaceOcrPage.findMany({
+            where: {
+              workspaceId,
+              documentId: id,
+              fileId: currentFile.id,
+              fileSha256: currentFile.sha256,
+              extractionId: latestExtraction?.id ?? '',
+            },
+            select: { text: true },
+          })
+        : [];
+    const searchable =
+      (latestExtraction?.pages ?? []).some(hasUsableWorkspaceNativeText) ||
+      (latestExtraction?.pages ?? []).some(
+        (page) =>
+          page.textKind === 'OCR' &&
+          page.processingStatus === 'OCR_HUMAN_APPROVED' &&
+          page.text.trim().length > 0,
+      ) ||
+      completedPages.some((page) => page.text.trim().length > 0);
     return {
       ...metadata,
       workspaceOcr: {
@@ -3223,6 +3270,7 @@ export class WorkspaceDocumentService {
           canRetry,
         }),
         canRetry,
+        searchable,
       },
     };
   }
@@ -3259,7 +3307,6 @@ export class WorkspaceDocumentService {
       const document = await tx.corpusDocument.findFirst({
         where: {
           id: documentId,
-          documentScope: 'PRIVATE_WORKSPACE',
           workspaceDocuments: {
             some: { workspaceId, ownerUserId: null },
           },
@@ -3276,6 +3323,8 @@ export class WorkspaceDocumentService {
                 orderBy: { pageNumber: 'asc' },
                 select: {
                   pageNumber: true,
+                  text: true,
+                  textKind: true,
                   processingStatus: true,
                 },
               },
@@ -3289,6 +3338,7 @@ export class WorkspaceDocumentService {
               mimeType: true,
               originalFilename: true,
               sha256: true,
+              pageCount: true,
             },
           },
         },
@@ -3305,13 +3355,10 @@ export class WorkspaceDocumentService {
         throw new ConflictException('Este PDF no está disponible para OCR.');
 
       const pages = document.latestExtraction.pages
-        .filter((item) => item.processingStatus === 'OCR_REQUIRED')
+        .filter(needsWorkspaceOcrPage)
         .map((item) => item.pageNumber);
       if (!pages.length) {
-        if (document.latestExtraction.status === 'OCR_COMPLETE') {
-          return { state: 'COMPLETED' as const, canRetry: false };
-        }
-        throw new ConflictException('Este documento no requiere OCR.');
+        return { state: 'NOT_REQUIRED' as const, canRetry: false };
       }
       if (
         !this.ocrProcessor.config.enabled ||
@@ -3321,18 +3368,15 @@ export class WorkspaceDocumentService {
           'El reconocimiento de texto no está disponible en este momento. El PDF original sigue disponible.',
         );
 
-      const job = await enqueueLocalOcrJob(
-        tx,
-        this.ocrProcessor,
-        {
-          documentId,
-          fileId: file.id,
-          fileSha256: file.sha256,
-          pageNumbers: pages,
-          workspaceAudit: { workspaceId, requestedByUserId: user.id },
-        },
-        { retryFailed: true },
-      );
+      const job = await enqueueWorkspaceOcrJob(tx, this.ocrProcessor, {
+        workspaceId,
+        documentId,
+        fileId: file.id,
+        fileSha256: file.sha256,
+        latestExtractionId: document.latestExtraction.id,
+        requestedByUserId: user.id,
+        pageNumbers: pages,
+      });
       if (!job)
         throw new HttpException(
           'La cola de reconocimiento está ocupada. Volvé a intentarlo más tarde.',
@@ -3340,22 +3384,6 @@ export class WorkspaceDocumentService {
         );
 
       if (job.status === 'PENDING' || job.status === 'RUNNING') {
-        await tx.corpusDocument.updateMany({
-          where: {
-            id: documentId,
-            latestExtractionId: document.latestExtraction.id,
-          },
-          data: { status: 'OCR_PROCESSING' },
-        });
-        await tx.corpusIngestionRecord.updateMany({
-          where: { documentId, fileId: file.id },
-          data: {
-            status: 'OCR_PROCESSING',
-            errorStage: null,
-            errorMessage: null,
-            retryable: false,
-          },
-        });
         if (job.created || job.retried) {
           const workspace = await tx.documentWorkspace.findUnique({
             where: { id: workspaceId },
@@ -3388,9 +3416,8 @@ export class WorkspaceDocumentService {
         }
       }
       const state = workspaceOcrState({
-        documentStatus:
-          job.status === 'FAILED' ? 'OCR_FAILED' : 'OCR_PROCESSING',
-        extractionStatus: document.latestExtraction.status,
+        documentStatus: document.status,
+        requiresOcr: true,
         jobStatus: job.status,
       });
       return {

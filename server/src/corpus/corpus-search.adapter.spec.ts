@@ -418,7 +418,7 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
     }
   });
 
-  it('reuses the verified workspace candidate set for an exact term total', async () => {
+  it('searches the Workspace-scoped OCR projection when computing exact term totals', async () => {
     const adapter = new CorpusSearchSourceAdapter(
       'postgresql://bjc_dev:test@127.0.0.1:55432/buscador_juridico_civil_dev',
     );
@@ -463,16 +463,17 @@ describe('CorpusSearchSourceAdapter generic full-text search', () => {
       expect(exactCountSql).toContain(
         'FROM "WorkspaceDocument" workspaceDocument',
       );
-      expect(exactCountSql).toContain('FROM "CorpusSearchToken" token');
+      expect(exactCountSql).toContain('FROM "WorkspaceOcrPage" workspacePage');
+      expect(exactCountSql).toContain('scoped."searchText" ILIKE');
+      expect(exactCountSql).not.toContain('FROM "CorpusSearchToken" token');
       expect(exactCountSql).toContain(
         'FROM "corpusSearchCandidates" candidates',
       );
       expect(exactCountSql).toContain(
         'JOIN "CorpusDocument" d ON d."id" = candidates."id"',
       );
-      expect(exactCountSql).toContain('lower(scopedToken."token") LIKE');
-      expect(exactCountSql).not.toContain('d."searchText" ILIKE');
-      expect(query.mock.calls[2]?.[1]).toContain('workspacefixturetoken%');
+      expect(exactCountSql).not.toContain('WHERE d."searchText" ILIKE');
+      expect(query.mock.calls[2]?.[1]).toContain('%workspacefixturetoken%');
       expect(result.total).toBe(0);
       expect(result.totalExact).toBe(true);
       expect(query).toHaveBeenCalledTimes(3);

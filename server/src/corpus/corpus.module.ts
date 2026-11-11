@@ -15,6 +15,7 @@ import { DocumentSourceService } from './document-source.service';
 import { DocumentSourceScanner } from './document-source-scanner';
 import { LocalPdfOcrProcessor } from './document-local-processors';
 import { CorpusOcrWorkerService } from './corpus-ocr-worker.service';
+import { WorkspaceOcrWorkerService } from './workspace-ocr-worker.service';
 import { InstitutionalIngestionController } from './institutional-ingestion.controller';
 import { InstitutionalIngestionService } from './institutional-ingestion.service';
 import { LogsModule } from '../logs/logs.module';
@@ -40,6 +41,7 @@ import { OcrHumanReviewService } from './ocr-human-review.service';
     DocumentSourceService,
     DocumentSourceScanner,
     CorpusOcrWorkerService,
+    WorkspaceOcrWorkerService,
     InstitutionalIngestionService,
     OcrHumanReviewService,
     {

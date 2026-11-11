@@ -68,6 +68,24 @@ export class CorpusDocumentAccessService {
             },
           })
         : null;
+    const workspacePage =
+      workspaceId && pageNumber && latestFile && latestExtraction
+        ? await this.prisma.workspaceOcrPage.findFirst({
+            where: {
+              workspaceId,
+              documentId,
+              fileId: latestFile.id,
+              fileSha256: latestFile.sha256,
+              extractionId: latestExtraction.id,
+              pageNumber,
+            },
+            select: {
+              pageNumber: true,
+              text: true,
+              confidence: true,
+            },
+          })
+        : null;
     if (pageNumber !== undefined) {
       const pageCount = latestFile?.pageCount;
       if (
@@ -77,14 +95,15 @@ export class CorpusDocumentAccessService {
         (pageCount !== null &&
           pageCount !== undefined &&
           pageNumber > pageCount) ||
-        !page ||
-        !isUsablePage(
-          latestExtraction?.status,
-          page,
-          Boolean(
-            workspaceId && document.documentScope === 'PRIVATE_WORKSPACE',
-          ),
-        )
+        (!workspacePage &&
+          (!page ||
+            !isUsablePage(
+              latestExtraction?.status,
+              page,
+              Boolean(
+                workspaceId && document.documentScope === 'PRIVATE_WORKSPACE',
+              ),
+            )))
       ) {
         throw new BadRequestException(
           'La página solicitada no está disponible.',
@@ -143,7 +162,19 @@ export class CorpusDocumentAccessService {
             pages: latestExtraction.pages.map((item) => item.pageNumber),
           }
         : null,
-      ...(page ? { selectedPage: page } : {}),
+      ...(workspacePage
+        ? {
+            selectedPage: {
+              pageNumber: workspacePage.pageNumber,
+              text: workspacePage.text,
+              textKind: 'OCR',
+              processingStatus: 'WORKSPACE_OCR_COMPLETE',
+              ocrConfidence: workspacePage.confidence,
+            },
+          }
+        : page
+          ? { selectedPage: page }
+          : {}),
     };
   }
 
@@ -291,7 +322,7 @@ export class CorpusDocumentAccessService {
         .find((item) => typeof item === 'string');
       return typeof value === 'string' ? value : null;
     };
-    const pages = (extraction?.pages ?? [])
+    const sourcePages = (extraction?.pages ?? [])
       .filter((page) =>
         isUsablePage(
           extraction?.status,
@@ -306,6 +337,38 @@ export class CorpusDocumentAccessService {
         textKind:
           page.textKind === 'OCR' ? ('OCR' as const) : ('NATIVE' as const),
       }));
+    const workspacePages =
+      workspaceId && document.files[0]
+        ? await this.prisma.workspaceOcrPage.findMany({
+            where: {
+              workspaceId,
+              documentId,
+              fileId: document.files[0].id,
+              fileSha256: document.files[0].sha256,
+              extractionId: document.latestExtractionId ?? '',
+            },
+            orderBy: { pageNumber: 'asc' },
+            select: {
+              pageNumber: true,
+              text: true,
+              confidence: true,
+            },
+          })
+        : [];
+    const workspacePagesByNumber = new Map(
+      workspacePages.map((page) => [page.pageNumber, page]),
+    );
+    const pages = sourcePages.map((page) => {
+      const workspacePage = workspacePagesByNumber.get(page.pageNumber);
+      return workspacePage
+        ? {
+            ...page,
+            text: workspacePage.text,
+            textKind: 'OCR' as const,
+            processingStatus: 'WORKSPACE_OCR_COMPLETE',
+          }
+        : page;
+    });
     return findDocumentMatches(pages, query, 500, {
       tema: document.subtitle,
       sala: document.chamber,

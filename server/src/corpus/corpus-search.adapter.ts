@@ -67,7 +67,9 @@ type SearchRow = {
   digestoTags: string | null;
 };
 
-function pageMatchSource(row: SearchRow): 'PDF_TEXT' | 'OCR_APPROVED' | null {
+function pageMatchSource(
+  row: SearchRow,
+): 'PDF_TEXT' | 'OCR_APPROVED' | 'WORKSPACE_OCR' | null {
   if (
     !Number.isInteger(row.matchedPage) ||
     (row.matchedPage ?? 0) < 1 ||
@@ -75,6 +77,11 @@ function pageMatchSource(row: SearchRow): 'PDF_TEXT' | 'OCR_APPROVED' | null {
   )
     return null;
   if (row.matchedPageTextKind === 'NATIVE') return 'PDF_TEXT';
+  if (
+    row.matchedPageTextKind === 'WORKSPACE_OCR' &&
+    row.matchedPageProcessingStatus === 'WORKSPACE_OCR_COMPLETE'
+  )
+    return 'WORKSPACE_OCR';
   if (
     row.matchedPageTextKind === 'OCR' &&
     row.activeExtractionStatus === 'OCR_HUMAN_APPROVED' &&
@@ -113,7 +120,11 @@ function patternColumn(expression: string, literal: SearchLiteralNode) {
   return expression;
 }
 
-function compileNode(node: SearchNode | null, values: SqlValue[]): string {
+function compileNode(
+  node: SearchNode | null,
+  values: SqlValue[],
+  workspaceSearchTextExpression?: string,
+): string {
   if (!node) return 'TRUE';
   if (node.type === 'term' || node.type === 'phrase') {
     values.push(pattern(node));
@@ -129,7 +140,7 @@ function compileNode(node: SearchNode | null, values: SqlValue[]): string {
       objeto: `COALESCE(d."metadata"->>'objeto', '')`,
       magistrados: `COALESCE(d."metadata"->>'magistrados', '')`,
       numeroSentencia: 'd."caseNumber"',
-      numeroSumario: 'd."searchText"',
+      numeroSumario: workspaceSearchTextExpression ?? 'd."searchText"',
     };
     const rawColumn = node.field ? columns[node.field] : 'd."searchText"';
     // The full-text projection is normalized at write time. Keeping the bare
@@ -139,9 +150,74 @@ function compileNode(node: SearchNode | null, values: SqlValue[]): string {
       : rawColumn;
     return `${patternColumn(normalizedColumn, node)} ILIKE $${values.length} ESCAPE E'\\\\'`;
   }
-  if (node.type === 'not') return `(NOT ${compileNode(node.operand, values)})`;
+  if (node.type === 'not')
+    return `(NOT ${compileNode(node.operand, values, workspaceSearchTextExpression)})`;
   const operator = node.type === 'and' ? ' AND ' : ' OR ';
-  return `(${node.operands.map((part) => compileNode(part, values)).join(operator)})`;
+  return `(${node.operands
+    .map((part) => compileNode(part, values, workspaceSearchTextExpression))
+    .join(operator)})`;
+}
+
+function buildPageMatchSql(pagePatternsParam: string, workspaceScope: boolean) {
+  if (!workspaceScope)
+    return `LEFT JOIN LATERAL (
+      SELECT p."pageNumber", p."text", p."textKind", p."processingStatus",
+             (SELECT count(*)::integer
+                FROM "CorpusDocumentPage" counted
+               WHERE counted."extractionId" = e."id"
+                 AND cardinality(${pagePatternsParam}::text[]) > 0
+                 AND (' ' || COALESCE(translate(lower(counted."text"), 'áéíóúü', 'aeiouu'), '') || ' ')
+                     ILIKE ANY(${pagePatternsParam}::text[])
+                 AND (counted."textKind" = 'NATIVE' OR
+                      (e."status" = 'OCR_HUMAN_APPROVED'
+                       AND counted."textKind" = 'OCR'
+                       AND counted."processingStatus" = 'OCR_HUMAN_APPROVED'))
+             ) AS "matchedPageCount"
+        FROM "CorpusDocumentPage" p
+       WHERE p."extractionId" = e."id"
+         AND cardinality(${pagePatternsParam}::text[]) > 0
+         AND (' ' || COALESCE(translate(lower(p."text"), 'áéíóúü', 'aeiouu'), '') || ' ')
+             ILIKE ANY(${pagePatternsParam}::text[])
+         AND (p."textKind" = 'NATIVE' OR
+              (e."status" = 'OCR_HUMAN_APPROVED'
+               AND p."textKind" = 'OCR'
+               AND p."processingStatus" = 'OCR_HUMAN_APPROVED'))
+       ORDER BY p."pageNumber"
+       LIMIT 1
+    ) pageMatch ON TRUE`;
+  const workspaceOcrPages = `UNION ALL
+      SELECT workspacePage."pageNumber", workspacePage."text",
+             'WORKSPACE_OCR'::text AS "textKind",
+             'WORKSPACE_OCR_COMPLETE'::text AS "processingStatus"
+        FROM "WorkspaceOcrPage" workspacePage
+       WHERE workspacePage."workspaceId" = $2
+         AND workspacePage."documentId" = d."id"
+         AND workspacePage."extractionId" = d."latestExtractionId"
+         AND workspacePage."fileId" = (
+           SELECT currentFile."id" FROM "CorpusDocumentFile" currentFile
+            WHERE currentFile."documentId" = d."id"
+            ORDER BY currentFile."version" DESC LIMIT 1
+         )`;
+  return `LEFT JOIN LATERAL (
+    SELECT pageCandidates."pageNumber", pageCandidates."text",
+           pageCandidates."textKind", pageCandidates."processingStatus",
+           count(*) OVER() AS "matchedPageCount"
+      FROM (
+        SELECT p."pageNumber", p."text", p."textKind", p."processingStatus"
+          FROM "CorpusDocumentPage" p
+         WHERE p."extractionId" = e."id"
+           AND (p."textKind" = 'NATIVE' OR
+                (e."status" = 'OCR_HUMAN_APPROVED'
+                 AND p."textKind" = 'OCR'
+                 AND p."processingStatus" = 'OCR_HUMAN_APPROVED'))
+        ${workspaceOcrPages}
+      ) pageCandidates
+     WHERE cardinality(${pagePatternsParam}::text[]) > 0
+       AND (' ' || COALESCE(translate(lower(pageCandidates."text"), 'áéíóúü', 'aeiouu'), '') || ' ')
+           ILIKE ANY(${pagePatternsParam}::text[])
+     ORDER BY pageCandidates."pageNumber"
+     LIMIT 1
+  ) pageMatch ON TRUE`;
 }
 
 function buildBooleanCandidateCte(
@@ -172,91 +248,19 @@ function buildBooleanCandidateCte(
     numeroSumario: 'd."searchText"',
   };
   const addLiteral = (node: SearchLiteralNode) => {
-    if (scopedDocumentsSql && !node.field) {
+    if (scopedDocumentsSql && (!node.field || node.field === 'numeroSumario')) {
       if (!scopedDocumentsName) {
         scopedDocumentsName = '"corpusWorkspaceDocuments"';
         ctes.push(
           `${scopedDocumentsName} AS MATERIALIZED (${scopedDocumentsSql})`,
         );
       }
-      const normalizedValue = normalizeSearchText(node.value);
-      const tokens = [
-        ...new Set(normalizedValue.split(/\s+/u).filter(Boolean)),
-      ];
-      if (useTokenProjection && tokens.length > 0) {
-        let tokenPattern: string;
-        let tokenPredicate: string;
-        if (node.type === 'phrase') {
-          const anchor = tokens.reduce((best, value, index, candidates) =>
-            [...value].length > [...candidates[best]].length ? index : best,
-          0);
-          tokenPattern = `%${escapeLike(tokens[anchor])}%`;
-          tokenPredicate = `token."token" ILIKE $TOKEN$`;
-        } else if (
-          tokens.length === 1 &&
-          (node.matchMode === 'prefix' || usesImplicitLexicalPrefix(node))
-        ) {
-          tokenPattern = `${escapeLike(tokens[0])}%`;
-          tokenPredicate = `lower(token."token") LIKE $TOKEN$`;
-        } else if (tokens.length === 1 && node.matchMode === 'suffix') {
-          tokenPattern = `${escapeLike([...tokens[0]].reverse().join(''))}%`;
-          tokenPredicate = `reverse(token."token") LIKE $TOKEN$`;
-        } else if (tokens.length === 1) {
-          tokenPattern = pattern(node);
-          tokenPredicate = `token."token" ILIKE $TOKEN$`;
-        } else {
-          tokenPattern = '';
-          tokenPredicate = '';
-        }
-        if (tokenPattern) {
-          const name = nextName();
-          const tokenParameter = `$${values.push(tokenPattern)}`;
-          ctes.push(`${name} AS MATERIALIZED (
-            SELECT scoped."id" AS "id"
-              FROM ${scopedDocumentsName} scoped
-             WHERE EXISTS (
-               SELECT 1 FROM (
-                 SELECT token."token" FROM "CorpusSearchToken" token
-                  WHERE token."documentId" = scoped."id"
-                  OFFSET 0
-               ) scopedToken
-                WHERE ${tokenPredicate.replace('token."token"', 'scopedToken."token"').replace('$TOKEN$', tokenParameter)} ESCAPE E'\\\\'
-             )
-          )`);
-          if (
-            (node.type === 'term' &&
-              (node.matchMode === 'prefix' ||
-                node.matchMode === 'suffix' ||
-                usesImplicitLexicalPrefix(node))) ||
-            (node.type === 'term' &&
-              node.matchMode === 'contains' &&
-              tokens.length === 1 &&
-              tokens[0].length >= 3) ||
-            (node.type === 'phrase' && deferPhraseVerification)
-          )
-            return name;
-
-          const candidateDocuments = nextName();
-          ctes.push(`${candidateDocuments} AS MATERIALIZED (
-            SELECT d."id", d."searchText" FROM ${name} candidates
-            JOIN "CorpusDocument" d ON d."id" = candidates."id"
-          )`);
-          const verifiedName = nextName();
-          values.push(pattern(node));
-          ctes.push(`${verifiedName} AS MATERIALIZED (
-            SELECT candidates."id" FROM ${candidateDocuments} candidates
-            WHERE candidates."searchText" ILIKE $${values.length} ESCAPE E'\\\\'
-          )`);
-          return verifiedName;
-        }
-      }
       const name = nextName();
       values.push(pattern(node));
       ctes.push(`${name} AS MATERIALIZED (
-        SELECT d."id" AS "id"
+        SELECT scoped."id" AS "id"
           FROM ${scopedDocumentsName} scoped
-          JOIN "CorpusDocument" d ON d."id" = scoped."id"
-         WHERE ${patternColumn('d."searchText"', node)} ILIKE $${values.length} ESCAPE E'\\\\'
+         WHERE ${patternColumn('scoped."searchText"', node)} ILIKE $${values.length} ESCAPE E'\\\\'
       )`);
       return name;
     }
@@ -620,6 +624,20 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         : null;
     const userIdIndex = userId !== null ? values.push(userId) : null;
     const workspaceScope = workspaceId !== null;
+    const workspaceSearchTextExpression = workspaceScope
+      ? `(COALESCE(d."searchText", '') || ' ' || COALESCE((
+          SELECT string_agg(workspacePage."text", ' ' ORDER BY workspacePage."pageNumber")
+            FROM "WorkspaceOcrPage" workspacePage
+           WHERE workspacePage."workspaceId" = $2
+             AND workspacePage."documentId" = d."id"
+             AND workspacePage."extractionId" = d."latestExtractionId"
+             AND workspacePage."fileId" = (
+               SELECT currentFile."id" FROM "CorpusDocumentFile" currentFile
+                WHERE currentFile."documentId" = d."id"
+                ORDER BY currentFile."version" DESC LIMIT 1
+             )
+        ), ''))`
+      : undefined;
     const personalScope = isPersonalScope && userId !== null;
     const sourceId =
       isWorkspaceScope && typeof documentScope?.sourceId === 'string'
@@ -780,6 +798,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       ? `(${scopePredicate}) AND (${filterPredicate})`
       : scopePredicate;
     const shortTermWindow =
+      !workspaceScope &&
       !candidateDocumentIds &&
       useTokenProjection &&
       query.root?.type === 'term' &&
@@ -797,7 +816,8 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       this.candidateStrategy === 'set-algebra-v2' &&
       !candidateDocumentIds
     ) {
-      workspaceScopedDocumentsSql = `SELECT d."id" AS "id"
+      workspaceScopedDocumentsSql = `SELECT d."id" AS "id",
+                    ${workspaceSearchTextExpression} AS "searchText"
              FROM "WorkspaceDocument" workspaceDocument
              JOIN "CorpusDocument" d
                ON d."id" = workspaceDocument."documentId"
@@ -859,7 +879,9 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
         `EXISTS (SELECT 1 FROM "CorpusSearchToken" token WHERE token."documentId" = d."id" AND token."token" ILIKE $${values.length} ESCAPE E'\\\\')`,
       );
     } else if (!candidateCte && !candidateDocumentIds)
-      predicates.push(`(${compileNode(query.root, values)})`);
+      predicates.push(
+        `(${compileNode(query.root, values, workspaceSearchTextExpression)})`,
+      );
     if (context.filters?.sala) {
       values.push(context.filters.sala);
       predicates.push(`d."chamber" = $${values.length}`);
@@ -916,7 +938,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       );
     }
     const exactPhraseVerification = deferredSinglePhrase
-      ? compileNode(query.root, values)
+      ? compileNode(query.root, values, workspaceSearchTextExpression)
       : null;
     const phraseSnippetParam =
       deferredSinglePhrase && query.root?.type === 'phrase'
@@ -963,6 +985,8 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       .map(pattern);
     const offsetValue = (page - 1) * pageSize;
     const rowValues = [...values, pagePatterns, pageSize, offsetValue];
+    const pagePatternsParam = `$${values.length + 1}`;
+    const pageMatchSql = buildPageMatchSql(pagePatternsParam, workspaceScope);
     const limit = `$${rowValues.length - 1}`;
     const offset = `$${rowValues.length}`;
     let rows: QueryResult<SearchRow>;
@@ -980,7 +1004,6 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
       if (boundedCandidatePage) {
         while (true) {
           const pageQueryStartedAt = performance.now();
-          const pagePatternsParam = `$${values.length + 1}`;
           const phraseIndexedWhere = `${where} AND d."status" = 'INDEXED'`;
           const phraseOcrRequiredWhere = `${where} AND d."status" = 'OCR_REQUIRED'`;
           const candidateWindowCtes = deferredSinglePhrase
@@ -1061,23 +1084,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
                       pageMatch."matchedPageCount" AS "matchedPageCount"
                  FROM ${deferredSinglePhrase ? '"pageStats" stats LEFT JOIN "pagedCandidates" selected ON TRUE LEFT JOIN "CorpusDocument" d ON d."id"=selected."id"' : '"pagedCandidates" selected CROSS JOIN "pageStats" stats JOIN "CorpusDocument" d ON d."id"=selected."id"'}
                  LEFT JOIN "CorpusExtraction" e ON e."id"=d."latestExtractionId"
-                 LEFT JOIN LATERAL (
-                   SELECT p."pageNumber", p."text", p."textKind", p."processingStatus",
-                          (SELECT count(*)::integer
-                             FROM "CorpusDocumentPage" counted
-                            WHERE counted."extractionId"=e."id"
-                              AND cardinality(${pagePatternsParam}::text[])>0
-                              AND (' ' || COALESCE(translate(lower(counted."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY(${pagePatternsParam}::text[])
-                              AND (counted."textKind"='NATIVE' OR (e."status"='OCR_HUMAN_APPROVED' AND counted."textKind"='OCR' AND counted."processingStatus"='OCR_HUMAN_APPROVED'))
-                          ) AS "matchedPageCount"
-                     FROM "CorpusDocumentPage" p
-                    WHERE p."extractionId"=e."id"
-                      AND cardinality(${pagePatternsParam}::text[])>0
-                      AND (' ' || COALESCE(translate(lower(p."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY(${pagePatternsParam}::text[])
-                      AND (p."textKind"='NATIVE' OR (e."status"='OCR_HUMAN_APPROVED' AND p."textKind"='OCR' AND p."processingStatus"='OCR_HUMAN_APPROVED'))
-                    ORDER BY p."pageNumber"
-                    LIMIT 1
-                 ) pageMatch ON TRUE
+                  ${pageMatchSql}
                  LEFT JOIN LATERAL (SELECT cf.* FROM "CorpusDocumentFile" cf WHERE cf."documentId"=d."id" ORDER BY cf."version" DESC LIMIT 1) f ON TRUE
                  LEFT JOIN LATERAL (SELECT ci.* FROM "CorpusIngestionRecord" ci WHERE ci."documentId"=d."id" ORDER BY ci."ingestedAt" DESC LIMIT 1) ing ON TRUE
                  LEFT JOIN "CorpusSourceSystem" src ON src."id"=ing."sourceSystemId"
@@ -1144,23 +1151,7 @@ export class CorpusSearchSourceAdapter implements SearchSourceAdapter {
                   pageMatch."matchedPageCount" AS "matchedPageCount"
              FROM "pageDocs" selected JOIN "CorpusDocument" d ON d."id" = selected."id"
              LEFT JOIN "CorpusExtraction" e ON e."id" = d."latestExtractionId"
-             LEFT JOIN LATERAL (
-               SELECT p."pageNumber", p."text", p."textKind", p."processingStatus",
-                      (SELECT count(*)::integer
-                         FROM "CorpusDocumentPage" counted
-                        WHERE counted."extractionId"=e."id"
-                          AND cardinality($${values.length + 1}::text[])>0
-                          AND (' ' || COALESCE(translate(lower(counted."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY($${values.length + 1}::text[])
-                          AND (counted."textKind"='NATIVE' OR (e."status"='OCR_HUMAN_APPROVED' AND counted."textKind"='OCR' AND counted."processingStatus"='OCR_HUMAN_APPROVED'))
-                      ) AS "matchedPageCount"
-                 FROM "CorpusDocumentPage" p
-                WHERE p."extractionId"=e."id"
-                  AND cardinality($${values.length + 1}::text[])>0
-                  AND (' ' || COALESCE(translate(lower(p."text"), 'áéíóúü', 'aeiouu'), '') || ' ') ILIKE ANY($${values.length + 1}::text[])
-                  AND (p."textKind"='NATIVE' OR (e."status"='OCR_HUMAN_APPROVED' AND p."textKind"='OCR' AND p."processingStatus"='OCR_HUMAN_APPROVED'))
-                ORDER BY p."pageNumber"
-                LIMIT 1
-             ) pageMatch ON TRUE
+             ${pageMatchSql}
              LEFT JOIN LATERAL (SELECT cf.* FROM "CorpusDocumentFile" cf WHERE cf."documentId" = d."id" ORDER BY cf."version" DESC LIMIT 1) f ON TRUE
              LEFT JOIN LATERAL (SELECT ci.* FROM "CorpusIngestionRecord" ci WHERE ci."documentId" = d."id" ORDER BY ci."ingestedAt" DESC LIMIT 1) ing ON TRUE
              LEFT JOIN "CorpusSourceSystem" src ON src."id" = ing."sourceSystemId"

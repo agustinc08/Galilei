@@ -1,6 +1,8 @@
 import {
   canStartWorkspaceOcr,
+  hasUsableWorkspaceNativeText,
   isRetryableWorkspaceOcrError,
+  needsWorkspaceOcrPage,
   workspaceOcrState,
 } from './workspace-ocr-status';
 
@@ -27,6 +29,36 @@ describe('Workspace OCR status', () => {
     expect(isRetryableWorkspaceOcrError('FILE_INVALID')).toBe(false);
     expect(isRetryableWorkspaceOcrError('OCR_LOW_QUALITY')).toBe(false);
     expect(isRetryableWorkspaceOcrError(null)).toBe(false);
+  });
+
+  it('recognizes empty pages even when legacy extraction marked them native', () => {
+    expect(
+      needsWorkspaceOcrPage({
+        text: '',
+        textKind: 'NATIVE',
+        processingStatus: 'TEXT_NATIVE',
+      }),
+    ).toBe(true);
+    expect(
+      needsWorkspaceOcrPage({
+        text: 'Native text long enough to be useful in dependency search.',
+        textKind: 'NATIVE',
+        processingStatus: 'OCR_REQUIRED',
+      }),
+    ).toBe(false);
+    expect(
+      hasUsableWorkspaceNativeText({
+        text: 'Native text long enough to be useful in dependency search.',
+        textKind: 'NATIVE',
+        processingStatus: 'TEXT_NATIVE',
+      }),
+    ).toBe(true);
+    expect(
+      workspaceOcrState({
+        documentStatus: 'INDEXED',
+        requiresOcr: true,
+      }),
+    ).toBe('NEEDS_OCR');
   });
 
   it.each([
