@@ -749,13 +749,14 @@ test('authorized researcher can favorite results, copy an authoritative citation
   expect(citation).toContain(`Fuente: Jurisprudencia Civil — ${new URL(page.url()).origin}/consulta/sentencia/fallo-demo-ninez`);
 
   const saveTrigger = page.getByRole('button', { name: 'Guardar búsqueda', exact: true });
+  const saveSearchDialog = page.getByRole('dialog', { name: 'Guardar búsqueda' });
   await saveTrigger.click();
-  await expect(page.getByLabel('Nombre de la búsqueda')).toBeFocused();
+  await expect(saveSearchDialog.getByLabel('Nombre')).toBeFocused();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'Guardar búsqueda' })).toHaveCount(0);
+  await expect(saveSearchDialog).toHaveCount(0);
   await expect(saveTrigger).toBeFocused();
   await saveTrigger.click();
-  await page.getByLabel('Nombre de la búsqueda').fill('Daño civil');
+  await saveSearchDialog.getByLabel('Nombre').fill('Daño civil');
   await expect(page.getByRole('button', { name: 'Cancelar' })).toBeVisible();
   await page.getByRole('button', { name: 'Guardar', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Búsqueda guardada en tu cuenta' })).toBeVisible();

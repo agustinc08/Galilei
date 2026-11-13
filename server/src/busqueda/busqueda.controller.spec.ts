@@ -32,6 +32,7 @@ function federatedPage() {
         metadata: {
           sentenciaId: 8142,
           caratula: 'A. G. c/ B. P.',
+          tema: 'Responsabilidad civil',
           publicado: true,
           activo: true,
           cantidadSumarios: 1,
@@ -330,8 +331,32 @@ describe('Search HTTP controllers in OpenSearch product mode', () => {
         pdfDisponible: false,
       }),
     ]);
+    expect(response.data[0].highlights).toEqual([
+      { campo: 'tema', texto: '<mark>Responsabilidad</mark> civil' },
+    ]);
     expect(response.data[0]).not.toHaveProperty('sentencia');
     expect(response.meta).toMatchObject({ total: 1, page: 1, pageSize: 10 });
+  });
+
+  it('highlights positive literals in matching public fields and snippets only', async () => {
+    const page = federatedPage();
+    Object.assign(page.results[0].metadata, {
+      tema: 'Responsabilidad civil y daño',
+    });
+    page.results[0].snippet = 'Daño y responsabilidad civil.';
+    const search = jest.fn().mockResolvedValue(page);
+    const controller = new PublicBusquedaController(
+      mockBusquedaService(search),
+    );
+
+    const response = await controller.publica({
+      q: 'responsabilidad NOT daño',
+    });
+
+    expect(response.data[0].highlights).toEqual([
+      { campo: 'tema', texto: '<mark>Responsabilidad</mark> civil y daño' },
+      { campo: 'sumario', texto: 'Daño y <mark>responsabilidad</mark> civil.' },
+    ]);
   });
 
   it('reports date ordering for an empty public search', async () => {

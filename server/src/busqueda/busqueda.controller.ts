@@ -21,6 +21,9 @@ import { PublicBusquedaQueryDto } from './dto/public-busqueda-query.dto';
 import { SEARCH_MAX_RESULT_WINDOW } from './opensearch/search-window.constants';
 import { SugerenciasQueryDto } from './dto/sugerencias-query.dto';
 import type { SearchResult } from './adapters/search-source.adapter';
+import { buildHighlight } from './utils/search-highlights';
+import { visitSearchLiterals } from './utils/search-ast';
+import { parseSearchQuery } from './utils/search-parser';
 
 @ApiTags('busqueda')
 @ApiBearerAuth()
@@ -379,7 +382,7 @@ export class PublicBusquedaController {
     );
     if (!federated) throw new ServiceUnavailableException();
     return {
-      ...toPublicConsultaPage(federated, sortUsed),
+      ...toPublicConsultaPage(federated, sortUsed, query.q, query.operador),
       federated,
     };
   }
@@ -594,7 +597,17 @@ function toV2CompatibilityPage(
 function toPublicConsultaPage(
   page: NonNullable<Awaited<ReturnType<BusquedaService['federatedSearch']>>>,
   sortUsed: string,
+  rawQuery?: string,
+  operator?: 'AND' | 'OR',
 ) {
+  const searchTerms: string[] = [];
+  visitSearchLiterals(
+    parseSearchQuery(rawQuery, { defaultOperator: operator }).root,
+    (literal, negated) => {
+      if (!negated) searchTerms.push(literal.value);
+    },
+  );
+  const uniqueSearchTerms = [...new Set(searchTerms)];
   const data = page.results.map((result) => {
     if (
       result.sourceSystem !== 'JURISPRUDENCIA' ||
@@ -611,6 +624,21 @@ function toPublicConsultaPage(
     const booleanField = (key: string) => metadata[key] === true;
     const pdfDisponible = booleanField('pdfDisponible');
     const archivoPdfId = Number(metadata.archivoPdfId);
+    const matchedFieldHighlights = result.matchedFields.flatMap((field) => {
+      const value = metadata[field];
+      if (typeof value !== 'string') return [];
+      const highlight = buildHighlight(field, value, uniqueSearchTerms);
+      return highlight ? [highlight] : [];
+    });
+    const snippetHighlight = buildHighlight(
+      'sumario',
+      result.snippet,
+      uniqueSearchTerms,
+    );
+    const highlights = [
+      ...matchedFieldHighlights,
+      ...(snippetHighlight ? [snippetHighlight] : []),
+    ].slice(0, 3);
 
     return {
       id: sentenciaId,
@@ -634,7 +662,7 @@ function toPublicConsultaPage(
       cantidadSumarios: Number.isSafeInteger(Number(metadata.cantidadSumarios))
         ? Math.max(0, Number(metadata.cantidadSumarios))
         : 0,
-      highlights: [],
+      highlights,
       tienePdf: pdfDisponible,
       pdfDisponible,
       archivoPdfId:
