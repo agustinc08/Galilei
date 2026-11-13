@@ -636,9 +636,19 @@ function toPublicConsultaPage(
       uniqueSearchTerms,
     );
     const highlights = [
+      ...(result.highlights ?? []),
       ...matchedFieldHighlights,
       ...(snippetHighlight ? [snippetHighlight] : []),
-    ].slice(0, 3);
+    ]
+      .filter(
+        (highlight, index, items) =>
+          items.findIndex(
+            (candidate) =>
+              candidate.campo === highlight.campo &&
+              candidate.texto === highlight.texto,
+          ) === index,
+      )
+      .slice(0, 3);
 
     return {
       id: sentenciaId,

@@ -359,6 +359,27 @@ describe('Search HTTP controllers in OpenSearch product mode', () => {
     ]);
   });
 
+  it('preserves bounded query highlights provided by the authorized search adapter', async () => {
+    const page = federatedPage();
+    page.results[0].highlights = [
+      {
+        campo: 'tema',
+        texto: '... responsabilidad y <mark>contrato</mark> civil ...',
+      },
+    ];
+    const search = jest.fn().mockResolvedValue(page);
+    const controller = new PublicBusquedaController(
+      mockBusquedaService(search),
+    );
+
+    const response = await controller.publica({ q: 'contrato' });
+
+    expect(response.data[0].highlights[0]).toEqual({
+      campo: 'tema',
+      texto: '... responsabilidad y <mark>contrato</mark> civil ...',
+    });
+  });
+
   it('reports date ordering for an empty public search', async () => {
     const service = mockBusquedaService();
     const controller = new PublicBusquedaController(service);

@@ -18,6 +18,7 @@ import type {
   SearchQueryAst,
 } from '../utils/search-ast';
 import { visitSearchLiterals } from '../utils/search-ast';
+import { buildHighlight } from '../utils/search-highlights';
 import { normalizeSearchText } from '../utils/search-normalizer';
 import { sentenciaTienePdfReal } from '../../archivos/pdf-real.util';
 
@@ -947,6 +948,11 @@ export class PostgresJurisprudenciaSearchAdapter implements SearchSourceAdapter 
         fullText: 0,
         trigram: 0,
       };
+      const summaryHighlight = buildHighlight(
+        'tema',
+        row.sumariosSearchText,
+        literals.map((literal) => literal.value),
+      );
       return {
         id: `JURISPRUDENCIA:SENTENCIA:${row.id}`,
         sourceSystem: 'JURISPRUDENCIA',
@@ -957,6 +963,7 @@ export class PostgresJurisprudenciaSearchAdapter implements SearchSourceAdapter 
         date: row.fecha?.toISOString() ?? null,
         snippet:
           searchableText.replace(/\s+/gu, ' ').trim().slice(0, 280) || null,
+        highlights: summaryHighlight ? [summaryHighlight] : [],
         matchedFields: matchedFields(matchingRow, literals),
         score: 0,
         metadata: {

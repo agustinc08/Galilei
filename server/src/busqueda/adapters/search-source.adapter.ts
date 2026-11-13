@@ -82,6 +82,8 @@ export type SearchResult = {
   subtitle: string | null;
   date: string | null;
   snippet: string | null;
+  /** Bounded, query-centered fragments derived from already-authorized source text. */
+  highlights?: Array<{ campo: string; texto: string }>;
   matchedFields: string[];
   score: number;
   scoreComponents?: Record<string, number>;
