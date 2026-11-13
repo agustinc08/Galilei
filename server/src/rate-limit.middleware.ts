@@ -83,7 +83,8 @@ function classifyRequest(request: Request): Category | null {
     return 'search';
   if (
     request.method === 'GET' &&
-    /^\/api\/(?:public\/)?corpus\/documents\/[^/]+\/matches$/u.test(path)
+    (/^\/api\/(?:public\/)?corpus\/documents\/[^/]+\/matches$/u.test(path) ||
+      /^\/api\/public\/sentencias\/[^/]+\/coincidencias$/u.test(path))
   )
     return 'matches';
   if (

@@ -71,8 +71,10 @@ export function PdfViewer({
   const [isLoading, setIsLoading] = useState(Boolean(downloadPath));
   const [error, setError] = useState<string | null>(null);
   const externalPage = Number.isSafeInteger(page) && (page ?? 0) > 0 ? page! : 1;
+  const hasExplicitPage = Number.isSafeInteger(page) && (page ?? 0) > 0;
+  const pageContextKey = `${downloadPath ?? ''}\u0000${filename}\u0000${page ?? ''}\u0000${searchQuery ?? ''}`;
   const [pageOverride, setPageOverride] = useState<{
-    externalPage: number | null;
+    contextKey: string;
     value: number;
   } | null>(null);
   const [pageCountState, setPageCountState] = useState<{
@@ -92,19 +94,15 @@ export function PdfViewer({
   const structureStatus = structureMatchesPath ? structureState?.status ?? '' : '';
   const structureLoading = Boolean(structurePath && !structureMatchesPath);
   const [copyStatus, setCopyStatus] = useState('');
-  const requestedPage = pageOverride?.externalPage === externalPage
-    ? pageOverride.value
-    : externalPage;
-  // Until PDF.js has a trusted page count, render page 1. A deep link such as
-  // ?page=999 must never reach the browser PDF viewer before it can be clamped.
-  const currentPage = pageCount ? clampPdfPage(requestedPage, pageCount) : 1;
-  const setCurrentPage = useCallback((value: number) => {
-    const safeValue = Number.isSafeInteger(value) && value > 0 ? value : 1;
-    const safePage = pageCount ? clampPdfPage(safeValue, pageCount) : safeValue;
-    setPageOverride({ externalPage, value: safePage });
-  }, [externalPage, pageCount]);
   const [zoom, setZoom] = useState('auto');
-  const [searchOpen, setSearchOpen] = useState(false);
+  const searchContextKey = `${downloadPath ?? ''}\u0000${filename}\u0000${searchQuery ?? ''}`;
+  const [searchOpenState, setSearchOpenState] = useState({ contextKey: '', value: false });
+  const searchOpen = searchOpenState.contextKey === searchContextKey
+    ? searchOpenState.value
+    : Boolean(searchQuery?.trim());
+  const setSearchOpen = useCallback((value: boolean) => {
+    setSearchOpenState({ contextKey: searchContextKey, value });
+  }, [searchContextKey]);
   const [draftQueryState, setDraftQueryState] = useState({
     source: searchQuery ?? '',
     value: searchQuery ?? '',
@@ -112,11 +110,58 @@ export function PdfViewer({
   const draftSearchQuery = draftQueryState.source === (searchQuery ?? '')
     ? draftQueryState.value
     : searchQuery ?? '';
-  const [activeSearchQuery, setActiveSearchQuery] = useState('');
-  const [pageTexts, setPageTexts] = useState<string[] | null>(null);
+  const [activeSearchState, setActiveSearchState] = useState({ contextKey: '', value: '' });
+  const activeSearchQuery = activeSearchState.contextKey === searchContextKey
+    ? activeSearchState.value
+    : searchQuery?.trim() ?? '';
+  const setActiveSearchQuery = useCallback((value: string) => {
+    setActiveSearchState({ contextKey: searchContextKey, value });
+  }, [searchContextKey]);
   const [searchProgress, setSearchProgress] = useState<{ page: number; total: number } | null>(null);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+  const [searchErrorState, setSearchErrorState] = useState<{
+    contextKey: string;
+    value: string | null;
+  }>({ contextKey: '', value: null });
+  const searchError = searchErrorState.contextKey === searchContextKey
+    ? searchErrorState.value
+    : null;
+  const setSearchError = useCallback((value: string | null) => {
+    setSearchErrorState({ contextKey: searchContextKey, value });
+  }, [searchContextKey]);
+  const [activeMatchState, setActiveMatchState] = useState({ contextKey: '', value: 0 });
+  const activeMatchIndex = activeMatchState.contextKey === searchContextKey
+    ? activeMatchState.value
+    : 0;
+  const setActiveMatchIndex = useCallback((value: number) => {
+    setActiveMatchState({ contextKey: searchContextKey, value });
+  }, [searchContextKey]);
+
+  const [pageTextsState, setPageTextsState] = useState<{
+    blob: Blob;
+    texts: string[];
+  } | null>(null);
+  const pageTexts = pageTextsState?.blob === blobData
+    ? pageTextsState.texts
+    : null;
+  const routeSearchQuery = searchQuery?.trim() ?? '';
+  const initialSearchPage = useMemo(() => {
+    if (!routeSearchQuery || hasExplicitPage || !pageTexts) return null;
+    return findPdfTextMatches(pageTexts, routeSearchQuery)[0]?.page ?? null;
+  }, [hasExplicitPage, pageTexts, routeSearchQuery]);
+  const pageOverrideForContext = pageOverride?.contextKey === pageContextKey
+    ? pageOverride.value
+    : null;
+  const requestedPage = pageOverrideForContext ?? (
+    hasExplicitPage ? externalPage : initialSearchPage ?? externalPage
+  );
+  // Until PDF.js has a trusted page count, render page 1. A deep link such as
+  // ?page=999 must never reach the browser PDF viewer before it can be clamped.
+  const currentPage = pageCount ? clampPdfPage(requestedPage, pageCount) : 1;
+  const setCurrentPage = useCallback((value: number) => {
+    const safeValue = Number.isSafeInteger(value) && value > 0 ? value : 1;
+    const safePage = pageCount ? clampPdfPage(safeValue, pageCount) : safeValue;
+    setPageOverride({ contextKey: pageContextKey, value: safePage });
+  }, [pageContextKey, pageCount]);
 
   const buildPdfSrc = useCallback((url: string) => {
     const params = new URLSearchParams();
@@ -129,6 +174,7 @@ export function PdfViewer({
 
   useEffect(() => {
     if (!downloadPath || !syncPageToUrl || !pageCount || typeof window === 'undefined') return;
+    if (routeSearchQuery && !hasExplicitPage && pageTexts === null) return;
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.set('page', String(currentPage));
     window.history.replaceState(
@@ -136,7 +182,7 @@ export function PdfViewer({
       '',
       `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`,
     );
-  }, [currentPage, downloadPath, pageCount, syncPageToUrl]);
+  }, [currentPage, downloadPath, hasExplicitPage, pageCount, pageTexts, routeSearchQuery, syncPageToUrl]);
 
   useEffect(() => {
     onControlsChange?.(EMPTY_CONTROLS);
@@ -152,7 +198,7 @@ export function PdfViewer({
         setBlobData(null);
         setBlobUrl(null);
         setError(null);
-        setPageTexts(null);
+        setPageTextsState(null);
         onControlsChange?.(EMPTY_CONTROLS);
         return;
       }
@@ -161,11 +207,7 @@ export function PdfViewer({
       setError(null);
       setBlobData(null);
       setBlobUrl(null);
-      setPageTexts(null);
-      setSearchError(null);
-      setActiveSearchQuery('');
-      setActiveMatchIndex(0);
-      setSearchOpen(false);
+      setPageTextsState(null);
 
       try {
         const blob = await api.download(downloadPath, { skipAuth });
@@ -212,24 +254,13 @@ export function PdfViewer({
     const controller = new AbortController();
     void getPdfPageCount(blobData, controller.signal)
       .then((count) => {
-        if (!controller.signal.aborted) {
-          setPageCountState({ blob: blobData, count });
-          setPageOverride((previous) => {
-            const requested = previous?.externalPage === externalPage
-              ? previous.value
-              : externalPage ?? 1;
-            return {
-              externalPage,
-              value: Math.max(1, Math.min(requested, count)),
-            };
-          });
-        }
+        if (!controller.signal.aborted) setPageCountState({ blob: blobData, count });
       })
       .catch(() => {
         // A count is shown only when it belongs to the currently loaded Blob.
       });
     return () => controller.abort();
-  }, [blobData, externalPage]);
+  }, [blobData]);
 
   useEffect(() => {
     if (!structurePath) return;
@@ -284,7 +315,7 @@ export function PdfViewer({
     )
       .then((texts) => {
         if (!controller.signal.aborted) {
-          setPageTexts(texts);
+          setPageTextsState({ blob: blobData, texts });
           setSearchProgress(null);
         }
       })
@@ -295,7 +326,7 @@ export function PdfViewer({
       });
 
     return () => controller.abort();
-  }, [blobData, pageTexts, searchOpen]);
+  }, [blobData, pageTexts, searchOpen, setSearchError]);
 
   const matches = useMemo(
     () => pageTexts ? findPdfTextMatches(pageTexts, activeSearchQuery) : [],
@@ -309,7 +340,7 @@ export function PdfViewer({
     const wrappedIndex = (index + matches.length) % matches.length;
     setActiveMatchIndex(wrappedIndex);
     setCurrentPage(matches[wrappedIndex].page);
-  }, [matches, setCurrentPage]);
+  }, [matches, setActiveMatchIndex, setCurrentPage]);
 
   const submitSearch = useCallback((event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
@@ -324,7 +355,7 @@ export function PdfViewer({
       return;
     }
     goToMatch(activeMatchIndex + 1);
-  }, [activeMatchIndex, activeSearchQuery, draftSearchQuery, goToMatch, pageTexts, setCurrentPage]);
+  }, [activeMatchIndex, activeSearchQuery, draftSearchQuery, goToMatch, pageTexts, setActiveMatchIndex, setActiveSearchQuery, setCurrentPage]);
 
   const previousMatch = useCallback(() => {
     goToMatch(activeMatchIndex - 1);
@@ -334,7 +365,7 @@ export function PdfViewer({
     setDraftQueryState({ source: searchQuery ?? '', value: '' });
     setActiveSearchQuery('');
     setActiveMatchIndex(0);
-  }, [searchQuery]);
+  }, [searchQuery, setActiveMatchIndex, setActiveSearchQuery]);
 
   const copyPageLink = useCallback(async () => {
     if (!pageCount || currentPage > pageCount) return;

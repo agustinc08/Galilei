@@ -1,6 +1,7 @@
 'use client';
 
 import styles from './consulta.module.css';
+import { SafeSearchHighlight } from './SafeSearchHighlight';
 
 type Props = {
   html: string;
@@ -8,9 +9,8 @@ type Props = {
 
 export function HighlightText({ html }: Props) {
   return (
-    <span
-      className={styles.highlightText}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <span className={styles.highlightText}>
+      <SafeSearchHighlight markup={html} />
+    </span>
   );
 }

@@ -11,6 +11,7 @@ import {
   Sumario,
 } from '../generated/prisma/client';
 import { obtenerPdfsReales } from '../archivos/pdf-real.util';
+import { findDocumentMatches } from '../corpus/corpus-document-matches';
 import {
   buildSentenciaSearchData,
   buildSumarioSearchData,
@@ -1185,6 +1186,69 @@ export class SentenciasService {
     if (!sentencia)
       throw new NotFoundException('Sentencia pública no encontrada');
     return this.buildStructureForSentence(sentencia.id, sentencia.archivosPdf);
+  }
+
+  async getPublicMatchesBySlug(slug: string, query: string) {
+    // Reject malformed/oversized queries before loading the page text for this
+    // PDF. The same parser is applied to the actual pages below.
+    findDocumentMatches([], query, 20);
+    const sentencia = await this.prisma.sentencia.findFirst({
+      where: this.publicIdentifierWhere(slug),
+      select: {
+        id: true,
+        archivosPdf: {
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, rutaArchivo: true },
+        },
+      },
+    });
+    if (!sentencia)
+      throw new NotFoundException('Sentencia pública no encontrada');
+
+    const extraction = await findLinkedCorpusTextSource(
+      this.prisma,
+      sentencia.id,
+      sentencia.archivosPdf,
+    );
+    if (!extraction) {
+      return {
+        data: {
+          status: 'NO_TEXT' as const,
+          total: 0,
+          returned: 0,
+          exactTotalKnown: true,
+          truncated: false,
+          matches: [],
+        },
+      };
+    }
+
+    const result = findDocumentMatches(
+      extraction.pages.map((page) => ({
+        pageNumber: page.pageNumber,
+        text: page.text,
+        textKind: page.textKind === 'OCR' ? 'OCR' : 'NATIVE',
+      })),
+      query,
+      20,
+    );
+    return {
+      data: {
+        status: result.total ? ('MATCHES' as const) : ('NO_MATCH' as const),
+        total: result.total,
+        returned: result.returned,
+        exactTotalKnown: result.exactTotalKnown,
+        truncated: result.truncated,
+        matches: result.matches.map((match) => ({
+          pageNumber: match.page,
+          textKind: match.textKind,
+          context: match.context,
+          term: match.term,
+          kind: match.kind,
+          ordinal: match.ordinal,
+        })),
+      },
+    };
   }
 
   async generarCita(id: number) {

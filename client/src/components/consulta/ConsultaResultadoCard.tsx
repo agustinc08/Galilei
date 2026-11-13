@@ -19,6 +19,27 @@ import type { PublicSentencia } from '@/types/sentencia';
 import { AddToCollectionButton } from '@/components/research/AddToCollectionButton';
 import { useComparisonSelection } from '@/components/comparison/ComparisonSelection';
 import { EvolutionAddButton } from '@/components/evolution/EvolutionAddButton';
+import { highlightSearchSnippet } from '@/lib/search-snippet-highlight';
+
+type PublicPdfMatch = {
+  pageNumber: number;
+  context: string;
+  textKind: 'NATIVE' | 'OCR';
+};
+
+type PublicPdfMatchesResponse = {
+  status: 'MATCHES' | 'NO_MATCH' | 'NO_TEXT';
+  total: number;
+  matches: PublicPdfMatch[];
+};
+
+type PdfMatchLookupState = {
+  key: string;
+  status: 'loading' | 'results' | 'message';
+  matches?: PublicPdfMatch[];
+  total?: number;
+  message?: string;
+};
 
 type Props = {
   item: ConsultaPublicaResultado;
@@ -49,6 +70,7 @@ export function ConsultaResultadoCard({
 }: Props) {
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [copyingCitation, setCopyingCitation] = useState(false);
+  const [pdfMatchLookup, setPdfMatchLookup] = useState<PdfMatchLookupState | null>(null);
   const comparison = useComparisonSelection();
   const pathname = usePathname() ?? '/consulta';
   const searchParams = useSearchParams();
@@ -57,6 +79,20 @@ export function ConsultaResultadoCard({
   const returnTo = `${searchPath}${searchParams.size ? `?${searchParams.toString()}` : ''}`;
   const detailQuery = new URLSearchParams({ returnTo });
   if (query) detailQuery.set('q', query);
+  const pdfMatchLookupKey = `${item.id}\u0000${query ?? ''}`;
+  const activePdfMatchLookup = pdfMatchLookup?.key === pdfMatchLookupKey
+    ? pdfMatchLookup
+    : null;
+  const locatingMatches = activePdfMatchLookup?.status === 'loading';
+  const locatedMatches = activePdfMatchLookup?.status === 'results'
+    ? activePdfMatchLookup.matches ?? null
+    : null;
+  const locatedMatchTotal = activePdfMatchLookup?.status === 'results'
+    ? activePdfMatchLookup.total ?? 0
+    : 0;
+  const locateMessage = activePdfMatchLookup?.status === 'message'
+    ? activePdfMatchLookup.message ?? null
+    : null;
   const publicIdentifier = item.slugPublico ?? String(item.sentenciaId ?? item.id);
   const hasPdf = item.pdfDisponible === true || Boolean(item.archivoPdfId);
   const summaryCount = Math.max(1, Math.trunc(Number(item.cantidadSumarios ?? 1)));
@@ -68,6 +104,59 @@ export function ConsultaResultadoCard({
   const pdfHref = hasPdf
     ? buildApiUrl(`/public/sentencias/${encodeURIComponent(publicIdentifier)}/pdf`)
     : null;
+
+  const locatePdfMatches = async () => {
+    if (!item.slugPublico || !query?.trim() || locatingMatches) return;
+    const requestKey = pdfMatchLookupKey;
+    setPdfMatchLookup({ key: requestKey, status: 'loading' });
+    try {
+      const response = await api.get<{ data: PublicPdfMatchesResponse }>(
+        `/public/sentencias/${encodeURIComponent(item.slugPublico)}/coincidencias`,
+        { query: { q: query.trim() }, skipAuth: true },
+      );
+      const result = response.data;
+      if (result.status === 'NO_TEXT') {
+        setPdfMatchLookup({
+          key: requestKey,
+          status: 'message',
+          message: 'El PDF no tiene texto utilizable para ubicar la coincidencia. Podés abrirlo igualmente.',
+        });
+      } else if (result.status === 'NO_MATCH' || !result.matches.length) {
+        setPdfMatchLookup({
+          key: requestKey,
+          status: 'message',
+          message: 'La búsqueda no coincide con el texto disponible del PDF. Podés abrirlo igualmente.',
+        });
+      } else {
+        const matchesByPage = new Map<number, (typeof result.matches)[number]>();
+        for (const match of result.matches) {
+          if (!matchesByPage.has(match.pageNumber)) {
+            matchesByPage.set(match.pageNumber, match);
+          }
+        }
+        const firstMatchPerPage = [...matchesByPage.values()];
+        setPdfMatchLookup({
+          key: requestKey,
+          status: 'results',
+          matches: firstMatchPerPage,
+          total: result.total,
+        });
+      }
+    } catch {
+      setPdfMatchLookup({
+        key: requestKey,
+        status: 'message',
+        message: 'No pudimos ubicar la coincidencia en este momento. Podés abrir el PDF y buscar allí.',
+      });
+    }
+  };
+
+  const openPdfAtMatch = (pageNumber: number) => {
+    if (!documentHref) return;
+    const destination = new URL(documentHref, window.location.origin);
+    destination.searchParams.set('page', String(pageNumber));
+    window.location.assign(`${destination.pathname}${destination.search}${destination.hash}`);
+  };
 
   const copyCitation = async () => {
     if (!item.slugPublico || copyingCitation) return;
@@ -149,6 +238,45 @@ export function ConsultaResultadoCard({
           ) : null}
           {pdfHref && hasPdf ? <a className={styles.pdfAction} href={pdfHref} target="_blank" rel="noreferrer">Abrir PDF</a> : null}
         </div>
+        {!internalSearch && item.slugPublico && hasPdf && query?.trim() ? (
+          <div className={styles.highlightGroup}>
+            {locatedMatches ? (
+              <div role="status">
+                <strong className={styles.highlightLabel}>
+                  {locatedMatchTotal === 1 ? 'Coincidencia en el PDF' : `${locatedMatchTotal} coincidencias en el PDF`}
+                </strong>
+                <p className={styles.sumarioText}>
+                  {highlightSearchSnippet(locatedMatches[0]?.context ?? '', { query })}
+                </p>
+                <div className={styles.primaryResultActions}>
+                  {locatedMatches.slice(0, 5).map((match) => (
+                    <Button
+                      key={match.pageNumber}
+                      variant="secondary"
+                      onClick={() => openPdfAtMatch(match.pageNumber)}
+                    >
+                      Ir a página PDF {match.pageNumber}
+                    </Button>
+                  ))}
+                </div>
+                {locatedMatchTotal > locatedMatches.length ? (
+                  <small>Se muestran las primeras {locatedMatches.length} páginas con coincidencias.</small>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => void locatePdfMatches()}
+                  disabled={locatingMatches}
+                >
+                  {locatingMatches ? 'Buscando en el texto disponible…' : 'Localizar en el PDF'}
+                </Button>
+                {locateMessage ? <p role="status">{locateMessage}</p> : null}
+              </>
+            )}
+          </div>
+        ) : null}
         {!hasPdf ? <Button variant="secondary" onClick={onMissingPdf}>Por qué no hay PDF</Button> : null}
         <details className={styles.moreResultActions}>
           <summary>Más acciones</summary>

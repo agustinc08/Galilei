@@ -4,9 +4,10 @@ import { Link } from "@/lib/router-compat";
 import styles from '@/components/sentencias/sentencias.module.css';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { CopyButton } from '@/components/ui/CopyButton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Table } from '@/components/ui/Table';
+import { SafeSearchHighlight } from '@/components/consulta/SafeSearchHighlight';
+import { CopySentenceCitationButton } from '@/components/sentencias/CopySentenceCitationButton';
 import { trackEvento } from '@/lib/tracking';
 import { formatDate } from '@/lib/utils';
 import type { BusquedaResultado } from '@/types/busqueda';
@@ -67,10 +68,9 @@ export function BusquedaResultados({ data, internal = false, query, returnTo }: 
                             className={styles.listItem}
                           >
                             <strong>{highlight.campo}</strong>
-                            <span
-                              className={styles.mutedText}
-                              dangerouslySetInnerHTML={{ __html: highlight.texto }}
-                            />
+                            <span className={styles.mutedText}>
+                              <SafeSearchHighlight markup={highlight.texto} />
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -112,10 +112,7 @@ export function BusquedaResultados({ data, internal = false, query, returnTo }: 
                     >
                       <Button variant="secondary">Ver documento</Button>
                     </Link>
-                    <CopyButton
-                      value={item.sentencia.caratula ?? item.sentencia.numeroSentencia ?? ''}
-                      label="Copiar"
-                    />
+                    <CopySentenceCitationButton sentenciaId={item.sentencia.id} />
                   </div>
                 </td>
               </tr>
@@ -147,8 +144,9 @@ export function BusquedaResultados({ data, internal = false, query, returnTo }: 
                 <div
                   key={`${item.sentencia.id}-${highlight.campo}-${highlight.texto}`}
                   className={styles.mutedText}
-                  dangerouslySetInnerHTML={{ __html: highlight.texto }}
-                />
+                >
+                  <SafeSearchHighlight markup={highlight.texto} />
+                </div>
               ))}
             </div>
           ) : null}
@@ -167,7 +165,7 @@ export function BusquedaResultados({ data, internal = false, query, returnTo }: 
                 <Button variant="secondary">Ver documento</Button>
               </Link>
             ) : null}
-            <CopyButton value={item.sentencia.caratula ?? item.sentencia.numeroSentencia ?? ''} label="Copiar cita" />
+            <CopySentenceCitationButton sentenciaId={item.sentencia.id} />
           </div>
         </article>
       ))}

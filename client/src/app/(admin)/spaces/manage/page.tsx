@@ -930,6 +930,7 @@ export default function PrivateSpacesPage() {
           results: Array<{
             status: string;
             duplicate: boolean;
+            nameCollision?: boolean;
             message?: string;
           }>;
         }>(
@@ -945,7 +946,12 @@ export default function PrivateSpacesPage() {
         } else if (result.duplicate) {
           updateBatchRow(row.id, {
             status: "Ya estaba cargado",
-            message: "Este documento ya estaba en la dependencia.",
+            message: "Este archivo ya existe en esta carpeta; no se agregó otra copia.",
+          });
+        } else if (result.nameCollision) {
+          updateBatchRow(row.id, {
+            status: "Listo para buscar",
+            message: "Se agregó sin reemplazar el anterior. En esta carpeta ya había un archivo con el mismo nombre y distinto contenido.",
           });
         } else {
           updateBatchRow(row.id, {
@@ -971,7 +977,7 @@ export default function PrivateSpacesPage() {
     await refresh(workspaceId, folderId);
     const finishedRows = Array.from(batchRows.values());
     const errors = finishedRows.filter(
-      (row) => row.message && row.status !== "Ya estaba cargado",
+      (row) => row.status === "Error",
     ).length;
     const duplicates = finishedRows.filter(
       (row) => row.status === "Ya estaba cargado",
@@ -1115,6 +1121,7 @@ export default function PrivateSpacesPage() {
             results: Array<{
               status: string;
               duplicate: boolean;
+              nameCollision?: boolean;
               message?: string;
             }>;
           }>(endpoint, form);
@@ -1128,7 +1135,12 @@ export default function PrivateSpacesPage() {
             updateOutcome(row.id, {
               status: "Ya estaba cargado",
               message:
-                "El mismo contenido ya existe en esta dependencia; no se movió ni reemplazó.",
+                "El mismo contenido ya existe en esta carpeta; no se movió ni reemplazó.",
+            });
+          } else if (result.nameCollision) {
+            updateOutcome(row.id, {
+              status: "Completado",
+              message: "Se agregó sin reemplazar el anterior. En esta carpeta ya había un archivo con el mismo nombre y distinto contenido.",
             });
           } else {
             updateOutcome(row.id, {

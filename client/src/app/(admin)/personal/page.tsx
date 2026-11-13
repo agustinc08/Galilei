@@ -307,15 +307,19 @@ export default function PersonalDocumentsPage() {
           batch.forEach(({ file }) => form.append("files", file, file.name));
           const endpoint = `personal/documents/folder-upload${group.folderId ? `?folderId=${encodeURIComponent(group.folderId)}` : ""}`;
           try {
-            const result = await api.post<{ results: Array<{ status: string; duplicate?: boolean; message?: string }> }>(endpoint, form);
+            const result = await api.post<{ results: Array<{ status: string; duplicate?: boolean; nameCollision?: boolean; message?: string }> }>(endpoint, form);
             batch.forEach((entry, index) => {
               const item = result.results[index];
               if (!item) {
                 recordOutcome({ name: entry.displayPath, status: "ERROR", message: "No recibimos el resultado de este archivo." });
               } else if (item.status === "ERROR") {
                 recordOutcome({ name: entry.displayPath, status: "ERROR", message: item.message || "No se pudo procesar este archivo." });
+              } else if (item.duplicate) {
+                recordOutcome({ name: entry.displayPath, status: "DUPLICATE", message: "Este archivo ya existe en esta carpeta; no se agregó otra copia." });
+              } else if (item.nameCollision) {
+                recordOutcome({ name: entry.displayPath, status: "ADDED", message: "Se agregó sin reemplazar el anterior. En esta carpeta ya había un archivo con el mismo nombre y distinto contenido." });
               } else {
-                recordOutcome({ name: entry.displayPath, status: item.duplicate ? "DUPLICATE" : "ADDED" });
+                recordOutcome({ name: entry.displayPath, status: "ADDED" });
               }
             });
           } catch (cause) {
@@ -548,7 +552,7 @@ export default function PersonalDocumentsPage() {
                   {folderReport.outcomes.length ? (
                     <details className={styles.fileDetails}>
                       <summary>Ver resultado por documento ({folderReport.outcomes.length})</summary>
-                      <ul>{folderReport.outcomes.slice(0, 100).map((item, index) => <li key={`${item.name}-${index}`}><span>{item.name}</span><small>{item.status === "ADDED" ? "Incorporado" : item.status === "DUPLICATE" ? "Ya estaba guardado" : item.message || "No se pudo procesar"}</small></li>)}</ul>
+                      <ul>{folderReport.outcomes.slice(0, 100).map((item, index) => <li key={`${item.name}-${index}`}><span>{item.name}</span><small>{item.message || (item.status === "ADDED" ? "Incorporado" : item.status === "DUPLICATE" ? "Ya estaba guardado" : "No se pudo procesar")}</small></li>)}</ul>
                     </details>
                   ) : null}
                 </div>

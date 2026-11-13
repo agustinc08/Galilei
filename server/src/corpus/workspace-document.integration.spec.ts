@@ -317,6 +317,181 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
         [upload],
         folder.id,
       );
+
+      // Duplicate discovery is scoped to the destination folder. An editor
+      // must not learn that identical content exists in a restricted folder.
+      const duplicateWorkspace = await service.createWorkspace(adminA, {
+        code: `SPRINT15DUP${suffix}`,
+        name: 'Synthetic duplicate-scope workspace',
+        type: 'JUZGADO',
+      });
+      workspaceIds.push(duplicateWorkspace.id);
+      const duplicateDependency =
+        await prisma.documentDependency.findUniqueOrThrow({
+          where: { code: duplicateWorkspace.code },
+          select: { id: true },
+        });
+      dependencyIds.push(duplicateDependency.id);
+      await service.manageMember(duplicateWorkspace.id, adminA, {
+        userId: editor.id,
+        role: 'EDITOR',
+      });
+      const restrictedFolder = await service.createFolder(
+        duplicateWorkspace.id,
+        adminA,
+        {
+          name: `Restricted source ${suffix}`,
+          visibilityScope: 'RESTRICTED',
+          userIds: [],
+        },
+      );
+      const scopedPdf = pdf;
+      const scopedUpload = {
+        originalname: `scope-check-${suffix}.pdf`,
+        mimetype: 'application/pdf',
+        buffer: scopedPdf,
+        size: scopedPdf.byteLength,
+      };
+      const restrictedCopy = await service.upload(
+        duplicateWorkspace.id,
+        adminA,
+        [scopedUpload],
+        restrictedFolder.id,
+      );
+      expect(restrictedCopy.results[0]).toMatchObject({
+        status: 'INDEXED',
+        duplicate: false,
+      });
+      const restrictedDocumentId = restrictedCopy.results[0].documentId;
+      documentIds.push(restrictedDocumentId);
+
+      const firstRootCopy = await service.upload(
+        duplicateWorkspace.id,
+        editor,
+        [scopedUpload],
+      );
+      expect(firstRootCopy.results[0]).toMatchObject({
+        status: 'INDEXED',
+        duplicate: false,
+      });
+      const rootDocumentId = firstRootCopy.results[0].documentId;
+      documentIds.push(rootDocumentId);
+      expect(rootDocumentId).not.toBe(restrictedDocumentId);
+
+      const sameRootCopy = await service.upload(duplicateWorkspace.id, editor, [
+        scopedUpload,
+      ]);
+      expect(sameRootCopy.results[0]).toMatchObject({
+        documentId: rootDocumentId,
+        duplicate: true,
+      });
+
+      const sameContentDifferentName = await service.upload(
+        duplicateWorkspace.id,
+        editor,
+        [
+          {
+            ...scopedUpload,
+            originalname: `scope-renamed-${suffix}.pdf`,
+          },
+        ],
+      );
+      expect(sameContentDifferentName.results[0]).toMatchObject({
+        documentId: rootDocumentId,
+        duplicate: true,
+      });
+
+      const batchBytes = await readFile(
+        path.join(
+          process.cwd(),
+          'scripts/dev/fixtures/corpus/pagina-vacia.pdf',
+        ),
+      );
+      const batchDuplicate = await service.upload(
+        duplicateWorkspace.id,
+        editor,
+        [
+          {
+            originalname: `scope-batch-first-${suffix}.pdf`,
+            mimetype: 'application/pdf',
+            buffer: batchBytes,
+            size: batchBytes.byteLength,
+          },
+          {
+            originalname: `scope-batch-second-${suffix}.pdf`,
+            mimetype: 'application/pdf',
+            buffer: batchBytes,
+            size: batchBytes.byteLength,
+          },
+        ],
+      );
+      expect(batchDuplicate.results).toHaveLength(2);
+      expect(batchDuplicate.results[0]).toMatchObject({ duplicate: false });
+      expect(batchDuplicate.results[1]).toMatchObject({ duplicate: true });
+      expect(batchDuplicate.results[0].documentId).toBe(
+        batchDuplicate.results[1].documentId,
+      );
+      documentIds.push(batchDuplicate.results[0].documentId);
+
+      const differentContent = await readFile(
+        path.join(
+          process.cwd(),
+          'scripts/dev/fixtures/corpus/version-b/mismo-nombre.pdf',
+        ),
+      );
+      const collision = await service.upload(duplicateWorkspace.id, editor, [
+        {
+          ...scopedUpload,
+          buffer: differentContent,
+          size: differentContent.byteLength,
+        },
+      ]);
+      expect(collision.results[0]).toMatchObject({
+        duplicate: false,
+        nameCollision: true,
+      });
+      documentIds.push(collision.results[0].documentId);
+
+      const raceBytes = await readFile(
+        path.join(
+          process.cwd(),
+          'scripts/dev/fixtures/corpus/version-a/mismo-nombre.pdf',
+        ),
+      );
+      const raceUpload = {
+        originalname: `scope-race-${suffix}.pdf`,
+        mimetype: 'application/pdf',
+        buffer: raceBytes,
+        size: raceBytes.byteLength,
+      };
+      const concurrentCopies = await Promise.all([
+        service.upload(duplicateWorkspace.id, editor, [raceUpload]),
+        service.upload(duplicateWorkspace.id, editor, [raceUpload]),
+      ]);
+      const concurrentResults = concurrentCopies.map((copy) => copy.results[0]);
+      expect(
+        concurrentResults.filter((result) => !result.duplicate),
+      ).toHaveLength(1);
+      expect(
+        concurrentResults.filter((result) => result.duplicate),
+      ).toHaveLength(1);
+      expect(concurrentResults[0].documentId).toBe(
+        concurrentResults[1].documentId,
+      );
+      documentIds.push(concurrentResults[0].documentId);
+
+      const [restrictedFile, rootFile] = await Promise.all([
+        prisma.corpusDocumentFile.findFirstOrThrow({
+          where: { documentId: restrictedDocumentId },
+          select: { sha256: true, storageKey: true },
+        }),
+        prisma.corpusDocumentFile.findFirstOrThrow({
+          where: { documentId: rootDocumentId },
+          select: { sha256: true, storageKey: true },
+        }),
+      ]);
+      expect(rootFile).toEqual(restrictedFile);
+
       const b = await service.upload(workspaceB.id, adminB, [upload]);
       const idA = a.results[0].documentId;
       const idB = b.results[0].documentId;
@@ -1202,15 +1377,20 @@ describe('Sprint 15 private workspace PostgreSQL isolation', () => {
       expect(fileA.sha256).toBe(fileB.sha256);
       expect(fileA.storageKey).toBe(fileB.storageKey);
 
-      const partialUpload = await service.upload(workspaceA.id, adminA, [
-        {
-          ...upload,
-          originalname: 'archivo-corrupto.pdf',
-          buffer: Buffer.from('%PDF-archivo-roto'),
-          size: 16,
-        },
-        upload,
-      ]);
+      const partialUpload = await service.upload(
+        workspaceA.id,
+        adminA,
+        [
+          {
+            ...upload,
+            originalname: 'archivo-corrupto.pdf',
+            buffer: Buffer.from('%PDF-archivo-roto'),
+            size: 16,
+          },
+          upload,
+        ],
+        folder.id,
+      );
       expect(partialUpload.results.map((result) => result.status)).toEqual([
         'ERROR',
         expect.any(String),

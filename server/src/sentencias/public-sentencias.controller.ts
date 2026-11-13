@@ -49,6 +49,17 @@ export class PublicSentenciasController {
     return this.sentenciasService.getPublicStructureBySlug(slug);
   }
 
+  @Get(':slug/coincidencias')
+  @ApiOperation({
+    summary: 'Localiza coincidencias textuales en las páginas del PDF público',
+  })
+  getMatchesBySlug(
+    @Param('slug') slug: string,
+    @Query('q') query: string | undefined,
+  ) {
+    return this.sentenciasService.getPublicMatchesBySlug(slug, query ?? '');
+  }
+
   @Get(':slug/ficha')
   @ApiOperation({ summary: 'Obtiene la ficha publica de una sentencia' })
   findFichaBySlug(@Param('slug') slug: string) {

@@ -187,7 +187,7 @@ async function installApiMocks(
   page: Page,
   authenticated = false,
   roleName = ADMIN.rol.nombre,
-  options: { seedNovelties?: boolean; failNovelties?: boolean; failExport?: boolean; pageAwareCorpusResult?: boolean } = {},
+  options: { seedNovelties?: boolean; failNovelties?: boolean; failExport?: boolean; pageAwareCorpusResult?: boolean; pageAwarePublicPdf?: boolean; internalCitationResult?: boolean } = {},
 ) {
   const authenticatedUser = { ...ADMIN, rol: { ...ADMIN.rol, nombre: roleName } };
   const favorites = new Set<number>();
@@ -256,8 +256,11 @@ async function installApiMocks(
 
     if (path === '/auth/me' && method === 'GET') return route.fulfill({ json: authenticatedUser });
     if (path === '/public/busqueda' && method === 'GET') {
+      const result = options.pageAwarePublicPdf
+        ? { ...DEMO_RESULT, tienePdf: true, pdfDisponible: true, archivoPdfId: 77 }
+        : DEMO_RESULT;
       return route.fulfill({ json: {
-        data: [DEMO_RESULT],
+        data: [result],
         meta: {
           total: 1,
           page: Number(url.searchParams.get('page') ?? '1'),
@@ -272,6 +275,41 @@ async function installApiMocks(
     }
     if (path === '/public/busqueda/interpretacion' && method === 'GET') {
       return route.fulfill({ json: { data: { summary: 'La consulta busca desde el inicio de cada palabra.', notes: 'Las tildes se toleran; ñ se mantiene distinta de n.' } } });
+    }
+    if (path === '/busqueda/avanzada' && method === 'GET' && options.internalCitationResult) {
+      return route.fulfill({ json: {
+        data: [{
+          sentencia: {
+            id: 77,
+            slugPublico: DEMO_RESULT.slugPublico,
+            caratula: DEMO_RESULT.caratula,
+            numeroSentencia: DEMO_RESULT.numeroSentencia,
+            tipoFallo: DEMO_RESULT.tipoFallo,
+            sala: DEMO_RESULT.sala,
+            fecha: DEMO_RESULT.fecha,
+            expediente: DEMO_RESULT.expediente,
+            publicado: true,
+            activo: true,
+            destacada: false,
+            tienePdf: true,
+            pdfDisponible: true,
+            archivoPdfId: 77,
+            resumenPublicado: true,
+          },
+          cantidadSumarios: 1,
+          cantidadPdfs: 1,
+          resumenBreve: 'Responsabilidad civil en el caso sintético.',
+          relevancia: 1,
+          score: 1,
+          criterioPrincipal: null,
+          fragmentos: [],
+          highlights: [],
+          matchInfo: { exactPhraseMatches: 0, termMatches: 1, matchedFields: ['caratula'], directMatches: 1, synonymMatches: 0 },
+          matchedFields: ['caratula'],
+          sumariosRelevantes: [],
+        }],
+        meta: { total: 1, page: 1, pageSize: 10, pageCount: 1, hasMore: false, sortUsed: 'relevancia' },
+      } });
     }
     if (path === '/busqueda/avanzada' && method === 'GET' && options.pageAwareCorpusResult) {
       return route.fulfill({ json: {
@@ -329,11 +367,27 @@ async function installApiMocks(
         'responsabilidad civil',
       ]) });
     }
+    if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}/coincidencias` && method === 'GET') {
+      return route.fulfill({ json: { data: {
+        status: 'MATCHES',
+        total: 2,
+        returned: 2,
+        exactTotalKnown: true,
+        truncated: false,
+        matches: [
+          { pageNumber: 2, context: 'La responsabilidad civil surge del accidente probado.', textKind: 'NATIVE' },
+          { pageNumber: 2, context: 'Se analiza nuevamente la responsabilidad civil.', textKind: 'NATIVE' },
+        ],
+      } } });
+    }
     if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}/estructura` && method === 'GET') {
       return route.fulfill({ json: { data: { status: 'NO_STRUCTURE', sections: [] } } });
     }
     if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}/cita` && method === 'GET') {
       return route.fulfill({ json: { data: { citaConPagina: 'María Núñez c/ Peña, Sala C, p. 1' } } });
+    }
+    if (path === '/sentencias/77/cita' && method === 'GET') {
+      return route.fulfill({ json: { data: { citaCopiable: 'María Núñez c/ Peña, Sala C, 3/6/2024, Expte. CIV 10/2024, Sentencia 12/2024' } } });
     }
     if (path === `/public/sentencias/${DEMO_RESULT.slugPublico}/relaciones-verificadas` && method === 'GET') {
       return route.fulfill({ json: { data: [{
@@ -590,6 +644,61 @@ test('public search state is canonical and a copied deep link preserves query, f
   expect(returnedSearch.get('pageSize')).toBe('10');
   await expect(page.getByLabel('Buscar jurisprudencia')).toHaveValue('responsabilidad civil');
   await expect(page.getByLabel('Filtros activos')).toContainText('Sala: Sala C');
+});
+
+test('public result locates an exact PDF page and preserves the query in the viewer', async ({ page }) => {
+  const { calls } = await installApiMocks(page, false, ADMIN.rol.nombre, { pageAwarePublicPdf: true });
+  await page.goto('/consulta?q=responsabilidad%20civil&page=1&pageSize=10&sala=C&sortBy=fecha&sortOrder=asc');
+  await expect(page.getByRole('button', { name: 'Localizar en el PDF', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Localizar en el PDF', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('2 coincidencias en el PDF');
+  await expect(page.getByRole('status')).toContainText('La responsabilidad civil surge del accidente probado.');
+  await expect(page.getByRole('button', { name: 'Ir a página PDF 2', exact: true })).toBeVisible();
+  expect(calls.some((call) => call.path === `/public/sentencias/${DEMO_RESULT.slugPublico}/coincidencias`
+    && call.method === 'GET'
+    && new URLSearchParams(call.search).get('q') === 'responsabilidad civil')).toBe(true);
+
+  await page.getByRole('button', { name: 'Ir a página PDF 2', exact: true }).click();
+  await expect(page).toHaveURL(/\/fallos\/fallo-demo-ninez\?/u);
+  const viewerUrl = new URL(page.url());
+  expect(viewerUrl.searchParams.get('page')).toBe('2');
+  expect(viewerUrl.searchParams.get('q')).toBe('responsabilidad civil');
+  const returnTo = viewerUrl.searchParams.get('returnTo');
+  expect(returnTo).not.toBeNull();
+  const returnUrl = new URL(returnTo!, page.url());
+  expect(returnUrl.pathname).toBe('/consulta');
+  expect(returnUrl.searchParams.get('q')).toBe('responsabilidad civil');
+  expect(returnUrl.searchParams.get('sala')).toBe('C');
+  expect(returnUrl.searchParams.get('sortBy')).toBe('fecha');
+  expect(returnUrl.searchParams.get('sortOrder')).toBe('asc');
+  expect(returnUrl.searchParams.get('page')).toBe('1');
+  expect(returnUrl.searchParams.get('pageSize')).toBe('10');
+  await expect(page.getByLabel('Página')).toHaveValue('2');
+  await expect(page.getByRole('button', { name: 'Cerrar búsqueda', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Buscar en este fallo')).toHaveValue('responsabilidad civil');
+  await page.getByRole('link', { name: 'Volver a resultados' }).click();
+  await expect(page).toHaveURL(/\/consulta\?/u);
+  const returnedSearch = new URL(page.url()).searchParams;
+  expect(returnedSearch.get('q')).toBe('responsabilidad civil');
+  expect(returnedSearch.get('sala')).toBe('C');
+  expect(returnedSearch.get('sortBy')).toBe('fecha');
+  expect(returnedSearch.get('sortOrder')).toBe('asc');
+  expect(returnedSearch.get('page')).toBe('1');
+  expect(returnedSearch.get('pageSize')).toBe('10');
+});
+
+test('internal jurisprudence search copies the authoritative citation from the API', async ({ page }) => {
+  const { calls } = await installApiMocks(page, true, 'JURISPRUDENCIA', { internalCitationResult: true });
+  await page.goto('/busqueda-avanzada');
+  await page.getByLabel('Buscar jurisprudencia').fill('responsabilidad civil');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(page.getByText('María Núñez c/ Peña', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Copiar cita', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Cita copiada', exact: true })).toBeVisible();
+  expect(calls.some((call) => call.path === '/sentencias/77/cita' && call.method === 'GET')).toBe(true);
+  expect(await page.evaluate(() => (window as Window & { __researchClipboard?: string }).__researchClipboard)).toBe(
+    'María Núñez c/ Peña, Sala C, 3/6/2024, Expte. CIV 10/2024, Sentencia 12/2024',
+  );
 });
 
 test('public Sala filter submits the canonical value accepted by the search API', async ({ page }) => {

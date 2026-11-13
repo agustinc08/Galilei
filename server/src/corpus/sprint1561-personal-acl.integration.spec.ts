@@ -63,10 +63,13 @@ const openSearchNode =
 const freshV4Topology = process.env.BJC_SEARCH_TOPOLOGY === 'fresh-v4';
 const suffix =
   `${Date.now()}${Math.random().toString(16).slice(2, 7)}`.toUpperCase();
-const storageRoot = path.resolve(
-  process.cwd(),
-  `../_dev-corpus-storage-test/sprint1561-${suffix}`,
-);
+const qaRoot = process.env.BJC_QA_ROOT
+  ? path.resolve(process.env.BJC_QA_ROOT)
+  : null;
+const isolatedStorageRoot = qaRoot
+  ? path.join(qaRoot, 'storage')
+  : path.resolve(process.cwd(), '../_dev-corpus-storage-test');
+const storageRoot = path.resolve(isolatedStorageRoot, `sprint1561-${suffix}`);
 let viewerRequestUser: AuthenticatedUser | undefined;
 let v4QaOpenSearchClient: Client | undefined;
 let v4PrivateHttpEvidence: Record<string, unknown> | null = null;
@@ -244,7 +247,9 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
     let v4ShadowCountRestored = false;
     if (syntheticDocumentKeys.length) {
       const cleanupTarget =
-        process.env.OPENSEARCH_SEARCH_TARGET ?? 'galilei-search-active';
+        process.env.OPENSEARCH_SEARCH_TARGET ??
+        process.env.OPENSEARCH_INDEX_ALIAS ??
+        'galilei-search-active';
       if (
         process.env.OPENSEARCH_READ_ONLY_CANDIDATE === 'true' &&
         !/^galilei-search-v004-\d{8}t\d{9}z-[a-f0-9]{8}$/u.test(cleanupTarget)
@@ -260,6 +265,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
         openSearchClient,
         new OpenSearchDocumentRepository(),
         cleanupTarget,
+        process.env.OPENSEARCH_INDEX_PREFIX ?? 'galilei-search',
       );
       try {
         if (process.env.OPENSEARCH_READ_ONLY_CANDIDATE === 'true') {
@@ -410,7 +416,7 @@ describe('Sprint 15.6.1 personal documents and restricted folder ACL PostgreSQL 
     if (previousStoragePath === undefined)
       delete process.env.BJC_CORPUS_STORAGE_PATH;
     else process.env.BJC_CORPUS_STORAGE_PATH = previousStoragePath;
-    const safeRoot = path.resolve(process.cwd(), '../_dev-corpus-storage-test');
+    const safeRoot = isolatedStorageRoot;
     if (storageRoot.startsWith(`${safeRoot}${path.sep}`))
       await rm(storageRoot, { recursive: true, force: true });
     const storageRootExists = await pathAccess(storageRoot)

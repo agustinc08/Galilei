@@ -3588,58 +3588,98 @@ export class WorkspaceDocumentService {
       if (issue) throw new BadRequestException(issue);
     }
     const stored = await this.storage.put(name, file.buffer);
-    if (
-      replaceDocumentId &&
-      !(await this.prisma.workspaceDocument.findFirst({
+    let duplicateFolderId = folderId ?? null;
+    if (replaceDocumentId) {
+      const sourceLink = await this.prisma.workspaceDocument.findFirst({
         where: {
           workspaceId,
           documentId: replaceDocumentId,
           document: { documentScope: 'PRIVATE_WORKSPACE' },
         },
-        select: { id: true },
-      }))
-    )
-      throw new NotFoundException(
-        'Documento de fuente no encontrado en el espacio.',
-      );
-    const existing = await this.prisma.workspaceDocument.findFirst({
-      where: {
-        ...(workspaceId
-          ? { workspaceId, ownerUserId: null }
-          : { workspaceId: null, ownerUserId: userId }),
-        ...(replaceDocumentId
-          ? { documentId: { not: replaceDocumentId } }
-          : {}),
-        document: {
-          documentScope: 'PRIVATE_WORKSPACE',
-          files: { some: { sha256: stored.sha256 } },
-        },
-      },
-      select: {
-        documentId: true,
-        document: { select: { status: true, title: true } },
-      },
-    });
-    if (existing)
-      return {
-        documentId: existing.documentId,
-        status: existing.document.status,
-        duplicate: true,
-      };
-    const source = await this.prisma.corpusSourceSystem.upsert({
-      where: { code: 'WORKSPACE_UPLOAD' },
-      create: {
-        code: 'WORKSPACE_UPLOAD',
-        name: 'Carga de espacio privado',
-        sourceType: 'PRIVATE_WORKSPACE',
-      },
-      update: {},
-    });
+        select: { folderId: true },
+      });
+      if (!sourceLink)
+        throw new NotFoundException(
+          'Documento de fuente no encontrado en el espacio.',
+        );
+      duplicateFolderId = sourceLink.folderId;
+    }
     const metadataOriginal = {
       source: replaceDocumentId ? 'workspace-source' : 'workspace-upload',
       extractionProvenance: extractionProvenance(extraction),
     } as Prisma.InputJsonObject;
     const document = await this.prisma.$transaction(async (tx) => {
+      const scopeKey = workspaceId
+        ? `workspace:${workspaceId}`
+        : `personal:${userId}`;
+      const lockMaterial = `${scopeKey}:${duplicateFolderId ?? 'ROOT'}:${stored.sha256}`;
+      const advisoryKey = BigInt(
+        // PostgreSQL bigint is signed. Keep the deterministic lock key within
+        // its positive range instead of occasionally overflowing on the
+        // high bit of a full 64-bit digest prefix.
+        `0x${createHash('sha256').update(lockMaterial).digest('hex').slice(0, 15)}`,
+      ).toString();
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(CAST(${advisoryKey} AS bigint)) IS NULL AS locked`;
+
+      const scopeWhere = workspaceId
+        ? { workspaceId, ownerUserId: null, folderId: duplicateFolderId }
+        : {
+            workspaceId: null,
+            ownerUserId: userId,
+            folderId: duplicateFolderId,
+          };
+      const existing = await tx.workspaceDocument.findFirst({
+        where: {
+          ...scopeWhere,
+          ...(replaceDocumentId
+            ? { documentId: { not: replaceDocumentId } }
+            : {}),
+          document: {
+            documentScope: 'PRIVATE_WORKSPACE',
+            files: { some: { sha256: stored.sha256 } },
+          },
+        },
+        select: {
+          documentId: true,
+          document: { select: { status: true, title: true } },
+        },
+      });
+      if (existing)
+        return {
+          id: existing.documentId,
+          status: existing.document.status,
+          title: existing.document.title,
+          pageCount: undefined,
+          duplicate: true,
+          nameCollision: false,
+        };
+
+      const nameCollision = Boolean(
+        await tx.workspaceDocument.findFirst({
+          where: {
+            ...scopeWhere,
+            document: {
+              documentScope: 'PRIVATE_WORKSPACE',
+              files: {
+                some: {
+                  originalFilename: { equals: name, mode: 'insensitive' },
+                  sha256: { not: stored.sha256 },
+                },
+              },
+            },
+          },
+          select: { id: true },
+        }),
+      );
+      const source = await tx.corpusSourceSystem.upsert({
+        where: { code: 'WORKSPACE_UPLOAD' },
+        create: {
+          code: 'WORKSPACE_UPLOAD',
+          name: 'Carga de espacio privado',
+          sourceType: 'PRIVATE_WORKSPACE',
+        },
+        update: {},
+      });
       const documentData = {
         documentType: 'PRIVATE_DOCUMENT',
         title: name.replace(/\.(?:pdf|txt|rtf|docx?|odt)$/iu, ''),
@@ -3826,6 +3866,8 @@ export class WorkspaceDocumentService {
         status: finalStatus,
         title: doc.title,
         pageCount: extraction.pages.length,
+        duplicate: false,
+        nameCollision,
       };
     });
     return {
@@ -3833,7 +3875,8 @@ export class WorkspaceDocumentService {
       status: document.status,
       title: document.title,
       pageCount: document.pageCount,
-      duplicate: false,
+      duplicate: document.duplicate,
+      ...(document.nameCollision ? { nameCollision: true } : {}),
     };
   }
 
