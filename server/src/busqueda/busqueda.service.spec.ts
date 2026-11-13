@@ -11,7 +11,10 @@ describe('BusquedaService search query workload', () => {
     };
     const eventos = { trackSafe: jest.fn() };
     const rag = { buscarFallosSimilares: jest.fn().mockResolvedValue([]) };
-    const institutos = { expandTerms: jest.fn().mockResolvedValue([]) };
+    const institutos = {
+      expandTerms: jest.fn().mockResolvedValue([]),
+      searchSuggestions: jest.fn().mockResolvedValue([]),
+    };
     return {
       service: new BusquedaService(
         prisma as never,
@@ -81,21 +84,47 @@ describe('BusquedaService public autocomplete suggestions', () => {
       sumario: {
         findMany: jest
           .fn()
-          .mockResolvedValue([{ tema: 'Responsabilidad civil' }]),
+          .mockResolvedValue([
+            { tema: 'civil' },
+            { tema: 'Responsabilidad civil' },
+          ]),
       },
+    };
+    const institutos = {
+      expandTerms: jest.fn().mockResolvedValue([]),
+      searchSuggestions: jest.fn().mockResolvedValue([
+        { value: 'QA voz jurídica', tipo: 'voz_juridica' },
+        {
+          value: 'QA término relacionado',
+          tipo: 'termino_relacionado',
+          relacion: 'QA voz jurídica',
+        },
+      ]),
     };
     const service = new BusquedaService(
       prisma as never,
       { trackSafe: jest.fn() } as never,
       { buscarFallosSimilares: jest.fn().mockResolvedValue([]) } as never,
-      { expandTerms: jest.fn().mockResolvedValue([]) } as never,
+      institutos as never,
     );
 
     const result = await service.sugerenciasPublicas('civil');
 
     expect(new Set(result.data.map((item) => item.tipo))).toEqual(
-      new Set(['tema', 'sala', 'tipoFallo']),
+      new Set([
+        'coincidencia_exacta',
+        'tema',
+        'sala',
+        'tipoFallo',
+        'voz_juridica',
+        'termino_relacionado',
+      ]),
     );
+    expect(result.data.find((item) => item.value === 'civil')).toMatchObject({
+      value: 'civil',
+      tipo: 'coincidencia_exacta',
+    });
+    expect(institutos.searchSuggestions).toHaveBeenCalledWith('civil');
     expect(prisma.sumario.findMany).toHaveBeenCalledWith({
       where: {
         tema: { not: null, contains: 'civil', mode: 'insensitive' },
@@ -124,5 +153,37 @@ describe('BusquedaService public autocomplete suggestions', () => {
       select: { tipoFallo: true },
       take: 150,
     });
+  });
+
+  it('keeps existing public suggestions available if the legal vocabulary lookup fails', async () => {
+    const prisma = {
+      $queryRaw: jest.fn(),
+      sumario: {
+        findMany: jest.fn().mockResolvedValue([{ tema: 'civil' }]),
+      },
+      sentencia: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([{ sala: 'Sala Civil' }])
+          .mockResolvedValueOnce([{ tipoFallo: 'Fallo civil' }]),
+      },
+    };
+    const service = new BusquedaService(
+      prisma as never,
+      { trackSafe: jest.fn() } as never,
+      { buscarFallosSimilares: jest.fn().mockResolvedValue([]) } as never,
+      {
+        expandTerms: jest.fn().mockResolvedValue([]),
+        searchSuggestions: jest
+          .fn()
+          .mockRejectedValue(new Error('QA lookup unavailable')),
+      } as never,
+    );
+
+    const result = await service.sugerenciasPublicas('civil');
+
+    expect(result.data.map((item) => item.tipo)).toEqual(
+      expect.arrayContaining(['coincidencia_exacta', 'sala', 'tipoFallo']),
+    );
   });
 });

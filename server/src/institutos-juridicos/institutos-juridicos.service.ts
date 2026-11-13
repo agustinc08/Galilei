@@ -5,13 +5,35 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { normalizeSearchText } from '../busqueda/utils/search-normalizer';
 import { CreateInstitutoJuridicoDto } from './dto/create-instituto-juridico.dto';
 import { CreateSinonimoJuridicoDto } from './dto/create-sinonimo-juridico.dto';
 import { UpdateInstitutoJuridicoDto } from './dto/update-instituto-juridico.dto';
 import { UpdateSinonimoJuridicoDto } from './dto/update-sinonimo-juridico.dto';
 
+export type LegalSearchSuggestion = {
+  value: string;
+  tipo: 'voz_juridica' | 'termino_relacionado';
+  relacion?: string;
+};
+
+type ActiveInstituteTerms = {
+  nombre: string;
+  sinonimos: Array<{ termino: string }>;
+};
+
+const SUGGESTION_LIMIT = 12;
+const VOCABULARY_CACHE_MS = 30_000;
+const SUGGESTION_PRIORITY: Record<LegalSearchSuggestion['tipo'], number> = {
+  voz_juridica: 0,
+  termino_relacionado: 1,
+};
+
 @Injectable()
 export class InstitutosJuridicosService {
+  private activeTermsCache: ActiveInstituteTerms[] | null = null;
+  private activeTermsCacheExpiresAt = 0;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
@@ -46,6 +68,7 @@ export class InstitutosJuridicosService {
   async create(dto: CreateInstitutoJuridicoDto) {
     await this.ensureNombreDisponible(dto.nombre);
     const data = await this.prisma.institutoJuridico.create({ data: dto });
+    this.invalidateSearchVocabularyCache();
     return { data };
   }
 
@@ -58,6 +81,7 @@ export class InstitutosJuridicosService {
       where: { id },
       data: dto,
     });
+    this.invalidateSearchVocabularyCache();
     return { data };
   }
 
@@ -67,6 +91,7 @@ export class InstitutosJuridicosService {
       where: { id },
       data: { activo: false },
     });
+    this.invalidateSearchVocabularyCache();
     return { data };
   }
 
@@ -85,6 +110,7 @@ export class InstitutosJuridicosService {
     const data = await this.prisma.sinonimoJuridico.create({
       data: { institutoId, termino: dto.termino },
     });
+    this.invalidateSearchVocabularyCache();
     return { data };
   }
 
@@ -101,6 +127,7 @@ export class InstitutosJuridicosService {
       where: { id },
       data: dto,
     });
+    this.invalidateSearchVocabularyCache();
     return { data };
   }
 
@@ -110,7 +137,65 @@ export class InstitutosJuridicosService {
       where: { id },
       data: { activo: false },
     });
+    this.invalidateSearchVocabularyCache();
     return { data };
+  }
+
+  async searchSuggestions(rawQuery?: string): Promise<LegalSearchSuggestion[]> {
+    const query = normalizeSearchText(rawQuery);
+    if (query.length < 3) return [];
+
+    const terms = await this.getActiveSearchTerms();
+    const suggestions = new Map<string, LegalSearchSuggestion>();
+    const add = (suggestion: LegalSearchSuggestion) => {
+      const key = normalizeSearchText(suggestion.value);
+      if (!key) return;
+      const existing = suggestions.get(key);
+      if (
+        !existing ||
+        SUGGESTION_PRIORITY[suggestion.tipo] <
+          SUGGESTION_PRIORITY[existing.tipo]
+      ) {
+        suggestions.set(key, suggestion);
+      }
+    };
+
+    for (const institute of terms) {
+      const voice = institute.nombre.trim();
+      const voiceKey = normalizeSearchText(voice);
+      const voiceMatches = voiceKey.includes(query);
+      const matchingSynonyms = institute.sinonimos.filter((synonym) =>
+        normalizeSearchText(synonym.termino).includes(query),
+      );
+      if (!voiceMatches && !matchingSynonyms.length) continue;
+
+      add({
+        value: voice,
+        tipo: 'voz_juridica',
+      });
+
+      for (const synonym of institute.sinonimos) {
+        const value = synonym.termino.trim();
+        const valueKey = normalizeSearchText(value);
+        if (!valueKey || valueKey === voiceKey) continue;
+        const matchesQuery = valueKey.includes(query);
+        if (voiceMatches || matchesQuery) {
+          add({
+            value,
+            tipo: 'termino_relacionado',
+            relacion: voice,
+          });
+        }
+      }
+    }
+
+    return [...suggestions.values()]
+      .sort(
+        (left, right) =>
+          SUGGESTION_PRIORITY[left.tipo] - SUGGESTION_PRIORITY[right.tipo] ||
+          left.value.localeCompare(right.value, 'es'),
+      )
+      .slice(0, SUGGESTION_LIMIT);
   }
 
   async expandTerms(rawTerms: string[]) {
@@ -154,6 +239,33 @@ export class InstitutosJuridicosService {
     }
 
     return [...expanded].filter((term) => !cleaned.includes(term));
+  }
+
+  private async getActiveSearchTerms() {
+    if (this.activeTermsCache && this.activeTermsCacheExpiresAt > Date.now()) {
+      return this.activeTermsCache;
+    }
+
+    const terms = await this.prisma.institutoJuridico.findMany({
+      where: { activo: true },
+      orderBy: { nombre: 'asc' },
+      select: {
+        nombre: true,
+        sinonimos: {
+          where: { activo: true },
+          orderBy: { termino: 'asc' },
+          select: { termino: true },
+        },
+      },
+    });
+    this.activeTermsCache = terms;
+    this.activeTermsCacheExpiresAt = Date.now() + VOCABULARY_CACHE_MS;
+    return terms;
+  }
+
+  private invalidateSearchVocabularyCache() {
+    this.activeTermsCache = null;
+    this.activeTermsCacheExpiresAt = 0;
   }
 
   private async ensureNombreDisponible(nombre: string, currentId?: number) {

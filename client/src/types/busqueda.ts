@@ -16,6 +16,9 @@ export type BusquedaMatchInfo = {
 export type SearchSuggestion = {
   value: string;
   tipo:
+    | 'coincidencia_exacta'
+    | 'voz_juridica'
+    | 'termino_relacionado'
     | 'tema'
     | 'magistrado'
     | 'sala'
@@ -23,7 +26,8 @@ export type SearchSuggestion = {
     | 'expediente'
     | 'caratula'
     | 'libre';
-  total: number;
+  total?: number;
+  relacion?: string;
 };
 
 export type FederatedSearchResult = {

@@ -353,6 +353,47 @@ test.describe('verified citations in the public judgment viewer @public @state',
 });
 
 test.describe('Search user-facing states @public @state', () => {
+  test('legal suggestion labels distinguish exact sumario topics from controlled voices and related terms', async ({ page }) => {
+    await page.route('**/api/public/busqueda/sugerencias**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify({
+          data: [
+            { value: 'QA tema exacto', tipo: 'coincidencia_exacta' },
+            { value: 'QA-voz-azul', tipo: 'voz_juridica' },
+            {
+              value: 'QA-término-verde',
+              tipo: 'termino_relacionado',
+              relacion: 'QA-voz-azul',
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.goto('/consulta');
+    const search = page.getByLabel('Buscar jurisprudencia');
+    await search.fill('QA tema exacto');
+
+    await expect(
+      page.getByRole('button').filter({ hasText: 'Coincidencia exacta en tema de sumario' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button').filter({ hasText: 'Voz jurídica validada' }),
+    ).toBeVisible();
+    const related = page.getByRole('button').filter({
+      hasText: 'Término relacionado · QA-voz-azul',
+    });
+    await expect(related).toBeVisible();
+    await related.click();
+    await expect(search).toHaveValue('QA-término-verde');
+    await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe(
+      'QA-término-verde',
+    );
+    expect(page.__uxQaDiagnostics.pageErrors).toEqual([]);
+  });
+
   test('a delayed autocomplete response stays closed after its input blurs', async ({ page }) => {
     let releaseSuggestions;
     let requestIntercepted = false;

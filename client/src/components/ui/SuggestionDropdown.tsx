@@ -1,5 +1,6 @@
 import styles from './search-autocomplete.module.css';
 import type { SearchSuggestion } from '@/types/busqueda';
+import { searchSuggestionMeta } from '@/lib/search-suggestion-presentation';
 
 type Props = {
   suggestions: SearchSuggestion[];
@@ -30,7 +31,7 @@ export function SuggestionDropdown({
         >
           <span>{suggestion.value}</span>
           <span className={styles.meta}>
-            {suggestion.tipo} · {suggestion.total}
+            {searchSuggestionMeta(suggestion)}
           </span>
         </button>
       ))}

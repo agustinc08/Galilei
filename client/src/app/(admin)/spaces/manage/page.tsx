@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@/lib/router-compat";
 import { api, ApiError } from "@/lib/api";
+import { corpusDocumentStatusLabel } from "@/lib/corpus-document-status";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -198,13 +199,7 @@ function typeLabel(type: string) {
   return TYPE_LABEL[type] ?? "Dependencia";
 }
 function statusLabel(status?: string) {
-  if (status === "INDEXED" || status === "TEXT_EXTRACTED")
-    return "Listo para buscar";
-  if (status === "OCR_PROCESSING" || status === "OCR_REQUIRED") return "Procesando documento…";
-  if (status === "OCR_FAILED") return "No pudimos extraer el texto de este archivo.";
-  if (status === "ERROR" || status === "INVALID_PDF")
-    return "No pudimos procesar este archivo.";
-  return "Procesando documento…";
+  return corpusDocumentStatusLabel(status);
 }
 function formatBytes(size: number) {
   return size >= 1024 * 1024

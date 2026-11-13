@@ -13,6 +13,7 @@ import { Link } from "@/lib/router-compat";
 import { useRouter, useSearchParams } from "@/lib/router-compat";
 import { api, ApiError } from "@/lib/api";
 import { normalizeWorkspaceListResponse } from "@/lib/workspace-list-response";
+import { corpusDocumentStatusLabel } from "@/lib/corpus-document-status";
 import { useAuth } from "@/hooks/use-auth";
 import { downloadBlob } from "@/lib/utils";
 import { LineIcon } from "@/components/ui/LineIcon";
@@ -298,12 +299,7 @@ function fileTypeFromMime(mimeType: string | null): SearchHit["fileType"] {
   return "OTRO";
 }
 function documentStatusLabel(status: string | null) {
-  if (status === "OCR_PROCESSING") return "Procesando OCR…";
-  if (status === "OCR_REQUIRED") return "Requiere OCR para buscar";
-  if (status === "OCR_FAILED" || status === "ERROR" || status === "INVALID_PDF")
-    return "No pudimos procesar este archivo";
-  if (status === "INDEXED") return "Listo para buscar";
-  return "Documento compartido";
+  return corpusDocumentStatusLabel(status);
 }
 
 function positiveTerms(query: string) {

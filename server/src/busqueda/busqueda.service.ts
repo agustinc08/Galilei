@@ -95,6 +95,9 @@ type MatchInfo = {
 type SearchSuggestion = {
   value: string;
   tipo:
+    | 'coincidencia_exacta'
+    | 'voz_juridica'
+    | 'termino_relacionado'
     | 'tema'
     | 'magistrado'
     | 'sala'
@@ -102,7 +105,8 @@ type SearchSuggestion = {
     | 'expediente'
     | 'caratula'
     | 'libre';
-  total: number;
+  total?: number;
+  relacion?: string;
 };
 
 type ResultadoBusqueda = {
@@ -601,30 +605,37 @@ export class BusquedaService {
     }
 
     try {
-      const [temas, magistrados, salas, tiposFallo, expedientes, caratulas] =
-        await Promise.all([
-          this.getTemaSuggestions(value),
-          this.getSplitFieldSuggestions('magistrados', value, 'magistrado'),
-          this.getSimpleFieldSuggestions('sala', value, 'sala'),
-          this.getSimpleFieldSuggestions('tipoFallo', value, 'tipoFallo'),
-          this.getSimpleFieldSuggestions('expediente', value, 'expediente'),
-          this.getSimpleFieldSuggestions('caratula', value, 'caratula'),
-        ]);
+      const [
+        voces,
+        temas,
+        magistrados,
+        salas,
+        tiposFallo,
+        expedientes,
+        caratulas,
+      ] = await Promise.all([
+        this.institutosJuridicosService
+          .searchSuggestions(value)
+          .catch(() => []),
+        this.getTemaSuggestions(value),
+        this.getSplitFieldSuggestions('magistrados', value, 'magistrado'),
+        this.getSimpleFieldSuggestions('sala', value, 'sala'),
+        this.getSimpleFieldSuggestions('tipoFallo', value, 'tipoFallo'),
+        this.getSimpleFieldSuggestions('expediente', value, 'expediente'),
+        this.getSimpleFieldSuggestions('caratula', value, 'caratula'),
+      ]);
 
       return {
-        data: [
-          ...temas,
-          ...magistrados,
-          ...salas,
-          ...tiposFallo,
-          ...expedientes,
-          ...caratulas,
-        ]
-          .sort(
-            (left, right) =>
-              right.total - left.total || left.value.localeCompare(right.value),
-          )
-          .slice(0, 15),
+        data: this.mergeSuggestions(
+          value,
+          voces,
+          temas,
+          magistrados,
+          salas,
+          tiposFallo,
+          expedientes,
+          caratulas,
+        ),
       };
     } catch {
       return { data: [] };
@@ -638,19 +649,17 @@ export class BusquedaService {
     }
 
     try {
-      const [temas, salas, tiposFallo] = await Promise.all([
+      const [voces, temas, salas, tiposFallo] = await Promise.all([
+        this.institutosJuridicosService
+          .searchSuggestions(value)
+          .catch(() => []),
         this.getTemaSuggestions(value, true),
         this.getSimpleFieldSuggestions('sala', value, 'sala', true),
         this.getSimpleFieldSuggestions('tipoFallo', value, 'tipoFallo', true),
       ]);
 
       return {
-        data: [...temas, ...salas, ...tiposFallo]
-          .sort(
-            (left, right) =>
-              right.total - left.total || left.value.localeCompare(right.value),
-          )
-          .slice(0, 12),
+        data: this.mergeSuggestions(value, voces, temas, salas, tiposFallo),
       };
     } catch {
       return { data: [] };
@@ -924,7 +933,7 @@ export class BusquedaService {
 
       const current = counter.get(normalized);
       if (current) {
-        current.total += 1;
+        current.total = (current.total ?? 0) + 1;
         continue;
       }
 
@@ -938,7 +947,51 @@ export class BusquedaService {
     return [...counter.values()]
       .sort(
         (left, right) =>
-          right.total - left.total || left.value.localeCompare(right.value),
+          (right.total ?? 0) - (left.total ?? 0) ||
+          left.value.localeCompare(right.value),
+      )
+      .slice(0, 15);
+  }
+
+  private mergeSuggestions(query: string, ...groups: SearchSuggestion[][]) {
+    const normalizedQuery = normalizeSearchText(query);
+    const priority: Record<SearchSuggestion['tipo'], number> = {
+      coincidencia_exacta: 0,
+      voz_juridica: 1,
+      termino_relacionado: 2,
+      tema: 3,
+      magistrado: 4,
+      sala: 5,
+      tipoFallo: 6,
+      expediente: 7,
+      caratula: 8,
+      libre: 9,
+    };
+    const unique = new Map<string, SearchSuggestion>();
+    for (const rawSuggestion of groups.flat()) {
+      const suggestion: SearchSuggestion =
+        rawSuggestion.tipo === 'tema' &&
+        normalizeSearchText(rawSuggestion.value) === normalizedQuery
+          ? { ...rawSuggestion, tipo: 'coincidencia_exacta' }
+          : rawSuggestion;
+      const key = normalizeSearchText(suggestion.value);
+      if (!key) continue;
+      const current = unique.get(key);
+      if (
+        !current ||
+        priority[suggestion.tipo] < priority[current.tipo] ||
+        (priority[suggestion.tipo] === priority[current.tipo] &&
+          (suggestion.total ?? 0) > (current.total ?? 0))
+      ) {
+        unique.set(key, suggestion);
+      }
+    }
+    return [...unique.values()]
+      .sort(
+        (left, right) =>
+          priority[left.tipo] - priority[right.tipo] ||
+          (right.total ?? 0) - (left.total ?? 0) ||
+          left.value.localeCompare(right.value, 'es'),
       )
       .slice(0, 15);
   }
