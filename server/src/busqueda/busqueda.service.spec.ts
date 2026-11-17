@@ -23,6 +23,7 @@ describe('BusquedaService search query workload', () => {
         institutos as never,
       ),
       prisma,
+      institutos,
     };
   };
 
@@ -68,6 +69,22 @@ describe('BusquedaService search query workload', () => {
     expect(prisma.sentencia.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.sentencia.count).toHaveBeenCalledTimes(1);
     expect(result.meta.total).toBe(12);
+  });
+
+  it('does not expand a search with an unselected related voice', async () => {
+    const { service, prisma, institutos } = makeService();
+    institutos.expandTerms.mockResolvedValue([
+      'término relacionado no elegido',
+    ]);
+
+    await service.avanzada({
+      q: 'responsabilidad',
+      page: 1,
+      pageSize: 10,
+    });
+
+    expect(institutos.expandTerms).not.toHaveBeenCalled();
+    expect(prisma.sentencia.findMany).toHaveBeenCalledTimes(1);
   });
 });
 

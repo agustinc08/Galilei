@@ -352,7 +352,7 @@ export class BusquedaService {
     const queryEvents: SearchQueryEvent[] = [];
     return searchQueryTelemetry.run(queryEvents, async () => {
       const expansionStarted = performance.now();
-      const expanded = await this.expandParsedQuery(
+      const expanded = this.preserveParsedQuery(
         query.q,
         this.parseQuery(query.q, query.operador),
       );
@@ -471,10 +471,7 @@ export class BusquedaService {
   }
 
   async simple(query?: string, usuarioId?: number) {
-    const expanded = await this.expandParsedQuery(
-      query,
-      this.parseQuery(query),
-    );
+    const expanded = this.preserveParsedQuery(query, this.parseQuery(query));
     const search = await this.buscarJurisprudencia(
       {
         q: query?.trim(),
@@ -516,7 +513,7 @@ export class BusquedaService {
 
   async publica(query: PublicBusquedaQueryDto) {
     const startedAt = Date.now();
-    const expanded = await this.expandParsedQuery(
+    const expanded = this.preserveParsedQuery(
       query.q,
       this.parseQuery(query.q, query.operador),
     );
@@ -569,7 +566,7 @@ export class BusquedaService {
 
   async exportar(query: ExportarBusquedaQueryDto) {
     const formato = query.formato ?? 'csv';
-    const expanded = await this.expandParsedQuery(
+    const expanded = this.preserveParsedQuery(
       query.q,
       this.parseQuery(query.q, query.operador),
     );
@@ -784,10 +781,7 @@ export class BusquedaService {
 
   async buscarPorCita(q?: string, usuarioId?: number) {
     const value = q?.trim() ?? '';
-    const expanded = await this.expandParsedQuery(
-      value,
-      this.parseQuery(value),
-    );
+    const expanded = this.preserveParsedQuery(value, this.parseQuery(value));
     const { results } = await this.buscarJurisprudencia(
       {
         q: value,
@@ -996,31 +990,14 @@ export class BusquedaService {
       .slice(0, 15);
   }
 
-  private async expandParsedQuery(
+  private preserveParsedQuery(
     raw: string | undefined,
     parsed: ParsedSearchQuery,
   ) {
-    const baseTerms = [
-      ...(raw?.trim() ? [raw.trim()] : []),
-      ...parsed.terms,
-      ...parsed.exactPhrases,
-      ...Object.values(parsed.fieldTerms).flat(),
-    ];
-    const expandedTerms =
-      await this.institutosJuridicosService.expandTerms(baseTerms);
-
-    if (!expandedTerms.length) {
-      return { parsed, expandedTerms: [] as string[] };
-    }
-
-    return {
-      expandedTerms,
-      parsed: {
-        ...parsed,
-        terms: [...parsed.terms, ...expandedTerms],
-        include: [...parsed.include, ...expandedTerms],
-      },
-    };
+    // Related voices are shown as optional suggestions. Search always keeps
+    // the user's parsed query until they explicitly choose a suggestion.
+    void raw;
+    return { parsed, expandedTerms: [] as string[] };
   }
 
   private async buscarJurisprudencia(

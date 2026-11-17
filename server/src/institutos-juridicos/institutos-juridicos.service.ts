@@ -67,7 +67,9 @@ export class InstitutosJuridicosService {
 
   async create(dto: CreateInstitutoJuridicoDto) {
     await this.ensureNombreDisponible(dto.nombre);
-    const data = await this.prisma.institutoJuridico.create({ data: dto });
+    const data = await this.prisma.institutoJuridico.create({
+      data: { ...dto, activo: false },
+    });
     this.invalidateSearchVocabularyCache();
     return { data };
   }
@@ -108,7 +110,7 @@ export class InstitutosJuridicosService {
     await this.ensureInstitutoExists(institutoId);
     await this.ensureSinonimoDisponible(institutoId, dto.termino);
     const data = await this.prisma.sinonimoJuridico.create({
-      data: { institutoId, termino: dto.termino },
+      data: { institutoId, termino: dto.termino, activo: false },
     });
     this.invalidateSearchVocabularyCache();
     return { data };

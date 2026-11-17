@@ -80,3 +80,44 @@ describe('InstitutosJuridicosService search suggestions', () => {
     expect(institutoJuridico.findMany).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('InstitutosJuridicosService catalog proposals', () => {
+  it('stores a new voice inactive so an unreviewed term cannot affect suggestions', async () => {
+    const create = jest.fn().mockResolvedValue({ id: 7, activo: false });
+    const service = new InstitutosJuridicosService({
+      institutoJuridico: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create,
+      },
+    } as never);
+
+    await service.create({ nombre: 'Responsabilidad médica' });
+
+    expect(create).toHaveBeenCalledWith({
+      data: { nombre: 'Responsabilidad médica', activo: false },
+    });
+  });
+
+  it('stores a new equivalence inactive, even when its parent voice is active', async () => {
+    const create = jest.fn().mockResolvedValue({ id: 8, activo: false });
+    const service = new InstitutosJuridicosService({
+      institutoJuridico: {
+        findUnique: jest.fn().mockResolvedValue({ id: 7 }),
+      },
+      sinonimoJuridico: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create,
+      },
+    } as never);
+
+    await service.createSinonimo(7, { termino: 'Daño iatrogénico' });
+
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        institutoId: 7,
+        termino: 'Daño iatrogénico',
+        activo: false,
+      },
+    });
+  });
+});

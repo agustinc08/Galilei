@@ -11,6 +11,11 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusMessage } from '@/components/ui/StatusMessage';
 import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
+import {
+  filterLegalVocabulary,
+  findLegalVocabularyMatches,
+  type LegalVocabularyStatusFilter,
+} from '@/lib/legal-vocabulary-list';
 import type { ApiResponse } from '@/types/common';
 import type { InstitutoJuridico } from '@/types/busqueda';
 
@@ -23,6 +28,12 @@ export default function InstitutosJuridicosPage() {
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [sinonimos, setSinonimos] = useState<Record<number, string>>({});
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] =
+    useState<LegalVocabularyStatusFilter>('ALL');
+
+  const filteredItems = filterLegalVocabulary(items, query, statusFilter);
+  const possibleDuplicates = findLegalVocabularyMatches(items, nombre);
 
   const load = async () => {
     setIsLoading(true);
@@ -69,12 +80,15 @@ export default function InstitutosJuridicosPage() {
   const crear = async () => {
     if (!nombre.trim()) return;
     setIsSaving(true);
+    setError(null);
     try {
       await api.post('/institutos-juridicos', { nombre, descripcion: descripcion || undefined });
       setNombre('');
       setDescripcion('');
-      setFeedback('Instituto jurídico creado.');
+      setFeedback('Propuesta guardada inactiva; todavía no alimenta sugerencias.');
       await load();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'No se pudo guardar la propuesta.');
     } finally {
       setIsSaving(false);
     }
@@ -95,11 +109,14 @@ export default function InstitutosJuridicosPage() {
     const termino = sinonimos[id]?.trim();
     if (!termino) return;
     setIsSaving(true);
+    setError(null);
     try {
       await api.post(`/institutos-juridicos/${id}/sinonimos`, { termino });
       setSinonimos((current) => ({ ...current, [id]: '' }));
-      setFeedback('Sinonimo agregado.');
+      setFeedback('Equivalencia propuesta guardada inactiva.');
       await load();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'No se pudo guardar la equivalencia.');
     } finally {
       setIsSaving(false);
     }
@@ -120,33 +137,72 @@ export default function InstitutosJuridicosPage() {
     <div className={styles.section}>
       <PageHeader
         title="Institutos jurídicos"
-        description="Equivalencias terminológicas para ampliar la búsqueda."
+        description="Voces y equivalencias registradas para la búsqueda jurídica."
       />
 
       {feedback ? <StatusMessage variant="success" title="Operacion realizada" message={feedback} /> : null}
       {error ? <StatusMessage variant="error" title="Error" message={error} /> : null}
+      <StatusMessage
+        variant="info"
+        title="Revisión de procedencia pendiente"
+        message="El modelo actual no registra materia, fuente, identificador ni estado de validación. Las voces y equivalencias nuevas se guardan inactivas y no alimentan sugerencias hasta que se incorpore ese control."
+      />
 
       <Card>
         <div className={styles.section}>
           <div className={styles.formGrid}>
-            <Input label="Nombre" value={nombre} onChange={(event) => setNombre(event.target.value)} />
-            <Textarea label="Descripcion" value={descripcion} onChange={(event) => setDescripcion(event.target.value)} />
+            <Input label="Voz propuesta" value={nombre} onChange={(event) => setNombre(event.target.value)} />
+            <Textarea label="Descripción y referencia de procedencia" value={descripcion} onChange={(event) => setDescripcion(event.target.value)} />
           </div>
+          {possibleDuplicates.length ? (
+            <StatusMessage
+              variant="info"
+              title="Revisá posibles duplicados"
+              message={possibleDuplicates.map((item) => `${item.term} (${item.relation})`).join(' · ')}
+            />
+          ) : null}
           <div className={styles.inlineActions}>
-            <Button onClick={() => void crear()} disabled={isSaving}>
-              {isSaving ? 'Guardando...' : 'Crear instituto'}
+            <Button onClick={() => void crear()} disabled={isSaving || !nombre.trim()}>
+              {isSaving ? 'Guardando...' : 'Guardar propuesta inactiva'}
             </Button>
           </div>
         </div>
       </Card>
 
+      <Card>
+        <div className={styles.formGrid}>
+          <Input
+            label="Buscar voz, descripción o equivalencia"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <label>
+            Estado
+            <select
+              aria-label="Filtrar voces por estado"
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as LegalVocabularyStatusFilter)
+              }
+            >
+              <option value="ALL">Todos</option>
+              <option value="ACTIVE">Activos</option>
+              <option value="INACTIVE">Inactivos / propuestas</option>
+            </select>
+          </label>
+        </div>
+        <p>Coincidencias: {filteredItems.length}</p>
+      </Card>
+
       {isLoading ? (
         <LoadingSpinner label="Cargando institutos..." />
-      ) : items.length === 0 ? (
+      ) : filteredItems.length === 0 && items.length === 0 ? (
         <EmptyState title="Sin institutos" description="Todavia no hay institutos cargados." />
+      ) : filteredItems.length === 0 ? (
+        <EmptyState title="Sin coincidencias" description="Probá otro texto o cambiá el filtro de estado." />
       ) : (
         <div className={styles.listGrid}>
-          {items.map((item) => (
+          {filteredItems.map((item) => (
             <Card key={item.id}>
               <div className={styles.section}>
                 <div className={styles.splitHeader}>
@@ -159,13 +215,13 @@ export default function InstitutosJuridicosPage() {
                 <div className={styles.badgeRow}>
                   {(item.sinonimos ?? []).map((sinonimo) => (
                     <span key={sinonimo.id} className={styles.badge}>
-                      {sinonimo.termino}
+                      {sinonimo.termino} · {sinonimo.activo ? 'Activo' : 'Inactivo'}
                     </span>
                   ))}
                 </div>
                 <div className={styles.formGrid}>
                   <Input
-                    label="Nuevo sinonimo"
+                    label="Nueva equivalencia propuesta"
                     value={sinonimos[item.id] ?? ''}
                     onChange={(event) =>
                       setSinonimos((current) => ({ ...current, [item.id]: event.target.value }))
@@ -173,8 +229,8 @@ export default function InstitutosJuridicosPage() {
                   />
                 </div>
                 <div className={styles.inlineActions}>
-                  <Button variant="secondary" onClick={() => void agregarSinonimo(item.id)} disabled={isSaving}>
-                    Agregar sinonimo
+                  <Button variant="secondary" onClick={() => void agregarSinonimo(item.id)} disabled={isSaving || !(sinonimos[item.id] ?? '').trim()}>
+                    Guardar equivalencia inactiva
                   </Button>
                   <Button variant="danger" onClick={() => void desactivar(item.id)} disabled={isSaving}>
                     Desactivar instituto

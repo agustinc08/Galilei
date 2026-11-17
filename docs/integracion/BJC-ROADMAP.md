@@ -746,3 +746,14 @@ BETA-026 quedó validado en PostgreSQL QA aislado, loopback 55435 y 39 migracion
 
 **Estado: CANDIDATE LOCAL PASS / OFFICE PENDING.** Falta crear commit y actualizar sólo la rama temporal, ejecutar una vez el updater oficial desde `D:\proyecto triple` y validar en Office preview/OCR/ACL, perfiles, membresías, carpetas, Mis documentos, Colecciones y UX. No marcar los BETA-013 a BETA-027 como FIXED global hasta validar ese SHA servido. `origin/main` no se modifica.
 
+
+## Sprint legal-search-document-quality — próximos gates (2026-11-17)
+
+1. Provisionar/restaurar OpenSearch aislado de QA en el endpoint declarado por el runbook y hacer que el preflight completo valide PostgreSQL, Search y storage con identidad exacta. No saltar el preflight ni reutilizar el OpenSearch principal.
+2. Diseñar una migración aditiva para procedencia (fuente e identificador), materia y estado de revisión/aprobación de voces/relaciones; validar permisos globales, auditoría, duplicados y ciclo de aprobación en QA. Mantener inactivas las 30 propuestas internas hasta revisión humana. La administración implementada no habilita a Admin de Sala/Juzgado a editar el catálogo global.
+3. Completar E2E de catálogo, roles y búsqueda opcional/literal en QA; probar corpus/calidad y rendimiento con fixtures sintéticos. La muestra de 200 páginas es parcial; un agregado exhaustivo quedó fuera por timeout y no se debe extrapolar.
+4. Recuperar el fixture histórico sólo de una fuente autorizada o mantener el sintético de 10 pruebas como cobertura de contrato, documentando que no sustituye la paridad histórica de 40 casos.
+5. El candidate actual ya está preservado en un commit local de `feature/legal-search-document-quality-20261113`. Reejecutar sólo los gates de QA faltantes; publicar la rama y desplegar mediante updater oficial sólo cuando el preflight completo pase y sea seguro para la beta. No modificar `origin/dev` ni `origin/main` hasta que el SHA exacto tenga sus gates aprobados.
+
+Fuentes externas revisadas: el tesauro SAIJ confirma que se trata de una elaboración propia con relaciones jerárquicas y de sinonimia, pero la copia consultada no ofrece por sí sola autorización de reutilización; la guía oficial argentina indica que la disponibilidad en Internet no equivale a permiso de reproducción. JUBA separa resultados de sumarios, voces y texto completo; no se encontró licencia de reutilización en la página consultada. Se usan sólo como referencias, sin importación.
+
