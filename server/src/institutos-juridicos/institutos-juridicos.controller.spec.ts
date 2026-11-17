@@ -12,6 +12,14 @@ describe('InstitutosJuridicosController authorization metadata', () => {
     prototype,
     'reviewSinonimo',
   )?.value as object;
+  const activateInstitute = Object.getOwnPropertyDescriptor(
+    prototype,
+    'setInstituteActivation',
+  )?.value as object;
+  const activateSinonimo = Object.getOwnPropertyDescriptor(
+    prototype,
+    'setSinonimoActivation',
+  )?.value as object;
 
   it('keeps catalog administration limited to global ADMIN and OPERADOR roles', () => {
     expect(
@@ -19,12 +27,14 @@ describe('InstitutosJuridicosController authorization metadata', () => {
     ).toEqual([ROLES.ADMIN, ROLES.OPERADOR]);
   });
 
-  it('limits approval and rejection decisions to global ADMIN', () => {
-    expect(Reflect.getMetadata(ROLES_KEY, reviewInstitute)).toEqual([
-      ROLES.ADMIN,
-    ]);
-    expect(Reflect.getMetadata(ROLES_KEY, reviewSinonimo)).toEqual([
-      ROLES.ADMIN,
-    ]);
+  it('limits approval, rejection, and activation decisions to global ADMIN', () => {
+    for (const handler of [
+      reviewInstitute,
+      reviewSinonimo,
+      activateInstitute,
+      activateSinonimo,
+    ]) {
+      expect(Reflect.getMetadata(ROLES_KEY, handler)).toEqual([ROLES.ADMIN]);
+    }
   });
 });

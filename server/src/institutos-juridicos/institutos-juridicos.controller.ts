@@ -16,6 +16,7 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { CreateInstitutoJuridicoDto } from './dto/create-instituto-juridico.dto';
 import { CreateSinonimoJuridicoDto } from './dto/create-sinonimo-juridico.dto';
 import { ReviewVocabularyDto } from './dto/review-vocabulary.dto';
+import { SetVocabularyActivationDto } from './dto/set-vocabulary-activation.dto';
 import { UpdateInstitutoJuridicoDto } from './dto/update-instituto-juridico.dto';
 import { UpdateSinonimoJuridicoDto } from './dto/update-sinonimo-juridico.dto';
 import { InstitutosJuridicosService } from './institutos-juridicos.service';
@@ -69,6 +70,17 @@ export class InstitutosJuridicosController {
     return this.service.reviewInstitute(id, dto, actor.id);
   }
 
+  @Post('institutos-juridicos/:id/activacion')
+  @Roles(ROLES.ADMIN)
+  @ApiOperation({ summary: 'Activa o desactiva una voz jurídica aprobada' })
+  setInstituteActivation(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetVocabularyActivationDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.service.setInstituteActivation(id, dto, actor.id);
+  }
+
   @Delete('institutos-juridicos/:id')
   @ApiOperation({ summary: 'Desactiva un instituto jurídico' })
   remove(
@@ -115,6 +127,19 @@ export class InstitutosJuridicosController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.service.reviewSinonimo(id, dto, actor.id);
+  }
+
+  @Post('sinonimos-juridicos/:id/activacion')
+  @Roles(ROLES.ADMIN)
+  @ApiOperation({
+    summary: 'Activa o desactiva una relación jurídica aprobada',
+  })
+  setSinonimoActivation(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetVocabularyActivationDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.service.setSinonimoActivation(id, dto, actor.id);
   }
 
   @Delete('sinonimos-juridicos/:id')

@@ -185,7 +185,7 @@ describe('InstitutosJuridicosService proposal and review workflow', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('approves a provenance-complete voice, records reviewer and invalidates suggestions cache', async () => {
+  it('approves a provenance-complete voice without activating it', async () => {
     const source = {
       id: 7,
       nombre: 'Responsabilidad médica',
@@ -216,7 +216,7 @@ describe('InstitutosJuridicosService proposal and review workflow', () => {
     await service.reviewInstitute(7, { estado: 'APROBADO' }, 99);
     await service.searchSuggestions('medica');
     expect(updatedData).toMatchObject({
-      activo: true,
+      activo: false,
       estadoValidacion: EstadoValidacionVocabulario.APROBADO,
       revisadoPorId: 99,
     });
@@ -230,26 +230,139 @@ describe('InstitutosJuridicosService proposal and review workflow', () => {
     );
   });
 
-  it('requires an approved active parent and provenance before approving a relation', async () => {
+  it('activates only an approved voice and records a separate audit event', async () => {
+    const source = {
+      id: 7,
+      nombre: 'Responsabilidad médica',
+      materia: 'Daños',
+      fuente: 'Corpus QA',
+      identificadorFuente: 'SUMARIO:QA-1',
+      estadoValidacion: EstadoValidacionVocabulario.APROBADO,
+      activo: false,
+    };
+    const update = jest
+      .fn()
+      .mockImplementation((args: { data: Record<string, unknown> }) =>
+        Promise.resolve({ ...source, ...args.data }),
+      );
+    const audit = makeAudit();
+    const service = new InstitutosJuridicosService(
+      {
+        institutoJuridico: {
+          findUnique: jest.fn().mockResolvedValue(source),
+          update,
+        },
+      } as never,
+      audit as never,
+    );
+
+    await service.setInstituteActivation(7, { activo: true }, 99);
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 7 },
+      data: { activo: true },
+    });
+    expect(audit.registrarAccion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usuarioId: 99,
+        accion: 'LEGAL_VOCABULARY_ACTIVATE',
+      }),
+    );
+  });
+
+  it('does not activate a pending voice', async () => {
+    const service = new InstitutosJuridicosService(
+      {
+        institutoJuridico: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 7,
+            materia: 'Daños',
+            fuente: 'Corpus QA',
+            identificadorFuente: 'SUMARIO:QA-1',
+            estadoValidacion: EstadoValidacionVocabulario.PENDIENTE_REVISION,
+            activo: false,
+          }),
+          update: jest.fn(),
+        },
+      } as never,
+      makeAudit() as never,
+    );
+
+    await expect(
+      service.setInstituteActivation(7, { activo: true }, 99),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('approves a relation once its parent is approved, without activating either', async () => {
     const pending = {
       id: 8,
       institutoId: 7,
+      estadoValidacion: EstadoValidacionVocabulario.PENDIENTE_REVISION,
+      activo: false,
       fuente: 'Corpus QA',
       identificadorFuente: 'SUMARIO:QA-2',
       instituto: {
         id: 7,
         activo: false,
-        estadoValidacion: EstadoValidacionVocabulario.PENDIENTE_REVISION,
+        estadoValidacion: EstadoValidacionVocabulario.APROBADO,
       },
     };
+    let updated: Record<string, unknown> = {};
+    const update = jest.fn((args: { data: Record<string, unknown> }) => {
+      updated = args.data;
+      return Promise.resolve({ ...pending, ...args.data });
+    });
+    const audit = makeAudit();
     const service = new InstitutosJuridicosService(
       {
-        sinonimoJuridico: { findUnique: jest.fn().mockResolvedValue(pending) },
+        sinonimoJuridico: {
+          findUnique: jest.fn().mockResolvedValue(pending),
+          update,
+        },
+      } as never,
+      audit as never,
+    );
+
+    await service.reviewSinonimo(8, { estado: 'APROBADO' }, 99);
+
+    expect(updated).toMatchObject({
+      estadoValidacion: EstadoValidacionVocabulario.APROBADO,
+      activo: false,
+      revisadoPorId: 99,
+    });
+    expect(audit.registrarAccion).toHaveBeenCalledWith(
+      expect.objectContaining({ accion: 'LEGAL_RELATION_REVIEW' }),
+    );
+  });
+
+  it('requires the approved parent to be active before activating a relation', async () => {
+    const synonym = {
+      id: 8,
+      institutoId: 7,
+      fuente: 'Corpus QA',
+      identificadorFuente: 'SUMARIO:QA-2',
+      estadoValidacion: EstadoValidacionVocabulario.APROBADO,
+      activo: false,
+      instituto: {
+        id: 7,
+        activo: false,
+        estadoValidacion: EstadoValidacionVocabulario.APROBADO,
+      },
+    };
+    const update = jest.fn();
+    const service = new InstitutosJuridicosService(
+      {
+        sinonimoJuridico: {
+          findUnique: jest.fn().mockResolvedValue(synonym),
+          update,
+        },
       } as never,
       makeAudit() as never,
     );
+
     await expect(
-      service.reviewSinonimo(8, { estado: 'APROBADO' }, 99),
+      service.setSinonimoActivation(8, { activo: true }, 99),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(update).not.toHaveBeenCalled();
   });
 });

@@ -33,6 +33,8 @@ function validationLabel(status?: InstitutoJuridico['estadoValidacion']) {
 function publicationLabel(active: boolean, status?: InstitutoJuridico['estadoValidacion']) {
   if (active && status === 'APROBADO') return 'Activa para sugerencias';
   if (active) return 'Marcada activa; excluida por revisión pendiente';
+  if (status === 'APROBADO') return 'Aprobada; inactiva';
+  if (status === 'RECHAZADO') return 'Rechazada; inactiva';
   return 'Inactiva';
 }
 
@@ -151,6 +153,25 @@ export default function InstitutosJuridicosPage() {
     }
   };
 
+  const activar = async (kind: ReviewableKind, id: number, activo: boolean) => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      const route = kind === 'voz'
+        ? `/institutos-juridicos/${id}/activacion`
+        : `/sinonimos-juridicos/${id}/activacion`;
+      await api.post(route, { activo });
+      setFeedback(activo
+        ? 'Propuesta aprobada y activada para sugerencias opcionales.'
+        : 'Propuesta desactivada; se conservó su historial.');
+      await load();
+    } catch (activationError) {
+      setError(activationError instanceof Error ? activationError.message : 'No se pudo cambiar la activación.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const agregarSinonimo = async (id: number) => {
     const termino = sinonimos[id]?.trim();
     if (!termino) return;
@@ -203,7 +224,7 @@ export default function InstitutosJuridicosPage() {
         : `/sinonimos-juridicos/${id}/revision`;
       await api.post(route, { estado, observacion: observacion || undefined });
       setFeedback(estado === 'APROBADO'
-        ? 'Propuesta aprobada y habilitada para sugerencias opcionales.'
+        ? 'Propuesta aprobada; queda inactiva hasta una activación explícita.'
         : 'Propuesta rechazada y mantenida inactiva.');
       setReviewNotes((current) => ({ ...current, [key]: '' }));
       await load();
@@ -242,7 +263,7 @@ export default function InstitutosJuridicosPage() {
       <StatusMessage
         variant="info"
         title="Las propuestas no cambian la búsqueda"
-        message="Voces y equivalencias quedan inactivas hasta la aprobación de una persona administradora. La búsqueda original se conserva siempre; una relación aprobada sólo se ofrece como sugerencia seleccionable."
+        message="Aprobación y activación son pasos separados. Aprobar no habilita sugerencias: un administrador debe activar la voz o relación por separado. La búsqueda original se conserva siempre y las relaciones activas sólo se ofrecen como sugerencias seleccionables."
       />
 
       <Card>
@@ -301,6 +322,9 @@ export default function InstitutosJuridicosPage() {
                 <p>Materia: {item.materia || 'Sin clasificar'} · Fuente: {item.fuente || 'Sin registrar'} · Ref.: {item.identificadorFuente || 'Sin identificar'}</p>
                 {item.observacionRevision ? <p>Observación: {item.observacionRevision}</p> : null}
                 {reviewControls('voz', item.id, item.estadoValidacion)}
+                {canReview && item.estadoValidacion === 'APROBADO' && !item.activo ? (
+                  <Button onClick={() => void activar('voz', item.id, true)} disabled={isSaving}>Activar voz</Button>
+                ) : null}
                 <div className={styles.inlineActions}>
                   <Button variant="secondary" onClick={() => startEditing(item)} disabled={isSaving}>Editar</Button>
                   <Button variant="danger" onClick={() => void desactivar(item.id)} disabled={isSaving || !item.activo}>Desactivar</Button>
@@ -317,6 +341,11 @@ export default function InstitutosJuridicosPage() {
                       <p>Fuente: {sinonimo.fuente || 'Sin registrar'} · Ref.: {sinonimo.identificadorFuente || 'Sin identificar'}</p>
                       {sinonimo.observacionRevision ? <p>Observación: {sinonimo.observacionRevision}</p> : null}
                       {reviewControls('relacion', sinonimo.id, sinonimo.estadoValidacion)}
+                      {canReview && sinonimo.estadoValidacion === 'APROBADO' && !sinonimo.activo ? (
+                        <Button onClick={() => void activar('relacion', sinonimo.id, true)} disabled={isSaving || item.estadoValidacion !== 'APROBADO' || !item.activo}>
+                          Activar relación
+                        </Button>
+                      ) : null}
                       <Button variant="danger" onClick={() => void desactivarSinonimo(sinonimo.id)} disabled={isSaving || !sinonimo.activo}>Desactivar relación</Button>
                     </article>
                   ))}

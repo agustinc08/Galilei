@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateInstitutoJuridicoDto } from './dto/create-instituto-juridico.dto';
 import { CreateSinonimoJuridicoDto } from './dto/create-sinonimo-juridico.dto';
 import { ReviewVocabularyDto } from './dto/review-vocabulary.dto';
+import { SetVocabularyActivationDto } from './dto/set-vocabulary-activation.dto';
 import { UpdateInstitutoJuridicoDto } from './dto/update-instituto-juridico.dto';
 import { UpdateSinonimoJuridicoDto } from './dto/update-sinonimo-juridico.dto';
 
@@ -149,7 +150,11 @@ export class InstitutosJuridicosService {
       where: { id },
       data: {
         estadoValidacion,
-        activo: estadoValidacion === EstadoValidacionVocabulario.APROBADO,
+        activo:
+          estadoValidacion === EstadoValidacionVocabulario.APROBADO &&
+          before.estadoValidacion === EstadoValidacionVocabulario.APROBADO
+            ? before.activo
+            : false,
         revisadoPorId: reviewerId,
         revisadoAt: new Date(),
         observacionRevision: dto.observacion?.trim() || null,
@@ -160,6 +165,44 @@ export class InstitutosJuridicosService {
       'InstitutoJuridico',
       id,
       'LEGAL_VOCABULARY_REVIEW',
+      before,
+      data,
+    );
+    this.invalidateSearchVocabularyCache();
+    return { data };
+  }
+
+  async setInstituteActivation(
+    id: number,
+    dto: SetVocabularyActivationDto,
+    actorId: number,
+  ) {
+    const before = await this.ensureInstitutoExists(id);
+    if (dto.activo) {
+      if (before.estadoValidacion !== EstadoValidacionVocabulario.APROBADO) {
+        throw new BadRequestException(
+          'Sólo se puede activar una voz aprobada.',
+        );
+      }
+      if (
+        ![before.materia, before.fuente, before.identificadorFuente].every(
+          (value) => value?.trim(),
+        )
+      ) {
+        throw new BadRequestException(
+          'Para activar una voz completá materia, fuente e identificador de procedencia.',
+        );
+      }
+    }
+    const data = await this.prisma.institutoJuridico.update({
+      where: { id },
+      data: { activo: dto.activo },
+    });
+    await this.audit(
+      actorId,
+      'InstitutoJuridico',
+      id,
+      dto.activo ? 'LEGAL_VOCABULARY_ACTIVATE' : 'LEGAL_VOCABULARY_DEACTIVATE',
       before,
       data,
     );
@@ -275,12 +318,10 @@ export class InstitutosJuridicosService {
     }
     if (
       dto.estado === 'APROBADO' &&
-      (before.instituto.estadoValidacion !==
-        EstadoValidacionVocabulario.APROBADO ||
-        !before.instituto.activo)
+      before.instituto.estadoValidacion !== EstadoValidacionVocabulario.APROBADO
     ) {
       throw new BadRequestException(
-        'La voz principal debe estar aprobada y activa antes de aprobar una relación.',
+        'La voz principal debe estar aprobada antes de aprobar una relación.',
       );
     }
     const estadoValidacion = this.toReviewState(dto.estado);
@@ -288,7 +329,11 @@ export class InstitutosJuridicosService {
       where: { id },
       data: {
         estadoValidacion,
-        activo: estadoValidacion === EstadoValidacionVocabulario.APROBADO,
+        activo:
+          estadoValidacion === EstadoValidacionVocabulario.APROBADO &&
+          before.estadoValidacion === EstadoValidacionVocabulario.APROBADO
+            ? before.activo
+            : false,
         revisadoPorId: reviewerId,
         revisadoAt: new Date(),
         observacionRevision: dto.observacion?.trim() || null,
@@ -299,6 +344,53 @@ export class InstitutosJuridicosService {
       'SinonimoJuridico',
       id,
       'LEGAL_RELATION_REVIEW',
+      before,
+      data,
+    );
+    this.invalidateSearchVocabularyCache();
+    return { data };
+  }
+
+  async setSinonimoActivation(
+    id: number,
+    dto: SetVocabularyActivationDto,
+    actorId: number,
+  ) {
+    const before = await this.ensureSinonimoExists(id);
+    if (dto.activo) {
+      if (before.estadoValidacion !== EstadoValidacionVocabulario.APROBADO) {
+        throw new BadRequestException(
+          'Sólo se puede activar una relación aprobada.',
+        );
+      }
+      if (
+        ![before.fuente, before.identificadorFuente].every((value) =>
+          value?.trim(),
+        )
+      ) {
+        throw new BadRequestException(
+          'Para activar una relación completá fuente e identificador de procedencia.',
+        );
+      }
+      if (
+        before.instituto.estadoValidacion !==
+          EstadoValidacionVocabulario.APROBADO ||
+        !before.instituto.activo
+      ) {
+        throw new BadRequestException(
+          'La voz principal debe estar aprobada y activa antes de activar una relación.',
+        );
+      }
+    }
+    const data = await this.prisma.sinonimoJuridico.update({
+      where: { id },
+      data: { activo: dto.activo },
+    });
+    await this.audit(
+      actorId,
+      'SinonimoJuridico',
+      id,
+      dto.activo ? 'LEGAL_RELATION_ACTIVATE' : 'LEGAL_RELATION_DEACTIVATE',
       before,
       data,
     );
