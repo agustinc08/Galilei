@@ -9,6 +9,12 @@ datasource db {
   provider = "postgresql"
 }
 
+enum EstadoValidacionVocabulario {
+  PENDIENTE_REVISION
+  APROBADO
+  RECHAZADO
+}
+
 model Rol {
   id          Int       @id @default(autoincrement())
   nombre      String    @unique
@@ -50,6 +56,10 @@ model Usuario {
   workspaceDocumentsUploaded     WorkspaceDocument[]              @relation("WorkspaceDocumentUploader")
   personalWorkspaceDocuments     WorkspaceDocument[]              @relation("WorkspaceDocumentOwner")
   personalWorkspaceFolders       WorkspaceFolder[]                @relation("WorkspaceFolderOwner")
+  institutosJuridicosCreados     InstitutoJuridico[]              @relation("InstitutoJuridicoCreator")
+  institutosJuridicosRevisados   InstitutoJuridico[]              @relation("InstitutoJuridicoReviewer")
+  sinonimosJuridicosCreados      SinonimoJuridico[]               @relation("SinonimoJuridicoCreator")
+  sinonimosJuridicosRevisados    SinonimoJuridico[]               @relation("SinonimoJuridicoReviewer")
   resenasActualizadas            Sentencia[]                      @relation("ResenaUpdatedBy")
   resenasPublicadas              Sentencia[]                      @relation("ResenaPublishedBy")
   citasCreadas                   CitaFallo[]                      @relation("CitaCreatedBy")
@@ -489,25 +499,44 @@ model AccionLog {
 }
 
 model InstitutoJuridico {
-  id          Int                @id @default(autoincrement())
-  nombre      String             @unique
-  descripcion String?
-  activo      Boolean            @default(true)
-  sinonimos   SinonimoJuridico[]
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id                  Int                         @id @default(autoincrement())
+  nombre              String                      @unique
+  descripcion         String?
+  materia             String?
+  fuente              String?
+  identificadorFuente String?
+  estadoValidacion    EstadoValidacionVocabulario @default(PENDIENTE_REVISION)
+  creadoPorId         Int?
+  revisadoPorId       Int?
+  revisadoAt          DateTime?
+  observacionRevision String?
+  activo              Boolean                     @default(true)
+  sinonimos           SinonimoJuridico[]
+  creadoPor           Usuario?                    @relation("InstitutoJuridicoCreator", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  revisadoPor         Usuario?                    @relation("InstitutoJuridicoReviewer", fields: [revisadoPorId], references: [id], onDelete: SetNull)
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
 
   @@index([nombre])
 }
 
 model SinonimoJuridico {
-  id          Int               @id @default(autoincrement())
-  institutoId Int
-  termino     String
-  activo      Boolean           @default(true)
-  instituto   InstitutoJuridico @relation(fields: [institutoId], references: [id], onDelete: Cascade)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id                  Int                         @id @default(autoincrement())
+  institutoId         Int
+  termino             String
+  fuente              String?
+  identificadorFuente String?
+  estadoValidacion    EstadoValidacionVocabulario @default(PENDIENTE_REVISION)
+  creadoPorId         Int?
+  revisadoPorId       Int?
+  revisadoAt          DateTime?
+  observacionRevision String?
+  activo              Boolean                     @default(true)
+  instituto           InstitutoJuridico           @relation(fields: [institutoId], references: [id], onDelete: Cascade)
+  creadoPor           Usuario?                    @relation("SinonimoJuridicoCreator", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  revisadoPor         Usuario?                    @relation("SinonimoJuridicoReviewer", fields: [revisadoPorId], references: [id], onDelete: SetNull)
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
 
   @@unique([institutoId, termino])
   @@index([institutoId])

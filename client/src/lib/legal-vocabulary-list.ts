@@ -1,8 +1,18 @@
 export type LegalVocabularyListEntry = {
   nombre: string;
   descripcion?: string | null;
+  materia?: string | null;
+  fuente?: string | null;
+  identificadorFuente?: string | null;
+  estadoValidacion?: 'PENDIENTE_REVISION' | 'APROBADO' | 'RECHAZADO';
   activo: boolean;
-  sinonimos?: Array<{ termino: string; activo: boolean }>;
+  sinonimos?: Array<{
+    termino: string;
+    activo: boolean;
+    fuente?: string | null;
+    identificadorFuente?: string | null;
+    estadoValidacion?: 'PENDIENTE_REVISION' | 'APROBADO' | 'RECHAZADO';
+  }>;
 };
 
 export type LegalVocabularyStatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE';
@@ -35,7 +45,14 @@ export function filterLegalVocabulary<T extends LegalVocabularyListEntry>(
     const searchable = [
       entry.nombre,
       entry.descripcion ?? '',
-      ...(entry.sinonimos ?? []).map((sinonimo) => sinonimo.termino),
+      entry.materia ?? '',
+      entry.fuente ?? '',
+      entry.identificadorFuente ?? '',
+      ...(entry.sinonimos ?? []).flatMap((sinonimo) => [
+        sinonimo.termino,
+        sinonimo.fuente ?? '',
+        sinonimo.identificadorFuente ?? '',
+      ]),
     ]
       .map(normalizeLegalVocabularyText)
       .join(' ');

@@ -128,6 +128,11 @@ export type InstitutoJuridico = {
   id: number;
   nombre: string;
   descripcion?: string | null;
+  materia?: string | null;
+  fuente?: string | null;
+  identificadorFuente?: string | null;
+  estadoValidacion?: 'PENDIENTE_REVISION' | 'APROBADO' | 'RECHAZADO';
+  observacionRevision?: string | null;
   activo: boolean;
   createdAt: string;
   updatedAt: string;
@@ -138,6 +143,10 @@ export type SinonimoJuridico = {
   id: number;
   institutoId: number;
   termino: string;
+  fuente?: string | null;
+  identificadorFuente?: string | null;
+  estadoValidacion?: 'PENDIENTE_REVISION' | 'APROBADO' | 'RECHAZADO';
+  observacionRevision?: string | null;
   activo: boolean;
   createdAt: string;
   updatedAt: string;
