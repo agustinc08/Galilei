@@ -22,7 +22,7 @@ import { MarkNoveltiesViewedDto } from './dto/mark-novelties-viewed.dto';
 
 @ApiTags('busquedas-guardadas')
 @ApiBearerAuth()
-@Roles(ROLES.ADMIN, ROLES.OPERADOR)
+@Roles(ROLES.ADMIN, ROLES.OPERADOR, ROLES.JURISPRUDENCIA)
 @Controller('busquedas-guardadas')
 export class BusquedasGuardadasController {
   constructor(

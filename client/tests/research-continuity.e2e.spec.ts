@@ -701,6 +701,26 @@ test('internal jurisprudence search copies the authoritative citation from the A
   );
 });
 
+test('Jurisprudencia can open saved searches from the authenticated shell', async ({ page }) => {
+  const { calls } = await installApiMocks(page, true, 'JURISPRUDENCIA');
+  await page.goto('/galilei');
+
+  const savedSearchLink = page.getByRole('link', { name: 'Búsquedas guardadas', exact: true });
+  await expect(savedSearchLink).toBeVisible();
+  await savedSearchLink.click();
+  await expect(page).toHaveURL(/\/busquedas-guardadas$/u);
+  await expect(page.getByRole('heading', { name: 'Búsquedas guardadas', exact: true })).toBeVisible();
+  expect(calls.some((call) => call.path === '/busquedas-guardadas' && call.method === 'GET')).toBe(true);
+});
+
+test('reader roles cannot open saved searches by direct URL', async ({ page }) => {
+  const { calls } = await installApiMocks(page, true, 'LECTOR');
+  await page.goto('/busquedas-guardadas');
+
+  await expect(page.getByRole('alert').getByText('No autorizado', { exact: true })).toBeVisible();
+  expect(calls.some((call) => call.path === '/busquedas-guardadas')).toBe(false);
+});
+
 test('public Sala filter submits the canonical value accepted by the search API', async ({ page }) => {
   const { calls } = await installApiMocks(page);
   await page.goto('/consulta?q=responsabilidad%20civil');

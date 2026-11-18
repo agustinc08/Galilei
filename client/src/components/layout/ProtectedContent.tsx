@@ -21,12 +21,14 @@ function rolesForPath(pathname: string) {
   if (pathname === '/corpus' || pathname.startsWith('/corpus/')) {
     return ['ADMIN', 'OPERADOR', 'REVISOR', 'JURISPRUDENCIA'];
   }
+  if (pathname.startsWith('/busquedas-guardadas')) {
+    return ['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'];
+  }
   if (
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/estadisticas') ||
     pathname.startsWith('/archivos') ||
     pathname.startsWith('/favoritos') ||
-    pathname.startsWith('/busquedas-guardadas') ||
     pathname.startsWith('/institutos-juridicos') ||
     pathname.startsWith('/normas')
   ) {

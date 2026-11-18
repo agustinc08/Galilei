@@ -20,6 +20,7 @@ function activeDestination(pathname: string) {
   if (pathname.startsWith('/spaces')) return 'spaces';
   if (pathname.startsWith('/personal')) return 'personal';
   if (pathname.startsWith('/colecciones')) return 'collections';
+  if (pathname.startsWith('/busquedas-guardadas')) return 'saved-searches';
   if (
     pathname === '/busqueda' || pathname.startsWith('/busqueda/') || pathname === '/busqueda-avanzada' ||
     pathname.startsWith('/consulta') ||
@@ -36,6 +37,7 @@ function activeDestination(pathname: string) {
 }
 
 function breadcrumbLabel(key: string | null) {
+  if (key === 'saved-searches') return 'Búsquedas guardadas';
   return mainDestinations.find((item) => item.key === key)?.label ?? null;
 }
 
@@ -146,6 +148,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               </> : null}
               {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user?.rol.nombre ?? '') ? (
                 <Link className={styles.footerLink} href="/jurisprudencia/ingreso" onClick={() => setMenuOpen(false)}>Ingreso de jurisprudencia</Link>
+              ) : null}
+              {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user?.rol.nombre ?? '') ? (
+                <Link className={styles.footerLink} href="/busquedas-guardadas" onClick={() => setMenuOpen(false)}>Búsquedas guardadas</Link>
               ) : null}
               <Link className={styles.footerLink} href="/citas-pendientes" onClick={() => setMenuOpen(false)}>Revisión de citas</Link>
               <Link className={styles.footerLink} href="/admin/jurisprudencia/ocr" onClick={() => setMenuOpen(false)}>Revisión de OCR</Link>
