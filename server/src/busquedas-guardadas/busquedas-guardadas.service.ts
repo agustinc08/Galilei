@@ -24,6 +24,7 @@ type StoredSearch = {
   lastViewedAt: Date | null;
   lastEvaluatedAt: Date | null;
   lastNewCount: number;
+  alertasActivas: boolean;
 };
 
 function isRecord(value: unknown): value is RecordValue {
@@ -190,6 +191,7 @@ export class BusquedasGuardadasService {
         lastViewedAt: baseline,
         lastEvaluatedAt: baseline,
         lastNewCount: 0,
+        alertasActivas: dto.alertasActivas ?? true,
       },
     });
 
@@ -208,6 +210,10 @@ export class BusquedasGuardadasService {
         ...(dto.queryJson !== undefined && {
           queryJson: dto.queryJson as Prisma.InputJsonValue,
         }),
+        ...(dto.alertasActivas !== undefined && {
+          alertasActivas: dto.alertasActivas,
+        }),
+        ...(dto.alertasActivas === false && { lastNewCount: 0 }),
         ...(resetsBaseline
           ? {
               lastViewedAt: baseline,
@@ -333,6 +339,9 @@ export class BusquedasGuardadasService {
   }
 
   private async refreshNoveltySummary(usuarioId: number, search: StoredSearch) {
+    if (search.alertasActivas === false) {
+      return { ...search, lastNewCount: 0, noveltyAvailable: true };
+    }
     if (!search.lastViewedAt) {
       const baseline = new Date();
       await this.prisma.busquedaGuardada.updateMany({

@@ -37,6 +37,7 @@ model Usuario {
   rol                            Rol                              @relation(fields: [rolId], references: [id])
   favoritos                      Favorito[]
   busquedas                      BusquedaGuardada[]
+  reportesProblema               ReporteProblema[]                @relation("ReporteProblemaReporter")
   researchCollections            ResearchCollection[]
   researchComparisons            ResearchComparison[]
   researchTimelines              ResearchTimeline[]
@@ -371,11 +372,38 @@ model BusquedaGuardada {
   lastViewedAt    DateTime?
   lastEvaluatedAt DateTime?
   lastNewCount    Int       @default(0)
+  alertasActivas  Boolean   @default(true)
   usuario         Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@index([usuarioId])
+}
+
+model ReporteProblema {
+  id            Int               @id @default(autoincrement())
+  usuarioId     Int?
+  tipo          String            @db.VarChar(32)
+  descripcion   String            @db.VarChar(4000)
+  ruta          String            @db.VarChar(500)
+  accion        String?           @db.VarChar(1000)
+  modulo        String            @db.VarChar(120)
+  version       String            @db.VarChar(80)
+  errorId       String?           @db.VarChar(80)
+  estado        String            @default("NUEVO") @db.VarChar(32)
+  prioridad     String            @default("P3") @db.VarChar(2)
+  notasAdmin    String?           @db.VarChar(4000)
+  duplicadoDeId Int?
+  usuario       Usuario?          @relation("ReporteProblemaReporter", fields: [usuarioId], references: [id], onDelete: SetNull)
+  duplicadoDe   ReporteProblema?  @relation("ReporteProblemaDuplicados", fields: [duplicadoDeId], references: [id], onDelete: SetNull)
+  duplicados    ReporteProblema[] @relation("ReporteProblemaDuplicados")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([estado, createdAt])
+  @@index([prioridad, createdAt])
+  @@index([usuarioId, createdAt])
+  @@index([duplicadoDeId])
 }
 
 // Personal research folders reference published judgments; they never own files.

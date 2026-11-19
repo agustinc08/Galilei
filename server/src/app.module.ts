@@ -24,6 +24,7 @@ import { ResearchCollectionsModule } from './research-collections/research-colle
 import { ResearchComparisonsModule } from './research-comparisons/research-comparisons.module';
 import { ResearchTimelinesModule } from './research-timelines/research-timelines.module';
 import { ResearchRelationshipsModule } from './research-relationships/research-relationships.module';
+import { ReportesProblemasModule } from './reportes-problemas/reportes-problemas.module';
 import { RolesModule } from './roles/roles.module';
 import { SentenciasModule } from './sentencias/sentencias.module';
 import { SumariosModule } from './sumarios/sumarios.module';
@@ -59,6 +60,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     ResearchComparisonsModule,
     ResearchTimelinesModule,
     ResearchRelationshipsModule,
+    ReportesProblemasModule,
   ],
   controllers: [HealthController],
   providers: [

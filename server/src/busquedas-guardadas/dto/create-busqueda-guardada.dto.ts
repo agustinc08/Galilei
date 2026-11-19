@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsString, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateBusquedaGuardadaDto {
   @ApiProperty({ example: 'Busqueda por danos y perjuicios' })
@@ -17,4 +24,9 @@ export class CreateBusquedaGuardadaDto {
   })
   @IsObject()
   queryJson!: Record<string, unknown>;
+
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  alertasActivas?: boolean;
 }

@@ -1,68 +1,132 @@
-'use client';
+"use client";
 
 import { Link } from "@/lib/router-compat";
-import { usePathname, useSearchParams } from '@/lib/router-compat';
-import { useEffect, useRef, useState } from 'react';
-import { useAuth } from '@/hooks/use-auth';
-import { cn } from '@/lib/utils';
-import { Button } from '../ui/Button';
-import { LineIcon } from '../ui/LineIcon';
-import styles from './layout.module.css';
+import { usePathname, useSearchParams } from "@/lib/router-compat";
+import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { cn } from "@/lib/utils";
+import { Button } from "../ui/Button";
+import { LineIcon } from "../ui/LineIcon";
+import styles from "./layout.module.css";
 
 const mainDestinations = [
-  { href: '/busqueda', label: 'Jurisprudencia', key: 'jurisprudencia', icon: 'research' },
-  { href: '/spaces', label: 'Mi Sala / Juzgado', key: 'spaces', icon: 'workspace' },
-  { href: '/personal', label: 'Mis documentos', key: 'personal', icon: 'personal' },
-  { href: '/colecciones', label: 'Mis colecciones', key: 'collections', icon: 'collections' },
+  {
+    href: "/busqueda",
+    label: "Jurisprudencia",
+    key: "jurisprudencia",
+    icon: "research",
+  },
+  {
+    href: "/spaces",
+    label: "Mi Sala / Juzgado",
+    key: "spaces",
+    icon: "workspace",
+  },
+  {
+    href: "/personal",
+    label: "Mis documentos",
+    key: "personal",
+    icon: "personal",
+  },
+  {
+    href: "/colecciones",
+    label: "Mis colecciones",
+    key: "collections",
+    icon: "collections",
+  },
 ] as const;
 
 function activeDestination(pathname: string) {
-  if (pathname.startsWith('/spaces')) return 'spaces';
-  if (pathname.startsWith('/personal')) return 'personal';
-  if (pathname.startsWith('/colecciones')) return 'collections';
-  if (pathname.startsWith('/busquedas-guardadas')) return 'saved-searches';
+  if (pathname.startsWith("/reportar-problema")) return "report-problem";
+  if (pathname.startsWith("/admin/reportes-problemas"))
+    return "admin-reportes-problemas";
+  if (pathname.startsWith("/spaces")) return "spaces";
+  if (pathname.startsWith("/personal")) return "personal";
+  if (pathname.startsWith("/colecciones")) return "collections";
+  if (pathname.startsWith("/busquedas-guardadas")) return "saved-searches";
   if (
-    pathname === '/busqueda' || pathname.startsWith('/busqueda/') || pathname === '/busqueda-avanzada' ||
-    pathname.startsWith('/consulta') ||
-    pathname.startsWith('/fallos') ||
-    pathname.startsWith('/jurisprudencia') ||
-    pathname.startsWith('/sentencias') ||
-    pathname.startsWith('/sumarios') ||
-    pathname.startsWith('/revision') ||
-    pathname.startsWith('/admin/jurisprudencia/ocr')
+    pathname === "/busqueda" ||
+    pathname.startsWith("/busqueda/") ||
+    pathname === "/busqueda-avanzada" ||
+    pathname.startsWith("/consulta") ||
+    pathname.startsWith("/fallos") ||
+    pathname.startsWith("/jurisprudencia") ||
+    pathname.startsWith("/sentencias") ||
+    pathname.startsWith("/sumarios") ||
+    pathname.startsWith("/revision") ||
+    pathname.startsWith("/admin/jurisprudencia/ocr")
   ) {
-    return 'jurisprudencia';
+    return "jurisprudencia";
   }
   return null;
 }
 
 function breadcrumbLabel(key: string | null) {
-  if (key === 'saved-searches') return 'Búsquedas guardadas';
+  if (key === "report-problem") return "Reportar un problema";
+  if (key === "admin-reportes-problemas") return "Problemas reportados";
+  if (key === "saved-searches") return "Búsquedas guardadas";
   return mainDestinations.find((item) => item.key === key)?.label ?? null;
 }
 
 function accountInitials(name: string, surname?: string | null) {
-  const first = name.trim().split(/\s+/u).filter(Boolean)[0] ?? '';
-  const last = surname?.trim().split(/\s+/u).filter(Boolean).at(-1) ?? '';
+  const first = name.trim().split(/\s+/u).filter(Boolean)[0] ?? "";
+  const last = surname?.trim().split(/\s+/u).filter(Boolean).at(-1) ?? "";
   const letters = last
-    ? `${first[0] ?? ''}${last[0] ?? ''}`
-    : Array.from(first).slice(0, 2).join('');
-  return letters.toLocaleUpperCase('es-AR') || 'U';
+    ? `${first[0] ?? ""}${last[0] ?? ""}`
+    : Array.from(first).slice(0, 2).join("");
+  return letters.toLocaleUpperCase("es-AR") || "U";
 }
 
-function NavigationIcon({ name }: { name: (typeof mainDestinations)[number]['icon'] }) {
+function NavigationIcon({
+  name,
+}: {
+  name: (typeof mainDestinations)[number]["icon"];
+}) {
   const paths = {
-    research: <><path d="M7 3.75h7l4 4v12.5H7z" /><path d="M14 3.75v4h4M10 12h5M10 15.5h5" /></>,
-    workspace: <><path d="M3.75 20.25h16.5M5.5 20.25V6.5l6.5-3 6.5 3v13.75" /><path d="M9 8.5h.01M15 8.5h.01M9 12h.01M15 12h.01M10 20v-4h4v4" /></>,
-    personal: <><path d="M3.75 7.25h6l1.75 2h8.75v10.5H3.75z" /><path d="M3.75 7.25V5.5h7l1.5 1.75" /></>,
-    collections: <><path d="M5 5.25h13.5M5 9.75h13.5M5 14.25h8.5M5 18.75h8.5" /><path d="M3.75 3.75h16.5v17H3.75z" /></>,
+    research: (
+      <>
+        <path d="M7 3.75h7l4 4v12.5H7z" />
+        <path d="M14 3.75v4h4M10 12h5M10 15.5h5" />
+      </>
+    ),
+    workspace: (
+      <>
+        <path d="M3.75 20.25h16.5M5.5 20.25V6.5l6.5-3 6.5 3v13.75" />
+        <path d="M9 8.5h.01M15 8.5h.01M9 12h.01M15 12h.01M10 20v-4h4v4" />
+      </>
+    ),
+    personal: (
+      <>
+        <path d="M3.75 7.25h6l1.75 2h8.75v10.5H3.75z" />
+        <path d="M3.75 7.25V5.5h7l1.5 1.75" />
+      </>
+    ),
+    collections: (
+      <>
+        <path d="M5 5.25h13.5M5 9.75h13.5M5 14.25h8.5M5 18.75h8.5" />
+        <path d="M3.75 3.75h16.5v17H3.75z" />
+      </>
+    ),
   };
 
-  return <svg className={styles.navIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+  return (
+    <svg
+      className={styles.navIcon}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  );
 }
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname() ?? '';
+  const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -70,53 +134,77 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const sidebarRef = useRef<HTMLElement>(null);
   const active = activeDestination(pathname);
   const breadcrumb = breadcrumbLabel(active);
-  const hasWorkContext = ['spaces', 'personal', 'collections'].includes(active ?? '');
+  const hasWorkContext = ["spaces", "personal", "collections"].includes(
+    active ?? "",
+  );
   const currentQuery = searchParams.toString();
   const contextualReturn = hasWorkContext
-    ? `${pathname}${currentQuery ? `?${currentQuery}` : ''}`
+    ? `${pathname}${currentQuery ? `?${currentQuery}` : ""}`
     : null;
   const roleDestinations = mainDestinations.map((item) => {
-    if (item.key !== 'jurisprudencia') return item;
+    if (item.key !== "jurisprudencia") return item;
     const searchPath = item.href;
     const href = contextualReturn
-      ? `${searchPath}${searchPath.includes('?') ? '&' : '?'}returnTo=${encodeURIComponent(contextualReturn)}`
+      ? `${searchPath}${searchPath.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(contextualReturn)}`
       : searchPath;
     return { ...item, href };
   });
 
   useEffect(() => {
     const closeAfterHistoryNavigation = () => setMenuOpen(false);
-    window.addEventListener('popstate', closeAfterHistoryNavigation);
-    return () => window.removeEventListener('popstate', closeAfterHistoryNavigation);
+    window.addEventListener("popstate", closeAfterHistoryNavigation);
+    return () =>
+      window.removeEventListener("popstate", closeAfterHistoryNavigation);
   }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
     const menuButton = menuButtonRef.current;
     const focusFirstLink = window.setTimeout(() => {
-      sidebarRef.current?.querySelector<HTMLElement>('#galilei-primary-navigation a')?.focus();
+      sidebarRef.current
+        ?.querySelector<HTMLElement>("#galilei-primary-navigation a")
+        ?.focus();
     }, 200);
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key === "Escape") setMenuOpen(false);
     };
-    window.addEventListener('keydown', closeOnEscape);
+    window.addEventListener("keydown", closeOnEscape);
     return () => {
       window.clearTimeout(focusFirstLink);
-      window.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener("keydown", closeOnEscape);
       menuButton?.focus();
     };
   }, [menuOpen]);
 
   return (
     <div className={styles.appShell}>
-      {menuOpen ? <button className={styles.drawerBackdrop} type="button" aria-label="Cerrar menú" onClick={() => setMenuOpen(false)} /> : null}
-      <aside ref={sidebarRef} className={`${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ''}`}>
-        <Link className={styles.brand} href="/galilei" aria-label="Galilei, inicio" onClick={() => setMenuOpen(false)}>
+      {menuOpen ? (
+        <button
+          className={styles.drawerBackdrop}
+          type="button"
+          aria-label="Cerrar menú"
+          onClick={() => setMenuOpen(false)}
+        />
+      ) : null}
+      <aside
+        ref={sidebarRef}
+        className={`${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ""}`}
+      >
+        <Link
+          className={styles.brand}
+          href="/galilei"
+          aria-label="Galilei, inicio"
+          onClick={() => setMenuOpen(false)}
+        >
           <strong>Galilei</strong>
           <span>Jurisprudencia · Mi Sala / Juzgado · Mis documentos</span>
         </Link>
 
-        <nav id="galilei-primary-navigation" className={styles.nav} aria-label="Navegación principal">
+        <nav
+          id="galilei-primary-navigation"
+          className={styles.nav}
+          aria-label="Navegación principal"
+        >
           <p className={styles.navSectionLabel}>TRABAJO</p>
           {roleDestinations.map((item) => {
             const isActive = active === item.key;
@@ -125,7 +213,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 key={item.key}
                 href={item.href}
                 onClick={() => setMenuOpen(false)}
-                aria-current={isActive ? 'page' : undefined}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(styles.navLink, isActive && styles.navLinkActive)}
               >
                 <NavigationIcon name={item.icon} />
@@ -136,37 +224,127 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className={styles.sidebarFooter}>
-          {user?.rol.nombre === 'ADMIN' || ['OPERADOR', 'JURISPRUDENCIA', 'REVISOR'].includes(user?.rol.nombre ?? '') ? (
+          {user?.rol.nombre === "ADMIN" ||
+          ["OPERADOR", "JURISPRUDENCIA", "REVISOR"].includes(
+            user?.rol.nombre ?? "",
+          ) ? (
             <nav className={styles.managementNav} aria-label="Gestión">
               <p className={styles.footerSectionLabel}>GESTIÓN</p>
-              {user?.rol.nombre === 'ADMIN' || user?.rol.nombre === 'OPERADOR' ? <>
-                <Link className={styles.footerLink} href="/dashboard" onClick={() => setMenuOpen(false)}>Panel técnico</Link>
-              </> : null}
-              {user?.rol.nombre === 'ADMIN' ? <>
-                <Link className={styles.footerLink} href="/admin/logs" onClick={() => setMenuOpen(false)}>Registros</Link>
-                <Link className={styles.footerLink} href="/admin/usuarios" onClick={() => setMenuOpen(false)}>Usuarios</Link>
-              </> : null}
-              {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user?.rol.nombre ?? '') ? (
-                <Link className={styles.footerLink} href="/jurisprudencia/ingreso" onClick={() => setMenuOpen(false)}>Ingreso de jurisprudencia</Link>
+              {user?.rol.nombre === "ADMIN" ||
+              user?.rol.nombre === "OPERADOR" ? (
+                <>
+                  <Link
+                    className={styles.footerLink}
+                    href="/dashboard"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Panel técnico
+                  </Link>
+                </>
               ) : null}
-              {['ADMIN', 'OPERADOR', 'JURISPRUDENCIA'].includes(user?.rol.nombre ?? '') ? (
-                <Link className={styles.footerLink} href="/busquedas-guardadas" onClick={() => setMenuOpen(false)}>Búsquedas guardadas</Link>
+              {user?.rol.nombre === "ADMIN" ? (
+                <>
+                  <Link
+                    className={styles.footerLink}
+                    href="/admin/logs"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Registros
+                  </Link>
+                  <Link
+                    className={styles.footerLink}
+                    href="/admin/usuarios"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Usuarios
+                  </Link>
+                  <Link
+                    className={styles.footerLink}
+                    href="/admin/reportes-problemas"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Problemas reportados
+                  </Link>
+                </>
               ) : null}
-              <Link className={styles.footerLink} href="/citas-pendientes" onClick={() => setMenuOpen(false)}>Revisión de citas</Link>
-              <Link className={styles.footerLink} href="/admin/jurisprudencia/ocr" onClick={() => setMenuOpen(false)}>Revisión de OCR</Link>
+              {["ADMIN", "OPERADOR", "JURISPRUDENCIA"].includes(
+                user?.rol.nombre ?? "",
+              ) ? (
+                <Link
+                  className={styles.footerLink}
+                  href="/jurisprudencia/ingreso"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Ingreso de jurisprudencia
+                </Link>
+              ) : null}
+              {["ADMIN", "OPERADOR", "JURISPRUDENCIA"].includes(
+                user?.rol.nombre ?? "",
+              ) ? (
+                <Link
+                  className={styles.footerLink}
+                  href="/busquedas-guardadas"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Búsquedas guardadas
+                </Link>
+              ) : null}
+              <Link
+                className={styles.footerLink}
+                href="/citas-pendientes"
+                onClick={() => setMenuOpen(false)}
+              >
+                Revisión de citas
+              </Link>
+              <Link
+                className={styles.footerLink}
+                href="/admin/jurisprudencia/ocr"
+                onClick={() => setMenuOpen(false)}
+              >
+                Revisión de OCR
+              </Link>
             </nav>
           ) : null}
           <div className={styles.accountGroup}>
             <p className={styles.footerSectionLabel}>CUENTA</p>
             <div className={styles.accountIdentity}>
-              {user ? <span className={styles.accountAvatar} aria-hidden="true">{accountInitials(user.nombre, user.apellido)}</span> : null}
-              <strong className={styles.accountName}>{user ? `${user.nombre} ${user.apellido ?? ''}`.trim() : 'Sesión activa'}</strong>
+              {user ? (
+                <span className={styles.accountAvatar} aria-hidden="true">
+                  {accountInitials(user.nombre, user.apellido)}
+                </span>
+              ) : null}
+              <strong className={styles.accountName}>
+                {user
+                  ? `${user.nombre} ${user.apellido ?? ""}`.trim()
+                  : "Sesión activa"}
+              </strong>
             </div>
-            <Link className={styles.footerLink} href="/perfil" onClick={() => setMenuOpen(false)}>Mi perfil</Link>
-            <Button variant="secondary" onClick={() => { setMenuOpen(false); logout(); }}>Cerrar sesión</Button>
+            <Link
+              className={styles.footerLink}
+              href="/perfil"
+              onClick={() => setMenuOpen(false)}
+            >
+              Mi perfil
+            </Link>
+            <Link
+              className={styles.footerLink}
+              href="/reportar-problema"
+              onClick={() => setMenuOpen(false)}
+            >
+              Reportar un problema
+            </Link>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setMenuOpen(false);
+                logout();
+              }}
+            >
+              Cerrar sesión
+            </Button>
           </div>
         </div>
-        </aside>
+      </aside>
 
       <div className={styles.main}>
         <header className={styles.topbar}>
@@ -174,18 +352,26 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             ref={menuButtonRef}
             className={styles.menuButton}
             type="button"
-            aria-label={menuOpen ? 'Cerrar navegación' : 'Abrir navegación'}
+            aria-label={menuOpen ? "Cerrar navegación" : "Abrir navegación"}
             aria-expanded={menuOpen}
             aria-controls="galilei-primary-navigation"
             onClick={() => setMenuOpen((open) => !open)}
           >
-            <LineIcon name="menu" className={styles.menuIcon} /><span>Menú</span>
+            <LineIcon name="menu" className={styles.menuIcon} />
+            <span>Menú</span>
           </button>
           <nav className={styles.breadcrumbs} aria-label="Migas de pan">
             <Link href="/galilei">Galilei</Link>
-            {breadcrumb ? <><span aria-hidden="true">›</span><span aria-current="page">{breadcrumb}</span></> : null}
+            {breadcrumb ? (
+              <>
+                <span aria-hidden="true">›</span>
+                <span aria-current="page">{breadcrumb}</span>
+              </>
+            ) : null}
           </nav>
-          <strong className={styles.userName}>{user?.nombre} {user?.apellido ?? ''}</strong>
+          <strong className={styles.userName}>
+            {user?.nombre} {user?.apellido ?? ""}
+          </strong>
         </header>
         <main className={styles.content}>{children}</main>
       </div>

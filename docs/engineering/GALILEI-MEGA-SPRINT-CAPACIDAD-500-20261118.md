@@ -158,3 +158,66 @@ ORIGIN_MAIN_UNCHANGED=YES (83947656420a9d6f6c3cfb12b353eb7f2c293a28)
 ```
 
 Este candidate no se presenta como validado en Office. La publicación visible requiere el updater oficial y comprobaciones post-deploy; la prueba de navegación de Office sigue pendiente. No hay autorización para migraciones de Office; BETA-029 no las necesita.
+
+## Addendum de continuidad — 19 de noviembre de 2026
+
+Este addendum conserva los estados históricos anteriores y registra el candidate separado `feature/galilei-alerts-reporting-20261119`, basado en `4de42b97b22430a45c5562fbd6659f5b9d6c296f`.
+
+### Estado de despliegue y aislamiento
+
+| Elemento | Estado observado en esta fase |
+|---|---|
+| Office desplegado | `4de42b97b22430a45c5562fbd6659f5b9d6c296f`; no se volvió a desplegar |
+| `origin/dev` | `4de42b97b22430a45c5562fbd6659f5b9d6c296f`; no se modificó |
+| `origin/main` | `83947656420a9d6f6c3cfb12b353eb7f2c293a28`; sin cambios |
+| Migraciones Office | 41; sin cambios |
+| QA integrado | PostgreSQL aislado `127.0.0.1:55434`, OpenSearch `127.0.0.1:19201`, API `127.0.0.1:43003`, UI `127.0.0.1:43004`; storage separado |
+| Migraciones QA | 42/42; se aplicó sólo `20261119120000_saved_search_alerts_and_problem_reports` en la base QA |
+| Publicación de feature | Pendiente del cierre de este candidate; no autoriza despliegue de Office |
+
+### EVOL-001 — alertas internas en búsquedas guardadas
+
+Se agregó `alertasActivas` por búsqueda, activa por defecto. El usuario puede pausar y reactivar el seguimiento desde Búsquedas guardadas. Mientras está pausada, la carga de la lista omite la evaluación de novedades y pone el contador visible en cero; la consulta conserva sus filtros y el punto de inicio. La detección usa la fecha de publicación de fallos públicos, no cambios técnicos de índice. No se envían correos ni se agregan servicios externos.
+
+**Alcance:** `PASS_QA_ONLY` para pausa/reactivación, persistencia tras recarga, privacidad por usuario y estado. Es una notificación interna consultada al abrir la lista; no hay worker de entrega en segundo plano. La aprobación no debe presentarse como validación Office ni como notificación push.
+
+### EVOL-002 — reportes de problemas desde Galilei
+
+Se incorporó un formulario autenticado y una vista exclusiva de ADMIN. El registro conserva tipo, descripción, ruta sin query string, acción opcional, módulo, versión e identificador de error opcional. No recibe capturas ni archivos, y la UI advierte que no se incluyan credenciales, información personal ni contenido jurídico privado. El administrador puede filtrar por estado/prioridad, cambiar estado/prioridad, guardar observaciones internas y relacionar duplicados con un reporte original. La auditoría registra creación y cambios sin copiar la descripción ni las notas.
+
+**Validación integrada QA:** JURISPRUDENCIA creó dos reportes sintéticos; ADMIN los actualizó, filtró y vinculó como duplicados; REVISOR recibió 403 por API y la UI mostró “No autorizado”. Se verificaron cuatro eventos de auditoría. Los dos reportes sintéticos se eliminaron por sus identificadores únicos en la base aislada, preservando auditoría. No se dejaron búsquedas sintéticas.
+
+### Regresiones y calidad
+
+El recorrido real con Chromium/Edge detectó que el patrón HTML del identificador de error era inválido bajo la sintaxis moderna `v`. Se corrigió y el E2E ahora comprueba que un identificador con guiones sea válido. Validación final del recorrido integrado: `PASS`; 0 respuestas 5xx, 0 errores inesperados de consola y 0 errores JS. El 403 esperado del control de rol quedó clasificado como denegación ACL, no como fallo de servicio.
+
+El server typecheck, ESLint dirigido, build y 3 suites server (15 pruebas) habían pasado antes del fix exclusivo de cliente. Después del fix, client typecheck, ESLint dirigido, build de producción y E2E integrado pasaron. Vite mantiene su aviso existente por el chunk PDF grande. No se ejecutó una auditoría de corpus, OCR real, carga ni pruebas en Office.
+
+### Pendientes y límites
+
+| Tema | Estado actual | Siguiente gate |
+|---|---|---|
+| Búsquedas guardadas y acceso JURISPRUDENCIA | `PASS_QA_ONLY` acumulado | Verificar en Office sólo después de un deploy autorizado |
+| Alertas internas pausable/reanudables | `PASS_QA_ONLY`; consultadas al abrir la lista | Requiere migración exacta en Office y prueba humana; no hay envío en segundo plano |
+| Reporte y administración de problemas | `PASS_QA_ONLY` integrado | Requiere migración exacta en Office y smoke autenticado por rol |
+| BETA-026 | `OCR_OFFICE_E2E=NOT_VERIFIED` | Validación humana en Office; no se procesó OCR real aquí |
+| Monitoreo operativo | `PARTIAL` | No hay series históricas/alertas de host demostradas |
+| Capacidad para 500 usuarios | `NOT_TESTED` | Hace falta un entorno físico separado y un plan de carga gradual |
+
+El candidate contiene la migración `20261119120000_saved_search_alerts_and_problem_reports`. No se aplicó a Office y no debe desplegarse allí sin autorización expresa que cite ese identificador exacto. QA y Office comparten host físico, por lo que tampoco se ejecutó benchmark en esa máquina. La capacidad para 500 sesiones o usuarios activos continúa sin certificación.
+
+```text
+SAVED_SEARCH_ALERT_CONTROLS=PASS_QA_ONLY
+INTERNAL_PROBLEM_REPORTING=PASS_QA_ONLY
+INTEGRATED_BROWSER_E2E=PASS
+UNEXPECTED_5XX=0
+UNEXPECTED_CONSOLE_ERRORS=0
+PAGE_ERRORS=0
+QA_SYNTHETIC_REPORTS_REMAINING=0
+QA_AUDIT_ROWS_PRESERVED=YES
+OFFICE_MIGRATION_20261119120000=NOT_APPLIED
+OFFICE_DEPLOY=NOT_DONE
+ORIGIN_DEV_PROMOTED=NO
+ORIGIN_MAIN_UNCHANGED=YES
+CAPACITY_500_USERS=NOT_TESTED
+```

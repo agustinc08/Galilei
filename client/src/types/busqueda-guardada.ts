@@ -6,6 +6,7 @@ export type BusquedaGuardada = {
   lastViewedAt?: string | null;
   lastEvaluatedAt?: string | null;
   lastNewCount?: number | null;
+  alertasActivas: boolean;
   noveltyAvailable?: boolean;
   noveltyError?: string;
   createdAt: string;

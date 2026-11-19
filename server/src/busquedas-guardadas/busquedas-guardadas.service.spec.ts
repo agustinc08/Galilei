@@ -56,6 +56,62 @@ describe('BusquedasGuardadasService novelties', () => {
     expect(busquedaService.federatedSearch).not.toHaveBeenCalled();
   });
 
+  it('does not evaluate saved searches when the user has paused alerts', async () => {
+    const { service, prisma, busquedaService } = makeService();
+    prisma.busquedaGuardada.findMany.mockResolvedValue([
+      {
+        id: 4,
+        usuarioId: 7,
+        queryJson: { q: 'civil' },
+        lastViewedAt: new Date('2026-01-01T00:00:00.000Z'),
+        lastEvaluatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        lastNewCount: 9,
+        alertasActivas: false,
+      },
+    ]);
+
+    const result = await service.findAll(7);
+
+    expect(result.data[0]).toMatchObject({
+      id: 4,
+      alertasActivas: false,
+      lastNewCount: 0,
+      noveltyAvailable: true,
+    });
+    expect(prisma.sentencia.findMany).not.toHaveBeenCalled();
+    expect(busquedaService.federatedSearch).not.toHaveBeenCalled();
+  });
+
+  it('allows the owner to pause alerts without changing the saved query or baseline', async () => {
+    const { service, prisma } = makeService();
+    const baseline = new Date('2026-01-01T00:00:00.000Z');
+    prisma.busquedaGuardada.findFirst.mockResolvedValue({
+      id: 4,
+      usuarioId: 7,
+      queryJson: { q: 'civil' },
+      lastViewedAt: baseline,
+      lastEvaluatedAt: baseline,
+      lastNewCount: 2,
+      alertasActivas: true,
+    });
+    prisma.busquedaGuardada.update.mockResolvedValue({
+      id: 4,
+      usuarioId: 7,
+      queryJson: { q: 'civil' },
+      lastViewedAt: baseline,
+      lastEvaluatedAt: baseline,
+      lastNewCount: 0,
+      alertasActivas: false,
+    });
+
+    await service.update(7, 4, { alertasActivas: false });
+
+    expect(prisma.busquedaGuardada.update).toHaveBeenCalledWith({
+      where: { id: 4 },
+      data: { alertasActivas: false, lastNewCount: 0 },
+    });
+  });
+
   it('reuses COPERNIC search with publication-time candidate ids and saved filters', async () => {
     const { service, prisma, busquedaService } = makeService();
     const lastViewedAt = new Date('2026-01-01T00:00:00.000Z');

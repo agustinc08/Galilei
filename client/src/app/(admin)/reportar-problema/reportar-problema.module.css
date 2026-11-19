@@ -1,0 +1,83 @@
+.page {
+  display: grid;
+  gap: 1rem;
+  max-width: 54rem;
+  margin: 0 auto;
+}
+
+.form {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.context {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-subtle, #d8dee8);
+  border-radius: 0.75rem;
+  background: var(--surface-muted, #f7f9fc);
+}
+
+.contextLabel,
+.field > span {
+  font-weight: 650;
+}
+
+.context code {
+  overflow-wrap: anywhere;
+  color: var(--text-secondary, #475569);
+}
+
+.context p,
+.privacy {
+  margin: 0;
+  color: var(--text-secondary, #475569);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.field em {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.85rem;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.field textarea,
+.field input {
+  width: 100%;
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  border-radius: 0.55rem;
+  padding: 0.7rem 0.8rem;
+  color: var(--text-primary, #172033);
+  background: var(--surface, #fff);
+  font: inherit;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field small {
+  justify-self: end;
+  color: var(--text-secondary, #64748b);
+}
+
+.privacy {
+  padding: 0.7rem 0.85rem;
+  border-left: 3px solid var(--accent, #526786);
+  background: var(--surface-muted, #f7f9fc);
+}
+
+@media (max-width: 640px) {
+  .form {
+    padding: 0.9rem;
+  }
+}

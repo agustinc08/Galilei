@@ -1,23 +1,23 @@
-'use client';
+"use client";
 
-import { Link, useRouter } from '@/lib/router-compat';
-import { useEffect, useMemo, useState } from 'react';
-import styles from '@/components/sentencias/sentencias.module.css';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { Input } from '@/components/ui/Input';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { StatusMessage } from '@/components/ui/StatusMessage';
-import { Table } from '@/components/ui/Table';
-import { Textarea } from '@/components/ui/Textarea';
-import { api } from '@/lib/api';
-import { buildQueryString, formatDate, formatDateTime } from '@/lib/utils';
-import { publicSearchPathFromSaved } from '@/lib/research-continuity';
-import type { ApiResponse } from '@/types/common';
-import type { BusquedaGuardada } from '@/types/busqueda-guardada';
-import researchStyles from '@/components/research/saved-search-novelties.module.css';
+import { Link, useRouter } from "@/lib/router-compat";
+import { useEffect, useMemo, useState } from "react";
+import styles from "@/components/sentencias/sentencias.module.css";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Input } from "@/components/ui/Input";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusMessage } from "@/components/ui/StatusMessage";
+import { Table } from "@/components/ui/Table";
+import { Textarea } from "@/components/ui/Textarea";
+import { api } from "@/lib/api";
+import { buildQueryString, formatDate, formatDateTime } from "@/lib/utils";
+import { publicSearchPathFromSaved } from "@/lib/research-continuity";
+import type { ApiResponse } from "@/types/common";
+import type { BusquedaGuardada } from "@/types/busqueda-guardada";
+import researchStyles from "@/components/research/saved-search-novelties.module.css";
 
 type NoveltyDecision = {
   id: number;
@@ -56,7 +56,7 @@ type FormValues = {
 };
 
 const initialForm: FormValues = {
-  nombre: '',
+  nombre: "",
   queryJson: '{\n  "tema": "danos"\n}',
 };
 
@@ -72,7 +72,8 @@ export default function BusquedasGuardadasPage() {
   const [noveltyLoadingId, setNoveltyLoadingId] = useState<number | null>(null);
 
   const title = useMemo(
-    () => (editingId ? `Editar búsqueda #${editingId}` : 'Nueva búsqueda guardada'),
+    () =>
+      editingId ? `Editar búsqueda #${editingId}` : "Nueva búsqueda guardada",
     [editingId],
   );
 
@@ -80,10 +81,16 @@ export default function BusquedasGuardadasPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.get<ApiResponse<BusquedaGuardada[]>>('/busquedas-guardadas');
+      const response = await api.get<ApiResponse<BusquedaGuardada[]>>(
+        "/busquedas-guardadas",
+      );
       setItems(response.data);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar las búsquedas.');
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "No se pudieron cargar las búsquedas.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -94,13 +101,19 @@ export default function BusquedasGuardadasPage() {
 
     const loadInitial = async () => {
       try {
-        const response = await api.get<ApiResponse<BusquedaGuardada[]>>('/busquedas-guardadas');
+        const response = await api.get<ApiResponse<BusquedaGuardada[]>>(
+          "/busquedas-guardadas",
+        );
         if (active) {
           setItems(response.data);
         }
       } catch (loadError) {
         if (active) {
-          setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar las búsquedas.');
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "No se pudieron cargar las búsquedas.",
+          );
         }
       } finally {
         if (active) {
@@ -127,7 +140,7 @@ export default function BusquedasGuardadasPage() {
     try {
       parsedQuery = JSON.parse(form.queryJson) as Record<string, unknown>;
     } catch {
-      setError('El JSON de filtros no es valido.');
+      setError("El JSON de filtros no es valido.");
       return;
     }
 
@@ -136,13 +149,13 @@ export default function BusquedasGuardadasPage() {
         nombre: form.nombre,
         queryJson: parsedQuery,
       });
-      setFeedback('Búsqueda actualizada.');
+      setFeedback("Búsqueda actualizada.");
     } else {
-      await api.post('/busquedas-guardadas', {
+      await api.post("/busquedas-guardadas", {
         nombre: form.nombre,
         queryJson: parsedQuery,
       });
-      setFeedback('Búsqueda creada.');
+      setFeedback("Búsqueda creada.");
     }
 
     resetForm();
@@ -161,12 +174,26 @@ export default function BusquedasGuardadasPage() {
         `/busquedas-guardadas/${search.id}/novedades`,
         { query: { page, pageSize: 25, evaluatedAt } },
       );
-      setNoveltyView({ searchId: search.id, searchName: search.nombre, response });
-      setItems((current) => current.map((item) => item.id === search.id
-        ? { ...item, lastNewCount: response.meta.total, noveltyAvailable: true }
-        : item));
+      setNoveltyView({
+        searchId: search.id,
+        searchName: search.nombre,
+        response,
+      });
+      setItems((current) =>
+        current.map((item) =>
+          item.id === search.id
+            ? {
+                ...item,
+                lastNewCount: response.meta.total,
+                noveltyAvailable: true,
+              }
+            : item,
+        ),
+      );
     } catch {
-      setError('No se pudieron cargar las novedades. No se marcaron como revisadas.');
+      setError(
+        "No se pudieron cargar las novedades. No se marcaron como revisadas.",
+      );
     } finally {
       setNoveltyLoadingId(null);
     }
@@ -176,14 +203,19 @@ export default function BusquedasGuardadasPage() {
     if (!noveltyView) return;
     setError(null);
     try {
-      await api.post(`/busquedas-guardadas/${noveltyView.searchId}/novedades/vistas`, {
-        viewedThrough: noveltyView.response.meta.evaluatedAt,
-      });
+      await api.post(
+        `/busquedas-guardadas/${noveltyView.searchId}/novedades/vistas`,
+        {
+          viewedThrough: noveltyView.response.meta.evaluatedAt,
+        },
+      );
       setNoveltyView(null);
-      setFeedback('Novedades marcadas como revisadas.');
+      setFeedback("Novedades marcadas como revisadas.");
       await load();
     } catch {
-      setError('No se pudieron marcar las novedades como revisadas. Podés intentarlo nuevamente.');
+      setError(
+        "No se pudieron marcar las novedades como revisadas. Podés intentarlo nuevamente.",
+      );
     }
   };
 
@@ -194,8 +226,16 @@ export default function BusquedasGuardadasPage() {
         description="Persistencia simple de filtros de consulta para reutilizarlos despues."
       />
 
-      {feedback ? <StatusMessage variant="success" title="Operacion realizada" message={feedback} /> : null}
-      {error ? <StatusMessage variant="error" title="Error" message={error} /> : null}
+      {feedback ? (
+        <StatusMessage
+          variant="success"
+          title="Operacion realizada"
+          message={feedback}
+        />
+      ) : null}
+      {error ? (
+        <StatusMessage variant="error" title="Error" message={error} />
+      ) : null}
 
       <Card>
         <div className={styles.section}>
@@ -203,16 +243,29 @@ export default function BusquedasGuardadasPage() {
           <Input
             label="Nombre"
             value={form.nombre}
-            onChange={(event) => setForm((current) => ({ ...current, nombre: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, nombre: event.target.value }))
+            }
           />
           <Textarea
             label="Filtros JSON"
             value={form.queryJson}
-            onChange={(event) => setForm((current) => ({ ...current, queryJson: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                queryJson: event.target.value,
+              }))
+            }
           />
           <div className={styles.inlineActions}>
-            <Button onClick={() => void submit()}>{editingId ? 'Guardar cambios' : 'Guardar búsqueda'}</Button>
-            {editingId ? <Button variant="secondary" onClick={resetForm}>Cancelar</Button> : null}
+            <Button onClick={() => void submit()}>
+              {editingId ? "Guardar cambios" : "Guardar búsqueda"}
+            </Button>
+            {editingId ? (
+              <Button variant="secondary" onClick={resetForm}>
+                Cancelar
+              </Button>
+            ) : null}
           </div>
         </div>
       </Card>
@@ -220,70 +273,125 @@ export default function BusquedasGuardadasPage() {
       {isLoading ? (
         <LoadingSpinner label="Cargando búsquedas..." />
       ) : items.length === 0 ? (
-        <EmptyState title="No hay búsquedas guardadas" description="Podés guardar filtros desde Sentencias o crear una manualmente aquí." />
+        <EmptyState
+          title="No hay búsquedas guardadas"
+          description="Podés guardar filtros desde Sentencias o crear una manualmente aquí."
+        />
       ) : (
         <>
           {noveltyView ? (
             <Card>
-              <section className={researchStyles.panel} aria-labelledby="saved-search-novelties-title">
+              <section
+                className={researchStyles.panel}
+                aria-labelledby="saved-search-novelties-title"
+              >
                 <div className={researchStyles.panelHeader}>
                   <div>
-                    <h2 id="saved-search-novelties-title">Novedades: {noveltyView.searchName}</h2>
-                    <p>{noveltyView.response.meta.total} fallo(s) nuevo(s) desde {formatDateTime(noveltyView.response.meta.lastViewedAt)}.</p>
+                    <h2 id="saved-search-novelties-title">
+                      Novedades: {noveltyView.searchName}
+                    </h2>
+                    <p>
+                      {noveltyView.response.meta.total} fallo(s) nuevo(s) desde{" "}
+                      {formatDateTime(noveltyView.response.meta.lastViewedAt)}.
+                    </p>
                   </div>
-                  <Button variant="secondary" onClick={() => void markNoveltiesViewed()}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => void markNoveltiesViewed()}
+                  >
                     Marcar como revisadas
                   </Button>
                 </div>
                 {noveltyView.response.meta.baselineEstablished ? (
-                  <p role="status">Se creó el punto de inicio de esta búsqueda. Las incorporaciones posteriores aparecerán como novedades.</p>
+                  <p role="status">
+                    Se creó el punto de inicio de esta búsqueda. Las
+                    incorporaciones posteriores aparecerán como novedades.
+                  </p>
                 ) : noveltyView.response.data.length ? (
                   <div className={researchStyles.results}>
                     {noveltyView.response.data.map((item) => (
                       <article key={item.id} className={researchStyles.result}>
                         <Link href={`/fallos/${item.slugPublico ?? item.id}`}>
-                          <strong>{item.caratula ?? item.numeroSentencia ?? `Fallo ${item.id}`}</strong>
+                          <strong>
+                            {item.caratula ??
+                              item.numeroSentencia ??
+                              `Fallo ${item.id}`}
+                          </strong>
                         </Link>
-                        <span>{[
-                          item.sala ? `Sala ${item.sala}` : null,
-                          item.fecha ? formatDate(item.fecha) : null,
-                          item.numeroSentencia ? `Sentencia ${item.numeroSentencia}` : null,
-                          item.expediente ? `Expte. ${item.expediente}` : null,
-                          item.tipoFallo,
-                        ].filter(Boolean).join(' · ')}</span>
+                        <span>
+                          {[
+                            item.sala ? `Sala ${item.sala}` : null,
+                            item.fecha ? formatDate(item.fecha) : null,
+                            item.numeroSentencia
+                              ? `Sentencia ${item.numeroSentencia}`
+                              : null,
+                            item.expediente
+                              ? `Expte. ${item.expediente}`
+                              : null,
+                            item.tipoFallo,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
                       </article>
                     ))}
                   </div>
                 ) : (
-                  <p>No hay fallos nuevos para esta búsqueda desde la última revisión.</p>
+                  <p>
+                    No hay fallos nuevos para esta búsqueda desde la última
+                    revisión.
+                  </p>
                 )}
                 {noveltyView.response.meta.pageCount > 1 ? (
-                  <nav className={researchStyles.pagination} aria-label="Páginas de novedades">
+                  <nav
+                    className={researchStyles.pagination}
+                    aria-label="Páginas de novedades"
+                  >
                     <Button
                       variant="secondary"
-                      disabled={noveltyView.response.meta.page <= 1 || noveltyLoadingId !== null}
+                      disabled={
+                        noveltyView.response.meta.page <= 1 ||
+                        noveltyLoadingId !== null
+                      }
                       onClick={() => {
-                        const search = items.find((item) => item.id === noveltyView.searchId);
-                        if (search) void loadNovelties(
-                          search,
-                          noveltyView.response.meta.page - 1,
-                          noveltyView.response.meta.evaluatedAt,
+                        const search = items.find(
+                          (item) => item.id === noveltyView.searchId,
                         );
+                        if (search)
+                          void loadNovelties(
+                            search,
+                            noveltyView.response.meta.page - 1,
+                            noveltyView.response.meta.evaluatedAt,
+                          );
                       }}
-                    >Anterior</Button>
-                    <span>Página {noveltyView.response.meta.page} de {noveltyView.response.meta.pageCount}</span>
+                    >
+                      Anterior
+                    </Button>
+                    <span>
+                      Página {noveltyView.response.meta.page} de{" "}
+                      {noveltyView.response.meta.pageCount}
+                    </span>
                     <Button
                       variant="secondary"
-                      disabled={noveltyView.response.meta.page >= noveltyView.response.meta.pageCount || noveltyLoadingId !== null}
+                      disabled={
+                        noveltyView.response.meta.page >=
+                          noveltyView.response.meta.pageCount ||
+                        noveltyLoadingId !== null
+                      }
                       onClick={() => {
-                        const search = items.find((item) => item.id === noveltyView.searchId);
-                        if (search) void loadNovelties(
-                          search,
-                          noveltyView.response.meta.page + 1,
-                          noveltyView.response.meta.evaluatedAt,
+                        const search = items.find(
+                          (item) => item.id === noveltyView.searchId,
                         );
+                        if (search)
+                          void loadNovelties(
+                            search,
+                            noveltyView.response.meta.page + 1,
+                            noveltyView.response.meta.evaluatedAt,
+                          );
                       }}
-                    >Siguiente</Button>
+                    >
+                      Siguiente
+                    </Button>
                   </nav>
                 ) : null}
               </section>
@@ -305,20 +413,58 @@ export default function BusquedasGuardadasPage() {
                     <td>{item.nombre}</td>
                     <td>{formatDateTime(item.updatedAt)}</td>
                     <td>
-                      {item.noveltyAvailable === false ? (
-                        <span aria-label="Novedades temporalmente no disponibles">No disponible</span>
-                      ) : item.lastNewCount ? (
-                        <span className={researchStyles.badge}>{item.lastNewCount} {item.lastNewCount === 1 ? 'novedad' : 'novedades'}</span>
-                      ) : (
-                        <span>0</span>
-                      )}
+                      <div className={styles.inlineActions}>
+                        <span>
+                          {item.alertasActivas
+                            ? "Alertas activas"
+                            : "Alertas pausadas"}
+                        </span>
+                        {item.alertasActivas &&
+                        item.noveltyAvailable === false ? (
+                          <span aria-label="Novedades temporalmente no disponibles">
+                            No disponible
+                          </span>
+                        ) : item.alertasActivas && item.lastNewCount ? (
+                          <span className={researchStyles.badge}>
+                            {item.lastNewCount}{" "}
+                            {item.lastNewCount === 1 ? "novedad" : "novedades"}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td>
                       <div className={styles.inlineActions}>
                         <Button
                           variant="secondary"
+                          aria-pressed={item.alertasActivas}
+                          aria-label={`${item.alertasActivas ? "Pausar" : "Activar"} alertas para ${item.nombre}`}
+                          onClick={async () => {
+                            try {
+                              setError(null);
+                              await api.patch(
+                                `/busquedas-guardadas/${item.id}`,
+                                {
+                                  alertasActivas: !item.alertasActivas,
+                                },
+                              );
+                              await load();
+                            } catch {
+                              setError(
+                                "No se pudo actualizar la alerta. Intentá nuevamente.",
+                              );
+                            }
+                          }}
+                        >
+                          {item.alertasActivas
+                            ? "Pausar alertas"
+                            : "Activar alertas"}
+                        </Button>
+                        <Button
+                          variant="secondary"
                           onClick={() => {
-                            const publicPath = publicSearchPathFromSaved(item.queryJson);
+                            const publicPath = publicSearchPathFromSaved(
+                              item.queryJson,
+                            );
                             if (publicPath) {
                               router.push(publicPath);
                               return;
@@ -332,9 +478,17 @@ export default function BusquedasGuardadasPage() {
                         <Button
                           variant="secondary"
                           onClick={() => void loadNovelties(item)}
-                          disabled={noveltyLoadingId !== null || (item.noveltyAvailable !== false && !item.lastNewCount)}
+                          disabled={
+                            noveltyLoadingId !== null ||
+                            (item.noveltyAvailable !== false &&
+                              !item.lastNewCount)
+                          }
                         >
-                          {noveltyLoadingId === item.id ? 'Cargando…' : item.noveltyAvailable === false ? 'Reintentar novedades' : 'Ver novedades'}
+                          {noveltyLoadingId === item.id
+                            ? "Cargando…"
+                            : item.noveltyAvailable === false
+                              ? "Reintentar novedades"
+                              : "Ver novedades"}
                         </Button>
                         <Button
                           variant="secondary"
@@ -342,7 +496,11 @@ export default function BusquedasGuardadasPage() {
                             setEditingId(item.id);
                             setForm({
                               nombre: item.nombre,
-                              queryJson: JSON.stringify(item.queryJson, null, 2),
+                              queryJson: JSON.stringify(
+                                item.queryJson,
+                                null,
+                                2,
+                              ),
                             });
                           }}
                         >
