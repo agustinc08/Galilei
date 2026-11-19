@@ -173,7 +173,7 @@ Este addendum conserva los estados históricos anteriores y registra el candidat
 | Migraciones Office | 41; sin cambios |
 | QA integrado | PostgreSQL aislado `127.0.0.1:55434`, OpenSearch `127.0.0.1:19201`, API `127.0.0.1:43003`, UI `127.0.0.1:43004`; storage separado |
 | Migraciones QA | 42/42; se aplicó sólo `20261119120000_saved_search_alerts_and_problem_reports` en la base QA |
-| Publicación de feature | Pendiente del cierre de este candidate; no autoriza despliegue de Office |
+| Publicación de feature | Implementación publicada por push normal a `origin/feature/galilei-alerts-reporting-20261119` (`570763da5216bdb8aea6031a6611187cf34cd190`); Office continúa sin deploy |
 
 ### EVOL-001 — alertas internas en búsquedas guardadas
 
@@ -220,4 +220,6 @@ OFFICE_DEPLOY=NOT_DONE
 ORIGIN_DEV_PROMOTED=NO
 ORIGIN_MAIN_UNCHANGED=YES
 CAPACITY_500_USERS=NOT_TESTED
+FEATURE_BRANCH_PUSH=PASS
+FEATURE_IMPLEMENTATION_SHA=570763da5216bdb8aea6031a6611187cf34cd190
 ```
